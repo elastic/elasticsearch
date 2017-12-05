@@ -473,15 +473,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,
-                              @Nullable Set<String> specificIndices) {
+    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
             try {
-                Set<String> indices = specificIndices == null ? indices(message) : specificIndices;
-                enqueue(message("access_granted", action, user, roleNames, null, indices, message), "access_granted");
+                enqueue(message("access_granted", action, user, roleNames, null, indices(message), message), "access_granted");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_granted]", e);
             }
@@ -489,12 +487,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,
-                        @Nullable Set<String> specificIndices) {
+    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(ACCESS_DENIED) && XPackUser.is(user) == false) {
             try {
-                Set<String> indices = specificIndices == null ? indices(message) : specificIndices;
-                enqueue(message("access_denied", action, user, roleNames, null, indices, message), "access_denied");
+                enqueue(message("access_denied", action, user, roleNames, null, indices(message), message), "access_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_denied]", e);
             }

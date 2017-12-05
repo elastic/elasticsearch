@@ -18,12 +18,9 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableSet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -142,12 +139,11 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessGranted() throws Exception {
         User user = new User("_username", "r1");
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
-        service.accessGranted(user, "_action", message, roles, specificIndices);
+        service.accessGranted(user, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(user, "_action", message, roles, specificIndices);
+                verify(auditTrail).accessGranted(user, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -157,12 +153,11 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessDenied() throws Exception {
         User user = new User("_username", "r1");
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
-        service.accessDenied(user, "_action", message, roles, specificIndices);
+        service.accessDenied(user, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(user, "_action", message, roles, specificIndices);
+                verify(auditTrail).accessDenied(user, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -223,19 +218,5 @@ public class AuditTrailServiceTests extends ESTestCase {
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
-    }
-
-    /**
-     * Generates a semi-believable random value for the specificIndices parameter sent
-     * to the {@link AuditTrail#accessGranted(User, String, TransportMessage, String[], Set)} or
-     * {@link AuditTrail#accessDenied(User, String, TransportMessage, String[], Set)} methods.
-     */
-    public static Set<String> randomSpecificIndices() {
-        Set<String> specificIndices = new HashSet<>();
-        int count = between(1, 10);
-        while (specificIndices.size() < count) {
-            specificIndices.add(randomAlphaOfLength(5));
-        }
-        return unmodifiableSet(specificIndices);
     }
 }

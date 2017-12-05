@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
 
 import java.net.InetSocketAddress;
@@ -83,7 +84,7 @@ public class IndicesAndAliasesResolver {
      * <br>
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
-    public ResolvedIndices resolve(Object request, MetaData metaData, AuthorizedIndices authorizedIndices) {
+    public ResolvedIndices resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
         if (request instanceof IndicesAliasesRequest) {
             ResolvedIndices indices = ResolvedIndices.empty();
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;

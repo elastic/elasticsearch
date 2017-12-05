@@ -35,7 +35,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.security.audit.AuditTrailServiceTests.randomSpecificIndices;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -174,8 +173,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_granted" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" },
-                randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -186,7 +184,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(randomFrom(new String[] { "access_granted" }, null));
         TransportMessage message = mock(TransportMessage.class);
         User user = SystemUser.INSTANCE;
-        auditTrail.accessGranted(user, "internal:foo", message, new String[] { "role" }, randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessGranted(user, "internal:foo", message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -197,8 +195,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_denied" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" },
-                randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 

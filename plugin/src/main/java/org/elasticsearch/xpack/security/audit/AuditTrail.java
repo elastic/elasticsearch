@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -13,7 +12,6 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.net.InetAddress;
-import java.util.Set;
 
 public interface AuditTrail {
 
@@ -39,9 +37,9 @@ public interface AuditTrail {
 
     void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(User user, String action, TransportMessage message, String[] roleNames, @Nullable Set<String> specificIndices);
+    void accessGranted(User user, String action, TransportMessage message, String[] roleNames);
 
-    void accessDenied(User user, String action, TransportMessage message, String[] roleNames, @Nullable Set<String> specificIndices);
+    void accessDenied(User user, String action, TransportMessage message, String[] roleNames);
 
     void tamperedRequest(RestRequest request);
 

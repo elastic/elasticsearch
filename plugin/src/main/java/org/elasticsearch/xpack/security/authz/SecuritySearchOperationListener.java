@@ -92,7 +92,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
         final boolean sameUser = samePrincipal && sameRealmType;
         if (sameUser == false) {
-            auditTrailService.accessDenied(current.getUser(), action, request, roleNames, null);
+            auditTrailService.accessDenied(current.getUser(), action, request, roleNames);
             throw new SearchContextMissingException(id);
         }
     }

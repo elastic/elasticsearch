@@ -255,13 +255,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,
-                              @Nullable Set<String> specificIndices) {
+    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
-            String indices = specificIndices == null ? indicesString(message) : collectionToCommaDelimitedString(specificIndices);
+            String indices = indicesString(message);
             final LocalNodeInfo localNodeInfo = this.localNodeInfo;
             if (indices != null) {
                 logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
@@ -276,10 +275,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,
-                             @Nullable Set<String> specificIndices) {
+    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(ACCESS_DENIED)) {
-            String indices = specificIndices == null ? indicesString(message) : collectionToCommaDelimitedString(specificIndices);
+            String indices = indicesString(message);
             final LocalNodeInfo localNodeInfo = this.localNodeInfo;
 
             if (indices != null) {

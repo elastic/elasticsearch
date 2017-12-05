@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -43,13 +42,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
-import static java.util.Collections.unmodifiableSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -342,7 +338,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(user, "_action", message, new String[] { role }, null);
+        auditTrail.accessGranted(user, "_action", message, new String[] { role });
         String userInfo = (runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]") +
                 ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -353,19 +349,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     ", action=[_action], request=[MockMessage]");
         }
 
-        // test specificIndices
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        Set<String> specificIndices = randomSpecificIndices();
-        auditTrail.accessGranted(user, "_action", message, new String[] { role }, specificIndices);
-        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo +
-                ", action=[_action], indices=[" + Strings.collectionToCommaDelimitedString(specificIndices) +
-                "], request=[" + message.getClass().getSimpleName() + "]");
-
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessGranted(user, "_action", message, new String[] { role }, randomBoolean() ? specificIndices : null);
+        auditTrail.accessGranted(user, "_action", message, new String[] { role });
         assertEmptyLog(logger);
     }
 
@@ -374,14 +362,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role }, null);
+        auditTrail.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role });
         assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "system_access_granted").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
-        auditTrail.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role }, null);
+        auditTrail.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role });
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" +
                     SystemUser.INSTANCE.principal()
@@ -406,7 +394,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(user, "internal:_action", message, new String[] { role }, null);
+        auditTrail.accessGranted(user, "internal:_action", message, new String[] { role });
         String userInfo = (runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]") +
                 ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -421,7 +409,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessGranted(user, "internal:_action", message, new String[] { role }, null);
+        auditTrail.accessGranted(user, "internal:_action", message, new String[] { role });
         assertEmptyLog(logger);
     }
 
@@ -438,7 +426,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessDenied(user, "_action", message, new String[] { role }, null);
+        auditTrail.accessDenied(user, "_action", message, new String[] { role });
         String userInfo = (runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]") +
                 ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -449,19 +437,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     ", action=[_action], request=[MockMessage]");
         }
 
-        // test specificIndices
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        Set<String> specificIndices = randomSpecificIndices();
-        auditTrail.accessDenied(user, "_action", message, new String[]{ role }, specificIndices);
-        assertMsg(logger, Level.INFO, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo +
-                ", action=[_action], indices=[" + Strings.collectionToCommaDelimitedString(specificIndices) +
-                "], request=[" + message.getClass().getSimpleName() + "]");
-
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_denied").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessDenied(user, "_action", message, new String[] { role }, null);
+        auditTrail.accessDenied(user, "_action", message, new String[] { role });
         assertEmptyLog(logger);
     }
 
@@ -744,20 +724,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private static String indices(TransportMessage message) {
         return Strings.collectionToCommaDelimitedString(AuditUtil.indices(message));
-    }
-
-    /**
-     * Generates a semi-believable random value for the specificIndices parameter sent
-     * to the {@link AuditTrail#accessGranted(User, String, TransportMessage, String[], Set)}  or
-     * {@link AuditTrail#accessDenied(User, String, TransportMessage, String[], Set)}  methods.
-     */
-    private static Set<String> randomSpecificIndices() {
-        Set<String> specificIndices = new HashSet<>();
-        int count = between(1, 10);
-        while (specificIndices.size() < count) {
-            specificIndices.add(randomAlphaOfLength(5));
-        }
-        return unmodifiableSet(specificIndices);
     }
 
     private static class MockMessage extends TransportMessage {

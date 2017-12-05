@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.security.user.User;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
@@ -132,21 +130,19 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,
-                              @Nullable Set<String> specificIndices) {
+    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessGranted(user, action, message, roleNames, specificIndices);
+                auditTrail.accessGranted(user, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,
-                             @Nullable Set<String> specificIndices) {
+    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessDenied(user, action, message, roleNames, specificIndices);
+                auditTrail.accessDenied(user, action, message, roleNames);
             }
         }
     }

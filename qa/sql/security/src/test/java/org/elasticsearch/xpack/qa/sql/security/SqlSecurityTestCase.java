@@ -526,7 +526,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     Pattern logPattern = Pattern.compile(
                             ("PART PART PART origin_type=PART, origin_address=PART, "
                             + "principal=PART, (?:run_as_principal=PART, )?(?:run_by_principal=PART, )?"
-                            + "action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
+                            + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
                                 .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]"));
                     // fail(logPattern.toString());
                     while ((line = logReader.readLine()) != null) {
@@ -551,6 +551,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         log.put("principal", principal);
                         log.put("run_as_principal", m.group(i++));
                         log.put("run_by_principal", m.group(i++));
+                        log.put("roles", m.group(i++));
                         String action = m.group(i++);
                         if (false == (SQL_ACTION_NAME.equals(action) || GetIndexAction.NAME.equals(action))) {
                             //TODO we may want to extend this and the assertions to SearchAction.NAME as well

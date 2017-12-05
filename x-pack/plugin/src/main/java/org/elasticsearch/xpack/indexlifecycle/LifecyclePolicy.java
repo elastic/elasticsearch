@@ -47,12 +47,6 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
     public static final ParseField TYPE_FIELD = new ParseField("type");
 
-//    public static LifecyclePolicy parse(XContentParser parser, Tuple<String, NamedXContentRegistry> context) {
-//        parser.getXContentRegistry().parseNamedObject()
-//        Map<String, Object> map = PARSER.apply(parser, context);
-//        return context.v2().parseNamedObject(LifecyclePolicy.class, map.get("lifecycle_type"), parser, context.v2());
-//    }
-
     protected final String name;
     protected final Map<String, Phase> phases;
 

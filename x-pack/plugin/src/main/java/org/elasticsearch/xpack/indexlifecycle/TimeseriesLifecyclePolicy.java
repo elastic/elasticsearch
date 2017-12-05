@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,6 +30,11 @@ import java.util.Set;
 public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
+    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(RolloverAction.NAME);
+    static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(AllocateAction.NAME, ReplicasAction.NAME,
+        ShrinkAction.NAME, ForceMergeAction.NAME);
+    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(AllocateAction.NAME, ReplicasAction.NAME);
+    static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
 
     /**
      * @param name
@@ -95,10 +102,21 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
     @Override
     public void validate(Collection<Phase> phases) {
         Set<String> allowedPhases = new HashSet<>(VALID_PHASES);
+        Map<String, Set<String>> allowedActions = Maps.newHashMapWithExpectedSize(allowedPhases.size());
+        allowedActions.put("hot", VALID_HOT_ACTIONS);
+        allowedActions.put("warm", VALID_WARM_ACTIONS);
+        allowedActions.put("cold", VALID_COLD_ACTIONS);
+        allowedActions.put("delete", VALID_DELETE_ACTIONS);
         phases.forEach(phase -> {
             if (allowedPhases.contains(phase.getName()) == false) {
                 throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
             }
+            phase.getActions().forEach(action -> {
+                if (allowedActions.get(phase.getName()).contains(action.getWriteableName()) == false) {
+                    throw new IllegalArgumentException("invalid action [" + action.getWriteableName() + "] " +
+                        "defined in phase [" + phase.getName() +"]");
+                }
+            });
         });
     }
 }

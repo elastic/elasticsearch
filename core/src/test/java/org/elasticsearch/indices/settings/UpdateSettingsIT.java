@@ -241,10 +241,45 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .actionGet();
         }
     }
+    public void testResetDefaultWithWildcard() {
+        createIndex("test");
+
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put("index.refresh_interval", -1))
+            .execute()
+            .actionGet();
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals(indexMetaData.getSettings().get("index.refresh_interval"), "-1");
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(resolveIndex("test"));
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
+            }
+        }
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull("index.ref*"))
+            .execute()
+            .actionGet();
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNull(indexMetaData.getSettings().get("index.refresh_interval"));
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(resolveIndex("test"));
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
+            }
+        }
+    }
 
     public void testResetDefault() {
         createIndex("test");
-
         client()
             .admin()
             .indices()

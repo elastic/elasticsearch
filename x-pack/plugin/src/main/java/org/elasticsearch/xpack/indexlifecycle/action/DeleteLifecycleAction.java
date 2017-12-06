@@ -43,7 +43,7 @@ import java.util.TreeMap;
 public class DeleteLifecycleAction
         extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleAction.RequestBuilder> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/indexlifecycle/delete";
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/delete";
 
     protected DeleteLifecycleAction() {
         super(NAME);

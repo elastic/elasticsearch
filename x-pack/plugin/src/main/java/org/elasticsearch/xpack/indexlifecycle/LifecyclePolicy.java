@@ -188,14 +188,14 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
 
     /**
      * @param currentPhase the current phase that is or was just executed
-     * @return the next phase after {@param currentPhase} to be execute. If it is `null`, the first
+     * @return the next phase after <code>currentPhase</code> to be execute. If it is `null`, the first
      *         phase to be executed is returned. If it is the last phase, then no next phase is to be
      *         executed and `null` is returned.
      */
     protected abstract Phase nextPhase(@Nullable Phase currentPhase);
 
     /**
-     * validates whether the specified {@param phases} are valid for this policy instance.
+     * validates whether the specified <code>phases</code> are valid for this policy instance.
      * @param phases the phases to verify validity against
      * @throws IllegalArgumentException if a specific phase or lack of a specific phase is invalid.
      */
@@ -217,8 +217,8 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
         private final String name;
 
         @SuppressWarnings("unchecked")
-        public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
-            "lifecycle_policy", false, (a, c) -> {
+        public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, NamedXContentRegistry>> PARSER =
+            new ConstructingObjectParser<>("lifecycle_policy", false, (a, c) -> {
                 String lifecycleType = (String) a[0];
                 List<Phase> phases = (List<Phase>) a[1];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));

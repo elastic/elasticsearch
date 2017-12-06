@@ -69,13 +69,13 @@ public class IndexLifecycleService extends AbstractComponent
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(NAME)) {
-            logger.error("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
+            logger.info("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
             IndexLifecycleMetadata indexLifecycleMetadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
             SortedMap<String, LifecyclePolicy> policies = indexLifecycleMetadata.getPolicies();
             clusterService.state().getMetaData().getIndices().valuesIt().forEachRemaining((idxMeta) -> {
                 String policyName = IndexLifecycle.LIFECYCLE_TIMESERIES_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
-                    logger.error("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
+                    logger.info("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
                     LifecyclePolicy policy = policies.get(policyName);
                     policy.execute(new InternalIndexLifecycleContext(idxMeta, client, nowSupplier));
                 }

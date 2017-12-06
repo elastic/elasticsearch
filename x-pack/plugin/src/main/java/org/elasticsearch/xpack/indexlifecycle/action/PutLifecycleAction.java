@@ -46,7 +46,7 @@ import java.util.TreeMap;
 
 public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLifecycleAction.Response, PutLifecycleAction.RequestBuilder> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/indexlifecycle/put";
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/put";
 
     protected PutLifecycleAction() {
         super(NAME);
@@ -124,8 +124,8 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static final ParseField POLICY_FIELD = new ParseField("policy");
-        private static final ConstructingObjectParser<Request, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
-                "put_lifecycle_request", a -> new Request((LifecyclePolicy) a[0]));
+        private static final ConstructingObjectParser<Request, Tuple<String, NamedXContentRegistry>> PARSER =
+            new ConstructingObjectParser<>("put_lifecycle_request", a -> new Request((LifecyclePolicy) a[0]));
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> LifecyclePolicy.parse(p, c), POLICY_FIELD);
         }

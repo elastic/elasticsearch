@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tools;
+package org.elasticsearch.tools.launchers;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

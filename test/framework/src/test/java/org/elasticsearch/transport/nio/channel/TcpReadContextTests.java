@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.nio.ByteBufferProvider;
 import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
@@ -45,12 +46,12 @@ public class TcpReadContextTests extends ESTestCase {
     private TcpReadContext readContext;
 
     @Before
-    public void init() throws IOException {
+    public void init() {
         handler = mock(TcpReadHandler.class);
 
         messageLength = randomInt(96) + 4;
         channel = mock(TcpNioSocketChannel.class);
-        readContext = new TcpReadContext(channel, handler);
+        readContext = new TcpReadContext(channel, handler, new InboundChannelBuffer());
     }
 
     public void testSuccessfulRead() throws IOException {
@@ -120,6 +121,15 @@ public class TcpReadContextTests extends ESTestCase {
         } catch (Exception ex) {
             assertSame(ioException, ex);
         }
+    }
+
+    public void closeClosesChannelBuffer() {
+        InboundChannelBuffer buffer = mock(InboundChannelBuffer.class);
+        TcpReadContext readContext = new TcpReadContext(channel, handler, buffer);
+
+        readContext.close();
+
+        verify(buffer).close();
     }
 
     private static byte[] combineMessageAndHeader(byte[] bytes) {

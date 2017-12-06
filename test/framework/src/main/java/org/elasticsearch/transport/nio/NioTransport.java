@@ -69,6 +69,7 @@ public class NioTransport extends TcpTransport {
 
     private final OpenChannels openChannels = new OpenChannels(logger);
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
+    private final ByteBufferProvider byteBufferProvider;
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
     private RoundRobinSelectorSupplier clientSelectorSupplier;
@@ -77,7 +78,15 @@ public class NioTransport extends TcpTransport {
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
+        this(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService,
+            ByteBufferProvider.NON_RECYCLING_INSTANCE);
+    }
+
+    public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                        NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService,
+                        ByteBufferProvider byteBufferProvider) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.byteBufferProvider = byteBufferProvider;
     }
 
     @Override
@@ -184,8 +193,11 @@ public class NioTransport extends TcpTransport {
     }
 
     private Consumer<NioSocketChannel> getContextSetter(String profileName) {
-        return (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c),
-            this::exceptionCaught);
+        return (c) -> {
+            InboundChannelBuffer channelBuffer = new InboundChannelBuffer(byteBufferProvider);
+            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), channelBuffer),
+                new TcpWriteContext(c), this::exceptionCaught);
+        };
     }
 
     private void acceptChannel(NioSocketChannel channel) {

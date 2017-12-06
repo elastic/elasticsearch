@@ -19,10 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.lease.Releasable;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Iterator;
-import java.util.function.Supplier;
 
 /**
  * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
@@ -30,7 +31,7 @@ import java.util.function.Supplier;
  * the pages internally. If more space is needed at the end of the buffer {@link #ensureCapacity(long)} can
  * be called and the buffer will expand using the supplier provided.
  */
-public final class InboundChannelBuffer {
+public final class InboundChannelBuffer implements Releasable {
 
     private static final int PAGE_SIZE = 1 << 14;
     private static final int PAGE_MASK = PAGE_SIZE - 1;
@@ -38,8 +39,8 @@ public final class InboundChannelBuffer {
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
 
 
-    private final ArrayDeque<ByteBuffer> pages;
-    private final Supplier<ByteBuffer> pageSupplier;
+    private final ArrayDeque<ByteBufferProvider.ReleasableByteBuffer> pages;
+    private final ByteBufferProvider pageSupplier;
 
     private long capacity = 0;
     private long internalIndex = 0;
@@ -47,14 +48,22 @@ public final class InboundChannelBuffer {
     private int offset = 0;
 
     public InboundChannelBuffer() {
-        this(() -> ByteBuffer.wrap(new byte[PAGE_SIZE]));
+        this(ByteBufferProvider.NON_RECYCLING_INSTANCE);
     }
 
-    private InboundChannelBuffer(Supplier<ByteBuffer> pageSupplier) {
+    public InboundChannelBuffer(ByteBufferProvider pageSupplier) {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
         this.capacity = PAGE_SIZE * pages.size();
         ensureCapacity(PAGE_SIZE);
+    }
+
+    @Override
+    public void close() {
+        ByteBufferProvider.ReleasableByteBuffer buffer;
+        while ((buffer = pages.pollFirst()) != null) {
+            buffer.close();
+        }
     }
 
     public void ensureCapacity(long requiredCapacity) {
@@ -62,7 +71,8 @@ public final class InboundChannelBuffer {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                pages.addLast(pageSupplier.get());
+                ByteBufferProvider.ReleasableByteBuffer page = pageSupplier.getByteBufferPage();
+                pages.addLast(page);
             }
             capacity += pagesToAdd * PAGE_SIZE;
         }
@@ -112,12 +122,12 @@ public final class InboundChannelBuffer {
         }
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
-        Iterator<ByteBuffer> pageIterator = pages.iterator();
-        ByteBuffer firstBuffer = pageIterator.next().duplicate();
+        Iterator<ByteBufferProvider.ReleasableByteBuffer> pageIterator = pages.iterator();
+        ByteBuffer firstBuffer = pageIterator.next().byteBuffer().duplicate();
         firstBuffer.position(firstBuffer.position() + offset);
         buffers[0] = firstBuffer;
         for (int i = 1; i < buffers.length; i++) {
-            buffers[i] = pageIterator.next().duplicate();
+            buffers[i] = pageIterator.next().byteBuffer().duplicate();
         }
         if (finalLimit != 0) {
             buffers[buffers.length - 1].limit(finalLimit);
@@ -148,11 +158,11 @@ public final class InboundChannelBuffer {
         int indexInPage = indexInPage(indexWithOffset);
 
         ByteBuffer[] buffers = new ByteBuffer[pages.size() - pageIndex];
-        Iterator<ByteBuffer> pageIterator = pages.descendingIterator();
+        Iterator<ByteBufferProvider.ReleasableByteBuffer> pageIterator = pages.descendingIterator();
         for (int i = buffers.length - 1; i > 0; --i) {
-            buffers[i] = pageIterator.next().duplicate();
+            buffers[i] = pageIterator.next().byteBuffer().duplicate();
         }
-        ByteBuffer firstPostIndexBuffer = pageIterator.next().duplicate();
+        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer().duplicate();
         firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
         buffers[0] = firstPostIndexBuffer;
 

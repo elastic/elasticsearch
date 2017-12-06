@@ -43,8 +43,12 @@ IF ERRORLEVEL 1 (
 
 set "ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options"
 @setlocal
-for /F "usebackq delims=" %%a in (`"%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JvmOptionsParser" "%ES_JVM_OPTIONS%""`) do set JVM_OPTIONS=%%a
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
+for /F "usebackq delims=" %%a in (`"%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JvmOptionsParser" "%ES_JVM_OPTIONS%" || echo jvm_options_parser_failed"`) do set JVM_OPTIONS=%%a
+@endlocal & set "RAW_JVM_OPTIONS=%JVM_OPTIONS%" & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
+
+if "%RAW_JVM_OPTIONS%" == "jvm_options_parser_failed" (
+  exit /b 1
+)
 
 cd "%ES_HOME%"
 %JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!

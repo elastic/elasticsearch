@@ -226,6 +226,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
             Function.identity(), Property.NodeScope);
 
+    public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
+            Property.NodeScope, Property.Dynamic, Property.Deprecated);
+
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
@@ -244,6 +247,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
+
+    private volatile boolean indicesAdminFilteredFields;
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) {
         this.settings = settings;
@@ -269,6 +274,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
+        this.indicesAdminFilteredFields = INDICES_ADMIN_FILTERED_FIELDS_SETTING.get(settings);
     }
 
     public Collection<Module> nodeModules() {
@@ -444,7 +450,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         securityActionFilter.set(new SecurityActionFilter(settings, authcService.get(), authzService, licenseState,
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ADMIN_FILTERED_FIELDS_SETTING,
+                this::setIndicesAdminFilteredFields);
+
         return components;
+    }
+
+    private synchronized void setIndicesAdminFilteredFields(boolean enabled) {
+        this.indicesAdminFilteredFields = enabled;
     }
 
     public Settings additionalSettings() {
@@ -530,6 +543,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         // hide settings
         settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
                 Property.NodeScope, Property.Filtered));
+        settingsList.add(INDICES_ADMIN_FILTERED_FIELDS_SETTING);
+
         return settingsList;
     }
 
@@ -949,7 +964,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (indicesAdminFilteredFields == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);

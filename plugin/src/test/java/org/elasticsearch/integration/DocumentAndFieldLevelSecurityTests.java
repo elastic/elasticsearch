@@ -22,7 +22,9 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.junit.After;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +43,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
+
+    private boolean indicesAdminFilteredFieldsWasSet = false;
 
     @Override
     protected String configUsers() {
@@ -227,6 +231,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testGetMappingsIsFiltered() {
+        boolean filtered = randomlyFilterFields();
+
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
@@ -241,23 +247,32 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            if (filtered) {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            } else {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field1", "field2");
+            }
         }
-
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field2");
+            if (filtered) {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field2");
+            } else {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field1", "field2");
+            }
         }
-
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                     .admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            if (filtered) {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            } else {
+                assertExpectedFields(getMappingsResponse.getMappings(), "field1", "field2");
+            }
         }
-
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
@@ -267,6 +282,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testGetIndexMappingsIsFiltered() {
+        boolean filtered = randomlyFilterFields();
+
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
@@ -281,19 +298,31 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            if (filtered) {
+                assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            } else {
+                assertExpectedFields(getIndexResponse.getMappings(), "field1", "field2");
+            }
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field2");
+            if (filtered) {
+                assertExpectedFields(getIndexResponse.getMappings(), "field2");
+            } else {
+                assertExpectedFields(getIndexResponse.getMappings(), "field1", "field2");
+            }
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                     .admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            if (filtered) {
+                assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            } else {
+                assertExpectedFields(getIndexResponse.getMappings(), "field1", "field2");
+            }
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
@@ -304,6 +333,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testGetFieldMappingsIsFiltered() {
+        boolean filtered = randomlyFilterFields();
+
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
@@ -322,7 +353,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
-            assertExpectedFields(mappings.get("test"), "field1");
+            if (filtered) {
+                assertExpectedFields(mappings.get("test"), "field1");
+            } else {
+                assertExpectedFields(mappings.get("test"), "field1", "field2");
+            }
         }
         {
             GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
@@ -332,7 +367,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
-            assertExpectedFields(mappings.get("test"), "field2");
+            if (filtered) {
+                assertExpectedFields(mappings.get("test"), "field2");
+            } else {
+                assertExpectedFields(mappings.get("test"), "field1", "field2");
+            }
         }
         {
             GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
@@ -342,7 +381,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
-            assertExpectedFields(mappings.get("test"), "field1");
+            if (filtered) {
+                assertExpectedFields(mappings.get("test"), "field1");
+            } else {
+                assertExpectedFields(mappings.get("test"), "field1", "field2");
+            }
         }
         {
             GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
@@ -357,6 +400,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testFieldCapabilitiesIsFiltered() {
+        boolean filtered = randomlyFilterFields();
+
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
@@ -372,21 +417,33 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             FieldCapabilitiesResponse response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .fieldCaps(fieldCapabilitiesRequest).actionGet();
-            assertExpectedFields(response, "field1");
+            if (filtered) {
+                assertExpectedFields(response, "field1");
+            } else {
+                assertExpectedFields(response, "field1", "field2");
+            }
         }
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
             FieldCapabilitiesResponse response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .fieldCaps(fieldCapabilitiesRequest).actionGet();
-            assertExpectedFields(response, "field2");
+            if (filtered) {
+                assertExpectedFields(response, "field2");
+            } else {
+                assertExpectedFields(response, "field1", "field2");
+            }
         }
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
             FieldCapabilitiesResponse response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                     .fieldCaps(fieldCapabilitiesRequest).actionGet();
-            assertExpectedFields(response, "field1");
+            if (filtered) {
+                assertExpectedFields(response, "field1");
+            } else {
+                assertExpectedFields(response, "field1", "field2");
+            }
         }
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
@@ -395,6 +452,31 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .fieldCaps(fieldCapabilitiesRequest).actionGet();
             assertExpectedFields(response, "field1", "field2");
         }
+    }
+
+    @After
+    public void unsetSetting() {
+        if (indicesAdminFilteredFieldsWasSet) {
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                    Settings.builder().put(Security.INDICES_ADMIN_FILTERED_FIELDS_SETTING.getKey(), (String) null).build()).get());
+        }
+    }
+
+    private boolean randomlyFilterFields() {
+        boolean filtered = randomBoolean();
+        if (filtered) {
+            if(rarely()) {
+                //true is the default value but it doesn't hurt to submit once in a while
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                        .put(Security.INDICES_ADMIN_FILTERED_FIELDS_SETTING.getKey(), true)).get());
+                indicesAdminFilteredFieldsWasSet = true;
+            }
+        } else {
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                    .put(Security.INDICES_ADMIN_FILTERED_FIELDS_SETTING.getKey(), false)).get());
+            indicesAdminFilteredFieldsWasSet = true;
+        }
+        return filtered;
     }
 
     @SuppressWarnings("unchecked")

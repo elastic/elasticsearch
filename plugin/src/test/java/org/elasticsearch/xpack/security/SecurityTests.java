@@ -73,6 +73,7 @@ public class SecurityTests extends ESTestCase {
     private Security security = null;
     private ThreadContext threadContext = null;
     private TestUtils.UpdatableLicenseState licenseState;
+    private ClusterSettings clusterSettings;
 
     public static class DummyExtension extends XPackExtension {
         private String realmType;
@@ -106,7 +107,7 @@ public class SecurityTests extends ESTestCase {
         settings = Security.additionalSettings(settings, false);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
+        clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -381,5 +382,36 @@ public class SecurityTests extends ESTestCase {
         licenseState.update(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true);
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
+    }
+
+    public void testGetFieldFilterSecurityEnabledDeprecatedSetting() throws Exception {
+        createComponents(Settings.EMPTY);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        FieldPermissions fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(
+                new String[]{"field_granted"}, Strings.EMPTY_ARRAY));
+        Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = Collections.singletonMap(index, new
+                IndicesAccessControl.IndexAccessControl(true, fieldPermissions, Collections.emptySet()));
+        IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
+        threadContext.putTransient(AuthorizationService.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+        assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(index));
+        try {
+            clusterSettings.applySettings(Settings.builder().put(Security.INDICES_ADMIN_FILTERED_FIELDS_SETTING.getKey(), false).build());
+            assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+            assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(index));
+            assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
+        } finally {
+            assertWarnings("[indices.admin.filtered_fields] setting was deprecated in Elasticsearch and will be removed in a " +
+                    "future release! See the breaking changes documentation for the next major version.");
+        }
+        try {
+            clusterSettings.applySettings(Settings.builder().put(Security.INDICES_ADMIN_FILTERED_FIELDS_SETTING.getKey(), true).build());
+            assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+            assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(index));
+        } finally {
+            assertWarnings("[indices.admin.filtered_fields] setting was deprecated in Elasticsearch and will be removed in a " +
+                    "future release! See the breaking changes documentation for the next major version.");
+        }
     }
 }

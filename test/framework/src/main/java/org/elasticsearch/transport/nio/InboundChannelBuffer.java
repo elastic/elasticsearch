@@ -181,7 +181,9 @@ public final class InboundChannelBuffer {
     }
 
     public long getRemaining() {
-        return capacity - internalIndex;
+        long remaining = capacity - internalIndex;
+        assert remaining >= 0 : "The remaining [" + remaining + "] number of bytes should not be less than zero.";
+        return remaining;
     }
 
     private int numPages(long capacity) {

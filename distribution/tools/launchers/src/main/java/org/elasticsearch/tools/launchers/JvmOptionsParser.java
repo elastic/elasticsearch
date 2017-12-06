@@ -30,8 +30,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,7 +55,7 @@ final class JvmOptionsParser {
             throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
         }
         final List<String> jvmOptions = new ArrayList<>();
-        final Map<Integer, String> invalidLines = new HashMap<>();
+        final SortedMap<Integer, String> invalidLines = new TreeMap<>();
         try (InputStream is = new FileInputStream(Paths.get(args[0]).toFile());
              Reader reader = new InputStreamReader(is);
              BufferedReader br = new BufferedReader(reader)) {
@@ -77,9 +81,17 @@ final class JvmOptionsParser {
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {
+            Launchers.errPrintln("encountered errors parsing [" + args[0] + "]");
+            int count = 0;
             for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
-                Launchers.errPrintln(
-                        "encountered improperly formatted line [" + entry.getValue() + "] on line number [" + entry.getKey() + "]");
+                count++;
+                final String message = String.format(
+                        Locale.ROOT,
+                        "[%d]: encountered improperly formatted JVM option line [%s] on line number [%d]",
+                        count,
+                        entry.getValue(),
+                        entry.getKey());
+                Launchers.errPrintln(message);
             }
             Launchers.exit(1);
         }

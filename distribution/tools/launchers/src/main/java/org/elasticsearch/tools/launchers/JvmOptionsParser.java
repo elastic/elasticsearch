@@ -101,22 +101,51 @@ final class JvmOptionsParser {
     /**
      * Parse the line-delimited JVM options from the specified buffered reader for the specified Java major version.
      * Valid JVM options are:
-     *  - a line starting with a - is treated as a JVM option that applies to all versions
-     *  - a line starting with a number followed by a colon is treated as a JVM option that applies to the matching Java major version only
-     *  - a line starting with a number followed by a dash is treated as a JVM option that applies to the matching Java specified major
-     *    version and all larger Java major versions
-     *  - a line starting with a number followed by a dash followed by a number is treated as a JVM option that applies to the specified
-     *    range of matching Java major versions
+     * <ul>
+     *     <li>
+     *         a line starting with a dash is treated as a JVM option that applies to all versions
+     *     </li>
+     *     <li>
+     *         a line starting with a number followed by a colon is treated as a JVM option that applies to the matching Java major version
+     *         only
+     *     </li>
+     *     <li>
+     *         a line starting with a number followed by a dash is treated as a JVM option that applies to the matching Java specified major
+     *         version and all larger Java major versions
+     *     </li>
+     *     <li>
+     *         a line starting with a number followed by a dash followed by a number is treated as a JVM option that applies to the
+     *         specified range of matching Java major versions
+     *     </li>
+     * </ul>
      *
      * For example, if the specified Java major version is 8, the following JVM options will be accepted:
-     *  - -XX:+PrintGCDateStamps
-     *  - 8:-XX:+PrintGCDateStamps
-     *  - 8-:-XX:+PrintGCDateStamps
-     *  - 7-8:-XX:+PrintGCDateStamps
+     * <ul>
+     *     <li>
+     *         {@code -XX:+PrintGCDateStamps}
+     *     </li>
+     *     <li>
+     *         {@code 8:-XX:+PrintGCDateStamps}
+     *     </li>
+     *     <li>
+     *         {@code 8-:-XX:+PrintGCDateStamps}
+     *     </li>
+     *     <li>
+     *         {@code 7-8:-XX:+PrintGCDateStamps}
+     *     </li>
+     * </ul>
      * and the following JVM options will not be accepted:
-     *  - 9:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m
-     *  - 9-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m
-     *  - 9-10:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m
+     * <ul>
+     *     <li>
+     *         {@code 9:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *     </li>
+     *     <li>
+     *         {@code 9-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *     </li>
+     *     <li>
+     *         {@code 9-10:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *     </li>
+     * </ul>
      *
      * If the version syntax specified on a line matches the specified JVM options, the JVM option callback will be invoked with the JVM
      * option. If the line does not match the specified syntax for the JVM options, the invalid line callback will be invoked with the

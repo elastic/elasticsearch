@@ -5,18 +5,23 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.env.Environment;
-
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * The configuration of trust material for SSL usage
@@ -28,6 +33,8 @@ abstract class TrustConfig {
      * @param environment the environment to resolve files against or null in the case of running in a transport client
      */
     abstract X509ExtendedTrustManager createTrustManager(@Nullable Environment environment);
+
+    abstract Collection<CertificateInfo> certificates(@Nullable Environment environment) throws GeneralSecurityException, IOException;
 
     /**
      * Returns a list of files that should be monitored for changes
@@ -78,6 +85,15 @@ abstract class TrustConfig {
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to create trust manager", e);
             }
+        }
+
+        @Override
+        Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+            List<CertificateInfo> certificates = new ArrayList<>();
+            for (TrustConfig tc : trustConfigs) {
+                certificates.addAll(tc.certificates(environment));
+            }
+            return certificates;
         }
 
         @Override

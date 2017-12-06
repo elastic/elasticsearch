@@ -5,17 +5,23 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
-
-import javax.net.ssl.X509ExtendedTrustManager;
-import java.nio.file.Path;
-import java.security.cert.Certificate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * Implementation of trust configuration that is backed by PEM encoded certificate files.
@@ -40,6 +46,20 @@ class PEMTrustConfig extends TrustConfig {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws CertificateException, IOException {
+        final List<CertificateInfo> info = new ArrayList<>(caPaths.size());
+        for (String path : caPaths) {
+            Certificate[] chain = CertUtils.readCertificates(Collections.singletonList(path), environment);
+            for (final Certificate cert : chain) {
+                if (cert instanceof X509Certificate) {
+                    info.add(new CertificateInfo(path, "PEM", null, false, (X509Certificate) cert));
+                }
+            }
+        }
+        return info;
     }
 
     @Override

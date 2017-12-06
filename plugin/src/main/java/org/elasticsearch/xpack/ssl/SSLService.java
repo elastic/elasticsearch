@@ -5,20 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.common.socket.SocketAccess;
-import org.elasticsearch.xpack.security.Security;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -32,6 +18,7 @@ import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -51,6 +38,22 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.lucene.util.SetOnce;
+import org.bouncycastle.operator.OperatorCreationException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
@@ -449,6 +452,23 @@ public class SSLService extends AbstractComponent {
         profileSettings.forEach((profileSetting) ->
             sslConfigurations.computeIfAbsent(new SSLConfiguration(profileSetting, transportSSLConfiguration), this::createSslContext));
         return Collections.unmodifiableMap(sslConfigurations);
+    }
+
+
+    /**
+     * Returns information about each certificate that is referenced by any SSL configuration.
+     * This includes certificates used for identity (with a private key) and those used for trust, but excludes
+     * certificates that are provided by the JRE.
+     * Due to the nature of KeyStores, this may include certificates that are available, but never used
+     * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
+     * @see TrustConfig#certificates(Environment)
+     */
+    public Set<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
+        Set<CertificateInfo> certificates = new HashSet<>();
+        for (SSLConfiguration config : this.getLoadedSSLConfigurations()) {
+            certificates.addAll(config.getDefinedCertificates(env));
+        }
+        return certificates;
     }
 
     /**

@@ -5,17 +5,22 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 import org.hamcrest.Matchers;
-
-import javax.net.ssl.X509ExtendedTrustManager;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 public class RestrictedTrustConfigTests extends ESTestCase {
 
@@ -35,6 +40,11 @@ public class RestrictedTrustConfigTests extends ESTestCase {
             @Override
             X509ExtendedTrustManager createTrustManager(Environment environment) {
                 return null;
+            }
+
+            @Override
+            Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+                return Collections.emptyList();
             }
 
             @Override

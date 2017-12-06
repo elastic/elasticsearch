@@ -9,6 +9,7 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:cli-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
+  compile project(':core:cli')
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0-1"
@@ -19,10 +20,12 @@ dependencyLicenses {
   mapping from: /cli-proto.*/, to: 'elasticsearch'
   mapping from: /shared-client.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
   mapping from: /jackson-.*/, to: 'jackson'
   ignoreSha 'cli-proto'
   ignoreSha 'shared-client'
   ignoreSha 'shared-proto'
+  ignoreSha 'elasticsearch-cli'
 }
 
 forbiddenApisMain {

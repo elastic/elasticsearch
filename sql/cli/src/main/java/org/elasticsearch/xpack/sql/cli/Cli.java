@@ -5,350 +5,82 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
-import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
-import org.jline.reader.EndOfFileException;
-import org.jline.reader.LineReader;
-import org.jline.reader.LineReaderBuilder;
-import org.jline.reader.UserInterruptException;
-import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
-import org.jline.utils.AttributedString;
-import org.jline.utils.AttributedStringBuilder;
-import org.jline.utils.InfoCmp.Capability;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.CliCommand;
+import org.elasticsearch.xpack.sql.cli.command.CliCommands;
+import org.elasticsearch.xpack.sql.cli.command.CliSession;
+import org.elasticsearch.xpack.sql.cli.command.FetchSeparatorCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
+import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
-import java.util.Locale;
-import java.util.Properties;
+import java.util.Arrays;
+import java.util.List;
 import java.util.logging.LogManager;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
-import static org.jline.utils.AttributedStyle.BOLD;
-import static org.jline.utils.AttributedStyle.BRIGHT;
-import static org.jline.utils.AttributedStyle.DEFAULT;
-import static org.jline.utils.AttributedStyle.RED;
-import static org.jline.utils.AttributedStyle.YELLOW;
+public class Cli extends Command {
+    private final OptionSpec<Boolean> debugOption;
+    private final OptionSpec<String> connectionString;
 
-public class Cli {
-    public static String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
-    public static URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
+    public Cli() {
+        super("Elasticsearch SQL CLI", Cli::configureLogging);
+        this.debugOption = parser.acceptsAll(Arrays.asList("d", "debug"),
+                "Enable debug logging")
+                .withRequiredArg().ofType(Boolean.class)
+                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.debug", "false")));
+        this.connectionString = parser.nonOptions("uri");
+    }
 
-    public static void main(String... args) throws Exception {
-        /* Initialize the logger from the a properties file we bundle. This makes sure
-         * we get useful error messages from jLine. */
-        LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
-        final URI uri;
-        final String connectionString;
-        Properties properties = new Properties();
-        String user = null;
-        String password = null;
-        if (args.length > 0) {
-            connectionString = args[0];
-            try {
-                uri = removeQuery(parseURI(connectionString, DEFAULT_URI), connectionString, DEFAULT_URI);
-            } catch (IllegalArgumentException ex) {
-                exit(ex.getMessage(), 1);
-                return;
-            }
-            user = uri.getUserInfo();
-            if (user != null) {
-                int colonIndex = user.indexOf(':');
-                if (colonIndex >= 0) {
-                    password = user.substring(colonIndex + 1);
-                    user = user.substring(0, colonIndex);
-                }
-            }
-        } else {
-            uri = DEFAULT_URI;
-            connectionString = DEFAULT_CONNECTION_STRING;
-        }
-
-        try (Terminal term = TerminalBuilder.builder().build()) {
-            try {
-                if (user != null) {
-                    if (password == null) {
-                        term.writer().print("password: ");
-                        term.writer().flush();
-                        term.echo(false);
-                        password = new BufferedReader(term.reader()).readLine();
-                        term.echo(true);
-                    }
-                    properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
-                    properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
-                }
-
-                boolean debug = StringUtils.parseBoolean(System.getProperty("cli.debug", "false"));
-                Cli console = new Cli(debug, new ConnectionConfiguration(uri, connectionString, properties), term);
-                console.run();
-            } catch (FatalException e) {
-                term.writer().println(e.getMessage());
-            }
+    public static void main(String[] args) throws Exception {
+        final Cli cli = new Cli();
+        int status = cli.main(args, Terminal.DEFAULT);
+        if (status != ExitCodes.OK) {
+            exit(status);
         }
     }
 
-    private final boolean debug;
-    private final Terminal term;
-    private final CliHttpClient cliClient;
-    private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
-    private String fetchSeparator = "";
-
-    Cli(boolean debug, ConnectionConfiguration cfg, Terminal terminal) {
-        this.debug = debug;
-        term = terminal;
-        cliClient = new CliHttpClient(cfg);
-    }
-
-    void run() throws IOException {
-        PrintWriter out = term.writer();
-
-        LineReader reader = LineReaderBuilder.builder()
-                .terminal(term)
-                .completer(Completers.INSTANCE)
-                .build();
-
-        String DEFAULT_PROMPT = new AttributedString("sql> ", DEFAULT.foreground(YELLOW)).toAnsi(term);
-        String MULTI_LINE_PROMPT = new AttributedString("   | ", DEFAULT.foreground(YELLOW)).toAnsi(term);
-
-        StringBuilder multiLine = new StringBuilder();
-        String prompt = DEFAULT_PROMPT;
-
-        out.flush();
-        printLogo();
-
-        while (true) {
-            String line = null;
-            try {
-                line = reader.readLine(prompt);
-            } catch (UserInterruptException ex) {
-                // ignore
-            } catch (EndOfFileException ex) {
-                return;
-            }
-
-            if (line == null) {
-                continue;
-            }
-            line = line.trim();
-
-            if (!line.endsWith(";")) {
-                multiLine.append(" ");
-                multiLine.append(line);
-                prompt = MULTI_LINE_PROMPT;
-                continue;
-            }
-
-            line = line.substring(0, line.length() - 1);
-
-            prompt = DEFAULT_PROMPT;
-            if (multiLine.length() > 0) {
-                // append the line without trailing ;
-                multiLine.append(line);
-                line = multiLine.toString().trim();
-                multiLine.setLength(0);
-            }
-
-            // special case to handle exit
-            if (isExit(line)) {
-                out.println(new AttributedString("Bye!", DEFAULT.foreground(BRIGHT)).toAnsi(term));
-                out.flush();
-                return;
-            }
-            boolean wasLocal = handleLocalCommand(line);
-            if (false == wasLocal) {
-                try {
-                    if (isServerInfo(line)) {
-                        executeServerInfo();
-                    } else {
-                        executeQuery(line);
-                    }
-                } catch (RuntimeException e) {
-                    handleExceptionWhileCommunicatingWithServer(e);
-                }
-                out.println();
-            }
-
-            out.flush();
-        }
-    }
-
-    /**
-     * Handle an exception while communication with the server. Extracted
-     * into a method so that tests can bubble the failure.
-     */
-    protected void handleExceptionWhileCommunicatingWithServer(RuntimeException e) {
-        AttributedStringBuilder asb = new AttributedStringBuilder();
-        asb.append("Communication error [", BOLD.foreground(RED));
-        asb.append(e.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
-        asb.append("]", BOLD.underlineOff().foreground(RED));
-        term.writer().println(asb.toAnsi(term));
-        if (debug) {
-            e.printStackTrace(term.writer());
-        }
-    }
-
-    private void printLogo() {
-        term.puts(Capability.clear_screen);
-        try (InputStream in = Cli.class.getResourceAsStream("/logo.txt")) {
-            if (in == null) {
-                throw new FatalException("Could not find logo!");
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    term.writer().println(line);
-                }
-            }
-        } catch (IOException e) {
-            throw new FatalException("Could not load logo!", e);
-        }
-
-        term.writer().println();
-    }
-
-    private static final Pattern LOGO_PATTERN = Pattern.compile("logo", Pattern.CASE_INSENSITIVE);
-    private static final Pattern CLEAR_PATTERN = Pattern.compile("cls", Pattern.CASE_INSENSITIVE);
-    private static final Pattern FETCH_SIZE_PATTERN = Pattern.compile("fetch(?: |_)size *= *(.+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern FETCH_SEPARATOR_PATTERN = Pattern.compile("fetch(?: |_)separator *= *\"(.+)\"", Pattern.CASE_INSENSITIVE);
-    private boolean handleLocalCommand(String line) {
-        Matcher m = LOGO_PATTERN.matcher(line);
-        if (m.matches()) {
-            printLogo();
-            return true;
-        }
-        m = CLEAR_PATTERN.matcher(line);
-        if (m.matches()) {
-            term.puts(Capability.clear_screen);
-            return true;
-        }
-        m = FETCH_SIZE_PATTERN.matcher(line);
-        if (m.matches()) {
-            int proposedFetchSize;
-            try {
-                proposedFetchSize = fetchSize = Integer.parseInt(m.group(1));
-            } catch (NumberFormatException e) {
-                AttributedStringBuilder asb = new AttributedStringBuilder();
-                asb.append("Invalid fetch size [", BOLD.foreground(RED));
-                asb.append(m.group(1), DEFAULT.boldOff().italic().foreground(YELLOW));
-                asb.append("]", BOLD.underlineOff().foreground(RED));
-                term.writer().println(asb.toAnsi(term));
-                return true;
-            }
-            if (proposedFetchSize <= 0) {
-                AttributedStringBuilder asb = new AttributedStringBuilder();
-                asb.append("Invalid fetch size [", BOLD.foreground(RED));
-                asb.append(m.group(1), DEFAULT.boldOff().italic().foreground(YELLOW));
-                asb.append("]. Must be > 0.", BOLD.underlineOff().foreground(RED));
-                term.writer().println(asb.toAnsi(term));
-                return true;
-            }
-            this.fetchSize = proposedFetchSize;
-            AttributedStringBuilder asb = new AttributedStringBuilder();
-            asb.append("fetch size set to ", DEFAULT);
-            asb.append(Integer.toString(fetchSize), DEFAULT.foreground(BRIGHT));
-            term.writer().println(asb.toAnsi(term));
-            return true;
-        }
-        m = FETCH_SEPARATOR_PATTERN.matcher(line);
-        if (m.matches()) {
-            fetchSeparator = m.group(1);
-            AttributedStringBuilder asb = new AttributedStringBuilder();
-            asb.append("fetch separator set to \"", DEFAULT);
-            asb.append(fetchSeparator, DEFAULT.foreground(BRIGHT));
-            asb.append("\"", DEFAULT);
-            term.writer().println(asb.toAnsi(term));
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean isServerInfo(String line) {
-        line = line.toLowerCase(Locale.ROOT);
-        return line.equals("info");
-    }
-
-    private void executeServerInfo() {
+    private static void configureLogging() {
         try {
-            term.writer().println(ResponseToString.toAnsi(cliClient.serverInfo()).toAnsi(term));
-        } catch (SQLException e) {
-            error("Error fetching server info", e.getMessage());
+            /* Initialize the logger from the a properties file we bundle. This makes sure
+             * we get useful error messages from jLine. */
+            LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
+        } catch (IOException ex) {
+            throw new RuntimeException("cannot setup logging", ex);
         }
     }
 
-    private static boolean isExit(String line) {
-        line = line.toLowerCase(Locale.ROOT);
-        return line.equals("exit") || line.equals("quit");
+    @Override
+    protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
+        boolean debug = debugOption.value(options);
+        List<String> args = connectionString.values(options);
+        if (args.size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "expecting a single uri");
+        }
+        execute(args.size() == 1 ? args.get(0) : null, debug);
     }
 
-    private void executeQuery(String line) throws IOException {
-        QueryResponse response;
-        try {
-            response = cliClient.queryInit(line, fetchSize);
-        } catch (SQLException e) {
-            if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
-                error("Server error", e.getMessage());
-            } else {
-                error("Bad request", e.getMessage());
-            }
-            return;
+    private void execute(String uri, boolean debug) throws Exception {
+        CliCommand cliCommand = new CliCommands(
+                new PrintLogoCommand(),
+                new ClearScreenCliCommand(),
+                new FetchSizeCliCommand(),
+                new FetchSeparatorCliCommand(),
+                new ServerInfoCliCommand(),
+                new ServerQueryCliCommand()
+        );
+        try (CliTerminal cliTerminal = new JLineTerminal()) {
+            ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
+            CliSession cliSession = new CliSession(new CliHttpClient(connectionBuilder.buildConnection(uri)));
+            cliSession.setDebug(debug);
+            new CliRepl(cliTerminal, cliSession, cliCommand).execute();
         }
-        while (true) {
-            term.writer().print(ResponseToString.toAnsi(response).toAnsi(term));
-            term.writer().flush();
-            if (response.cursor().isEmpty()) {
-                // Successfully finished the entire query!
-                return;
-            }
-            if (false == fetchSeparator.equals("")) {
-                term.writer().println(fetchSeparator);
-            }
-            try {
-                response = cliClient.nextPage(response.cursor());
-            } catch (SQLException e) {
-                if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
-                    error("Server error", e.getMessage());
-                } else {
-                    error("Bad request", e.getMessage());
-                }                return;
-            }
-        }
-    }
-
-    private void error(String type, String message) {
-        AttributedStringBuilder sb = new AttributedStringBuilder();
-        sb.append(type + " [", BOLD.foreground(RED));
-        sb.append(message, DEFAULT.boldOff().italic().foreground(YELLOW));
-        sb.append("]", BOLD.underlineOff().foreground(RED));
-        term.writer().print(sb.toAnsi(term));
-    }
-
-    static class FatalException extends RuntimeException {
-        FatalException(String message, Throwable cause) {
-            super(message, cause);
-        }
-
-        FatalException(String message) {
-            super(message);
-        }
-    }
-
-    @SuppressForbidden(reason = "CLI application")
-    private static void exit(String message, int code) {
-        System.err.println(message);
-        System.exit(code);
     }
 }

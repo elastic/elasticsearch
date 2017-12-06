@@ -34,7 +34,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 assertEquals("---------------+---------------+---------------", cli.readLine());
                 assertThat(cli.readLine(), containsString("1              |2              |3"));
                 assertThat(cli.readLine(), containsString("4              |5              |6"));
-                assertEquals("[0m", cli.readLine());        
+                assertEquals("", cli.readLine());
             }
         }
 
@@ -91,7 +91,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 for (Map.Entry<String, String> column : columns.entrySet()) {
                     assertThat(cli.readLine(), both(startsWith(column.getKey())).and(containsString("|" + column.getValue())));
                 }
-                assertEquals("[0m", cli.readLine());
+                assertEquals("", cli.readLine());
             }
         }
 
@@ -103,7 +103,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 for (String table : tables) {
                     assertThat(cli.readLine(), containsString(table));
                 }
-                assertEquals("[0m", cli.readLine());
+                assertEquals("", cli.readLine());
             }
         }
 

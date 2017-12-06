@@ -20,7 +20,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
-        assertEquals("[0m", readLine());
+        assertEquals("", readLine());
     }
 
     public void testShowFunctions() throws IOException {
@@ -39,7 +39,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         while (scalarFunction.matcher(line).matches()) {
             line = readLine();
         }
-        assertEquals("[0m", line);
+        assertEquals("", line);
     }
     
     public void testShowFunctionsLikePrefix() throws IOException {
@@ -47,7 +47,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));
-        assertEquals("[0m", readLine());
+        assertEquals("", readLine());
     }
     
     public void testShowFunctionsLikeInfix() throws IOException {
@@ -59,6 +59,6 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_YEAR\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*HOUR_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MINUTE_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
-        assertEquals("[0m", readLine());
+        assertEquals("", readLine());
     }
 }

@@ -17,7 +17,7 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
         assertThat(command("SELECT * FROM test"), containsString("test_field"));
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), containsString("test_value"));
-        assertEquals("[0m", readLine());
+        assertEquals("", readLine());
     }
 
     public void testSelectWithWhere() throws IOException {
@@ -26,6 +26,6 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
         assertThat(command("SELECT * FROM test WHERE i = 2"), RegexMatcher.matches("\\s*i\\s*\\|\\s*test_field\\s*"));
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*2\\s*\\|\\s*test_value2\\s*"));
-        assertEquals("[0m", readLine());
+        assertEquals("", readLine());
     }
 }

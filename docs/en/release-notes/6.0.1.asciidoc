@@ -5,29 +5,15 @@
 <titleabbrev>6.0.1 Release Notes</titleabbrev>
 ++++
 
-To be determined...
-
-////
-[float]
-[[xes-enhancements-6.0.1]]
-=== Enhancements
-
-Machine Learning::
-* [M] Log deprecation warning for jobs with delimited formats
-// https://github.com/elastic/x-pack-elasticsearch/pull/3092[#3092]
-
 [float]
 [[xes-bug-6.0.1]]
 === Bug fixes
 
 Machine Learning::
-* [ML] Avoid spurious logging when deleting lookback job from the UI
-// https://github.com/elastic/x-pack-elasticsearch/pull/3193[#3193] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3149[#3149])
-* [ML] Frequency in datafeeds with aggs must be multiple of hist interval
-// https://github.com/elastic/x-pack-elasticsearch/pull/3205[#3205] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3204[#3204])
-* Backport #377 to 6.0.1
+* Fixed analytics problem where sparse data resulted in "update failed" errors
+in the logs.
 // https://github.com/elastic/machine-learning-cpp/pull/377 (issue: https://github.com/elastic/machine-learning-cpp/pull/380[#380])
-
+////
 Security::
 * LoggingAuditTrail emit events before local address available
 // https://github.com/elastic/x-pack-elasticsearch/pull/3061[#3061] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3057[#3057])

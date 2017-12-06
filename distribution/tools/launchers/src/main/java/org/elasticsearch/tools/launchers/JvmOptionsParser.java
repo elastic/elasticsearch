@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -238,14 +239,12 @@ final class JvmOptionsParser {
      */
     static String spaceDelimitJvmOptions(final List<String> jvmOptions) {
         final StringBuilder spaceDelimitedJvmOptionsBuilder = new StringBuilder();
-        boolean first = true;
-        for (final String jvmOption : jvmOptions) {
-            if (first) {
-                first = false;
-            } else {
+        final Iterator<String> it = jvmOptions.iterator();
+        while (it.hasNext()) {
+            spaceDelimitedJvmOptionsBuilder.append(it.next());
+            if (it.hasNext()) {
                 spaceDelimitedJvmOptionsBuilder.append(" ");
             }
-            spaceDelimitedJvmOptionsBuilder.append(jvmOption);
         }
         return spaceDelimitedJvmOptionsBuilder.toString();
     }

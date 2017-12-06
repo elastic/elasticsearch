@@ -20,7 +20,6 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
@@ -126,23 +125,22 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     }
 
     public void testHoleThatIsSouthOfPolygon() {
-        try {
+        InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
             PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(4, 3).coordinate(3, 2).coordinate(3, 3).close());
             pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(4, 2).coordinate(3, 1).coordinate(4, 1).close()));
             pb.build();
-        } catch (InvalidShapeException e) {
-            assertEquals("Hole lies outside shell at or near point (4.0, 1.0, NaN)", e.getMessage());
-        }
+        });
+
+        assertEquals("Hole lies outside shell at or near point (4.0, 1.0, NaN)", e.getMessage());
     }
 
     public void testHoleThatIsNorthOfPolygon() {
-        try {
+        InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
             PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(3, 2).coordinate(4, 1).coordinate(3, 1).close());
             pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(3, 3).coordinate(4, 2).coordinate(4, 3).close()));
             pb.build();
-        } catch (InvalidShapeException e) {
-            assertEquals("Hole lies outside shell at or near point (4.0, 3.0, NaN)", e.getMessage());
-        }
-    }
+        });
 
+        assertEquals("Hole lies outside shell at or near point (4.0, 3.0, NaN)", e.getMessage());
+    }
 }

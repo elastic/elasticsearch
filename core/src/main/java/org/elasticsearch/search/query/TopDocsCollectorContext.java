@@ -193,16 +193,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 this.topDocsSupplier = topDocsCollector::topDocs;
                 this.totalHitsSupplier = topDocsCollector::getTotalHits;
             } else {
-                final boolean canEarlyTerminate = canEarlyTerminate(reader, sortAndFormats);
+                /**
+                 * We explicitly don't track total hits in the topdocs collector, it can early terminate
+                 * if the sort matches the index sort.
+                 */
                 final TopDocsCollector<?> topDocsCollector = TopFieldCollector.create(sortAndFormats.sort, numHits,
-                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore, canEarlyTerminate == false);
+                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore, false);
                 this.topDocsSupplier = topDocsCollector::topDocs;
-                if (canEarlyTerminate && trackTotalHits) {
-                    /**
-                     * The top docs collector can early terminate the query on each segment
-                     * so we cannot rely on it to track the total number of hits
-                     */
-
+                if (trackTotalHits) {
                     // implicit total hit counts are valid only when there is no filter collector in the chain
                     int count = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                     if (count != -1) {
@@ -212,13 +210,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     } else {
                         // wrap a collector that counts the total number of hits even
                         // if the top docs collector terminates early
-                        final TotalHitCountCollector countCollector = new TotalHitCountCollector();
-                        this.totalHitsSupplier = countCollector::getTotalHits;
-                        this.collector = MultiCollector.wrap(topDocsCollector, countCollector);
+                        final TotalHitCountCollector countingCollector = new TotalHitCountCollector();
+                        this.collector = MultiCollector.wrap(topDocsCollector, countingCollector);
+                        this.totalHitsSupplier = countingCollector::getTotalHits;
                     }
                 } else {
-                    this.totalHitsSupplier = topDocsCollector::getTotalHits;
+                    // total hit count is not needed
                     this.collector = topDocsCollector;
+                    this.totalHitsSupplier = topDocsCollector::getTotalHits;
                 }
             }
         }

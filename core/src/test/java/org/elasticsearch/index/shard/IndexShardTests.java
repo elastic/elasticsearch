@@ -1072,7 +1072,7 @@ public class IndexShardTests extends IndexShardTestCase {
         commit.close();
         // Make the global checkpoint in sync with the local checkpoint.
         if (isPrimary) {
-            shard.getEngine().seqNoService().markAllocationIdAsInSync(shard.shardRouting.allocationId().getId(), numDocs + moreDocs - 1);
+            shard.updateGlobalCheckpointForShard(shard.shardRouting.allocationId().getId(), shard.getLocalCheckpoint());
         } else {
             shard.updateGlobalCheckpointOnReplica(shard.getLocalCheckpoint(), "test");
         }

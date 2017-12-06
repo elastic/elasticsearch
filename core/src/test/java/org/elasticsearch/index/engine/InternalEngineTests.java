@@ -164,8 +164,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -4132,7 +4132,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testKeepTranslogUpToGlobalCheckpoint() throws Exception {
+    public void testKeepTranslogAfterGlobalCheckpoint() throws Exception {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
@@ -4149,10 +4149,19 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
 
+        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+            defaultSettings.getScopedSettings());
+        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
+        builder.settings(Settings.builder().put(indexSettings.getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "10nanos", "500ms", "7s", "2m", "60m"))
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "5b", "2kb", "1mb", "50gb"))
+        );
+        indexSettings.updateIndexMetaData(builder.build());
+
         final Path translogPath = createTempDir();
         store = createStore();
         try (InternalEngine engine
-                 = new InternalEngine(config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+                 = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
             int numDocs = scaledRandomIntBetween(10, 100);
             int uncommittedOps = 0;
             for (int i = 0; i < numDocs; i++) {
@@ -4183,11 +4192,16 @@ public class InternalEngineTests extends EngineTestCase {
         }
         // Reopen engine to test onInit with existing index commits.
         try (InternalEngine engine
-                 = new InternalEngine(config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+                 = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+            final Set<Long> seqNoList = new HashSet<>();
             try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                long requiredOps = engine.seqNoService().getLocalCheckpoint() - Math.max(0, globalCheckpoint.get());
-                assertThat("Should keep translog operations up to the global checkpoint",
-                    (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    seqNoList.add(op.seqNo());
+                }
+            }
+            for (long i = Math.max(0, globalCheckpoint.get() + 1); i <= engine.seqNoService().getLocalCheckpoint(); i++) {
+                assertThat("Translog should keep op with seqno [" + i + "]", seqNoList, hasItem(i));
             }
         }
     }

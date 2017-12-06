@@ -28,7 +28,9 @@ import java.io.Reader;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +50,7 @@ final class JvmOptionsParser {
             throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
         }
         final List<String> jvmOptions = new ArrayList<>();
+        final Map<Integer, String> invalidLines = new HashMap<>();
         try (InputStream is = new FileInputStream(Paths.get(args[0]).toFile());
              Reader reader = new InputStreamReader(is);
              BufferedReader br = new BufferedReader(reader)) {
@@ -56,23 +59,29 @@ final class JvmOptionsParser {
                     br,
                     new JvmOptionConsumer() {
                         @Override
-                        public void accept(String jvmOption) {
+                        public void accept(final String jvmOption) {
                             jvmOptions.add(jvmOption);
                         }
                     },
                     new InvalidLineConsumer() {
                         @Override
-                        public void accept(String jvmOption) {
-                            Launchers.errPrintln("encountered improperly formatted line [" + jvmOption + "]");
-                            Launchers.exit(1);
+                        public void accept(final int lineNumber, final String line) {
+                            invalidLines.put(lineNumber, line);
                         }
                     });
         }
 
-        final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
-
-        Launchers.outPrintln(spaceDelimitedJvmOptions);
-        Launchers.exit(0);
+        if (invalidLines.isEmpty()) {
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
+            Launchers.outPrintln(spaceDelimitedJvmOptions);
+            Launchers.exit(0);
+        } else {
+            for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
+                Launchers.errPrintln(
+                        "encountered improperly formatted line [" + entry.getValue() + "] on line number [" + entry.getKey() + "]");
+            }
+            Launchers.exit(1);
+        }
     }
 
     /**
@@ -93,7 +102,7 @@ final class JvmOptionsParser {
         /**
          * Invoked when a line in the JVM options does not match the specified syntax.
          */
-        void accept(String line);
+        void accept(int lineNumber, String line);
     }
 
     private static final Pattern PATTERN = Pattern.compile("((?<start>\\d+)(?<range>-)?(?<end>\\d+)?:)?(?<option>-.*)$");
@@ -162,8 +171,10 @@ final class JvmOptionsParser {
             final BufferedReader br,
             final JvmOptionConsumer jvmOptionConsumer,
             final InvalidLineConsumer invalidLineConsumer) throws IOException {
+        int lineNumber = 0;
         while (true) {
             final String line = br.readLine();
+            lineNumber++;
             if (line == null) {
                 break;
             }
@@ -183,7 +194,13 @@ final class JvmOptionsParser {
                     // no range present, unconditionally apply the JVM option
                     jvmOptionConsumer.accept(line);
                 } else {
-                    final int lower = Integer.parseInt(start);
+                    final int lower;
+                    try {
+                        lower = Integer.parseInt(start);
+                    } catch (final NumberFormatException e) {
+                        invalidLineConsumer.accept(lineNumber, line);
+                        continue;
+                    }
                     final int upper;
                     if (matcher.group("range") == null) {
                         // no range is present, apply the JVM option to the specified major version only
@@ -193,9 +210,14 @@ final class JvmOptionsParser {
                         upper = Integer.MAX_VALUE;
                     } else {
                         // a range of the form \\d+-\\d+ is present, apply the JVM option to the specified range of major versions
-                        upper = Integer.parseInt(end);
+                        try {
+                            upper = Integer.parseInt(end);
+                        } catch (final NumberFormatException e) {
+                            invalidLineConsumer.accept(lineNumber, line);
+                            continue;
+                        }
                         if (upper < lower) {
-                            invalidLineConsumer.accept(line);
+                            invalidLineConsumer.accept(lineNumber, line);
                         }
                     }
                     if (lower <= javaMajorVersion && javaMajorVersion <= upper) {
@@ -203,7 +225,7 @@ final class JvmOptionsParser {
                     }
                 }
             } else {
-                invalidLineConsumer.accept(line);
+                invalidLineConsumer.accept(lineNumber, line);
             }
         }
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.hamcrest.Matchers;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -147,8 +149,8 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
                 },
                 new JvmOptionsParser.InvalidLineConsumer() {
                     @Override
-                    public void accept(final String line) {
-                        fail("unexpected invalid line [" + line + "]");
+                    public void accept(final int lineNumber, final String line) {
+                        fail("unexpected invalid line [" + line + "] on line number [" + lineNumber + "]");
                     }
                 });
         for (final Map.Entry<String, AtomicBoolean> seenJvmOption : seenJvmOptions.entrySet()) {
@@ -169,7 +171,8 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
                         }
                     }, new JvmOptionsParser.InvalidLineConsumer() {
                         @Override
-                        public void accept(final String line) {
+                        public void accept(final int lineNumber, final String line) {
+                            assertThat(lineNumber, equalTo(1));
                             assertThat(line, equalTo("XX:+UseG1GC"));
                         }
                     });
@@ -180,21 +183,52 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         final String invalidRangeLine = String.format(Locale.ROOT, "%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
         try (StringReader sr = new StringReader(invalidRangeLine);
              BufferedReader br = new BufferedReader(sr)) {
-            JvmOptionsParser.parse(
-                    randomIntBetween(8, Integer.MAX_VALUE),
-                    br,
-                    new JvmOptionsParser.JvmOptionConsumer() {
-                        @Override
-                        public void accept(final String jvmOption) {
-                            fail("unexpected valid JVM option [" + jvmOption + "]");
-                        }
-                    }, new JvmOptionsParser.InvalidLineConsumer() {
-                        @Override
-                        public void accept(final String line) {
-                            assertThat(line, equalTo(invalidRangeLine));
-                        }
-                    });
+            assertInvalidLines(br, Collections.singletonMap(1, invalidRangeLine));
         }
+
+        final long invalidLowerJavaMajorVersion = (long) randomIntBetween(1, 16) + Integer.MAX_VALUE;
+        final long invalidUpperJavaMajorVersion = (long) randomIntBetween(1, 16) + Integer.MAX_VALUE;
+        final String numberFormatExceptionsLine = String.format(
+                Locale.ROOT,
+                "%d:-XX:+UseG1GC\n8-%d:-XX:+AggressiveOpts",
+                invalidLowerJavaMajorVersion,
+                invalidUpperJavaMajorVersion);
+        try (StringReader sr = new StringReader(numberFormatExceptionsLine);
+             BufferedReader br = new BufferedReader(sr)) {
+            final Map<Integer, String> invalidLines = new HashMap<>(2);
+            invalidLines.put(1, String.format(Locale.ROOT, "%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
+            invalidLines.put(2, String.format(Locale.ROOT, "8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
+            assertInvalidLines(br, invalidLines);
+        }
+
+        final String multipleInvalidLines = "XX:+UseG1GC\nXX:+AggressiveOpts";
+        try (StringReader sr = new StringReader(multipleInvalidLines);
+             BufferedReader br = new BufferedReader(sr)) {
+            final Map<Integer, String> invalidLines = new HashMap<>(2);
+            invalidLines.put(1, "XX:+UseG1GC");
+            invalidLines.put(2, "XX:+AggressiveOpts");
+            assertInvalidLines(br, invalidLines);;
+        }
+    }
+
+    private void assertInvalidLines(final BufferedReader br, final Map<Integer, String> invalidLines) throws IOException {
+        final Map<Integer, String> seenInvalidLines = new HashMap<>(invalidLines.size());
+        JvmOptionsParser.parse(
+                randomIntBetween(8, Integer.MAX_VALUE),
+                br,
+                new JvmOptionsParser.JvmOptionConsumer() {
+                    @Override
+                    public void accept(final String jvmOption) {
+                        fail("unexpected valid JVM options [" + jvmOption + "]");
+                    }
+                },
+                new JvmOptionsParser.InvalidLineConsumer() {
+                    @Override
+                    public void accept(final int lineNumber, final String line) {
+                         seenInvalidLines.put(lineNumber, line);
+                    }
+                });
+        assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
     public void testSpaceDelimitedJvmOptions() {

@@ -1,0 +1,123 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                doc:
+                  properties:
+                    keyword:
+                      type: keyword
+                    date:
+                      type: date
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    1
+        body:  { "date": "2014-03-03T00:00:00", "keyword": "foo" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    2
+        body:  { "date": "2015-03-03T00:00:00", "keyword": "bar" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    3
+        body:  { "date": "2016-03-03T00:00:00", "keyword": "foobar" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    4
+        body:  { "date": "2017-03-03T00:00:00" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+ teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: null
+
+---
+"Max bucket":
+  - skip:
+      version: " - 6.1.99"
+      reason:  search.max_buckets limit has been added in 6.2
+      features: "warnings"
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              date_histogram:
+                field: date
+                interval: 2h
+      warnings:
+          - "This aggregation creates too many buckets (10001) and will throw an error in future versions. You should update the [search.max_buckets] cluster setting or use the [composite] aggregation to paginate all buckets in multiple requests."
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: 3
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              date_histogram:
+                field: date
+                interval: 1d
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              terms:
+                field: keyword
+              aggs:
+                2:
+                  date_histogram:
+                    field: date
+                    interval: 1d
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: 100
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              date_histogram:
+                field: date
+                interval: 1d
+                min_doc_count: 0

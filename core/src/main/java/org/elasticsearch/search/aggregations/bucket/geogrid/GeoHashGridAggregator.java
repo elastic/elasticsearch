@@ -106,6 +106,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
+        consumeBucketsAndMaybeBreak(size);
 
         InternalGeoHashGrid.BucketPriorityQueue ordered = new InternalGeoHashGrid.BucketPriorityQueue(size);
         OrdinalBucket spare = null;

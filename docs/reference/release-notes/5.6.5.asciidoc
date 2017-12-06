@@ -1,0 +1,81 @@
+[[release-notes-5.6.5]]
+== 5.6.5 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[enhancement-5.6.5]]
+[float]
+=== Enhancements
+
+Core::
+* Fix classes that can exit {pull}27518[#27518]
+
+Discovery::
+* Stop responding to ping requests before master abdication {pull}27329[#27329] (issue: {issue}27328[#27328])
+
+Internal::
+* TemplateUpgradeService should only run on the master {pull}27294[#27294]
+
+Plugin Repository S3::
+* Remove S3 output stream {pull}27280[#27280] (issue: {issue}27278[#27278])
+* Update to AWS SDK 1.11.223 {pull}27278[#27278]
+
+Search::
+* fix unnecessary logger creation {pull}27349[#27349]
+
+Snapshot/Restore::
+* Remove XContentType auto detection in BlobStoreRepository {pull}27480[#27480]
+* Fixed references to Multi Index Syntax {pull}27283[#27283]
+
+
+
+[[bug-5.6.5]]
+[float]
+=== Bug fixes
+
+Cluster::
+* Properly format IndexGraveyard deletion date as date {pull}27362[#27362]
+
+Core::
+* Avoid NPE when getting build information {pull}27442[#27442]
+* Correctly encode warning headers {pull}27269[#27269] (issue: {issue}27244[#27244])
+
+Engine::
+* Reset LiveVersionMap on sync commit {pull}27534[#27534] (issue: {issue}27516[#27516])
+* Carry over version map size to prevent excessive resizing {pull}27516[#27516] (issue: {issue}20498[#20498])
+* Die with dignity while merging {pull}27265[#27265] (issue: {issue}19272[#19272])
+
+Mapping::
+* Fix dynamic mapping update generation. {pull}27467[#27467]
+
+Network::
+* Throw UOE from compressible bytes stream reset {pull}27564[#27564] (issue: {issue}24927[#24927])
+* Bubble exceptions when closing compressible streams {pull}27542[#27542] (issue: {issue}27540[#27540])
+* Add CompressibleBytesOutputStream for compression {pull}27540[#27540] (issues: {issue}23941[#23941], {issue}24927[#24927], {issue}27525[#27525])
+* Fixed ByteBuf leaking in org.elasticsearch.http.netty4.Netty4HttpRequestHandler {pull}27222[#27222] (issues: {issue}3[#3], {issue}4[#4], {issue}5[#5], {issue}6[#6])
+
+Plugin Lang Painless::
+* Painless: Fix errors allowing void to be assigned to def. {pull}27460[#27460] (issue: {issue}27210[#27210])
+
+Plugin Repository GCS::
+* Create new handlers for every new request in GoogleCloudStorageService {pull}27339[#27339] (issue: {issue}27092[#27092])
+
+Snapshot/Restore::
+* Do not swallow exception in ChecksumBlobStoreFormat.writeAtomic() {pull}27597[#27597]
+* Delete shard store files before restoring a snapshot {pull}27476[#27476] (issues: {issue}20220[#20220], {issue}26865[#26865])
+* Fix snapshot getting stuck in INIT state {pull}27214[#27214] (issue: {issue}27180[#27180])
+* Snapshot/Restore: better handle incorrect chunk_size settings in FS repo {pull}26844[#26844] (issue: {issue}26843[#26843])
+
+
+
+[[upgrade-5.6.5]]
+[float]
+=== Upgrades
+
+Plugin Discovery EC2::
+* Upgrade AWS SDK Jackson Databind to 2.6.7.1 {pull}27361[#27361] (issues: {issue}27278[#27278], {issue}27359[#27359])
+
+Plugin Discovery GCE::
+* Update Google SDK to version 1.23.0 {pull}27381[#27381] (issue: {issue}26636[#26636])
+
+

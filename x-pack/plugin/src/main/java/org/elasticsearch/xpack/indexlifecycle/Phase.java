@@ -152,7 +152,8 @@ public class Phase implements ToXContentObject, Writeable {
 
                 @Override
                 public void onFailure(Exception e) {
-                    // Something went wrong so log the error and hopfully it will succeed next time execute is called. NOCOMMIT can we do better here?
+                    // Something went wrong so log the error and hopefully it will succeed next time execute
+                    // is called. NOCOMMIT can we do better here?
                     logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
                 }
             });

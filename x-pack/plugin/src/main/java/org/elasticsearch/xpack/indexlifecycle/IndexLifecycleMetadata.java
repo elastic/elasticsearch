@@ -147,38 +147,39 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         final Long pollIntervalDiff;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
-            this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer(), new DiffableUtils.ValueSerializer<String, LifecyclePolicy>() {
-                @Override
-                public void write(LifecyclePolicy value, StreamOutput out) throws IOException {
-                    out.writeNamedWriteable(value);
-                }
+            this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer(),
+                new DiffableUtils.ValueSerializer<String, LifecyclePolicy>() {
+                    @Override
+                    public void write(LifecyclePolicy value, StreamOutput out) throws IOException {
+                        out.writeNamedWriteable(value);
+                    }
 
-                @Override
-                public LifecyclePolicy read(StreamInput in, String key) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
+                    @Override
+                    public LifecyclePolicy read(StreamInput in, String key) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
 
-                @Override
-                public Diff<LifecyclePolicy> readDiff(StreamInput in, String key) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
+                    @Override
+                    public Diff<LifecyclePolicy> readDiff(StreamInput in, String key) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
 
-                @Override
-                public boolean supportsDiffableValues() {
-                    return true;
-                }
+                    @Override
+                    public boolean supportsDiffableValues() {
+                        return true;
+                    }
 
-                @Override
-                public Diff<LifecyclePolicy> diff(LifecyclePolicy value, LifecyclePolicy beforePart) {
-                    return value.diff(beforePart);
-                }
+                    @Override
+                    public Diff<LifecyclePolicy> diff(LifecyclePolicy value, LifecyclePolicy beforePart) {
+                        return value.diff(beforePart);
+                    }
 
-                @Override
-                public void writeDiff(Diff<LifecyclePolicy> value, StreamOutput out) throws IOException {
-                    value.writeTo(out);
-                }
+                    @Override
+                    public void writeDiff(Diff<LifecyclePolicy> value, StreamOutput out) throws IOException {
+                        value.writeTo(out);
+                    }
 
-            });
+                });
             this.pollIntervalDiff = after.pollInterval - before.pollInterval;
         }
 

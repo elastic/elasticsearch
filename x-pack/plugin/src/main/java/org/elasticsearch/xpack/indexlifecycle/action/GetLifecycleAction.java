@@ -39,7 +39,7 @@ import java.util.Objects;
 public class GetLifecycleAction
         extends Action<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleAction.RequestBuilder> {
     public static final GetLifecycleAction INSTANCE = new GetLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/indexlifecycle/get";
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/get";
 
     protected GetLifecycleAction() {
         super(NAME);

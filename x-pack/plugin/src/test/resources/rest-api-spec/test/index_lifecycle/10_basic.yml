@@ -1,0 +1,50 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Basic Policy CRUD":
+  - do:
+      acknowlege: true
+      xpack.index_lifecycle.put_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "type": "timeseries",
+               "phases": {
+                 "warm": {
+                   "after": "10s",
+                   "actions": {
+                     "forcemerge": {}
+                   }
+                 },
+                 "delete": {
+                   "after": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+  - match: { type: "timeseries" }
+  - match: { phases.warm.after: "10s" }
+  - match: { phases.delete.after: "30s" }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.delete_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"

@@ -134,7 +134,8 @@ public class IndexLifecycle extends Plugin {
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                         parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
                 // Lifecycle Policy
-                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE), (p, c) -> TimeseriesLifecyclePolicy.parse(p, c)),
+                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE),
+                    (p, c) -> TimeseriesLifecyclePolicy.parse(p, c)),
                 // Lifecycle actions
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),

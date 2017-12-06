@@ -69,12 +69,12 @@ public interface IndexLifecycleContext {
      *            a {@link LifecycleAction.Listener} to pass to the
      *            {@link LifecycleAction}.
      */
-    public void executeAction(LifecycleAction action, LifecycleAction.Listener listener);
+    void executeAction(LifecycleAction action, LifecycleAction.Listener listener);
 
     /**
      * A callback for use when setting phase or action names.
      */
-    public static interface Listener {
+    interface Listener {
 
         /**
          * Called if the call to set the action/phase name was successful.

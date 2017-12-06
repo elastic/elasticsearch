@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
@@ -29,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -40,7 +40,6 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@AwaitsFix(bugUrl = "THIS NEEDS FIXING") // NOCOMMIT Fix this integration test
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     private Settings settings;
@@ -84,22 +83,20 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
     @Before
     public void init() {
-        settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.lifecycle.name", "test_lifecycle").build();
-        List<Phase> phases = new ArrayList<>();
-        phases.add(new Phase("new", TimeValue.timeValueSeconds(0), Collections.emptyList()));
+        settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.lifecycle.name", "test").build();
         List<LifecycleAction> deletePhaseActions = Collections.singletonList(new DeleteAction());
-        phases.add(new Phase("delete", TimeValue.timeValueSeconds(3), deletePhaseActions));
-        lifecyclePolicy = new TestLifecyclePolicy("test", phases);
+        Map<String, Phase> phases = Collections.singletonMap("delete", new Phase("delete",
+            TimeValue.timeValueSeconds(3), deletePhaseActions));
+        lifecyclePolicy = new TimeseriesLifecyclePolicy("test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {
         // start master node
-        logger.info("Starting sever1");
+        logger.info("Starting server1");
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
         logger.info("Creating lifecycle [test_lifecycle]");
-        Thread.sleep(10000);
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);
@@ -115,6 +112,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "THIS NEEDS FIXING") // NOCOMMIT Fix this integration test
     public void testMasterDedicatedDataDedicated() throws Exception {
         // start master node
         logger.info("Starting sever1");
@@ -139,6 +137,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "THIS NEEDS FIXING") // NOCOMMIT Fix this integration test
     public void testMasterFailover() throws Exception {
         // start one server
         logger.info("Starting sever1");

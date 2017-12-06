@@ -34,7 +34,7 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
     /**
      * A callback for when a {@link LifecycleAction} finishes executing
      */
-    public static interface Listener {
+    interface Listener {
 
         /**
          * Called if the call to

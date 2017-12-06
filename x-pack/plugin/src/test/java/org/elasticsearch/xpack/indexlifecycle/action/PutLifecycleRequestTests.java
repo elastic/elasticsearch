@@ -35,8 +35,10 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
     @Before
     public void setup() {
         List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                    new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TestLifecyclePolicy.TYPE), TestLifecyclePolicy::parse));
+                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class,
+                        new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                    new NamedXContentRegistry.Entry(LifecyclePolicy.class,
+                        new ParseField(TestLifecyclePolicy.TYPE), TestLifecyclePolicy::parse));
         registry = new NamedXContentRegistry(entries);
         lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances

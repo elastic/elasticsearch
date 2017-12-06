@@ -25,12 +25,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,8 +56,8 @@ final class JvmOptionsParser {
         }
         final List<String> jvmOptions = new ArrayList<>();
         final SortedMap<Integer, String> invalidLines = new TreeMap<>();
-        try (InputStream is = new FileInputStream(Paths.get(args[0]).toFile());
-             Reader reader = new InputStreamReader(is);
+        try (InputStream is = Files.newInputStream(Paths.get(args[0]));
+             Reader reader = new InputStreamReader(is, Charset.forName("UTF-8"));
              BufferedReader br = new BufferedReader(reader)) {
             parse(
                     JavaVersion.majorVersion(JavaVersion.CURRENT),

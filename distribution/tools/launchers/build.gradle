@@ -36,9 +36,17 @@ dependencies {
 
 archivesBaseName = 'elasticsearch-launchers'
 
+// launchers do not depend on core so only JDK signatures should be checked
 forbiddenApisMain {
-    // java-version-checker does not depend on core so only JDK signatures should be checked
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+forbiddenApisTest {
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+namingConventions {
+    testClass = 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+    skipIntegTestInDisguise = true
 }
 
 javadoc.enabled = false

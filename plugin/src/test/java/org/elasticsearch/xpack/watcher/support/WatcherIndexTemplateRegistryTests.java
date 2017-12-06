@@ -154,7 +154,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ClusterState createClusterState(String ... existingTemplates) {
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (String templateName : existingTemplates) {
-            metaDataBuilder.put(IndexTemplateMetaData.builder(templateName));
+            metaDataBuilder.put(IndexTemplateMetaData.builder(templateName)
+                    .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))));
         }
 
         return ClusterState.builder(new ClusterName("foo")).metaData(metaDataBuilder.build()).build();

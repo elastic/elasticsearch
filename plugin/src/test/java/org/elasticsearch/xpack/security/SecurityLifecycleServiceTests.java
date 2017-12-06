@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -220,8 +221,8 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
                 IndexLifecycleManager.TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
-        IndexTemplateMetaData.Builder templateBuilder =
-                IndexTemplateMetaData.builder(templateName);
+        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)
+                .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
         for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
             templateBuilder.putMapping(entry.getKey(), entry.getValue());
         }

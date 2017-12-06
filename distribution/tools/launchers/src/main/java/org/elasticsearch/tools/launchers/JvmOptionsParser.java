@@ -45,7 +45,7 @@ final class JvmOptionsParser {
      */
     public static void main(final String[] args) throws IOException {
         if (args.length != 1) {
-            throw new IllegalArgumentException("expected one argument but was " + Arrays.toString(args));
+            throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
         }
         final List<String> jvmOptions = new ArrayList<>();
         try (InputStream is = new FileInputStream(Paths.get(args[0]).toFile());

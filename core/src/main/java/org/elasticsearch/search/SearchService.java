@@ -60,6 +60,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -118,6 +120,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(24), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
+
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
      * to the cancellation request faster. However, since it will produce more cancellation checks it might slow the search performance
@@ -163,6 +166,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
+    private final MultiBucketConsumerService multiBucketConsumerService;
+
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
                          ResponseCollectorService responseCollectorService) {
@@ -175,6 +180,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings);
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -741,7 +747,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null) {
             try {
                 AggregatorFactories factories = source.aggregations().build(context, null);
-                context.aggregations(new SearchContextAggregations(factories));
+                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -1016,5 +1022,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public IndicesService getIndicesService() {
         return indicesService;
+    }
+
+    public InternalAggregation.ReduceContext createReduceContext(boolean finalReduce) {
+        return new InternalAggregation.ReduceContext(bigArrays, scriptService, multiBucketConsumerService.create(), finalReduce);
     }
 }

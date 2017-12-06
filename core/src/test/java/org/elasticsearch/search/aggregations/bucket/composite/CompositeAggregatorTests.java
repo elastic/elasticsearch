@@ -1048,7 +1048,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 if (reduced) {
                     composite = searchAndReduce(indexSearcher, query, aggregationBuilder, FIELD_TYPES);
                 } else {
-                    composite = search(indexSearcher, query, aggregationBuilder, indexSettings, FIELD_TYPES);
+                    composite = search(indexSearcher, query, aggregationBuilder, FIELD_TYPES);
                 }
                 verify.accept(composite);
             }

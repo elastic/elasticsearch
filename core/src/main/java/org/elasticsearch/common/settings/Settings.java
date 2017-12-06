@@ -307,6 +307,13 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns <code>true</code> iff the given key has a value in this settings object
+     */
+    public boolean hasValue(String key) {
+        return settings.get(key) != null;
+    }
+
+    /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
@@ -1229,8 +1236,9 @@ public final class Settings implements ToXContentFragment {
             Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
             while(iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                if (entry.getKey().startsWith(prefix) == false) {
-                    replacements.put(prefix + entry.getKey(), entry.getValue());
+                String key = entry.getKey();
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                    replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
             }

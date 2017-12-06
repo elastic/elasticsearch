@@ -166,6 +166,7 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        consumeBucketsAndMaybeBreak(keys.length + (showOtherBucket ? 1 : 0));
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);

@@ -48,11 +48,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -69,6 +71,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -324,32 +328,38 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return false;
     }
 
-    /*
-     * Finds all mappings for types and concrete indices. Types are expanded to
-     * include all types that match the glob patterns in the types array. Empty
-     * types array, null or {"_all"} will be expanded to all types available for
-     * the given indices.
+    /**
+     * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
+     * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
+     * the given indices. Only fields that match the provided field filter will be returned (default is a predicate
+     * that always returns true, which can be overridden via plugins)
+     *
+     * @see MapperPlugin#getFieldFilter()
+     *
      */
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
+                                                                                            final String[] types,
+                                                                                            Function<String, Predicate<String>> fieldFilter)
+            throws IOException {
         assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
+        boolean isAllTypes = isAllTypes(types);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
-            if (isAllTypes(types)) {
-                indexMapBuilder.put(index, indexMetaData.getMappings()); // No types specified means get it all
-
+            Predicate<String> fieldPredicate = fieldFilter.apply(index);
+            if (isAllTypes) {
+                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
             } else {
-                filteredMappings = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, cursor.value);
+                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
                     }
                 }
                 if (!filteredMappings.isEmpty()) {
@@ -358,6 +368,95 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return indexMapBuilder.build();
+    }
+
+    private static ImmutableOpenMap<String, MappingMetaData> filterFields(ImmutableOpenMap<String, MappingMetaData> mappings,
+                                                                          Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            return mappings;
+        }
+        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
+            builder.put(cursor.key, filterFields(cursor.value, fieldPredicate));
+        }
+        return builder.build(); // No types specified means return them all
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            return mappingMetaData;
+        }
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();
+        Map<String, Object> mapping;
+        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetaData.type())) {
+            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetaData.type());
+        } else {
+            mapping = sourceAsMap;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>)mapping.get("properties");
+        if (properties == null || properties.isEmpty()) {
+            return mappingMetaData;
+        }
+
+        filterFields("", properties, fieldPredicate);
+
+        return new MappingMetaData(mappingMetaData.type(), sourceAsMap);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
+        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
+        Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
+        while (entryIterator.hasNext()) {
+            Map.Entry<String, Object> entry = entryIterator.next();
+            String newPath = mergePaths(currentPath, entry.getKey());
+            Object value = entry.getValue();
+            boolean mayRemove = true;
+            boolean isMultiField = false;
+            if (value instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) value;
+                Map<String, Object> properties = (Map<String, Object>)map.get("properties");
+                if (properties != null) {
+                    mayRemove = filterFields(newPath, properties, fieldPredicate);
+                } else {
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    if (subFields != null) {
+                        isMultiField = true;
+                        if (mayRemove = filterFields(newPath, subFields, fieldPredicate)) {
+                            map.remove("fields");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalStateException("cannot filter mappings, found unknown element of type [" + value.getClass() + "]");
+            }
+
+            //only remove a field if it has no sub-fields left and it has to be excluded
+            if (fieldPredicate.test(newPath) == false) {
+                if (mayRemove) {
+                    entryIterator.remove();
+                } else if (isMultiField) {
+                    //multi fields that should be excluded but hold subfields that don't have to be excluded are converted to objects
+                    Map<String, Object> map = (Map<String, Object>) value;
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    assert subFields.size() > 0;
+                    map.put("properties", subFields);
+                    map.remove("fields");
+                    map.remove("type");
+                }
+            }
+        }
+        //return true if the ancestor may be removed, as it has no sub-fields left
+        return fields.size() == 0;
+    }
+
+    private static String mergePaths(String path, String field) {
+        if (path.length() == 0) {
+            return field;
+        }
+        return path + "." + field;
     }
 
     /**

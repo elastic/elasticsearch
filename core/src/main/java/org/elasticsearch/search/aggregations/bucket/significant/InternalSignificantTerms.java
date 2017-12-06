@@ -241,7 +241,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
             if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
-                ordered.insertWithOverflow(b);
+                B removed = ordered.insertWithOverflow(b);
+                if (removed == null) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                }
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
         }
         B[] list = createBucketsArray(ordered.size());

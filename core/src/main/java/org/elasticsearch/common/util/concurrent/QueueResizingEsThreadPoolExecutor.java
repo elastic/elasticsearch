@@ -22,21 +22,16 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ResizableBlockingQueue;
 
 import java.util.Locale;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 /**
  * An extension to thread pool executor, which automatically adjusts the queue size of the
@@ -80,8 +75,8 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         this.maxQueueSize = maxQueueSize;
         this.targetedResponseTimeNanos = targetedResponseTime.getNanos();
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
-        logger.debug("thread pool [{}] will adjust queue by [{}] when determining automatic queue size",
-                name, QUEUE_ADJUSTMENT_AMOUNT);
+        logger.debug(
+                "thread pool [{}] will adjust queue by [{}] when determining automatic queue size", getName(), QUEUE_ADJUSTMENT_AMOUNT);
     }
 
     @Override
@@ -180,7 +175,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                     final long avgTaskTime = totalNanos / tasksPerFrame;
                     logger.debug("[{}]: there were [{}] tasks in [{}], avg task time [{}], EWMA task execution [{}], " +
                                     "[{} tasks/s], optimal queue is [{}], current capacity [{}]",
-                            name,
+                            getName(),
                             tasksPerFrame,
                             TimeValue.timeValueNanos(totalRuntime),
                             TimeValue.timeValueNanos(avgTaskTime),
@@ -196,7 +191,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                 final int newCapacity =
                         workQueue.adjustCapacity(desiredQueueSize, QUEUE_ADJUSTMENT_AMOUNT, minQueueSize, maxQueueSize);
                 if (oldCapacity != newCapacity && logger.isDebugEnabled()) {
-                    logger.debug("adjusted [{}] queue size by [{}], old capacity: [{}], new capacity: [{}]", name,
+                    logger.debug("adjusted [{}] queue size by [{}], old capacity: [{}], new capacity: [{}]", getName(),
                             newCapacity > oldCapacity ? QUEUE_ADJUSTMENT_AMOUNT : -QUEUE_ADJUSTMENT_AMOUNT,
                             oldCapacity, newCapacity);
                 }
@@ -205,7 +200,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to calculate optimal queue size for [{}] thread pool, " +
                                 "total frame time [{}ns], tasks [{}], task execution time [{}ns]",
-                                name, totalRuntime, tasksPerFrame, totalNanos),
+                                getName(), totalRuntime, tasksPerFrame, totalNanos),
                         e);
             } finally {
                 // Finally, decrement the task count and time back to their starting values. We
@@ -224,7 +219,8 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                     // - Adjustment happens and we decrement the tasks by 10, taskCount is now 15
                     // - Since taskCount will now be incremented forever, it will never be 10 again,
                     //   so there will be no further adjustments
-                    logger.debug("[{}]: too many incoming tasks while queue size adjustment occurs, resetting measurements to 0", name);
+                    logger.debug(
+                            "[{}]: too many incoming tasks while queue size adjustment occurs, resetting measurements to 0", getName());
                     totalTaskNanos.getAndSet(1);
                     taskCount.getAndSet(0);
                     startNs = System.nanoTime();
@@ -237,26 +233,13 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     @Override
-    public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append(getClass().getSimpleName()).append('[');
-        b.append(name).append(", ");
-
-        @SuppressWarnings("rawtypes")
-        ResizableBlockingQueue queue = (ResizableBlockingQueue) getQueue();
-
-        b.append("queue capacity = ").append(getCurrentCapacity()).append(", ");
-        b.append("min queue capacity = ").append(minQueueSize).append(", ");
-        b.append("max queue capacity = ").append(maxQueueSize).append(", ");
-        b.append("frame size = ").append(tasksPerFrame).append(", ");
-        b.append("targeted response rate = ").append(TimeValue.timeValueNanos(targetedResponseTimeNanos)).append(", ");
-        b.append("task execution EWMA = ").append(TimeValue.timeValueNanos((long)executionEWMA.getAverage())).append(", ");
-        b.append("adjustment amount = ").append(QUEUE_ADJUSTMENT_AMOUNT).append(", ");
-        /*
-         * ThreadPoolExecutor has some nice information in its toString but we
-         * can't get at it easily without just getting the toString.
-         */
-        b.append(super.toString()).append(']');
-        return b.toString();
+    protected void appendThreadPoolExecutorDetails(StringBuilder sb) {
+        sb.append("min queue capacity = ").append(minQueueSize).append(", ");
+        sb.append("max queue capacity = ").append(maxQueueSize).append(", ");
+        sb.append("frame size = ").append(tasksPerFrame).append(", ");
+        sb.append("targeted response rate = ").append(TimeValue.timeValueNanos(targetedResponseTimeNanos)).append(", ");
+        sb.append("task execution EWMA = ").append(TimeValue.timeValueNanos((long) executionEWMA.getAverage())).append(", ");
+        sb.append("adjustment amount = ").append(QUEUE_ADJUSTMENT_AMOUNT).append(", ");
     }
+
 }

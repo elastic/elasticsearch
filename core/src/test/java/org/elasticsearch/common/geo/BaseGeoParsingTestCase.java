@@ -18,10 +18,21 @@
  */
 package org.elasticsearch.common.geo;
 
+import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.ShapeCollection;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
@@ -35,4 +46,35 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     public abstract void testParseMultiLineString() throws IOException;
     public abstract void testParsePolygon() throws IOException;
     public abstract void testParseMultiPolygon() throws IOException;
+    public abstract void testParseEnvelope() throws IOException;
+    public abstract void testParseGeometryCollection() throws IOException;
+
+    protected void assertValidException(XContentBuilder builder, Class expectedException) throws IOException {
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+    }
+
+    protected void assertGeometryEquals(Shape expected, XContentBuilder geoJson) throws IOException {
+        XContentParser parser = createParser(geoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).build());
+    }
+
+    protected ShapeCollection<Shape> shapeCollection(Shape... shapes) {
+        return new ShapeCollection<>(Arrays.asList(shapes), SPATIAL_CONTEXT);
+    }
+
+    protected ShapeCollection<Shape> shapeCollection(Geometry... geoms) {
+        List<Shape> shapes = new ArrayList<>(geoms.length);
+        for (Geometry geom : geoms) {
+            shapes.add(jtsGeom(geom));
+        }
+        return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
+    }
+
+    protected JtsGeometry jtsGeom(Geometry geom) {
+        return new JtsGeometry(geom, SPATIAL_CONTEXT, false, false);
+    }
+
 }

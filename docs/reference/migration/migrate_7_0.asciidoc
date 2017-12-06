@@ -12,12 +12,11 @@ Elasticsearch 7.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 6.0.
 
 [IMPORTANT]
-.Reindex indices from Elasticseach 5.x or before
+.Reindex indices from Elasticsearch 5.x or before
 =========================================
 
 Indices created in Elasticsearch 5.x or before will need to be reindexed with
-Elasticsearch 6.x in order to be readable by Elasticsearch 7.x. The easiest
-way to reindex old indices is to use the `reindex` API.
+Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 
 =========================================
 

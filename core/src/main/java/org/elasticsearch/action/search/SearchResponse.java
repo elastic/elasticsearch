@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
@@ -242,9 +243,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        XContentParser.Token token;
-        String currentFieldName = null;
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        parser.nextToken();
+        return innerFromXContent(parser);
+    }
+
+    static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        String currentFieldName = parser.currentName();
         SearchHits hits = null;
         Aggregations aggs = null;
         Suggest suggest = null;
@@ -259,8 +265,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         String scrollId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
+        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (SCROLL_ID.match(currentFieldName)) {
@@ -276,7 +282,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 } else {
                     parser.skipChildren();
                 }
-            } else if (token == XContentParser.Token.START_OBJECT) {
+            } else if (token == Token.START_OBJECT) {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = SearchHits.fromXContent(parser);
                 } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
@@ -286,8 +292,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 } else if (SearchProfileShardResults.PROFILE_FIELD.equals(currentFieldName)) {
                     profile = SearchProfileShardResults.fromXContent(parser);
                 } else if (RestActions._SHARDS_FIELD.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
                             if (RestActions.FAILED_FIELD.match(currentFieldName)) {
@@ -301,9 +307,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             } else {
                                 parser.skipChildren();
                             }
-                        } else if (token == XContentParser.Token.START_ARRAY) {
+                        } else if (token == Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName)) {
-                                while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                while((token = parser.nextToken()) != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {

@@ -107,15 +107,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers(withoutType);
     }
 
-    private MappingMetaData() {
-        this.type = "";
-        try {
-            this.source = new CompressedXContent("{}");
-        } catch (IOException ex) {
-            throw new IllegalStateException("Cannot create MappingMetaData prototype", ex);
-        }
-    }
-
     private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
@@ -141,13 +132,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         } else {
             this.hasParentField = false;
         }
-    }
-
-    public MappingMetaData(String type, CompressedXContent source, Routing routing, boolean hasParentField) {
-        this.type = type;
-        this.source = source;
-        this.routing = routing;
-        this.hasParentField = hasParentField;
     }
 
     void updateDefaultMapping(MappingMetaData defaultMapping) {
@@ -250,5 +234,4 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(MappingMetaData::new, in);
     }
-
 }

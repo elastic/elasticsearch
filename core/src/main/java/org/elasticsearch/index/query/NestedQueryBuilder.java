@@ -399,7 +399,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
                     } else {
                         topDocsCollector = TopScoreDocCollector.create(topN);
                     }

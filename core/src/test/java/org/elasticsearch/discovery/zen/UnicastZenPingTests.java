@@ -112,7 +112,8 @@ public class UnicastZenPingTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
         executorService =
-            EsExecutors.newScaling(getClass().getName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
+            EsExecutors.newScaling(
+                    getClass().getName() + "/" + getTestName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
     }
 

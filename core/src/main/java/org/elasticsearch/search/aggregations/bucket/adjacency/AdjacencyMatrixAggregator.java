@@ -210,6 +210,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i],
                         docCount, bucketAggregations(bucketOrd));
                 buckets.add(bucket);
+                consumeBucketsAndMaybeBreak(1);
             }
         }
         int pos = keys.length;
@@ -223,6 +224,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey,
                             docCount, bucketAggregations(bucketOrd));
                     buckets.add(bucket);
+                    consumeBucketsAndMaybeBreak(1);
                 }
                 pos++;
             }

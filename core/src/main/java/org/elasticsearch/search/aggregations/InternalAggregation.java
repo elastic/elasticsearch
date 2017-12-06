@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntConsumer;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
@@ -43,11 +45,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
+        private final IntConsumer multiBucketConsumer;
         private final boolean isFinalReduce;
 
         public ReduceContext(BigArrays bigArrays, ScriptService scriptService, boolean isFinalReduce) {
+            this(bigArrays, scriptService, (s) -> {}, isFinalReduce);
+        }
+
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer, boolean isFinalReduce) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.multiBucketConsumer = multiBucketConsumer;
             this.isFinalReduce = isFinalReduce;
         }
 
@@ -66,6 +74,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
         public ScriptService scriptService() {
             return scriptService;
+        }
+
+        /**
+         * Adds <tt>count</tt> buckets to the global count for the request and fails if this number is greater than
+         * the maximum number of buckets allowed in a response
+         */
+        public void consumeBucketsAndMaybeBreak(int size) {
+            multiBucketConsumer.accept(size);
         }
     }
 

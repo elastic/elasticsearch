@@ -29,10 +29,12 @@ public abstract class MathFunction extends UnaryScalarFunction {
         super(location, field);
     }
 
+    @Override
     public boolean foldable() {
         return field().foldable();
     }
 
+    @Override
     protected String formatScript(String template) {
         return super.formatScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
     }

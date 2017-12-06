@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
@@ -40,6 +41,7 @@ public class Literal extends LeafExpression {
         return value == null;
     }
 
+    @Override
     public DataType dataType() {
         return dataType;
     }
@@ -54,6 +56,7 @@ public class Literal extends LeafExpression {
         return true;
     }
 
+    @Override
     public Object fold() {
         return value;
     }
@@ -83,5 +86,17 @@ public class Literal extends LeafExpression {
             return (Literal) value;
         }
         return new Literal(loc, value, DataTypes.fromJava(value));
+    }
+
+    public static Literal of(Expression foldable) {
+        if (foldable instanceof Literal) {
+            return (Literal) foldable;
+        }
+
+        if (!foldable.foldable()) {
+            throw new SqlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
+        }
+
+        return new Literal(foldable.location(), foldable.fold(), foldable.dataType());
     }
 }

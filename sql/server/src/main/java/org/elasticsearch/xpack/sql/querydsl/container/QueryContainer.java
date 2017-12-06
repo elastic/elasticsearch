@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
@@ -76,7 +77,7 @@ public class QueryContainer {
     }
 
     public QueryContainer(Query query, Aggs aggs, List<ColumnReference> refs, Map<Attribute, Attribute> aliases,
-            Map<String, GroupingAgg> pseudoFunctions, 
+            Map<String, GroupingAgg> pseudoFunctions,
             Map<Attribute, ProcessorDefinition> scalarFunctions,
             Set<Sort> sort, int limit) {
         this.query = query;
@@ -99,7 +100,7 @@ public class QueryContainer {
                 // check field references
                 if (((ComputedRef) ref).processor().anyMatch(p -> p instanceof ReferenceInput && ((ReferenceInput) p).context() instanceof FieldReference)) {
                     onlyAggs = false;
-            }
+                }
             }
             if (ref instanceof FieldReference) {
                 onlyAggs = false;
@@ -246,10 +247,10 @@ public class QueryContainer {
         if (proc == null) {
             if (name instanceof ScalarFunctionAttribute) {
                 sfa = (ScalarFunctionAttribute) name;
-    }
+            }
             proc = sfa.processorDef();
         }
-        AtomicReference<QueryContainer> containerRef = new AtomicReference<QueryContainer>(this);
+        AtomicReference<QueryContainer> containerRef = new AtomicReference<>(this);
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
@@ -276,13 +277,17 @@ public class QueryContainer {
     private Tuple<QueryContainer, ColumnReference> toReference(Attribute attr) {
         if (attr instanceof RootFieldAttribute) {
             return new Tuple<>(this, fieldRef((RootFieldAttribute) attr));
-    }
+        }
         if (attr instanceof NestedFieldAttribute) {
             return nestedFieldRef((NestedFieldAttribute) attr);
         }
         if (attr instanceof ScalarFunctionAttribute) {
             return computingRef((ScalarFunctionAttribute) attr);
         }
+        if (attr instanceof LiteralAttribute) {
+            return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asProcessorDefinition()));
+        }
+
         throw new SqlIllegalArgumentException("Unknown output attribute %s", attr);
     }
 

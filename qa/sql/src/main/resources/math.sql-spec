@@ -70,7 +70,9 @@ SELECT emp_no, CAST(CEIL(emp_no) AS INT) m, first_name FROM "test_emp" WHERE CEI
 //SELECT emp_no, COSH(emp_no) m, first_name FROM "test_emp" WHERE COSH(emp_no) < 10010 ORDER BY COSH(emp_no);
 
 //
-// constants - added when folding will be supported
+// constants
 //
-//mathConstantPI
-//SELECT ABS(emp_no) m, PI(), first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathConstantPI
+SELECT ABS(emp_no) m, PI() as pi, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathConstant
+SELECT 5 + 2 * 3 / 2 % 2 AS c, PI() as e, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;

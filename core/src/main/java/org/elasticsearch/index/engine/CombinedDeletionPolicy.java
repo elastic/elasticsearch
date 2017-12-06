@@ -76,17 +76,17 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
         final IndexCommit keptCommit = deleteOldIndexCommits(commits);
         final IndexCommit lastCommit = commits.get(commits.size() - 1);
-        setLastCommittedTranslogGeneration(keptCommit, lastCommit);
+        updateTranslogDeletionPolicy(keptCommit, lastCommit);
     }
 
-    private void setLastCommittedTranslogGeneration(final IndexCommit keptCommit, final IndexCommit lastCommit) throws IOException {
-        assert keptCommit.isDeleted() == false : "The kept commit should not be deleted";
-        final long minRequiredGen = Long.parseLong(keptCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+    private void updateTranslogDeletionPolicy(final IndexCommit minRequiredCommit, final IndexCommit lastCommit) throws IOException {
+        assert minRequiredCommit.isDeleted() == false : "The minimum required commit must not be deleted";
+        final long minRequiredGen = Long.parseLong(minRequiredCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
 
-        assert lastCommit.isDeleted() == false : "The last commit should not be deleted";
+        assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
         final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
 
-        assert minRequiredGen <= lastGen : "MinRequiredGen must not be greater than LastGen";
+        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
     }
@@ -105,7 +105,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Find the index position of a safe index commit whose max sequence number is not greater than the global checkpoint.
+     * Find the highest index position of a safe index commit whose max sequence number is not greater than the global checkpoint.
      */
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
         final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();

@@ -21,8 +21,9 @@ Security::
 // https://github.com/elastic/x-pack-elasticsearch/pull/3008[#3008] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2973[#2973])
 * SetupPasswordTool handle url option correctly
 // https://github.com/elastic/x-pack-elasticsearch/pull/2899[#2899] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2778[#2778], https://github.com/elastic/x-pack-elasticsearch/issues/2784[#2784])
-
-Watcher::
-* Watcher: Properly url encode room names
-// https://github.com/elastic/x-pack-elasticsearch/pull/2896[#2896] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2371[#2371], https://github.com/elastic/x-pack-elasticsearch/issues/2429[#2429])
 ////
+Watcher::
+* Fixed handling of Hipchat rooms. For example, room names with spaces did not
+work as expected. For more information, see
+{xpack-ref}/actions-hipchat.html[HipChat Action].
+// https://github.com/elastic/x-pack-elasticsearch/pull/2896[#2896] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2371[#2371], https://github.com/elastic/x-pack-elasticsearch/issues/2429[#2429])

@@ -24,7 +24,12 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -50,6 +55,15 @@ public class GeoUtils {
     public static final String LATITUDE = "lat";
     public static final String LONGITUDE = "lon";
     public static final String GEOHASH = "geohash";
+    private static final ParseField WKT_FIELD = new ParseField("wkt");
+    public static final ParseField TOP_FIELD = new ParseField("top");
+    public static final ParseField BOTTOM_FIELD = new ParseField("bottom");
+    public static final ParseField LEFT_FIELD = new ParseField("left");
+    public static final ParseField RIGHT_FIELD = new ParseField("right");
+    public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
+    public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
+    public static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
+    public static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
 
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
@@ -463,6 +477,80 @@ public class GeoUtils {
         } else {
             return point.resetFromGeoHash(data);
         }
+    }
+
+    public static String rectangleToJson(Rectangle rectangle) throws IOException {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .array(TOP_LEFT_FIELD.getPreferredName(), rectangle.minLon, rectangle.maxLat)
+            .array(BOTTOM_RIGHT_FIELD.getPreferredName(), rectangle.maxLon, rectangle.minLat)
+            .endObject();
+        return xContentBuilder.string();
+    }
+
+    public static Rectangle parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+        XContentParser.Token token = parser.currentToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
+        }
+
+        double top = Double.NaN;
+        double bottom = Double.NaN;
+        double left = Double.NaN;
+        double right = Double.NaN;
+
+        String currentFieldName;
+        GeoPoint sparse = new GeoPoint();
+        EnvelopeBuilder envelope = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                token = parser.nextToken();
+                if (WKT_FIELD.match(currentFieldName)) {
+                    envelope = EnvelopeBuilder.class.cast(GeoWKTParser.parseExpectedType(parser, GeoShapeType.ENVELOPE));
+                } else if (TOP_FIELD.match(currentFieldName)) {
+                    top = parser.doubleValue();
+                } else if (BOTTOM_FIELD.match(currentFieldName)) {
+                    bottom = parser.doubleValue();
+                } else if (LEFT_FIELD.match(currentFieldName)) {
+                    left = parser.doubleValue();
+                } else if (RIGHT_FIELD.match(currentFieldName)) {
+                    right = parser.doubleValue();
+                } else {
+                    if (TOP_LEFT_FIELD.match(currentFieldName)) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        top = sparse.getLat();
+                        left = sparse.getLon();
+                    } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName)) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        bottom = sparse.getLat();
+                        right = sparse.getLon();
+                    } else if (TOP_RIGHT_FIELD.match(currentFieldName)) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        top = sparse.getLat();
+                        right = sparse.getLon();
+                    } else if (BOTTOM_LEFT_FIELD.match(currentFieldName)) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        bottom = sparse.getLat();
+                        left = sparse.getLon();
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse bounding box. unexpected field [{}]", currentFieldName);
+                    }
+                }
+            } else {
+                throw new ElasticsearchParseException("failed to parse bounding box. field name expected but [{}] found", token);
+            }
+        }
+        if (envelope != null) {
+            if ((Double.isNaN(top) || Double.isNaN(bottom) || Double.isNaN(left) || Double.isNaN(right)) == false) {
+                throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
+                    + "using well-known text and explicit corners.");
+            }
+            org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
+            return new Rectangle(r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+        }
+        return new Rectangle(bottom, top, left, right);
     }
 
     /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */

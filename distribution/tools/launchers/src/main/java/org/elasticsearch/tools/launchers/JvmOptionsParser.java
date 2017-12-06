@@ -231,6 +231,7 @@ final class JvmOptionsParser {
                         }
                         if (upper < lower) {
                             invalidLineConsumer.accept(lineNumber, line);
+                            continue;
                         }
                     }
                     if (lower <= javaMajorVersion && javaMajorVersion <= upper) {

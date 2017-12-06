@@ -205,7 +205,15 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
             final Map<Integer, String> invalidLines = new HashMap<>(2);
             invalidLines.put(1, "XX:+UseG1GC");
             invalidLines.put(2, "XX:+AggressiveOpts");
-            assertInvalidLines(br, invalidLines);;
+            assertInvalidLines(br, invalidLines);
+        }
+
+        final int lowerBound = randomIntBetween(9, 16);
+        final int upperBound = randomIntBetween(8, lowerBound - 1);
+        final String upperBoundGreaterThanLowerBound = String.format(Locale.ROOT, "%d-%d-XX:+UseG1GC", lowerBound, upperBound);
+        try (StringReader sr = new StringReader(upperBoundGreaterThanLowerBound);
+             BufferedReader br = new BufferedReader(sr)) {
+            assertInvalidLines(br, Collections.singletonMap(1, upperBoundGreaterThanLowerBound));
         }
     }
 

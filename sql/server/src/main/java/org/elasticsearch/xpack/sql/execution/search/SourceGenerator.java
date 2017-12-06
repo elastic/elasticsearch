@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
@@ -94,6 +96,21 @@ public abstract class SourceGenerator {
 
         // add the aggs
         Aggs aggs = container.aggs();
+
+        // push limit onto group aggs
+        if (container.limit() > 0) {
+            List<GroupingAgg> groups = new ArrayList<>(aggs.groups());
+            if (groups.size() > 0) {
+                // get just the root agg
+                GroupingAgg mainAgg = groups.get(0);
+                if (mainAgg instanceof GroupByColumnAgg) {
+                    groups.set(0, ((GroupByColumnAgg) mainAgg).withLimit(container.limit()));
+                    aggs = aggs.with(groups);
+                }
+            }
+        }
+
+
         for (AggregationBuilder builder : aggs.asAggBuilders()) {
             source.aggregation(builder);
         }

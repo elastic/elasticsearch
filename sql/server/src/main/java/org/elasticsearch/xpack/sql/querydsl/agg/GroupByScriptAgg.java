@@ -21,12 +21,12 @@ public class GroupByScriptAgg extends GroupByColumnAgg {
     private final ScriptTemplate script;
 
     public GroupByScriptAgg(String id, String propertyPath, String fieldName, ScriptTemplate script) {
-        this(id, propertyPath, fieldName, script, emptyList(), emptyList(), emptyMap());
+        this(id, propertyPath, fieldName, script, emptyList(), emptyList(), emptyMap(), -1);
     }
 
     public GroupByScriptAgg(String id, String propertyPath, String fieldName, ScriptTemplate script, List<LeafAgg> subAggs,
-            List<PipelineAgg> subPipelines, Map<String, Direction> order) {
-        super(id, propertyPath, fieldName, subAggs, subPipelines, order);
+            List<PipelineAgg> subPipelines, Map<String, Direction> order, int limit) {
+        super(id, propertyPath, fieldName, subAggs, subPipelines, order, limit);
         this.script = script;
     }
 
@@ -46,6 +46,11 @@ public class GroupByScriptAgg extends GroupByColumnAgg {
 
     @Override
     protected GroupByScriptAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
-        return new GroupByScriptAgg(id, propertyPath, fieldName, script, subAggs, subPipelines, order);
+        return new GroupByScriptAgg(id, propertyPath, fieldName, script, subAggs, subPipelines, order, limit());
+    }
+
+    @Override
+    public GroupByScriptAgg withLimit(int limit) {
+        return new GroupByScriptAgg(id(), propertyPath(), fieldName(), script, subAggs(), subPipelines(), order(), limit);
     }
 }

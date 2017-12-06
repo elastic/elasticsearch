@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-
 import static java.util.Collections.emptyList;
-
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 // Aggregations associated with a query.
@@ -27,7 +26,7 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 // Aggregations are of two types - concrete metric aggs or pipeline/filtering aggs
 //
 // Pipeline Notes:
-// 
+//
 // As pipeline aggs can refers to aggs across different groups (different tree levels)
 // one needs to pay attention attention before adding them to properly find the lowest level and
 // make everything relative to that.
@@ -118,7 +117,7 @@ public class Aggs {
 
         throw new SqlIllegalArgumentException("Does not know how to handle type %s", agg);
     }
-    
+
     public Aggs addAgg(PipelineAgg pipelineAgg) {
         if (groups.isEmpty()) {
             return new Aggs(rootAggs, combine(rootPipelineAggs, pipelineAgg), this.groups);
@@ -150,7 +149,7 @@ public class Aggs {
         }
         throw new SqlIllegalArgumentException("Could not find group named %s", groupId);
     }
-    
+
     public Aggs addAgg(String groupId, PipelineAgg child) {
         // it's a root agg
         if (groupId == null) {
@@ -202,8 +201,8 @@ public class Aggs {
         }
         throw new SqlIllegalArgumentException("Could not find group named %s", group.id());
     }
-    
-    private Aggs with(List<GroupingAgg> groups) {
+
+    public Aggs with(List<GroupingAgg> groups) {
         return new Aggs(rootAggs, rootPipelineAggs, groups);
     }
 
@@ -211,19 +210,19 @@ public class Aggs {
     public int hashCode() {
         return Objects.hash(rootAggs, rootPipelineAggs, groups);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Aggs other = (Aggs) obj;
-        return Objects.equals(rootAggs, other.rootAggs) 
+        return Objects.equals(rootAggs, other.rootAggs)
                 && Objects.equals(rootPipelineAggs, other.rootPipelineAggs)
                 && Objects.equals(groups, other.groups);
     }

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.execution.search.Scroller;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;

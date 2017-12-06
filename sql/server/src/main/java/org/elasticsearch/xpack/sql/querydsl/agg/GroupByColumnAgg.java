@@ -22,18 +22,26 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 
 public class GroupByColumnAgg extends GroupingAgg {
 
+    private static final int DEFAULT_LIMIT = 512;
+    private final int limit;
+
     public GroupByColumnAgg(String id, String propertyPath, String fieldName) {
-        this(id, propertyPath, fieldName, emptyList(), emptyList(), emptyMap());
+        this(id, propertyPath, fieldName, emptyList(), emptyList(), emptyMap(), -1);
     }
 
-    public GroupByColumnAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    public GroupByColumnAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order, int limit) {
         super(id, propertyPath, fieldName, subAggs, subPipelines, order);
+        this.limit = limit < 0 ? DEFAULT_LIMIT : Math.min(limit, DEFAULT_LIMIT);
+    }
+
+    public int limit() {
+        return limit;
     }
 
     @Override
     protected AggregationBuilder toGroupingAgg() {
         // TODO: the size should be configurable
-        TermsAggregationBuilder terms = termsTarget(terms(id()).size(100));
+        TermsAggregationBuilder terms = termsTarget(terms(id()).size(limit));
 
         List<BucketOrder> termOrders = emptyList();
         if (!order().isEmpty()) {
@@ -67,6 +75,10 @@ public class GroupByColumnAgg extends GroupingAgg {
 
     @Override
     protected GroupByColumnAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
-        return new GroupByColumnAgg(id, propertyPath, fieldName, subAggs, subPipelines, order);
+        return new GroupByColumnAgg(id, propertyPath, fieldName, subAggs, subPipelines, order, limit);
+    }
+
+    public GroupByColumnAgg withLimit(int limit) {
+        return new GroupByColumnAgg(id(), propertyPath(), fieldName(), subAggs(), subPipelines(), order(), limit);
     }
 }

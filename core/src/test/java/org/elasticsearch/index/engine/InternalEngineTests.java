@@ -158,13 +158,13 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.translog.SnapshotMatchers.containsSeqNoRange;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -4187,27 +4187,20 @@ public class InternalEngineTests extends EngineTestCase {
                 if (rarely()) {
                     engine.rollTranslogGeneration();
                 }
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    long requiredOps = engine.seqNoService().getMaxSeqNo() - Math.max(0, engine.seqNoService().getGlobalCheckpoint());
-                    assertThat("Should keep translog operations up to the global checkpoint",
-                        (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
-                }
                 assertThat(engine.getTranslog().uncommittedOperations(), equalTo(uncommittedOps));
+                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                    assertThat(snapshot,
+                        containsSeqNoRange(Math.max(0, globalCheckpoint.get() + 1), engine.seqNoService().getLocalCheckpoint()));
+                }
             }
             engine.flush(randomBoolean(), true);
         }
         // Reopen engine to test onInit with existing index commits.
         try (InternalEngine engine
                  = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
-            final Set<Long> seqNoList = new HashSet<>();
             try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                Translog.Operation op;
-                while ((op = snapshot.next()) != null) {
-                    seqNoList.add(op.seqNo());
-                }
-            }
-            for (long i = Math.max(0, globalCheckpoint.get() + 1); i <= engine.seqNoService().getLocalCheckpoint(); i++) {
-                assertThat("Translog should keep op with seqno [" + i + "]", seqNoList, hasItem(i));
+                assertThat(snapshot,
+                    containsSeqNoRange(Math.max(0, globalCheckpoint.get() + 1), engine.seqNoService().getLocalCheckpoint()));
             }
         }
     }

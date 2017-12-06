@@ -119,8 +119,25 @@ system properties and JVM flags) is via the `jvm.options` configuration
 file. The default location of this file is `config/jvm.options` (when
 installing from the tar or zip distributions) and
 `/etc/elasticsearch/jvm.options` (when installing from the Debian or RPM
-packages). This file contains a line-delimited list of JVM arguments,
-which must begin with `-`. You can add custom JVM flags to this file and
+packages). This file contains a line-delimited list of JVM arguments following
+a special syntax:
+ - lines beginning with `#` are treated as comments and are ignored
+ - lines consisting only of whitespace are ignored
+ - lines beginning with a `-` are treated as a JVM option that applies
+   independent of the version of the JVM
+ - lines beginning with a number followed by a `:` followed by a `-` are treated
+   as a JVM option that applies only if the version of the JVM matches the
+   number
+ - lines beginning with a number followed by a `-` followed by a `:` are treated
+   as a JVM option that applies only if the version of the JVM is greater than
+   or equal to the number
+ - lines beginning with a number followed by a `-` followed by a `:` followed by
+   a `-` followed by a number are treated as a JVM option that applies only if
+   the version of the JVM falls in the range of the two numbers
+ - all other lines are rejected
+
+
+You can add custom JVM flags to this file and
 check this configuration into your version control system.
 
 An alternative mechanism for setting Java Virtual Machine options is

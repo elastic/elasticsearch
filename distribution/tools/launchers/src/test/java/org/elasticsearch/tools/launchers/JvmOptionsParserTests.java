@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.hamcrest.Matchers;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;

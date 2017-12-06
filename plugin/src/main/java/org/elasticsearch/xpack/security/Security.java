@@ -177,6 +177,8 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -599,7 +601,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class)
+                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
+                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, GetCertificateInfoAction.TransportAction.class)
         );
     }
 
@@ -639,7 +642,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new RestPutRoleMappingAction(settings, restController, licenseState),
                 new RestDeleteRoleMappingAction(settings, restController, licenseState),
                 new RestGetTokenAction(settings, restController, licenseState),
-                new RestInvalidateTokenAction(settings, restController, licenseState)
+                new RestInvalidateTokenAction(settings, restController, licenseState),
+                new RestGetCertificateInfoAction(settings, restController)
         );
     }
 

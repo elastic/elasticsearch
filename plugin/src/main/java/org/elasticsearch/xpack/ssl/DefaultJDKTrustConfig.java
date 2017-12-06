@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,6 +38,15 @@ class DefaultJDKTrustConfig extends TrustConfig {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
+    }
+
+    @Override
+    /**
+     * We don't return the list of JDK certificates here, because they are not managed by Elasticsearch, and the purpose
+     * of this method is to obtain information about certificate (files/stores) that X-Pack directly manages.
+     */
+    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+        return Collections.emptyList();
     }
 
     @Override

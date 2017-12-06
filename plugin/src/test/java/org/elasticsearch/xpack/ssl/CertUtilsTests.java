@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.jce.spec.ECNamedCurveSpec;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigInteger;
@@ -29,12 +20,18 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.jce.spec.ECNamedCurveSpec;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.test.ESTestCase;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -186,4 +183,5 @@ public class CertUtilsTests extends ESTestCase {
         ECNamedCurveSpec namedCurveSpec = (ECNamedCurveSpec) ecPrivateKey.getParams();
         assertEquals("prime256v1", namedCurveSpec.getName());
     }
+
 }

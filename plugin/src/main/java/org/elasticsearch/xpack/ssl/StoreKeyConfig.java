@@ -5,29 +5,34 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.env.Environment;
-
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
@@ -80,6 +85,28 @@ class StoreKeyConfig extends KeyConfig {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+        final Path path = CertUtils.resolvePath(keyStorePath, environment);
+        final KeyStore trustStore = CertUtils.readKeyStore(path, keyStoreType, keyStorePassword.getChars());
+        final List<CertificateInfo> certificates = new ArrayList<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate[] chain = trustStore.getCertificateChain(alias);
+            if (chain == null) {
+                continue;
+            }
+            for (int i = 0; i < chain.length; i++) {
+                final Certificate certificate = chain[i];
+                if (certificate instanceof X509Certificate) {
+                    certificates.add(new CertificateInfo(keyStorePath, keyStoreType, alias, i == 0, (X509Certificate) certificate));
+                }
+            }
+        }
+        return certificates;
     }
 
     @Override

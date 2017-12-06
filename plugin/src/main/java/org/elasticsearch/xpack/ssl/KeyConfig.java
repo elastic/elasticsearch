@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -26,6 +28,11 @@ abstract class KeyConfig extends TrustConfig {
         @Override
         X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
             return null;
+        }
+
+        @Override
+        Collection<CertificateInfo> certificates(Environment environment) {
+            return Collections.emptyList();
         }
 
         @Override
@@ -57,4 +64,5 @@ abstract class KeyConfig extends TrustConfig {
     abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
 
     abstract List<PrivateKey> privateKeys(@Nullable Environment environment);
+
 }

@@ -5,16 +5,25 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Objects;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-
-import javax.net.ssl.X509ExtendedTrustManager;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * Trust configuration that is backed by a {@link java.security.KeyStore}
@@ -28,8 +37,9 @@ class StoreTrustConfig extends TrustConfig {
 
     /**
      * Create a new configuration based on the provided parameters
-     * @param trustStorePath the path to the truststore
-     * @param trustStorePassword the password for the truststore
+     *
+     * @param trustStorePath      the path to the truststore
+     * @param trustStorePassword  the password for the truststore
      * @param trustStoreAlgorithm the algorithm to use for reading the truststore
      */
     StoreTrustConfig(String trustStorePath, String trustStoreType, SecureString trustStorePassword, String trustStoreAlgorithm) {
@@ -48,6 +58,23 @@ class StoreTrustConfig extends TrustConfig {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+        final Path path = CertUtils.resolvePath(trustStorePath, environment);
+        final KeyStore trustStore = CertUtils.readKeyStore(path, trustStoreType, trustStorePassword.getChars());
+        final List<CertificateInfo> certificates = new ArrayList<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate certificate = trustStore.getCertificate(alias);
+            if (certificate instanceof X509Certificate) {
+                final boolean hasKey = trustStore.isKeyEntry(alias);
+                certificates.add(new CertificateInfo(trustStorePath, trustStoreType, alias, hasKey, (X509Certificate) certificate));
+            }
+        }
+        return certificates;
     }
 
     @Override

@@ -80,7 +80,13 @@ final class JvmOptionsParser {
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {
-            Launchers.errPrintln("encountered errors parsing [" + args[0] + "]");
+            final String errorMessage = String.format(
+                    Locale.ROOT,
+                    "encountered [%d] error%s parsing [%s]",
+                    invalidLines.size(),
+                    invalidLines.size() == 1 ? "" : "s",
+                    args[0]);
+            Launchers.errPrintln(errorMessage);
             int count = 0;
             for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
                 count++;

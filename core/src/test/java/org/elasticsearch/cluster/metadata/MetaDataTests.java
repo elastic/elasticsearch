@@ -315,19 +315,29 @@ public class MetaDataTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFindMappingsWithFilters() throws IOException {
+        String mapping = FIND_MAPPINGS_TEST_ITEM;
+        if (randomBoolean()) {
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
+            Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("doc");
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.map(doc);
+                mapping = builder.string();
+            }
+        }
+
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("index1")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping("doc", FIND_MAPPINGS_TEST_ITEM))
+                .putMapping("doc", mapping))
                 .put(IndexMetaData.builder("index2")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", FIND_MAPPINGS_TEST_ITEM))
+                        .putMapping("doc", mapping))
                 .put(IndexMetaData.builder("index3")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", FIND_MAPPINGS_TEST_ITEM)).build();
+                        .putMapping("doc", mapping)).build();
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(

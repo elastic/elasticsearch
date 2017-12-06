@@ -486,6 +486,15 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
 
+    public void testSecureSettingIllegalName() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureString("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+        e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureFile("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+    }
+
     public void testGetAsArrayFailsOnDuplicates() {
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Settings.builder()
             .put("foobar.0", "bar")

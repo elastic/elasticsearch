@@ -83,6 +83,7 @@ final class CompositeAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long zeroBucket) throws IOException {
         assert zeroBucket == 0L;
+        consumeBucketsAndMaybeBreak(keys.size());
 
         // Replay all documents that contain at least one top bucket (collected during the first pass).
         grow(keys.size()+1);

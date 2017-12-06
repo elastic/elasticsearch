@@ -72,6 +72,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -362,6 +363,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("I hate to say I told you so...", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
+    }
+
+    public void testTooManyBucketsException() throws IOException {
+        MultiBucketConsumerService.TooManyBucketsException ex =
+            serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
+                randomFrom(Version.V_7_0_0_alpha1));
+        assertEquals("Too many buckets", ex.getMessage());
+        assertEquals(100, ex.getMaxBuckets());
     }
 
     public void testTimestampParsingException() throws IOException {
@@ -805,6 +814,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException.class);
+        ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
@@ -68,6 +69,28 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
 
     public Coordinate bottomRight() {
         return this.bottomRight;
+    }
+
+    @Override
+    protected StringBuilder contentToWKT() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(GeoWKTParser.LPAREN);
+        // minX, maxX, maxY, minY
+        sb.append(topLeft.x);
+        sb.append(GeoWKTParser.COMMA);
+        sb.append(GeoWKTParser.SPACE);
+        sb.append(bottomRight.x);
+        sb.append(GeoWKTParser.COMMA);
+        sb.append(GeoWKTParser.SPACE);
+        // TODO support Z??
+        sb.append(topLeft.y);
+        sb.append(GeoWKTParser.COMMA);
+        sb.append(GeoWKTParser.SPACE);
+        sb.append(bottomRight.y);
+        sb.append(GeoWKTParser.RPAREN);
+
+        return sb;
     }
 
     @Override

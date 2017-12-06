@@ -20,7 +20,6 @@
 package org.elasticsearch.common.geo;
 
 import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiLineString;
@@ -39,12 +38,10 @@ import org.locationtech.spatial4j.shape.Circle;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import org.locationtech.spatial4j.shape.jts.JtsPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
@@ -159,6 +156,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(jtsGeom(expectedLS), lineGeoJson);
     }
 
+    @Override
     public void testParseEnvelope() throws IOException {
         // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
         XContentBuilder multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
@@ -1033,27 +1031,4 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
     }
-
-    private void assertGeometryEquals(Shape expected, XContentBuilder geoJson) throws IOException {
-        XContentParser parser = createParser(geoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).build());
-    }
-
-    private ShapeCollection<Shape> shapeCollection(Shape... shapes) {
-        return new ShapeCollection<>(Arrays.asList(shapes), SPATIAL_CONTEXT);
-    }
-
-    private ShapeCollection<Shape> shapeCollection(Geometry... geoms) {
-        List<Shape> shapes = new ArrayList<>(geoms.length);
-        for (Geometry geom : geoms) {
-            shapes.add(jtsGeom(geom));
-        }
-        return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
-    }
-
-    private JtsGeometry jtsGeom(Geometry geom) {
-        return new JtsGeometry(geom, SPATIAL_CONTEXT, false, false);
-    }
-
 }

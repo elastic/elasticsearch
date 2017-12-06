@@ -1,0 +1,107 @@
+[[release-notes-6.0.1]]
+== 6.0.1 Release Notes
+
+Also see <<breaking-changes-6.0>>.
+
+[[breaking-6.0.1]]
+[float]
+=== Breaking changes
+
+Scroll::
+* Fail queries with scroll that explicitely set request_cache {pull}27342[#27342]
+
+
+
+[[enhancement-6.0.1]]
+[float]
+=== Enhancements
+
+Core::
+* Fix classes that can exit {pull}27518[#27518]
+
+Discovery::
+* Stop responding to ping requests before master abdication {pull}27329[#27329] (issue: {issue}27328[#27328])
+
+Plugin Repository S3::
+* Remove S3 output stream {pull}27280[#27280] (issue: {issue}27278[#27278])
+* Update to AWS SDK 1.11.223 {pull}27278[#27278]
+
+Search::
+* fix unnecessary logger creation {pull}27349[#27349]
+
+Sequence IDs::
+* Log primary-replica resync failures {pull}27421[#27421] (issues: {issue}24841[#24841], {issue}27418[#27418])
+
+Snapshot/Restore::
+* Remove XContentType auto detection in BlobStoreRepository {pull}27480[#27480]
+
+
+
+[[bug-6.0.1]]
+[float]
+=== Bug fixes
+
+Cluster::
+* Properly format IndexGraveyard deletion date as date {pull}27362[#27362]
+
+Core::
+* Do not set data paths on no local storage required {pull}27587[#27587] (issue: {issue}27572[#27572])
+* Ensure threadcontext is preserved when refresh listeners are invoked {pull}27565[#27565]
+* Avoid NPE when getting build information {pull}27442[#27442]
+* When building Settings do not set SecureSettings if empty {pull}26988[#26988] (issue: {issue}316[#316])
+
+Engine::
+* Reset LiveVersionMap on sync commit {pull}27534[#27534] (issue: {issue}27516[#27516])
+* Carry over version map size to prevent excessive resizing {pull}27516[#27516] (issue: {issue}20498[#20498])
+
+Inner Hits::
+* Return an empty _source for nested inner hit when filtering on a field that doesn't exist {pull}27531[#27531]
+
+Mapping::
+* Fix dynamic mapping update generation. {pull}27467[#27467]
+* Fixed rounding of bounds in scaled float comparison {pull}27207[#27207] (issue: {issue}27189[#27189])
+
+Nested Docs::
+* Ensure nested documents have consistent version and seq_ids {pull}27455[#27455]
+
+Network::
+* Throw UOE from compressible bytes stream reset {pull}27564[#27564] (issue: {issue}24927[#24927])
+* Bubble exceptions when closing compressible streams {pull}27542[#27542] (issue: {issue}27540[#27540])
+
+Plugin Lang Painless::
+* Painless: Fix errors allowing void to be assigned to def. {pull}27460[#27460] (issue: {issue}27210[#27210])
+
+Plugin Repository GCS::
+* Create new handlers for every new request in GoogleCloudStorageService {pull}27339[#27339] (issue: {issue}27092[#27092])
+
+Recovery::
+* Flush old indices on primary promotion and relocation {pull}27580[#27580] (issue: {issue}27536[#27536])
+
+Reindex API::
+* Reindex: Fix headers in reindex action {pull}26937[#26937] (issue: {issue}22976[#22976])
+
+Search::
+* Fix profiling naming issues {pull}27133[#27133]
+
+Sequence IDs::
+* Fix resync request serialization {pull}27418[#27418] (issue: {issue}24841[#24841])
+
+Snapshot/Restore::
+* Do not swallow exception in ChecksumBlobStoreFormat.writeAtomic() {pull}27597[#27597]
+* Delete shard store files before restoring a snapshot {pull}27476[#27476] (issues: {issue}20220[#20220], {issue}26865[#26865])
+* Fix snapshot getting stuck in INIT state {pull}27214[#27214] (issue: {issue}27180[#27180])
+* Fix default value of ignore_unavailable for snapshot REST API (#25359) {pull}27056[#27056] (issue: {issue}25359[#25359])
+* Do not create directory on readonly repository (#21495) {pull}26909[#26909] (issue: {issue}21495[#21495])
+
+
+
+[[upgrade-6.0.1]]
+[float]
+=== Upgrades
+
+Plugin Discovery EC2::
+* Upgrade AWS SDK Jackson Databind to 2.6.7.1 {pull}27361[#27361] (issues: {issue}27278[#27278], {issue}27359[#27359])
+
+Plugin Discovery GCE::
+* Update Google SDK to version 1.23.0 {pull}27381[#27381] (issue: {issue}26636[#26636])
+

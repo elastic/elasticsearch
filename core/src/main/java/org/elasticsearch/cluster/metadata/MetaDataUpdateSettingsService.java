@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -163,13 +164,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         Settings.Builder settingsForOpenIndices = Settings.builder();
         Settings.Builder skipppedSettings = Settings.builder();
 
-        indexScopedSettings.validate(normalizedSettings);
+        indexScopedSettings.validate(normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false  /* don't validate wildcards */));
         // never allow to change the number of shards
         for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
+            String key = entry.getKey();
             Setting setting = indexScopedSettings.get(entry.getKey());
-            assert setting != null; // we already validated the normalized settings
+            boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
+            assert setting != null // we already validated the normalized settings
+                || (isWildcard && normalizedSettings.hasValue(key) == false)
+                : "unknown setting: " + key + " isWildcard: " + isWildcard + " hasValue: " + normalizedSettings.hasValue(key);
             settingsForClosedIndices.put(entry.getKey(), entry.getValue());
-            if (setting.isDynamic()) {
+            if (isWildcard || setting.isDynamic()) {
                 settingsForOpenIndices.put(entry.getKey(), entry.getValue());
             } else {
                 skipppedSettings.put(entry.getKey(), entry.getValue());

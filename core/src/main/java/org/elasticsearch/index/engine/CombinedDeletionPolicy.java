@@ -51,16 +51,21 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        final int keptPosition = deleteOldIndexCommits(commits);
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
+                assert commits.isEmpty() : "index is created, but we have commits";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
+                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, it will create a fresh commit immediately.
+                // We can safely delete all existing commits here.
+                for (IndexCommit commit : commits) {
+                    commit.delete();
+                }
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                setLastCommittedTranslogGeneration(commits, keptPosition);
+                onCommit(commits);
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
@@ -69,18 +74,17 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final int keptKeptPosition = deleteOldIndexCommits(commits);
-        setLastCommittedTranslogGeneration(commits, keptKeptPosition);
+        final IndexCommit keptCommit = deleteOldIndexCommits(commits);
+        final IndexCommit lastCommit = commits.get(commits.size() - 1);
+        setLastCommittedTranslogGeneration(keptCommit, lastCommit);
     }
 
-    private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits, final int keptPosition) throws IOException {
-        final IndexCommit lastCommit = commits.get(commits.size() - 1);
-        assert lastCommit.isDeleted() == false : "The last commit should not be deleted";
-        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-
-        final IndexCommit keptCommit = commits.get(keptPosition);
+    private void setLastCommittedTranslogGeneration(final IndexCommit keptCommit, final IndexCommit lastCommit) throws IOException {
         assert keptCommit.isDeleted() == false : "The kept commit should not be deleted";
         final long minRequiredGen = Long.parseLong(keptCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+
+        assert lastCommit.isDeleted() == false : "The last commit should not be deleted";
+        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
 
         assert minRequiredGen <= lastGen : "MinRequiredGen must not be greater than LastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
@@ -89,13 +93,15 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * Deletes old index commits which are not required for operation based recovery.
+     *
+     * @return returns the min required index commit for recovery.
      */
-    private int deleteOldIndexCommits(List<? extends IndexCommit> commits) throws IOException {
+    private IndexCommit deleteOldIndexCommits(List<? extends IndexCommit> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits);
         for (int i = 0; i < keptPosition; i++) {
             commits.get(i).delete();
         }
-        return keptPosition;
+        return commits.get(keptPosition);
     }
 
     /**

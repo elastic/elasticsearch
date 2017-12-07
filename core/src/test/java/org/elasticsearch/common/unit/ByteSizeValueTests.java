@@ -267,7 +267,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseFractionalNumber() throws IOException {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+        ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());

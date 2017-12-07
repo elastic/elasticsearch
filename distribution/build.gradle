@@ -22,11 +22,14 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
+
+import java.nio.file.Paths
 
 // for deb/rpm
 buildscript {
@@ -42,6 +45,21 @@ buildscript {
 
 Collection distributions = project.subprojects.findAll {
    it.path.contains(':tools') == false && it.path.contains(':bwc') == false }
+
+/*****************************************************************************
+ *                  Third party dependencies report                          *
+ *****************************************************************************/
+
+// Concatenates the dependencies CSV files into a single file
+task generateDependenciesReport(type: ConcatFilesTask) {
+  files = fileTree(dir: project.rootDir,
+          excludes: ['qa/**/dependencies.csv', 'benchmark/**/dependencies.csv', 'test/**/dependencies.csv'],
+          include: '**/dependencies.csv' )
+  headerLine = "name,version,url,license"
+
+  def outputFile = System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv"
+  target = file(Paths.get(outputFile).toFile())
+}
 
 /*****************************************************************************
  *                                Notice file                                *

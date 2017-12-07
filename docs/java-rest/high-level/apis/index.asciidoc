@@ -1,3 +1,4 @@
+include::createindex.asciidoc[]
 include::deleteindex.asciidoc[]
 include::_index.asciidoc[]
 include::get.asciidoc[]

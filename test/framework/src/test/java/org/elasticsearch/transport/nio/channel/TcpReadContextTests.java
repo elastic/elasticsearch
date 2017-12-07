@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -50,7 +52,9 @@ public class TcpReadContextTests extends ESTestCase {
 
         messageLength = randomInt(96) + 4;
         channel = mock(TcpNioSocketChannel.class);
-        readContext = new TcpReadContext(channel, handler, new InboundChannelBuffer());
+        Supplier<InboundChannelBuffer.Page> pageSupplier = () ->
+            new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {});
+        readContext = new TcpReadContext(channel, handler, new InboundChannelBuffer(pageSupplier));
     }
 
     public void testSuccessfulRead() throws IOException {

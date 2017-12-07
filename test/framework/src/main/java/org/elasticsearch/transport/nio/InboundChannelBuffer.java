@@ -93,7 +93,7 @@ public final class InboundChannelBuffer implements Releasable {
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
         for (int i = 0; i < pagesToRelease; i++) {
-            pages.removeFirst();
+            pages.removeFirst().close();
         }
         capacity -= bytesToRelease;
         internalIndex = Math.max(internalIndex - bytesToRelease, 0);

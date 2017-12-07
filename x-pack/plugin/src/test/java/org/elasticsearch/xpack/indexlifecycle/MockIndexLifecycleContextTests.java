@@ -16,7 +16,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         String newPhase = randomAlphaOfLengthBetween(1, 20);
 
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(targetName,
-                randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)) {
+                randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20), randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -50,7 +50,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         String phase = randomAlphaOfLengthBetween(1, 20);
 
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20), phase,
-                randomAlphaOfLengthBetween(1, 20)) {
+                randomAlphaOfLengthBetween(1, 20), randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -67,7 +67,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         String newAction = randomAlphaOfLengthBetween(1, 20);
 
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(targetName, phase,
-                randomAlphaOfLengthBetween(1, 20)) {
+                randomAlphaOfLengthBetween(1, 20), randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -101,7 +101,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         String action = randomAlphaOfLengthBetween(1, 20);
 
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(1, 20), action) {
+                randomAlphaOfLengthBetween(1, 20), action, randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -115,7 +115,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
     public void testGetLifecycleTarget() {
         String target = randomAlphaOfLengthBetween(1, 20);
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(target, randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(1, 20)) {
+                randomAlphaOfLengthBetween(1, 20), randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -128,7 +128,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
 
     public void testExecuteAction() {
         MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)) {
+                randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20), randomIntBetween(0, 10)) {
 
             @Override
             public boolean canExecute(Phase phase) {

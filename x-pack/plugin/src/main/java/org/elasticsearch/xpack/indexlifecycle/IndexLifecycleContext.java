@@ -49,6 +49,11 @@ public interface IndexLifecycleContext {
     String getLifecycleTarget();
 
     /**
+     * @return the current index context's replica count.
+     */
+    int getNumberOfReplicas();
+
+    /**
      * Determines whether the target is able to move to the provided
      * {@link Phase}
      * 

@@ -138,7 +138,7 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
                     public void onSuccess() {
                         logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
                         // We might as well execute the phase now rather than waiting for execute to be called again
-                        nextPhase.execute(context);
+                        nextPhase.execute(context, getActionProvider(context, nextPhase));
                     }
 
                     @Override
@@ -153,7 +153,7 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
                 throw new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["
                     + getName() + "] for index [" + indexName + "]");
             } else {
-                currentPhase.execute(context);
+                currentPhase.execute(context, getActionProvider(context, currentPhase));
             }
         }
     }
@@ -209,6 +209,34 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
     protected abstract String getType();
 
     /**
+     * @param context the index lifecycle context for this phase at the time of execution
+     * @param phase the current phase for which to provide an action provider
+     * @return the action provider
+     */
+    protected abstract NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase);
+
+    /**
+     * Reference to a method that determines which {@link LifecycleAction} to execute next after
+     * a specific action.
+     *
+     * <p>
+     * Concrete {@link LifecyclePolicy} classes will implement this to help determine their specific
+     * ordering of actions for the phases they allow.
+     * <pre><code>
+     * </code></pre>
+     */
+    @FunctionalInterface
+    interface NextActionProvider {
+
+        /**
+         * @param current The current action which is being or was executed
+         * @return the action following {@code current} to execute
+         */
+        LifecycleAction next(LifecycleAction current);
+
+    }
+
+    /**
      * This class is here to assist in creating a context from which the specific LifecyclePolicy sub-classes can inherit
      * all the previously parsed values
      */
@@ -251,4 +279,5 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
             return phases;
         }
     }
+
 }

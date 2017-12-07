@@ -434,7 +434,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
 
         InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
 
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
+        Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
         assertFalse(context.canExecute(phase));
     }
@@ -450,7 +450,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
 
         InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
 
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
+        Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
         assertTrue(context.canExecute(phase));
     }
@@ -466,7 +466,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
 
         InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
 
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
+        Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
         assertTrue(context.canExecute(phase));
     }

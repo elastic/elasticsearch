@@ -11,11 +11,13 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     private String phase;
     private String action;
     private Exception exceptionToThrow;
+    private int numberOfReplicas;
 
-    public MockIndexLifecycleContext(String targetName, String initialPhase, String initialAction) {
+    public MockIndexLifecycleContext(String targetName, String initialPhase, String initialAction, int numberOfReplicas) {
         this.targetName = targetName;
         this.phase = initialPhase;
         this.action = initialAction;
+        this.numberOfReplicas = numberOfReplicas;
     }
 
     public void failOnSetters(Exception exceptionToThrow) {
@@ -56,6 +58,16 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     @Override
     public String getLifecycleTarget() {
         return targetName;
+    }
+
+    @Override
+    public int getNumberOfReplicas() {
+        return numberOfReplicas;
+    }
+
+    @Override
+    public boolean canExecute(Phase phase) {
+        return true;
     }
 
     @Override

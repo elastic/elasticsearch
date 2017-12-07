@@ -24,7 +24,12 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleContext.Listener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import static org.elasticsearch.xpack.indexlifecycle.ObjectParserUtils.convertListToMapValues;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -40,7 +45,8 @@ public class Phase implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
-            "phase", false, (a, c) -> new Phase(c.v1(), (TimeValue) a[0], (List<LifecycleAction>) a[1]));
+            "phase", false, (a, c) -> new Phase(c.v1(), (TimeValue) a[0],
+        convertListToMapValues(LifecycleAction::getWriteableName, (List<LifecycleAction>) a[1])));
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
@@ -55,7 +61,7 @@ public class Phase implements ToXContentObject, Writeable {
     }
 
     private String name;
-    private List<LifecycleAction> actions;
+    private Map<String, LifecycleAction> actions;
     private TimeValue after;
 
     /**
@@ -65,11 +71,12 @@ public class Phase implements ToXContentObject, Writeable {
      *            the age of the index when the index should move to this
      *            {@link Phase}.
      * @param actions
-     *            a {@link List} of the {@link LifecycleAction}s to run when
-     *            during his {@link Phase}. The order of this list defines the
-     *            order in which the {@link LifecycleAction}s will be run.
+     *            a {@link Map} of the {@link LifecycleAction}s to run when
+     *            during his {@link Phase}. The keys in this map are the associated
+     *            action names. The order of these actions is defined
+     *            by the {@link LifecyclePolicy.NextActionProvider}.
      */
-    public Phase(String name, TimeValue after, List<LifecycleAction> actions) {
+    public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
         this.name = name;
         this.after = after;
         this.actions = actions;
@@ -81,14 +88,23 @@ public class Phase implements ToXContentObject, Writeable {
     public Phase(StreamInput in) throws IOException {
         this.name = in.readString();
         this.after = new TimeValue(in);
-        this.actions = in.readNamedWriteableList(LifecycleAction.class);
+        int size = in.readVInt();
+        TreeMap<String, LifecycleAction> actions = new TreeMap<>();
+        for (int i = 0; i < size; i++) {
+            actions.put(in.readString(), in.readNamedWriteable(LifecycleAction.class));
+        }
+        this.actions = actions;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         after.writeTo(out);
-        out.writeNamedWriteableList(actions);
+        out.writeVInt(actions.size());
+        for (Map.Entry<String, LifecycleAction> entry : actions.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeNamedWriteable(entry.getValue());
+        }
     }
 
     /**
@@ -107,11 +123,10 @@ public class Phase implements ToXContentObject, Writeable {
     }
 
     /**
-     * @return a {@link List} of the {@link LifecycleAction}s to run when during
-     *         his {@link Phase}. The order of this list defines the order in
-     *         which the {@link LifecycleAction}s will be run.
+     * @return a {@link Map} of the {@link LifecycleAction}s to run when during
+     *         his {@link Phase}.
      */
-    public List<LifecycleAction> getActions() {
+    public Map<String, LifecycleAction> getActions() {
         return actions;
     }
 
@@ -122,8 +137,10 @@ public class Phase implements ToXContentObject, Writeable {
      * @param context
      *            the {@link IndexLifecycleContext} to use to execute the
      *            {@link Phase}.
+     * @param nextActionProvider
+     *            the next action provider
      */
-    protected void execute(IndexLifecycleContext context) {
+    protected void execute(IndexLifecycleContext context, LifecyclePolicy.NextActionProvider nextActionProvider) {
         String currentActionName = context.getAction();
         String indexName = context.getLifecycleTarget();
         if (Strings.isNullOrEmpty(currentActionName)) {
@@ -135,7 +152,7 @@ public class Phase implements ToXContentObject, Writeable {
                 firstAction = null;
                 firstActionName = PHASE_COMPLETED;
             } else {
-                firstAction = actions.get(0);
+                firstAction = nextActionProvider.next(null);
                 firstActionName = firstAction.getWriteableName();
             }
             // Set the action on the context to this first action so we know where we are next time we execute
@@ -146,7 +163,7 @@ public class Phase implements ToXContentObject, Writeable {
                     logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
                     // Now execute the action unless its PHASE_COMPLETED
                     if (firstActionName.equals(PHASE_COMPLETED) == false) {
-                        executeAction(context, indexName, 0, firstAction);
+                        executeAction(context, indexName, firstAction, nextActionProvider);
                     }
                 }
 
@@ -159,24 +176,19 @@ public class Phase implements ToXContentObject, Writeable {
             });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
             // We have an action name and its not PHASE COMPLETED so we need to execute the action
-            int currentActionIndex = -1;
-            // First find the action in the actions list.
-            for (int i = 0; i < actions.size(); i++) {
-                if (actions.get(i).getWriteableName().equals(currentActionName)) {
-                    currentActionIndex = i;
-                    break;
-                }
-            }
-            if (currentActionIndex == -1) {
+            // First find the action in the actions map.
+            if (actions.containsKey(currentActionName) == false) {
                 throw new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
                         + getName() + "] for index [" + indexName + "]");
             }
-            LifecycleAction currentAction = actions.get(currentActionIndex);
-            executeAction(context, indexName, currentActionIndex, currentAction);
+            LifecycleAction currentAction = actions.get(currentActionName);
+            // then execute the action
+            executeAction(context, indexName, currentAction, nextActionProvider);
         }
     }
 
-    private void executeAction(IndexLifecycleContext context, String indexName, int actionIndex, LifecycleAction action) {
+    private void executeAction(IndexLifecycleContext context, String indexName, LifecycleAction action,
+                               LifecyclePolicy.NextActionProvider nextActionProvider) {
         String actionName = action.getWriteableName();
         context.executeAction(action, new LifecycleAction.Listener() {
 
@@ -185,7 +197,7 @@ public class Phase implements ToXContentObject, Writeable {
                 if (completed) {
                     logger.info("Action [" + actionName + "] for index [" + indexName + "] complete, moving to next action");
                     // Since we completed the current action move to the next action
-                    moveToAction(context, indexName, actionIndex + 1);
+                    moveToAction(context, indexName, action, nextActionProvider);
                 } else {
                     logger.info("Action [" + actionName + "] for index [" + indexName + "] executed sucessfully but is not yet complete");
                 }
@@ -198,9 +210,10 @@ public class Phase implements ToXContentObject, Writeable {
         });
     }
 
-    private void moveToAction(IndexLifecycleContext context, String indexName, final int nextActionIndex) {
-        if (nextActionIndex < actions.size()) {
-            LifecycleAction nextAction = actions.get(nextActionIndex);
+    private void moveToAction(IndexLifecycleContext context, String indexName, LifecycleAction currentAction,
+                              LifecyclePolicy.NextActionProvider nextActionProvider) {
+        LifecycleAction nextAction = nextActionProvider.next(currentAction);
+        if (nextAction != null) {
             context.setAction(nextAction.getWriteableName(), new Listener() {
 
                 @Override
@@ -208,7 +221,7 @@ public class Phase implements ToXContentObject, Writeable {
                     logger.info("Successfully initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
                             + "] for index [" + indexName + "]");
                     // We might as well execute the new action now rather than waiting for execute to be called again
-                    execute(context);
+                    execute(context, nextActionProvider);
                 }
 
                 @Override
@@ -238,11 +251,7 @@ public class Phase implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(AFTER_FIELD.getPreferredName(), after.seconds() + "s"); // Need a better way to get a parsable format out here
-        builder.startObject(ACTIONS_FIELD.getPreferredName());
-        for (LifecycleAction action : actions) {
-            builder.field(action.getWriteableName(), action);
-        }
-        builder.endObject();
+        builder.field(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;
     }

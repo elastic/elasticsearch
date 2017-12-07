@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_COLD_ACTIONS;
@@ -30,6 +31,7 @@ import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.V
 import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_PHASES;
 import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_WARM_ACTIONS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
     
@@ -38,7 +40,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
     private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction();
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction();
-    private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction();
+    private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction();
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
 
@@ -88,7 +90,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         Phase expectedFirstPhase = null;
         for (String phaseName : Arrays.asList("hot", "warm", "cold", "delete")) {
             if (randomBoolean()) {
-                Phase phase = new Phase(phaseName, TimeValue.MINUS_ONE, Collections.emptyList());
+                Phase phase = new Phase(phaseName, TimeValue.MINUS_ONE, Collections.emptyMap());
                 phases.put(phaseName, phase);
                 if (expectedFirstPhase == null) {
                     expectedFirstPhase = phase;
@@ -105,7 +107,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             List<Phase> phasesInOrder = new ArrayList<>();
             for (String phase : VALID_PHASES) {
                 if (randomBoolean()) {
-                    Phase phaseToAdd = new Phase(phase, TimeValue.MINUS_ONE, Collections.emptyList());
+                    Phase phaseToAdd = new Phase(phase, TimeValue.MINUS_ONE, Collections.emptyMap());
                     phases.put(phase, phaseToAdd);
                     phasesInOrder.add(phaseToAdd);
                 }
@@ -128,7 +130,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             phaseName += randomAlphaOfLength(5);
         }
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
-            new Phase(phaseName, TimeValue.ZERO, Collections.emptyList()));
+            new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         if (invalid) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new TimeseriesLifecyclePolicy(lifecycleName, phases));
             assertThat(e.getMessage(), equalTo("Timeseries lifecycle does not support phase [" + phaseName + "]"));
@@ -139,11 +141,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     public void testValidateHotPhase() {
         LifecycleAction invalidAction = null;
-        List<LifecycleAction> actions = randomSubsetOf(VALID_HOT_ACTIONS)
-            .stream().map(this::getTestAction).collect(Collectors.toList());
+        Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
             invalidAction = getTestAction(randomFrom("allocate", "forcemerge", "delete", "replicas", "shrink"));
-            actions.add(invalidAction);
+            actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> hotPhase = Collections.singletonMap("hot",
             new Phase("hot", TimeValue.ZERO, actions));
@@ -160,11 +162,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     public void testValidateWarmPhase() {
         LifecycleAction invalidAction = null;
-        List<LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
-            .stream().map(this::getTestAction).collect(Collectors.toList());
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
             invalidAction = getTestAction(randomFrom("rollover", "delete"));
-            actions.add(invalidAction);
+            actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> warmPhase = Collections.singletonMap("warm",
             new Phase("warm", TimeValue.ZERO, actions));
@@ -181,11 +183,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     public void testValidateColdPhase() {
         LifecycleAction invalidAction = null;
-        List<LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
-            .stream().map(this::getTestAction).collect(Collectors.toList());
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
             invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
-            actions.add(invalidAction);
+            actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> coldPhase = Collections.singletonMap("cold",
             new Phase("cold", TimeValue.ZERO, actions));
@@ -202,11 +204,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     public void testValidateDeletePhase() {
         LifecycleAction invalidAction = null;
-        List<LifecycleAction> actions = randomSubsetOf(VALID_DELETE_ACTIONS)
-            .stream().map(this::getTestAction).collect(Collectors.toList());
+        Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
             invalidAction = getTestAction(randomFrom("allocate", "rollover", "replicas", "forcemerge", "shrink"));
-            actions.add(invalidAction);
+            actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> deletePhase = Collections.singletonMap("delete",
             new Phase("delete", TimeValue.ZERO, actions));
@@ -220,6 +222,84 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             new TimeseriesLifecyclePolicy(lifecycleName, deletePhase);
         }
     }
+
+    public void testHotActionProvider() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0){};
+        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("hot", hotPhase));
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, hotPhase);
+        assertThat(provider.next(null), equalTo(TEST_ROLLOVER_ACTION));
+        assertNull(provider.next(TEST_ROLLOVER_ACTION));
+    }
+
+    public void testWarmActionProviderReplicasActionSortOrder() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
+        MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1){};
+        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("warm", warmPhase));
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, warmPhase);
+        assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        context = new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1){};
+        provider = policy.getActionProvider(context, warmPhase);
+        if (actions.size() > 1) {
+            LifecycleAction current = provider.next(null);
+            assertThat(current, not(equalTo(TEST_REPLICAS_ACTION)));
+            while (true) {
+                if (provider.next(current) == null) {
+                    assertThat(current, equalTo(TEST_REPLICAS_ACTION));
+                } else {
+                    current = provider.next(current);
+                }
+            }
+        } else {
+            assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        }
+    }
+
+    public void testColdActionProviderReplicasActionSortOrder() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
+        MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1){};
+        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("cold", coldPhase));
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, coldPhase);
+        assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        context = new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1){};
+        provider = policy.getActionProvider(context, coldPhase);
+        if (actions.size() > 1) {
+            LifecycleAction current = provider.next(null);
+            assertThat(current, equalTo(TEST_ALLOCATE_ACTION));
+            assertThat(provider.next(current), equalTo(TEST_REPLICAS_ACTION));
+        } else {
+            assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        }
+    }
+
+    public void testDeleteActionProvider() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        Phase deletePhase = new Phase("delete", TimeValue.ZERO, actions);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0){};
+        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("delete", deletePhase));
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, deletePhase);
+        assertThat(provider.next(null), equalTo(TEST_DELETE_ACTION));
+        assertNull(provider.next(TEST_DELETE_ACTION));
+    }
+
 
     private LifecycleAction getTestAction(String actionName) {
         switch (actionName) {

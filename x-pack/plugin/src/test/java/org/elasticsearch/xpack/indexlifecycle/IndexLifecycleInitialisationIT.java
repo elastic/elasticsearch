@@ -85,7 +85,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     public void init() {
         settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.lifecycle.name", "test").build();
-        List<LifecycleAction> deletePhaseActions = Collections.singletonList(new DeleteAction());
+        Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
         Map<String, Phase> phases = Collections.singletonMap("delete", new Phase("delete",
             TimeValue.timeValueSeconds(3), deletePhaseActions));
         lifecyclePolicy = new TimeseriesLifecyclePolicy("test", phases);

@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     
@@ -38,9 +40,9 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     @Override
     protected Phase createTestInstance() {
         TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = Collections.emptyMap();
         if (randomBoolean()) {
-            actions.add(new DeleteAction());
+            actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
         }
         return new Phase(phaseName, after, actions);
     }
@@ -65,7 +67,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     protected Phase mutateInstance(Phase instance) throws IOException {
         String name = instance.getName();
         TimeValue after = instance.getAfter();
-        List<LifecycleAction> actions = instance.getActions();
+        Map<String, LifecycleAction> actions = instance.getActions();
         switch (between(0, 2)) {
         case 0:
             name = name + randomAlphaOfLengthBetween(1, 5);
@@ -74,8 +76,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
             break;
         case 2:
-            actions = new ArrayList<>(actions);
-            actions.add(new DeleteAction());
+            actions = new HashMap<>(actions);
+            actions.put(MockAction.NAME, new MockAction());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
@@ -87,7 +89,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -95,7 +97,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         firstAction.setCompleteOnExecute(true);
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -103,7 +105,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         secondAction.setCompleteOnExecute(true);
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -111,10 +113,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         thirdAction.setCompleteOnExecute(true);
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -122,7 +124,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -140,7 +151,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -148,24 +159,24 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         firstAction.setCompleteOnExecute(false);
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "second_action";
             }
         };
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "third_action";
             }
         };
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -173,7 +184,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -191,31 +211,31 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "first_action";
             }
         };
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "second_action";
             }
         };
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "third_action";
             }
         };
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -227,7 +247,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         context.failOnSetters(exception);
         
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -245,9 +274,9 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        Phase phase = new Phase(phaseName, after, Collections.emptyList());
+        Phase phase = new Phase(phaseName, after, Collections.emptyMap());
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -255,7 +284,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, a -> null);
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -287,9 +316,9 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "third_action";
             }
         };
-        Phase phase = new Phase(phaseName, after, Collections.emptyList());
+        Phase phase = new Phase(phaseName, after, Collections.emptyMap());
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, Phase.PHASE_COMPLETED) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, Phase.PHASE_COMPLETED, 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -297,7 +326,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -315,7 +353,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -323,7 +361,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         firstAction.setCompleteOnExecute(false);
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -331,7 +369,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         secondAction.setCompleteOnExecute(false);
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -339,10 +377,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         thirdAction.setCompleteOnExecute(false);
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName()) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(), 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -350,7 +388,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -365,7 +412,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         firstAction.setCompleteOnExecute(true);
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -383,7 +439,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -391,7 +447,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         firstAction.setCompleteOnExecute(false);
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -399,7 +455,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         secondAction.setCompleteOnExecute(false);
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -407,10 +463,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         thirdAction.setCompleteOnExecute(false);
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName()) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(), 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -418,7 +474,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -433,7 +498,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         secondAction.setCompleteOnExecute(true);
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -451,7 +525,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -459,7 +533,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         firstAction.setCompleteOnExecute(false);
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -467,7 +541,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         secondAction.setCompleteOnExecute(false);
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
@@ -475,10 +549,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
         thirdAction.setCompleteOnExecute(false);
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName()) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName(), 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -486,7 +560,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -501,7 +584,16 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         thirdAction.setCompleteOnExecute(true);
 
-        phase.execute(context);
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
@@ -519,31 +611,31 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
-        List<LifecycleAction> actions = new ArrayList<>();
+        Map<String, LifecycleAction> actions = new HashMap<>();
         MockAction firstAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "first_action";
             }
         };
-        actions.add(firstAction);
+        actions.put(firstAction.getWriteableName(), firstAction);
         MockAction secondAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "second_action";
             }
         };
-        actions.add(secondAction);
+        actions.put(secondAction.getWriteableName(), secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
             public String getWriteableName() {
                 return "third_action";
             }
         };
-        actions.add(thirdAction);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "does_not_exist") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "does_not_exist", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -551,7 +643,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             }
         };
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> phase.execute(context));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> phase.execute(context, a -> firstAction));
         assertEquals("Current action [" + "does_not_exist" + "] not found in phase [" + phaseName + "] for index [" + indexName + "]",
                 exception.getMessage());
 

@@ -20,7 +20,7 @@ public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAct
 
     @Override
     protected ReplicasAction createTestInstance() {
-        return new ReplicasAction();
+        return new ReplicasAction(randomIntBetween(0, 10));
     }
 
     @Override

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -48,9 +49,9 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
             List<Phase> phases = new ArrayList<>(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
                 TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-                List<LifecycleAction> actions = new ArrayList<>();
+                Map<String, LifecycleAction> actions = Collections.emptyMap();
                 if (randomBoolean()) {
-                    actions.add(new DeleteAction());
+                    actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
                 }
                 phases.add(new Phase(randomAlphaOfLength(10), after, actions));
             }

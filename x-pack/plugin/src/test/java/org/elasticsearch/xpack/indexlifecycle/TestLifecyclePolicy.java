@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,6 +41,12 @@ public class TestLifecyclePolicy extends LifecyclePolicy {
     protected String getType() {
         return TYPE;
     }
+
+    @Override
+    protected NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
+        return a -> Optional.ofNullable(phase.getActions().entrySet().iterator().next()).map(Map.Entry::getValue).orElse(null);
+    }
+
     @Override
     protected Phase getFirstPhase() {
         return phasesList.get(0);

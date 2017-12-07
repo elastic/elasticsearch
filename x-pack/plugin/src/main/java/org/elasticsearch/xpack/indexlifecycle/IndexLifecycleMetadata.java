@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.indexlifecycle.ObjectParserUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+
 public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
@@ -38,7 +40,8 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final IndexLifecycleMetadata EMPTY_METADATA = new IndexLifecycleMetadata(Collections.emptySortedMap(), 3);
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, NamedXContentRegistry> PARSER = new ConstructingObjectParser<>(
-            TYPE, a -> new IndexLifecycleMetadata(convertListToMapValues((List<LifecyclePolicy>) a[0]), (long) a[1]));
+            TYPE, a -> new IndexLifecycleMetadata(
+                ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0]), (long) a[1]));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicy.parse(p, new Tuple<>(n, c)),
                 v -> {
@@ -93,14 +96,6 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         builder.field(POLICIES_FIELD.getPreferredName(), policies);
         builder.field(POLL_INTERVAL_FIELD.getPreferredName(), pollInterval);
         return builder;
-    }
-
-    private static SortedMap<String, LifecyclePolicy> convertListToMapValues(List<LifecyclePolicy> list) {
-        SortedMap<String, LifecyclePolicy> map = new TreeMap<>();
-        for (LifecyclePolicy policy : list) {
-            map.put(policy.getName(), policy);
-        }
-        return map;
     }
 
     @Override

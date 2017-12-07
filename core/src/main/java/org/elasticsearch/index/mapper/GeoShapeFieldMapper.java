@@ -369,7 +369,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public void setStrategyName(String strategyName) {
             checkIfFrozen();
             this.strategyName = strategyName;
-            if (this.strategyName.equals(SpatialStrategy.TERM)) {
+            if (this.strategyName.equals(SpatialStrategy.TERM.getStrategyName())) {
                 this.pointsOnly = true;
             }
         }

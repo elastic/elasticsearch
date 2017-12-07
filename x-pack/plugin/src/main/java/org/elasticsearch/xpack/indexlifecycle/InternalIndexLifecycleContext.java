@@ -68,6 +68,11 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     }
 
     @Override
+    public int getNumberOfReplicas() {
+        return idxMeta.getNumberOfReplicas();
+    }
+
+    @Override
     public boolean canExecute(Phase phase) {
         long now = nowSupplier.getAsLong();
         long indexCreated = idxMeta.getCreationDate();

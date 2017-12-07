@@ -10,35 +10,47 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class LifecyclePolicyTests extends ESTestCase {
 
-    public void testExecuteNewIndexBeforeTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
+    private String indexName;
+    private String lifecycleName;
+    private MockAction firstAction;
+    private MockAction secondAction;
+    private MockAction thirdAction;
+    private Phase firstPhase;
+    private Phase secondPhase;
+    private Phase thirdPhase;
+    private LifecyclePolicy policy;
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
+    @Before
+    public void setupPolicy() {
+        indexName = randomAlphaOfLengthBetween(1, 20);
+        lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        firstAction = new MockAction();
+        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        secondAction = new MockAction();
+        actions = Collections.singletonMap(MockAction.NAME, secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        thirdAction = new MockAction();
+        actions = Collections.singletonMap(MockAction.NAME, thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        policy = new TestLifecyclePolicy(lifecycleName, phases);
+    }
+
+    public void testExecuteNewIndexBeforeTrigger() throws Exception {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -65,30 +77,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteNewIndexAfterTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -115,30 +104,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteNewIndexAfterTriggerFailure() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -169,30 +135,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteFirstPhase() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -215,30 +158,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteSecondPhase() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -261,30 +181,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteThirdPhase() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -307,30 +204,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteMissingPhase() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "does_not_exist", "") {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "does_not_exist", "", 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -356,31 +230,8 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteFirstPhaseCompletedBeforeTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-        
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED) {
-            
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+
             @Override
             public boolean canExecute(Phase phase) {
                 if (phase == secondPhase) {
@@ -406,30 +257,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteFirstPhaseCompletedAfterTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED, 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -456,30 +284,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteSecondPhaseCompletedBeforeTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED, 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -506,30 +311,7 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteSecondPhaseCompletedAfterTrigger() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED, 0) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -556,34 +338,15 @@ public class LifecyclePolicyTests extends ESTestCase {
     }
 
     public void testExecuteThirdPhaseCompleted() throws Exception {
-        String indexName = randomAlphaOfLengthBetween(1, 20);
-        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
-        List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
-        actions.add(firstAction);
-        TimeValue after = TimeValue.timeValueSeconds(0);
-        Phase firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
-        actions = new ArrayList<>();
-        MockAction secondAction = new MockAction();
-        actions.add(secondAction);
-        after = TimeValue.timeValueSeconds(10);
-        Phase secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
-        actions = new ArrayList<>();
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
-        after = TimeValue.timeValueSeconds(20);
-        Phase thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        LifecyclePolicy policy = new TestLifecyclePolicy(lifecycleName, phases);
-
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), Phase.PHASE_COMPLETED) {
-
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), Phase.PHASE_COMPLETED, 0) {
             @Override
             public boolean canExecute(Phase phase) {
                 throw new AssertionError("canExecute should not have been called");
+            }
+
+            @Override
+            public int getNumberOfReplicas() {
+                return 0;
             }
         };
 

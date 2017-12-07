@@ -63,7 +63,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
                     phases = new HashMap<>(phases);
                     String newPhaseName = randomAlphaOfLengthBetween(1, 10);
                     phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
-                        Collections.emptyList()));
+                        Collections.emptyMap()));
                     break;
                 default:
                     throw new AssertionError("Illegal randomisation branch");

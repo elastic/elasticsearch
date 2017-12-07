@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -74,6 +75,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
+    }
+
+    @Override
+    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+        return Arrays.asList(TestTaskAction.INSTANCE, UnblockTestTasksAction.INSTANCE);
     }
 
     static class TestTask extends CancellableTask {

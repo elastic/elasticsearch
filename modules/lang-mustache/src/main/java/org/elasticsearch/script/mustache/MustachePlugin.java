@@ -21,6 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -52,6 +53,11 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
                 new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
+    }
+
+    @Override
+    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+        return Arrays.asList(SearchTemplateAction.INSTANCE, MultiSearchTemplateAction.INSTANCE);
     }
 
     @Override

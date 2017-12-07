@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -44,7 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperPlugin {
+public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, ClientActionPlugin, MapperPlugin {
     @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return singletonMap("icu_normalizer", IcuNormalizerCharFilterFactory::new);

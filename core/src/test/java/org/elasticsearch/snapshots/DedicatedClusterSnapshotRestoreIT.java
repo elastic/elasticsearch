@@ -62,6 +62,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -105,7 +106,7 @@ import static org.mockito.Mockito.mock;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
-    public static class TestCustomMetaDataPlugin extends Plugin {
+    public static class TestCustomMetaDataPlugin extends Plugin implements ClientActionPlugin {
 
         private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
         private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();

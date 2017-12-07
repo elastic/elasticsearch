@@ -127,14 +127,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
-     * @see NamedWriteableRegistry
-     */
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Returns parsers for named objects this plugin will parse from {@link XContentParser#namedObject(Class, String, Object)}.
      * @see NamedWriteableRegistry
      */

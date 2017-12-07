@@ -44,7 +44,11 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
- * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
+ * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. An accompanying
+ * {@link ClientActionPlugin#getClientActions()} must also provide the same elements as each {@link ActionHandler#getAction()}
+ * in the getActions method.
+ *
+ * Implement it like this:
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
@@ -55,7 +59,7 @@ import java.util.function.UnaryOperator;
  *   }
  * }</pre>
  */
-public interface ActionPlugin {
+public interface ActionPlugin extends ClientActionPlugin {
     /**
      * Actions added by this plugin.
      */

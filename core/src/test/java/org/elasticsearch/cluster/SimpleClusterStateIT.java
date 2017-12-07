@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -324,7 +325,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    public static class PrivateCustomPlugin extends Plugin implements ClusterPlugin {
+    public static class PrivateCustomPlugin extends Plugin implements ClientActionPlugin, ClusterPlugin {
 
         public PrivateCustomPlugin() {}
 

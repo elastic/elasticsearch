@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugin.noop;
 
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.RestNoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction;
@@ -48,6 +49,11 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(NoopBulkAction.INSTANCE, TransportNoopBulkAction.class),
             new ActionHandler<>(NoopSearchAction.INSTANCE, TransportNoopSearchAction.class)
         );
+    }
+
+    @Override
+    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+        return Arrays.asList(NoopBulkAction.INSTANCE, NoopSearchAction.INSTANCE);
     }
 
     @Override

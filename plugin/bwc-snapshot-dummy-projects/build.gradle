@@ -1,7 +1,9 @@
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
 
 import java.util.regex.Matcher
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.test.NodeInfo
 
 /**
  * Subdirectories of this project are dummy projects which does a local
@@ -26,18 +28,35 @@ subprojects {
     build.dependsOn.remove('assemble')
 
     File esCheckoutDir = file("${buildDir}/bwc/checkout-es-${bwcBranch}")
+    /* Delay building the path as the path will not exist during configuration which will
+     * fail on Windows due to getting the short name requiring the path to already exist.
+     */
+    Object esCheckoutPath = """${->
+      if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        NodeInfo.getShortPathName(esCheckoutDir.toString())
+      } else {
+        esCheckoutDir.toString()
+      }
+    }"""
     File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")
+    Object xpackCheckoutPath = """${->
+      if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        NodeInfo.getShortPathName(xpackCheckoutDir.toString())
+      } else {
+        xpackCheckoutDir.toString()
+      }
+    }"""
 
     final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
     task createElasticsearchClone(type: LoggedExec) {
       onlyIf { esCheckoutDir.exists() == false }
-      commandLine = ['git', 'clone', rootDir, esCheckoutDir]
+      commandLine = ['git', 'clone', rootDir, esCheckoutPath]
     }
 
     task createXPackClone(type: LoggedExec) {
       onlyIf { xpackCheckoutDir.exists() == false }
-      commandLine = ['git', 'clone', project(':x-pack-elasticsearch').projectDir, xpackCheckoutDir]
+      commandLine = ['git', 'clone', project(':x-pack-elasticsearch').projectDir, xpackCheckoutPath]
     }
 
     // we use regular Exec here to ensure we always get output, regardless of logging level

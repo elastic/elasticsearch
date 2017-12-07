@@ -16,15 +16,19 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
-    @Override
-    public DataCounts createTestInstance() {
-        return new DataCounts(randomAlphaOfLength(10), randomIntBetween(1, 1_000_000),
+    public static DataCounts createTestInstance(String jobId) {
+        return new DataCounts(jobId, randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
                 new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
                 new DateTime(randomDateTimeZone()).toDate());
+    }
+
+    @Override
+    public DataCounts createTestInstance() {
+        return createTestInstance(randomAlphaOfLength(10));
     }
 
     @Override

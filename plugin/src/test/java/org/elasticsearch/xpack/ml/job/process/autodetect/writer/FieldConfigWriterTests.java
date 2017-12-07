@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -25,12 +26,17 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,12 +49,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class FieldConfigWriterTests extends ESTestCase {
     private AnalysisConfig analysisConfig;
     private Set<MlFilter> filters;
+    private List<SpecialEvent> specialEvents;
     private OutputStreamWriter writer;
 
     @Before
     public void setUpDeps() {
         analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())).build();
         filters = new LinkedHashSet<>();
+        specialEvents = new ArrayList<>();
     }
 
     public void testMultipleDetectorsToConfFile()
@@ -184,8 +192,8 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder detector = new Detector.Builder("mean", "metricValue");
         detector.setByFieldName("metricName");
         detector.setPartitionFieldName("instance");
-        RuleCondition ruleCondition =
-                new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricValue", new Condition(Operator.LT, "5"), null);
+        RuleCondition ruleCondition = RuleCondition.createNumerical
+                (RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricValue", new Condition(Operator.LT, "5"));
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(ruleCondition)).setTargetFieldName("instance").build();
         detector.setDetectorRules(Arrays.asList(rule));
 
@@ -226,7 +234,35 @@ public class FieldConfigWriterTests extends ESTestCase {
         verifyNoMoreInteractions(writer);
     }
 
+    public void testWrite_GivenSpecialEvents() throws IOException {
+        Detector d = new Detector.Builder("count", null).build();
+
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
+        analysisConfig = builder.build();
+
+        specialEvents.add(
+                new SpecialEvent("1", "The Ashes", ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC),
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC), Collections.emptyList()));
+        specialEvents.add(
+                new SpecialEvent("2", "elasticon", ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC),
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC), Collections.emptyList()));
+
+        writer = mock(OutputStreamWriter.class);
+        createFieldConfigWriter().write();
+
+        verify(writer).write("detector.0.clause = count\n" +
+                "detector.0.rules = [{\"rule_action\":\"skip_sampling_and_filter_results\",\"conditions_connective\":\"and\"," +
+                "\"rule_conditions\":[{\"condition_type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1511395200\"}}," +
+                "{\"condition_type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515369600\"}}]}," +
+                "{\"rule_action\":\"skip_sampling_and_filter_results\",\"conditions_connective\":\"and\"," +
+                "\"rule_conditions\":[{\"condition_type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1519603200\"}}," +
+                "{\"condition_type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1519862400\"}}]}]" +
+                "\n");
+
+        verifyNoMoreInteractions(writer);
+    }
+
     private FieldConfigWriter createFieldConfigWriter() {
-        return new FieldConfigWriter(analysisConfig, filters, writer, mock(Logger.class));
+        return new FieldConfigWriter(analysisConfig, filters, specialEvents, writer, mock(Logger.class));
     }
 }

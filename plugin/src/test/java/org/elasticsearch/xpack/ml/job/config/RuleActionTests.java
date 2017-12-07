@@ -11,12 +11,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RuleActionTests extends ESTestCase {
+public class
+RuleActionTests extends ESTestCase {
 
     public void testForString() {
         assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("filter_results"));
         assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("FILTER_RESULTS"));
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("fiLTer_Results"));
+        assertEquals(RuleAction.SKIP_SAMPLING, RuleAction.fromString("SKip_sampLing"));
+        assertEquals(RuleAction.SKIP_SAMPLING_AND_FILTER_RESULTS, RuleAction.fromString("skip_sampling_and_filter_results"));
     }
 
     public void testToString() {
@@ -28,6 +30,13 @@ public class RuleActionTests extends ESTestCase {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.FILTER_RESULTS));
+            }
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(2);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(RuleAction.readFromStream(in), equalTo(RuleAction.SKIP_SAMPLING_AND_FILTER_RESULTS));
             }
         }
     }

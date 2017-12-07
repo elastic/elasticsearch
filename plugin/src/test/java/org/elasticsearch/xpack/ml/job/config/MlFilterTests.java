@@ -17,6 +17,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
+    public static MlFilter createTestFilter() {
+        return new MlFilterTests().createTestInstance();
+    }
+
     @Override
     protected MlFilter createTestInstance() {
         int size = randomInt(10);

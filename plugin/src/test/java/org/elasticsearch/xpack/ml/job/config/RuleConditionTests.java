@@ -30,7 +30,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         default:
             // no need to randomize, it is properly randomily tested in
             // ConditionTest
-            condition = new Condition(Operator.LT, Double.toString(randomDouble()));
+            condition = new Condition(Operator.LT, Long.toString(randomLong()));
             if (randomBoolean()) {
                 fieldName = randomAlphaOfLengthBetween(1, 20);
                 fieldValue = randomAlphaOfLengthBetween(1, 20);
@@ -218,4 +218,30 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, "metric", "cpu", new Condition(Operator.LT, "5"), null);
     }
 
+    public void testCreateTimeBased() {
+        RuleCondition timeBased = RuleCondition.createTime(Operator.GTE, 100L);
+        assertEquals(RuleConditionType.TIME, timeBased.getConditionType());
+        assertEquals(Operator.GTE, timeBased.getCondition().getOperator());
+        assertEquals("100", timeBased.getCondition().getValue());
+        assertNull(timeBased.getFieldName());
+        assertNull(timeBased.getFieldValue());
+        assertNull(timeBased.getValueFilter());
+    }
+
+    public void testCreateTimeBased_GivenOperatorMatch() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> RuleCondition.createTime(Operator.MATCH, 100L));
+        assertEquals("Invalid detector rule: operator 'match' is not allowed", e.getMessage());
+    }
+
+    public void testCreateNumerical() {
+        RuleCondition ruleCondition = RuleCondition.createNumerical(RuleConditionType.NUMERICAL_ACTUAL, "foo", "bar",
+                new Condition(Operator.GTE, "100"));
+        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, ruleCondition.getConditionType());
+        assertEquals(Operator.GTE, ruleCondition.getCondition().getOperator());
+        assertEquals("100", ruleCondition.getCondition().getValue());
+        assertEquals("foo", ruleCondition.getFieldName());
+        assertEquals("bar", ruleCondition.getFieldValue());
+        assertNull(ruleCondition.getValueFilter());
+    }
 }

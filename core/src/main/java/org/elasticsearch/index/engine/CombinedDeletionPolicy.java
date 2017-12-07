@@ -57,8 +57,9 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, it will create a fresh commit immediately.
-                // We can safely delete all existing commits here.
+                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, we can safely delete all existing index commits because:
+                // 1. The engine will create a fresh index commit with the same actual data immediately.
+                // 2. We should never refer translog of these existing commits as they belong to another engine.
                 for (IndexCommit commit : commits) {
                     commit.delete();
                 }
@@ -74,9 +75,11 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit keptCommit = deleteOldIndexCommits(commits);
-        final IndexCommit lastCommit = commits.get(commits.size() - 1);
-        updateTranslogDeletionPolicy(keptCommit, lastCommit);
+        final int keptPosition = indexOfKeptCommits(commits);
+        for (int i = 0; i < keptPosition; i++) {
+            commits.get(i).delete();
+        }
+        updateTranslogDeletionPolicy(commits.get(keptPosition), commits.get(commits.size() - 1));
     }
 
     private void updateTranslogDeletionPolicy(final IndexCommit minRequiredCommit, final IndexCommit lastCommit) throws IOException {
@@ -89,19 +92,6 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
-    }
-
-    /**
-     * Deletes old index commits which are not required for operation based recovery.
-     *
-     * @return returns the min required index commit for recovery.
-     */
-    private IndexCommit deleteOldIndexCommits(List<? extends IndexCommit> commits) throws IOException {
-        final int keptPosition = indexOfKeptCommits(commits);
-        for (int i = 0; i < keptPosition; i++) {
-            commits.get(i).delete();
-        }
-        return commits.get(keptPosition);
     }
 
     /**

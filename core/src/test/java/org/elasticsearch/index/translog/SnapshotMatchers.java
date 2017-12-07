@@ -64,10 +64,7 @@ public final class SnapshotMatchers {
     }
 
     /**
-     * Consumes a snapshot and makes sure its operations have sequence numbers in the given range (both inclusive).
-     *
-     * @param minSeqNo inclusive
-     * @param maxSeqNo inclusive
+     * Consumes a snapshot and makes sure that its operations have all seqno between minSeqNo(inclusive) and maxSeqNo(inclusive).
      */
     public static Matcher<Translog.Snapshot> containsSeqNoRange(long minSeqNo, long maxSeqNo) {
         return new ContainingSeqNoRangeMatcher(minSeqNo, maxSeqNo);
@@ -235,7 +232,7 @@ public final class SnapshotMatchers {
         @Override
         protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
             mismatchDescription
-                .appendText("not found seqno").appendValueList("[", ", ", "]", notFoundSeqNo);
+                .appendText("not found seqno ").appendValueList("[", ", ", "]", notFoundSeqNo);
         }
 
         @Override

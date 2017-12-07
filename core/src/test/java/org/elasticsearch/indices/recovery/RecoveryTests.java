@@ -39,12 +39,16 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -100,6 +104,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
     public void testRecoveryWithOutOfOrderDelete() throws Exception {
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
+            final boolean isolateFirstBatch = randomBoolean();
+            final boolean duplicateStaleIndexOp = randomBoolean();
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id", VersionType.EXTERNAL, u -> {});
@@ -108,14 +114,41 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON),
                 u -> {});
 
+            if (isolateFirstBatch) {
+                flushShard(orgReplica, true);
+                if (duplicateStaleIndexOp) {
+                    orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                        SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON),
+                        u -> {
+                        });
+                }
+            }
             // index a second item into the second generation, skipping seq# 2. Local checkpoint is now 1, which will make this generation
             // stick around
             orgReplica.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id2", new BytesArray("{}"), XContentType.JSON), u -> {});
 
-            final int translogOps = 4; // 3 ops + seqno gaps
+            final List<Long> expectedTranslogOps = new ArrayList<>(Arrays.asList(1L, 0L, 3L, 2L)); // 2L is NoOp.
             if (randomBoolean()) {
-                flushShard(orgReplica);
+                if (randomBoolean()) {
+                    logger.info("--> flushing shard (translog will be trimmed)");
+                    IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
+                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
+                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    );
+                    orgReplica.indexSettings().updateIndexMetaData(builder.build());
+                    orgReplica.onSettingsChanged();
+                    orgReplica.updateGlobalCheckpointOnReplica(1L, "test");
+                    if (isolateFirstBatch) {
+                        // An operation with seqno=1L won't be retained in the translog.
+                        expectedTranslogOps.remove(1L);
+                        if (duplicateStaleIndexOp == false) {
+                            expectedTranslogOps.remove(0L);
+                        }
+                    }
+                }
+                flushShard(orgReplica, true);
             }
             final IndexShard orgPrimary = shards.getPrimary();
             shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
@@ -124,7 +157,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(1);
 
-            assertThat(newReplica.getTranslog().totalOperations(), equalTo(translogOps));
+            try (Translog.Snapshot snapshot = newReplica.getTranslog().newSnapshot()) {
+                final List<Long> actualOps = new ArrayList<>();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    actualOps.add(op.seqNo());
+                }
+                assertThat(actualOps, containsInAnyOrder(expectedTranslogOps.toArray(new Long[expectedTranslogOps.size()])));
+            }
         }
     }
 

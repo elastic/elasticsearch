@@ -33,7 +33,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.TcpChannelFactory;
@@ -67,7 +66,6 @@ public class NioTransport extends TcpTransport {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
-    private final OpenChannels openChannels = new OpenChannels(logger);
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
@@ -81,26 +79,16 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    public long getNumOpenServerConnections() {
-        return openChannels.serverChannelsCount();
-    }
-
-    @Override
     protected TcpNioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
-        TcpNioServerSocketChannel serverChannel = channelFactory.openNioServerSocketChannel(address, selector);
-        openChannels.serverChannelOpened(serverChannel);
-        serverChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(serverChannel)));
-        return serverChannel;
+        return channelFactory.openNioServerSocketChannel(address, selector);
     }
 
     @Override
     protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         TcpNioSocketChannel channel = clientChannelFactory.openNioChannel(node.getAddress().address(), clientSelectorSupplier.get());
-        openChannels.clientChannelOpened(channel);
-        channel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
         channel.addConnectListener(connectListener);
         return channel;
     }
@@ -169,7 +157,7 @@ public class NioTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         NioShutdown nioShutdown = new NioShutdown(logger);
-        nioShutdown.orderlyShutdown(openChannels, acceptors, socketSelectors);
+        nioShutdown.orderlyShutdown(acceptors, socketSelectors);
 
         profileToChannelFactory.clear();
         socketSelectors.clear();
@@ -190,8 +178,6 @@ public class NioTransport extends TcpTransport {
 
     private void acceptChannel(NioSocketChannel channel) {
         TcpNioSocketChannel tcpChannel = (TcpNioSocketChannel) channel;
-        openChannels.acceptedChannelOpened(tcpChannel);
-        tcpChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
         serverAcceptedChannel(tcpChannel);
 
     }

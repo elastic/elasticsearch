@@ -29,6 +29,7 @@ import java.util.Objects;
 
 public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField UPDATE_SPECIAL_EVENTS = new ParseField("update_special_events");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
             "job_update", args -> new Builder((String) args[0]));
@@ -49,6 +50,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
         PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
+        PARSER.declareBoolean(Builder::setUpdateSpecialEvents, UPDATE_SPECIAL_EVENTS);
     }
 
     /**
@@ -73,6 +75,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final Long establishedModelMemory;
+    private final boolean updateSpecialEvents;
 
     private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
@@ -80,7 +83,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
-                      @Nullable Long establishedModelMemory) {
+                      @Nullable Long establishedModelMemory, boolean updateSpecialEvents) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -95,6 +98,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
         this.establishedModelMemory = establishedModelMemory;
+        this.updateSpecialEvents = updateSpecialEvents;
     }
 
     public JobUpdate(StreamInput in) throws IOException {
@@ -129,6 +133,12 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             establishedModelMemory = null;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            updateSpecialEvents = in.readBoolean();
+        } else {
+            updateSpecialEvents = false;
+        }
     }
 
     @Override
@@ -157,6 +167,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(modelSnapshotId);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalLong(establishedModelMemory);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeBoolean(updateSpecialEvents);
         }
     }
 
@@ -220,6 +234,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelPlotConfig != null || detectorUpdates != null;
     }
 
+    public boolean isUpdateSpecialEvents() {
+        return updateSpecialEvents;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -263,6 +281,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (establishedModelMemory != null) {
             builder.field(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
         }
+        builder.field(UPDATE_SPECIAL_EVENTS.getPreferredName(), updateSpecialEvents);
         builder.endObject();
         return builder;
     }
@@ -399,14 +418,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.categorizationFilters, that.categorizationFilters)
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
-                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory);
+                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
+                && Objects.equals(this.updateSpecialEvents, that.updateSpecialEvents);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-                modelSnapshotId, establishedModelMemory);
+                modelSnapshotId, establishedModelMemory, updateSpecialEvents);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -518,6 +538,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private Long establishedModelMemory;
+        private boolean updateSpecialEvents = false;
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -593,10 +614,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setUpdateSpecialEvents(boolean updateSpecialEvents) {
+            this.updateSpecialEvents = updateSpecialEvents;
+            return this;
+        }
+
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                    modelSnapshotId, establishedModelMemory);
+                    modelSnapshotId, establishedModelMemory, updateSpecialEvents);
         }
     }
 }

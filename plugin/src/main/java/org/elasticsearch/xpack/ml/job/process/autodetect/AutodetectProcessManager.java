@@ -24,6 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -57,6 +58,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -249,7 +251,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void writeUpdateProcessMessage(JobTask jobTask, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
+    public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams,
                                           Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
@@ -258,13 +260,25 @@ public class AutodetectProcessManager extends AbstractComponent {
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        communicator.writeUpdateProcessMessage(config, updates, (aVoid, e) -> {
-            if (e == null) {
-                handler.accept(null);
-            } else {
-                handler.accept(e);
-            }
-        });
+
+        Consumer<List<SpecialEvent>> eventConsumer = specialEvents -> {
+            communicator.writeUpdateProcessMessage(updateParams, specialEvents, (aVoid, e) -> {
+                if (e == null) {
+                    handler.accept(null);
+                } else {
+                    handler.accept(e);
+                }
+            });
+        };
+
+
+        if (updateParams.isUpdateSpecialEvents()) {
+            jobProvider.specialEvents(jobTask.getJobId(), eventConsumer, handler::accept);
+        } else {
+            eventConsumer.accept(Collections.emptyList());
+        }
+
+
     }
 
     public void openJob(JobTask jobTask, Consumer<Exception> handler) {
@@ -377,8 +391,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
-                autodetectParams.quantiles(), autodetectParams.filters(), autoDetectExecutorService, onProcessCrash(jobTask));
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
+                onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                 client, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
                 autodetectParams.modelSnapshot() != null);

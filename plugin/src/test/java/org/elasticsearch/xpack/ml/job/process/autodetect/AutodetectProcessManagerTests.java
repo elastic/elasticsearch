@@ -211,7 +211,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
         AutodetectProcessFactory autodetectProcessFactory =
-                (j, modelSnapshot, quantiles, filters, e, onProcessCrash) -> autodetectProcess;
+                (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
@@ -473,8 +473,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.writeUpdateProcessMessage(jobTask, detectorUpdates, modelConfig, e -> {});
-        verify(communicator).writeUpdateProcessMessage(same(modelConfig), same(detectorUpdates), any());
+        UpdateParams updateParams = new UpdateParams(modelConfig, detectorUpdates, false);
+        manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
+        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(Collections.emptyList()), any());
     }
 
     public void testJobHasActiveAutodetectProcess() throws IOException {
@@ -545,7 +546,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =
-                (j, modelSnapshot, quantiles, filters, e, onProcessCrash) -> autodetectProcess;
+                (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
@@ -618,7 +619,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown(jobId)).thenReturn(createJobDetails(jobId));
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =
-                (j, modelSnapshot, quantiles, filters, e, onProcessCrash) -> autodetectProcess;
+                (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);

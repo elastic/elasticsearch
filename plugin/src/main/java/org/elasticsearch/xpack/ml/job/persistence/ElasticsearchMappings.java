@@ -58,15 +58,15 @@ public class ElasticsearchMappings {
     /**
      * String constants used in mappings
      */
-    static final String ENABLED = "enabled";
-    static final String ANALYZER = "analyzer";
-    static final String WHITESPACE = "whitespace";
-    static final String NESTED = "nested";
-    static final String COPY_TO = "copy_to";
-    static final String PROPERTIES = "properties";
-    static final String TYPE = "type";
-    static final String DYNAMIC = "dynamic";
-    static final String FIELDS = "fields";
+    public static final String ENABLED = "enabled";
+    public static final String ANALYZER = "analyzer";
+    public static final String WHITESPACE = "whitespace";
+    public static final String NESTED = "nested";
+    public static final String COPY_TO = "copy_to";
+    public static final String PROPERTIES = "properties";
+    public static final String TYPE = "type";
+    public static final String DYNAMIC = "dynamic";
+    public static final String FIELDS = "fields";
 
     /**
      * Name of the custom 'all' field for results
@@ -81,13 +81,13 @@ public class ElasticsearchMappings {
     /**
      * Elasticsearch data types
      */
-    static final String BOOLEAN = "boolean";
-    static final String DATE = "date";
-    static final String DOUBLE = "double";
-    static final String INTEGER = "integer";
-    static final String KEYWORD = "keyword";
-    static final String LONG = "long";
-    static final String TEXT = "text";
+    public static final String BOOLEAN = "boolean";
+    public static final String DATE = "date";
+    public static final String DOUBLE = "double";
+    public static final String INTEGER = "integer";
+    public static final String KEYWORD = "keyword";
+    public static final String LONG = "long";
+    public static final String TEXT = "text";
 
     static final String RAW = "raw";
 

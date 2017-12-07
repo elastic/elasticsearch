@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
@@ -41,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * Autodetect process using native code.
@@ -157,6 +159,16 @@ class NativeAutodetectProcess implements AutodetectProcess {
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
         writer.writeUpdateDetectorRulesMessage(detectorIndex, rules);
+    }
+
+    @Override
+    public void writeUpdateSpecialEventsMessage(int numberOfEvents, List<SpecialEvent> specialEvents) throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+
+        List<DetectionRule> eventsAsRules = specialEvents.stream().map(SpecialEvent::toDetectionRule).collect(Collectors.toList());
+        for (int i = 0; i < numberOfEvents; i++) {
+            writer.writeUpdateDetectorRulesMessage(i, eventsAsRules);
+        }
     }
 
     @Override

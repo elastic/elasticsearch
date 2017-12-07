@@ -63,7 +63,6 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
         if (restoresInProgress != null) {
             for (RestoreInProgress.Entry restoreInProgress : restoresInProgress.entries()) {
                 if (restoreInProgress.snapshot().equals(snapshot)) {
-                    assert restoreInProgress.state().completed() == false : "completed restore should have been removed from cluster state";
                     RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
                     if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
                         assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS : "expected initializing shard";

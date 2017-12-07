@@ -22,7 +22,6 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.ByteBufferProvider;
 import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;

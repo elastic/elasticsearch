@@ -20,10 +20,12 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.function.Supplier;
 
 /**
  * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
@@ -39,8 +41,8 @@ public final class InboundChannelBuffer implements Releasable {
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
 
 
-    private final ArrayDeque<ByteBufferProvider.ReleasableByteBuffer> pages;
-    private final ByteBufferProvider pageSupplier;
+    private final ArrayDeque<Page> pages;
+    private final Supplier<Page> pageSupplier;
 
     private long capacity = 0;
     private long internalIndex = 0;
@@ -48,10 +50,10 @@ public final class InboundChannelBuffer implements Releasable {
     private int offset = 0;
 
     public InboundChannelBuffer() {
-        this(ByteBufferProvider.NON_RECYCLING_INSTANCE);
+        this(() -> new Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {}));
     }
 
-    public InboundChannelBuffer(ByteBufferProvider pageSupplier) {
+    public InboundChannelBuffer(Supplier<Page> pageSupplier) {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
         this.capacity = PAGE_SIZE * pages.size();
@@ -60,9 +62,9 @@ public final class InboundChannelBuffer implements Releasable {
 
     @Override
     public void close() {
-        ByteBufferProvider.ReleasableByteBuffer buffer;
-        while ((buffer = pages.pollFirst()) != null) {
-            buffer.close();
+        Page page;
+        while ((page = pages.pollFirst()) != null) {
+            page.close();
         }
     }
 
@@ -71,7 +73,7 @@ public final class InboundChannelBuffer implements Releasable {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                ByteBufferProvider.ReleasableByteBuffer page = pageSupplier.getByteBufferPage();
+                Page page = pageSupplier.get();
                 pages.addLast(page);
             }
             capacity += pagesToAdd * PAGE_SIZE;
@@ -122,7 +124,7 @@ public final class InboundChannelBuffer implements Releasable {
         }
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
-        Iterator<ByteBufferProvider.ReleasableByteBuffer> pageIterator = pages.iterator();
+        Iterator<Page> pageIterator = pages.iterator();
         ByteBuffer firstBuffer = pageIterator.next().byteBuffer().duplicate();
         firstBuffer.position(firstBuffer.position() + offset);
         buffers[0] = firstBuffer;
@@ -158,7 +160,7 @@ public final class InboundChannelBuffer implements Releasable {
         int indexInPage = indexInPage(indexWithOffset);
 
         ByteBuffer[] buffers = new ByteBuffer[pages.size() - pageIndex];
-        Iterator<ByteBufferProvider.ReleasableByteBuffer> pageIterator = pages.descendingIterator();
+        Iterator<Page> pageIterator = pages.descendingIterator();
         for (int i = buffers.length - 1; i > 0; --i) {
             buffers[i] = pageIterator.next().byteBuffer().duplicate();
         }
@@ -210,5 +212,25 @@ public final class InboundChannelBuffer implements Releasable {
 
     private int indexInPage(long index) {
         return (int) (index & PAGE_MASK);
+    }
+
+    static class Page implements Releasable {
+
+        private final ByteBuffer byteBuffer;
+        private final Releasable releasable;
+
+        Page(ByteBuffer byteBuffer, Releasable releasable) {
+            this.byteBuffer = byteBuffer;
+            this.releasable = releasable;
+        }
+
+        @Override
+        public void close() {
+            releasable.close();
+        }
+
+        private ByteBuffer byteBuffer() {
+            return byteBuffer;
+        }
     }
 }

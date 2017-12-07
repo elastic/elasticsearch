@@ -44,6 +44,7 @@ import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
@@ -69,7 +70,6 @@ public class NioTransport extends TcpTransport {
 
     private final OpenChannels openChannels = new OpenChannels(logger);
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private final ByteBufferProvider byteBufferProvider;
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
     private RoundRobinSelectorSupplier clientSelectorSupplier;
@@ -78,15 +78,7 @@ public class NioTransport extends TcpTransport {
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
-        this(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService,
-            ByteBufferProvider.NON_RECYCLING_INSTANCE);
-    }
-
-    public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                        NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService,
-                        ByteBufferProvider byteBufferProvider) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.byteBufferProvider = byteBufferProvider;
     }
 
     @Override
@@ -194,8 +186,9 @@ public class NioTransport extends TcpTransport {
 
     private Consumer<NioSocketChannel> getContextSetter(String profileName) {
         return (c) -> {
-            InboundChannelBuffer channelBuffer = new InboundChannelBuffer(byteBufferProvider);
-            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), channelBuffer),
+            Supplier<InboundChannelBuffer.Page> pageSupplier = () ->
+                new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {});
+            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), new InboundChannelBuffer(pageSupplier)),
                 new TcpWriteContext(c), this::exceptionCaught);
         };
     }

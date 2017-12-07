@@ -81,9 +81,9 @@ public class WriteOperation {
 
         ByteBuffer[] postIndexBuffers = new ByteBuffer[buffers.length - offsetIndex];
 
-        ByteBuffer firstBuffer = buffers[0].duplicate();
+        ByteBuffer firstBuffer = buffers[offsetIndex].duplicate();
         firstBuffer.position(internalIndex - offsets[offsetIndex]);
-        postIndexBuffers[offsetIndex] = firstBuffer;
+        postIndexBuffers[0] = firstBuffer;
         int j = 1;
         for (int i = (offsetIndex + 1); i < buffers.length; ++i) {
             postIndexBuffers[j++] = buffers[i].duplicate();

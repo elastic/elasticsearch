@@ -27,6 +27,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -37,7 +38,6 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -83,7 +83,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -93,10 +92,12 @@ import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.Request.enforceSameContentType;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
 
-    public void testConstructor() throws Exception {
+    public void testConstructor() {
         final String method = randomFrom("GET", "PUT", "POST", "HEAD", "DELETE");
         final String endpoint = randomAlphaOfLengthBetween(1, 10);
         final Map<String, String> parameters = singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -122,7 +123,7 @@ public class RequestTests extends ESTestCase {
         assertTrue("Request constructor is not public", Modifier.isPublic(constructors[0].getModifiers()));
     }
 
-    public void testClassVisibility() throws Exception {
+    public void testClassVisibility() {
         assertTrue("Request class is not public", Modifier.isPublic(Request.class.getModifiers()));
     }
 
@@ -146,7 +147,7 @@ public class RequestTests extends ESTestCase {
         getAndExistsTest(Request::get, "GET");
     }
 
-    public void testDelete() throws IOException {
+    public void testDelete() {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
@@ -283,7 +284,7 @@ public class RequestTests extends ESTestCase {
         assertToXContentBody(createIndexRequest, request.getEntity());
     }
 
-    public void testDeleteIndex() throws IOException {
+    public void testDeleteIndex() {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
 
         int numIndices = randomIntBetween(0, 5);
@@ -305,6 +306,29 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals("DELETE", request.getMethod());
         assertNull(request.getEntity());
+    }
+
+    public void testOpenIndex() {
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest();
+        int numIndices = randomIntBetween(1, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        openIndexRequest.indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(openIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(openIndexRequest, expectedParams);
+        setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
+        setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, expectedParams);
+
+        Request request = Request.openIndex(openIndexRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testIndex() throws IOException {

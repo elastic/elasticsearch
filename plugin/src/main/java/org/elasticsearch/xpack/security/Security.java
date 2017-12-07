@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -970,7 +971,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings))
+            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
+                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex());
         }
         return null;
@@ -978,15 +980,18 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean isTLSEnabled;
+        private final String discoveryType;
 
-        ValidateTLSOnJoin(boolean isTLSEnabled) {
+        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType) {
             this.isTLSEnabled = isTLSEnabled;
+            this.discoveryType = discoveryType;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());
-            if (license != null && license.isProductionLicense() && isTLSEnabled == false) {
+            if (license != null && license.isProductionLicense() &&
+                    isTLSEnabled == false && "single-node".equals(discoveryType) == false) {
                 throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
             }
         }

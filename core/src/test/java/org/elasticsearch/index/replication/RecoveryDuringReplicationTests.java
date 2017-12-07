@@ -58,10 +58,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -374,15 +376,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean preparedForTranslog = new AtomicBoolean(false);
+            AtomicBoolean opsSent = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
                 }) {
                     @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                        preparedForTranslog.set(true);
-                        super.prepareForTranslogOperations(totalTranslogOps);
+                    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+                        opsSent.set(true);
+                        return super.indexTranslogOperations(operations, totalTranslogOps);
                     }
                 };
             });
@@ -390,9 +392,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             recoveryStart.await();
 
             // index some more
-            docs += shards.indexDocs(randomInt(5));
+            final int indexedDuringRecovery = shards.indexDocs(randomInt(5));
+            docs += indexedDuringRecovery;
 
-            assertFalse("recovery should wait on pending docs", preparedForTranslog.get());
+            assertFalse("recovery should wait on pending docs", opsSent.get());
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();
@@ -401,7 +404,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             recoveryFuture.get();
 
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
-            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(docs));
+            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(),
+                // we don't know which of the inflight operations made it into the translog range we re-play
+                both(greaterThanOrEqualTo(docs-indexedDuringRecovery)).and(lessThanOrEqualTo(docs)));
 
             shards.assertAllEqual(docs);
         } finally {

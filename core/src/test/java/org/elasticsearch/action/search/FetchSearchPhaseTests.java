@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
@@ -44,7 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() throws IOException {
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 1);
@@ -85,7 +87,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFetchTwoDocument() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
@@ -139,7 +142,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFailFetchOneDoc() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
@@ -197,7 +201,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), numHits);
@@ -253,7 +258,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testExceptionFailsPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
@@ -306,7 +312,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();

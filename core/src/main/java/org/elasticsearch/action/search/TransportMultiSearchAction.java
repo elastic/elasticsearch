@@ -76,7 +76,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         int maxConcurrentSearches = request.maxConcurrentSearchRequests();
-        if (maxConcurrentSearches == 0) {
+        if (maxConcurrentSearches == MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             maxConcurrentSearches = defaultMaxConcurrentSearches(availableProcessors, clusterState);
         }
 

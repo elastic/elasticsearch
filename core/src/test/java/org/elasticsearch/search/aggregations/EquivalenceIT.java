@@ -41,6 +41,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -88,6 +90,21 @@ public class EquivalenceIT extends ESIntegTestCase {
                 return Math.floor(value / interval.doubleValue());
             });
         }
+    }
+
+    @Before
+    private void setupMaxBuckets() {
+        // disables the max bucket limit for this test
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Collections.singletonMap("search.max_buckets", Integer.MAX_VALUE))
+            .get();
+    }
+
+    @After
+    private void cleanupMaxBuckets() {
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Collections.singletonMap("search.max_buckets", null))
+            .get();
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

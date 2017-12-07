@@ -72,15 +72,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
 
-    @Override
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
-            IndexSearcher indexSearcher, IndexSettings indexSettings, MappedFieldType... fieldTypes) throws IOException {
+            IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
         try {
             if (randomizeAggregatorImpl) {
                 TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
                 TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
             }
-            return super.createAggregator(aggregationBuilder, indexSearcher, indexSettings, fieldTypes);
+            return super.createAggregator(aggregationBuilder, indexSearcher, fieldTypes);
         } finally {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;

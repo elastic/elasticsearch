@@ -44,9 +44,6 @@
 
 ## basic
 
-# force the server VM
--server
-
 # explicitly set the stack size
 -Xss1m
 
@@ -72,6 +69,8 @@
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
 
+-Djava.io.tmpdir=${ES_TMPDIR}
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails
@@ -82,22 +81,16 @@
 # ensure the directory exists and has sufficient space
 ${heap.dump.path}
 
-## GC logging
+## JDK 8 GC logging
 
-#-XX:+PrintGCDetails
-#-XX:+PrintGCTimeStamps
-#-XX:+PrintGCDateStamps
-#-XX:+PrintClassHistogram
-#-XX:+PrintTenuringDistribution
-#-XX:+PrintGCApplicationStoppedTime
+8:-XX:+PrintGCDetails
+8:-XX:+PrintGCDateStamps
+8:-XX:+PrintTenuringDistribution
+8:-XX:+PrintGCApplicationStoppedTime
+8:-Xloggc:${loggc}
+8:-XX:+UseGCLogFileRotation
+8:-XX:NumberOfGCLogFiles=32
+8:-XX:GCLogFileSize=64m
 
-# log GC status to a file with time stamps
-# ensure the directory exists
-#-Xloggc:${loggc}
-
-# By default, the GC log file will not rotate.
-# By uncommenting the lines below, the GC log file
-# will be rotated every 128MB at most 32 times.
-#-XX:+UseGCLogFileRotation
-#-XX:NumberOfGCLogFiles=32
-#-XX:GCLogFileSize=128M
+# JDK 9+ GC logging
+9-:-Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m

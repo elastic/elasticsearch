@@ -730,6 +730,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
     }
 
     @Override
+    protected StringBuilder contentToWKT() {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        sb.append(ShapeBuilder.coordinateListToWKT(shell.coordinates));
+        for (LineStringBuilder hole : holes) {
+            sb.append(", ");
+            sb.append(ShapeBuilder.coordinateListToWKT(hole.coordinates));
+        }
+        sb.append(')');
+        return sb;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(shell, holes, orientation);
     }

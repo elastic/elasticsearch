@@ -468,11 +468,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final String failure,
                                          final int totalShards,
                                          final List<SnapshotShardFailure> shardFailures,
-                                         final long repositoryStateId) {
-
+                                         final long repositoryStateId,
+                                         final boolean includeGlobalState) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
+            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
+            includeGlobalState);
         try {
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
@@ -616,7 +617,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
                 } catch (NotXContentException e) {
                     logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
@@ -628,7 +629,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {

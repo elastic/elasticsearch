@@ -59,10 +59,8 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
                 // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, we can safely delete all existing index commits because:
                 // 1. The engine will create a fresh index commit with the same actual data immediately.
-                // 2. We should never refer translog of these existing commits as they belong to another engine.
-                for (IndexCommit commit : commits) {
-                    commit.delete();
-                }
+                // 2. We should never refer these existing commits again as they belong to another engine.
+                commits.forEach(IndexCommit::delete);
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";

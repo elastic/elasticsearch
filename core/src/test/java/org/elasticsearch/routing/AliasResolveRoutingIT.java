@@ -172,7 +172,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                 equalTo(newMap("test1", newSet("0", "tw ", " ltw ", " lw"), "test3", newSet(" ltw "))));
 
         assertThat(
-                indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2,tw , ltw , lw", null),
+                indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2,tw , ltw , lw", (String[])null),
                 equalTo(newMap(
                         "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
                         "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),

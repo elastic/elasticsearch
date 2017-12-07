@@ -13,15 +13,19 @@ Machine Learning::
 * Fixed analytics problem where sparse data resulted in "update failed" errors
 in the logs.
 // https://github.com/elastic/machine-learning-cpp/pull/377 (issue: https://github.com/elastic/machine-learning-cpp/pull/380[#380])
-////
+
 Security::
-* LoggingAuditTrail emit events before local address available
+* Fixed error that occurred when attempting to audit `system_access_granted`
+events.
 // https://github.com/elastic/x-pack-elasticsearch/pull/3061[#3061] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3057[#3057])
-* Security: IndexLifecycleManager provides a consistent view of index state
+//* Security: IndexLifecycleManager provides a consistent view of index state
+// TBD: Omit because it's too low-level?
 // https://github.com/elastic/x-pack-elasticsearch/pull/3008[#3008] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2973[#2973])
-* SetupPasswordTool handle url option correctly
+* Fixed the `setup-passwords` command such that it fails appropriately when
+invalid URLs are specified in the `--url` option and when {security} is not
+enabled.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2899[#2899] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2778[#2778], https://github.com/elastic/x-pack-elasticsearch/issues/2784[#2784])
-////
+
 Watcher::
 * Fixed handling of Hipchat rooms. For example, room names with spaces did not
 work as expected. For more information, see

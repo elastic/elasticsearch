@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -184,18 +185,23 @@ public class AutodetectCommunicator implements Closeable {
         }
     }
 
-    public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
+    public void writeUpdateProcessMessage(UpdateParams updateParams, List<SpecialEvent> specialEvents,
                                           BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
-            if (config != null) {
-                autodetectProcess.writeUpdateModelPlotMessage(config);
+            if (updateParams.getModelPlotConfig() != null) {
+                autodetectProcess.writeUpdateModelPlotMessage(updateParams.getModelPlotConfig());
             }
-            if (updates != null) {
-                for (JobUpdate.DetectorUpdate update : updates) {
+
+            if (updateParams.getDetectorUpdates() != null) {
+                for (JobUpdate.DetectorUpdate update : updateParams.getDetectorUpdates()) {
                     if (update.getRules() != null) {
                         autodetectProcess.writeUpdateDetectorRulesMessage(update.getDetectorIndex(), update.getRules());
                     }
                 }
+            }
+
+            if (updateParams.isUpdateSpecialEvents()) {
+                autodetectProcess.writeUpdateSpecialEventsMessage(job.getAnalysisConfig().getDetectors().size(), specialEvents);
             }
             return null;
         }, handler);

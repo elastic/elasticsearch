@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
@@ -21,15 +22,15 @@ public interface AutodetectProcessFactory {
     /**
      * Create an implementation of {@link AutodetectProcess}
      *
-     * @param job             Job configuration for the analysis process
-     * @param modelSnapshot   The model snapshot to restore from
-     * @param quantiles       The quantiles to push to the native process
-     * @param filters         The filters to push to the native process
-     * @param executorService Executor service used to start the async tasks a job needs to operate the analytical process
-     * @param onProcessCrash  Callback to execute if the process stops unexpectedly
+     * @param job               Job configuration for the analysis process
+     * @param autodetectParams  Autodetect parameters including The model snapshot to restore from
+     *                          and the quantiles to push to the native process
+     * @param executorService   Executor service used to start the async tasks a job needs to operate the analytical process
+     * @param onProcessCrash    Callback to execute if the process stops unexpectedly
      * @return The process
      */
-    AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters,
+    AutodetectProcess createAutodetectProcess(Job job,
+                                              AutodetectParams autodetectParams,
                                               ExecutorService executorService,
                                               Runnable onProcessCrash);
 }

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
@@ -360,46 +361,47 @@ public class JobProvider {
                 .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, filterId));
+            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId)));
         }
 
+        msearch.add(createSpecialEventSearch(jobId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
-                ActionListener.<MultiSearchResponse>wrap(
-                        response -> {
-                            for (int i = 0; i < response.getResponses().length; i++) {
-                                MultiSearchResponse.Item itemResponse = response.getResponses()[i];
-                                if (itemResponse.isFailure()) {
-                                    errorHandler.accept(itemResponse.getFailure());
+                                                ActionListener.<MultiSearchResponse>wrap(
+                response -> {
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                        if (itemResponse.isFailure()) {
+                            errorHandler.accept(itemResponse.getFailure());
+                        } else {
+                            SearchResponse searchResponse = itemResponse.getResponse();
+                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                            if (shardFailures != null && shardFailures.length > 0) {
+                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                        Arrays.toString(shardFailures));
+                                errorHandler.accept(new ElasticsearchException(
+                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            } else if (unavailableShards > 0) {
+                                errorHandler.accept(new ElasticsearchException("[" + jobId
+                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            } else {
+                                SearchHits hits = searchResponse.getHits();
+                                long hitsCount = hits.getHits().length;
+                                if (hitsCount == 0) {
+                                    SearchRequest searchRequest = msearch.request().requests().get(i);
+                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
                                 } else {
-                                    SearchResponse searchResponse = itemResponse.getResponse();
-                                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                                    int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                    if (shardFailures != null && shardFailures.length > 0) {
-                                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                                Arrays.toString(shardFailures));
-                                        errorHandler.accept(new ElasticsearchException(
-                                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                                    } else if (unavailableShards > 0) {
-                                        errorHandler.accept(new ElasticsearchException("[" + jobId
-                                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                                    } else {
-                                        SearchHits hits = searchResponse.getHits();
-                                        long hitsCount = hits.getHits().length;
-                                        if (hitsCount == 0) {
-                                            SearchRequest searchRequest = msearch.request().requests().get(i);
-                                            LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
-                                        } else if (hitsCount == 1) {
-                                            parseAutodetectParamSearchHit(jobId, paramsBuilder, hits.getAt(0), errorHandler);
-                                        } else {
-                                            errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
-                                                    + hitsCount + "]"));
-                                        }
+                                    for (SearchHit hit : hits) {
+                                        parseAutodetectParamSearchHit(jobId, paramsBuilder, hit, errorHandler);
                                     }
                                 }
                             }
-                            consumer.accept(paramsBuilder.build());
-                        },
-                        errorHandler
+                        }
+                    }
+
+                    consumer.accept(paramsBuilder.build());
+                },
+                errorHandler
                 ), client::multiSearch);
     }
 
@@ -408,6 +410,17 @@ public class JobProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.idsQuery().addIds(id))
                 .setRouting(id);
+    }
+
+
+    private SearchRequestBuilder createSpecialEventSearch(String jobId) {
+        QueryBuilder qb = new BoolQueryBuilder()
+                .filter(new TermsQueryBuilder(SpecialEvent.TYPE.getPreferredName(), SpecialEvent.SPECIAL_EVENT_TYPE))
+                .filter(new TermsQueryBuilder(SpecialEvent.JOB_IDS.getPreferredName(), jobId));
+
+        return client.prepareSearch(MlMetaIndex.INDEX_NAME)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(qb);
     }
 
     private void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
@@ -425,6 +438,8 @@ public class JobProvider {
             paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
             paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler).build());
+        } else if (hitId.startsWith(SpecialEvent.DOCUMENT_ID_PREFIX)) {
+            paramsBuilder.addSpecialEvent(parseSearchHit(hit, SpecialEvent.PARSER, errorHandler));
         } else {
             errorHandler.accept(new IllegalStateException("Unexpected type [" + hit.getType() + "]"));
         }
@@ -964,6 +979,23 @@ public class JobProvider {
                 errorHandler.accept(e);
             }
         });
+    }
+
+    public void specialEvents(String jobId, Consumer<List<SpecialEvent>> handler, Consumer<Exception> errorHandler) {
+        SearchRequestBuilder request = createSpecialEventSearch(jobId);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request.request(),
+                ActionListener.<SearchResponse>wrap(
+                    response -> {
+                        List<SpecialEvent> specialEvents = new ArrayList<>();
+                        SearchHit[] hits = response.getHits().getHits();
+                        for (SearchHit hit : hits) {
+                            specialEvents.add(parseSearchHit(hit, SpecialEvent.PARSER, errorHandler));
+                    }
+
+                    handler.accept(specialEvents);
+                },
+                errorHandler)
+        , client::search);
     }
 
     private void handleLatestModelSizeStats(String jobId, ModelSizeStats latestModelSizeStats, Consumer<Long> handler,

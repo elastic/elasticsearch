@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -23,9 +24,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 
 import java.io.IOException;
 import java.util.List;
@@ -119,14 +122,17 @@ public class UpdateProcessAction extends
 
         private ModelPlotConfig modelPlotConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
+        private boolean updateSpecialEvents = false;
 
         Request() {
         }
 
-        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates) {
+        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates,
+                       boolean updateSpecialEvents) {
             super(jobId);
             this.modelPlotConfig = modelPlotConfig;
             this.detectorUpdates = detectorUpdates;
+            this.updateSpecialEvents = updateSpecialEvents;
         }
 
         public ModelPlotConfig getModelPlotConfig() {
@@ -137,12 +143,19 @@ public class UpdateProcessAction extends
             return detectorUpdates;
         }
 
+        public boolean isUpdateSpecialEvents() {
+            return updateSpecialEvents;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             if (in.readBoolean()) {
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
+            }
+            if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+                updateSpecialEvents = in.readBoolean();
             }
         }
 
@@ -155,11 +168,14 @@ public class UpdateProcessAction extends
             if (hasDetectorUpdates) {
                 out.writeList(detectorUpdates);
             }
+            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+                out.writeBoolean(updateSpecialEvents);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates);
+            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, updateSpecialEvents);
         }
 
         @Override
@@ -174,7 +190,8 @@ public class UpdateProcessAction extends
 
             return Objects.equals(getJobId(), other.getJobId()) &&
                     Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
-                    Objects.equals(detectorUpdates, other.detectorUpdates);
+                    Objects.equals(detectorUpdates, other.detectorUpdates) &&
+                    Objects.equals(updateSpecialEvents, other.updateSpecialEvents);
         }
     }
 
@@ -199,8 +216,10 @@ public class UpdateProcessAction extends
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             try {
-                processManager.writeUpdateProcessMessage(task, request.getDetectorUpdates(),
-                        request.getModelPlotConfig(), e -> {
+                processManager.writeUpdateProcessMessage(task,
+                        new UpdateParams(request.getModelPlotConfig(),
+                                request.getDetectorUpdates(), request.isUpdateSpecialEvents()),
+                        e -> {
                             if (e == null) {
                                 listener.onResponse(new Response());
                             } else {

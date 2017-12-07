@@ -84,7 +84,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
         out.writeOptionalString(valueFilter);
     }
 
-    public RuleCondition(RuleConditionType conditionType, String fieldName, String fieldValue, Condition condition, String valueFilter) {
+    RuleCondition(RuleConditionType conditionType, String fieldName, String fieldValue, Condition condition, String valueFilter) {
         this.conditionType = conditionType;
         this.fieldName = fieldName;
         this.fieldValue = fieldValue;
@@ -182,6 +182,18 @@ public class RuleCondition implements ToXContentObject, Writeable {
         return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, valueFilter);
     }
 
+    public static RuleCondition createNumerical(RuleConditionType conditionType, String fieldName, String fieldValue,
+                                                Condition condition ) {
+        if (conditionType.isNumerical() == false) {
+            throw new IllegalStateException("Rule condition type [" +  conditionType + "] not valid for a numerical condition");
+        }
+        return new RuleCondition(conditionType, fieldName, fieldValue, condition, null);
+    }
+
+    public static RuleCondition createTime(Operator operator, long epochSeconds) {
+        return new RuleCondition(RuleConditionType.TIME, null, null, new Condition(operator, Long.toString(epochSeconds)), null);
+    }
+
     private static void verifyFieldsBoundToType(RuleCondition ruleCondition) throws ElasticsearchParseException {
         switch (ruleCondition.getConditionType()) {
         case CATEGORICAL:
@@ -191,6 +203,9 @@ public class RuleCondition implements ToXContentObject, Writeable {
         case NUMERICAL_TYPICAL:
         case NUMERICAL_DIFF_ABS:
             verifyNumerical(ruleCondition);
+            break;
+        case TIME:
+            verifyTimeRule(ruleCondition);
             break;
         default:
             throw new IllegalStateException();
@@ -257,5 +272,9 @@ public class RuleCondition implements ToXContentObject, Writeable {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_INVALID_OPERATOR, operator);
             throw ExceptionsHelper.badRequestException(msg);
         }
+    }
+
+    private static void verifyTimeRule(RuleCondition ruleCondition) {
+        checkNumericalConditionOparatorsAreValid(ruleCondition);
     }
 }

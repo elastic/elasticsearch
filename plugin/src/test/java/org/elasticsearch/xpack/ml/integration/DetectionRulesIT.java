@@ -43,24 +43,21 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void test() throws Exception {
-        RuleCondition condition1 = new RuleCondition(
+        RuleCondition condition1 = RuleCondition.createNumerical(
                 RuleConditionType.NUMERICAL_ACTUAL,
                 "by_field",
                 "by_field_value_1",
-                new Condition(Operator.LT, "1000"),
-                null);
-        RuleCondition condition2 = new RuleCondition(
+                new Condition(Operator.LT, "1000"));
+        RuleCondition condition2 = RuleCondition.createNumerical(
                 RuleConditionType.NUMERICAL_ACTUAL,
                 "by_field",
                 "by_field_value_2",
-                new Condition(Operator.LT, "500"),
-                null);
-        RuleCondition condition3 = new RuleCondition(
+                new Condition(Operator.LT, "500"));
+        RuleCondition condition3 = RuleCondition.createNumerical(
                 RuleConditionType.NUMERICAL_ACTUAL,
                 "by_field",
                 "by_field_value_3",
-                new Condition(Operator.LT, "100"),
-                null);
+                new Condition(Operator.LT, "100"));
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(condition1, condition2, condition3)).build();
 
         Detector.Builder detector = new Detector.Builder("max", "value");
@@ -112,24 +109,21 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         {
             // Update rules so that the anomalies suppression is inverted
-            RuleCondition newCondition1 = new RuleCondition(
+            RuleCondition newCondition1 = RuleCondition.createNumerical(
                     RuleConditionType.NUMERICAL_ACTUAL,
                     "by_field",
                     "by_field_value_1",
-                    new Condition(Operator.GT, "1000"),
-                    null);
-            RuleCondition newCondition2 = new RuleCondition(
+                    new Condition(Operator.GT, "1000"));
+            RuleCondition newCondition2 = RuleCondition.createNumerical(
                     RuleConditionType.NUMERICAL_ACTUAL,
                     "by_field",
                     "by_field_value_2",
-                    new Condition(Operator.GT, "500"),
-                    null);
-            RuleCondition newCondition3 = new RuleCondition(
+                    new Condition(Operator.GT, "500"));
+            RuleCondition newCondition3 = RuleCondition.createNumerical(
                     RuleConditionType.NUMERICAL_ACTUAL,
                     "by_field",
                     "by_field_value_3",
-                    new Condition(Operator.GT, "0"),
-                    null);
+                    new Condition(Operator.GT, "0"));
             DetectionRule newRule = new DetectionRule.Builder(Arrays.asList(newCondition1, newCondition2, newCondition3)).build();
             JobUpdate.Builder update = new JobUpdate.Builder(job.getId());
             update.setDetectorUpdates(Arrays.asList(new JobUpdate.DetectorUpdate(0, null, Arrays.asList(newRule))));

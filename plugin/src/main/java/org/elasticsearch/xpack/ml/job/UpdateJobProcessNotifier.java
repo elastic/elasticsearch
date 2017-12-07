@@ -99,7 +99,9 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
     }
 
     void executeRemoteJob(JobUpdate update) {
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates());
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(),
+                update.isUpdateSpecialEvents());
+
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {
                     @Override

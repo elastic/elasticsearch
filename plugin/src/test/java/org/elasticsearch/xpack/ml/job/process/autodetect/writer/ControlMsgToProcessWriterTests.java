@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -21,8 +22,13 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -207,6 +213,6 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
 
     private static List<RuleCondition> createRule(String value) {
         Condition condition = new Condition(Operator.GT, value);
-        return Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null));
+        return Collections.singletonList(RuleCondition.createNumerical(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition));
     }
 }

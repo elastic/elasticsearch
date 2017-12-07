@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 
 import java.io.IOException;
@@ -26,10 +27,18 @@ public final class MlMetaIndex {
     public static XContentBuilder docMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(TYPE);
-        ElasticsearchMappings.addDefaultMapping(builder);
-        builder.endObject();
-        builder.endObject();
+            builder.startObject(TYPE);
+                ElasticsearchMappings.addDefaultMapping(builder);
+                builder.startObject(ElasticsearchMappings.PROPERTIES)
+                    .startObject(SpecialEvent.START_TIME.getPreferredName())
+                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
+                    .endObject()
+                    .startObject(SpecialEvent.END_TIME.getPreferredName())
+                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
         return builder;
     }
 }

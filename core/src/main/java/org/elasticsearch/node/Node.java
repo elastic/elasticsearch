@@ -365,7 +365,7 @@ public class Node implements Closeable {
 
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
-            BigArrays bigArrays = createBigArrays(settings, pageCacheRecycler, circuitBreakerService);
+            BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
@@ -901,7 +901,7 @@ public class Node implements Closeable {
      * Creates a new {@link BigArrays} instance used for this node.
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
-    BigArrays createBigArrays(Settings settings, PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
+    BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(pageCacheRecycler, circuitBreakerService);
     }
 

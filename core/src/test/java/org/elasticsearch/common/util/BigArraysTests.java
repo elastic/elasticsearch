@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class BigArraysTests extends ESTestCase {
 
     private BigArrays randombigArrays() {
-        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;

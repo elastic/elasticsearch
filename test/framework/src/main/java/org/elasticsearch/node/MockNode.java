@@ -84,11 +84,11 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected BigArrays createBigArrays(Settings settings, PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
+    protected BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
         if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
-            return super.createBigArrays(settings, pageCacheRecycler, circuitBreakerService);
+            return super.createBigArrays(pageCacheRecycler, circuitBreakerService);
         }
-        return new MockBigArrays(settings, circuitBreakerService);
+        return new MockBigArrays(pageCacheRecycler, circuitBreakerService);
     }
 
     @Override

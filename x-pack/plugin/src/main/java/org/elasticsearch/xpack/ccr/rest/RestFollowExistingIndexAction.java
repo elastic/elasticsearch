@@ -41,7 +41,9 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
         request.setFollowIndex(restRequest.param("follow_index"));
-        request.setBatchSize(Long.valueOf(restRequest.param("batch_size")));
+        if (restRequest.hasParam("batch_size")) {
+            request.setBatchSize(Long.valueOf(restRequest.param("batch_size")));
+        }
         return channel -> client.execute(INSTANCE, request, new RestBuilderListener<Response>(channel) {
             @Override
             public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {

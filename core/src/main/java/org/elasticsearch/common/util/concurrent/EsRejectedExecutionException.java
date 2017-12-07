@@ -27,29 +27,20 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 public class EsRejectedExecutionException extends ElasticsearchException {
+
     private final boolean isExecutorShutdown;
 
-    public EsRejectedExecutionException(String message, boolean isExecutorShutdown, Object... args) {
-        super(message, args);
+    public EsRejectedExecutionException(String message, boolean isExecutorShutdown) {
+        super(message);
         this.isExecutorShutdown = isExecutorShutdown;
     }
 
-    public EsRejectedExecutionException(String message, Object... args) {
-        this(message, false, args);
-    }
-
-    public EsRejectedExecutionException(String message, boolean isExecutorShutdown) {
-        this(message, isExecutorShutdown, new Object[0]);
+    public EsRejectedExecutionException(String message) {
+        this(message, false);
     }
 
     public EsRejectedExecutionException() {
-        super((String)null);
-        this.isExecutorShutdown = false;
-    }
-
-    public EsRejectedExecutionException(Throwable e) {
-        super(null, e);
-        this.isExecutorShutdown = false;
+        this(null, false);
     }
 
     @Override
@@ -79,4 +70,5 @@ public class EsRejectedExecutionException extends ElasticsearchException {
     public boolean isExecutorShutdown() {
         return isExecutorShutdown;
     }
+
 }

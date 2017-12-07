@@ -46,6 +46,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -170,8 +171,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
         IndexMetaData indexMetaData
             = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
-        IndexTemplateMetaData indexTemplateMetaData
-            = IndexTemplateMetaData.builder("test-template").patterns(new ArrayList<>()).build();
+        IndexTemplateMetaData indexTemplateMetaData = IndexTemplateMetaData.builder("test-template")
+            .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))).build();
         MetaData metaData = MetaData.builder().put(indexMetaData, true).put(indexTemplateMetaData).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();

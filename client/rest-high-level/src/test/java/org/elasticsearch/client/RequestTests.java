@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -32,9 +33,11 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -42,6 +45,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,6 +60,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -72,16 +77,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.Request.enforceSameContentType;
+import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class RequestTests extends ESTestCase {
@@ -245,6 +255,34 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
+    public void testCreateIndex() throws IOException {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+
+        String indexName = "index-" + randomAlphaOfLengthBetween(2, 5);
+
+        createIndexRequest.index(indexName);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(createIndexRequest, expectedParams);
+        setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+
+        if (randomBoolean()) {
+            boolean updateAllTypes = randomBoolean();
+            createIndexRequest.updateAllTypes(updateAllTypes);
+            if (updateAllTypes) {
+                expectedParams.put("update_all_types", Boolean.TRUE.toString());
+            }
+        }
+
+        Request request = Request.createIndex(createIndexRequest);
+        assertEquals("/" + indexName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("PUT", request.getMethod());
+        assertToXContentBody(createIndexRequest, request.getEntity());
+    }
+
     public void testDeleteIndex() throws IOException {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
 
@@ -399,11 +437,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("refresh", refreshPolicy.getValue());
             }
         }
-        if (randomBoolean()) {
-            int waitForActiveShards = randomIntBetween(0, 10);
-            updateRequest.waitForActiveShards(waitForActiveShards);
-            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
-        }
+        setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         if (randomBoolean()) {
             long version = randomLong();
             updateRequest.version(version);
@@ -771,6 +805,55 @@ public class RequestTests extends ESTestCase {
         }
     }
 
+    public void testMultiSearch() throws IOException {
+        int numberOfSearchRequests = randomIntBetween(0, 32);
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        for (int i = 0; i < numberOfSearchRequests; i++) {
+            SearchRequest searchRequest = randomSearchRequest(() -> {
+                // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+                searchSourceBuilder.from(randomInt(10));
+                searchSourceBuilder.size(randomIntBetween(20, 100));
+                return searchSourceBuilder;
+            });
+            // scroll is not supported in the current msearch api, so unset it:
+            searchRequest.scroll((Scroll) null);
+            // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
+            IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
+            IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(
+                    randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
+                    randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()
+            ));
+            multiSearchRequest.add(searchRequest);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            multiSearchRequest.maxConcurrentSearchRequests(randomIntBetween(1, 8));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+
+        Request request = Request.multiSearch(multiSearchRequest);
+        assertEquals("/_msearch", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+
+        List<SearchRequest> requests = new ArrayList<>();
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (searchRequest, p) -> {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+            if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
+                searchRequest.source(searchSourceBuilder);
+            }
+            requests.add(searchRequest);
+        };
+        MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
+                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null,
+                null, xContentRegistry(), true);
+        assertEquals(requests, multiSearchRequest.requests());
+    }
+
     public void testSearchScroll() throws IOException {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(randomAlphaOfLengthBetween(5, 10));
@@ -782,7 +865,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(searchScrollRequest, request.getEntity());
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testClearScroll() throws IOException {
@@ -796,11 +879,11 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
-        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, Request.REQUEST_BODY_CONTENT_TYPE, false);
+        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
@@ -956,6 +1039,14 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomWaitForActiveShards(Consumer<Integer> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            int waitForActiveShards = randomIntBetween(0, 10);
+            setter.accept(waitForActiveShards);
+            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
         }
     }
 

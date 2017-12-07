@@ -132,6 +132,7 @@ public class InternalComposite
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = buckets.get(0).reduce(buckets, reduceContext);
                 buckets.clear();
+                reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
                 if (result.size() >= size) {
                     break;
@@ -145,6 +146,7 @@ public class InternalComposite
         }
         if (buckets.size() > 0) {
             InternalBucket reduceBucket = buckets.get(0).reduce(buckets, reduceContext);
+            reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
         return new InternalComposite(name, size, sourceNames, result, reverseMuls, pipelineAggregators(), metaData);

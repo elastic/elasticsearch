@@ -15,6 +15,16 @@
           # allocation will kick in, and the cluster health won't return to GREEN
           # before timing out
           index.unassigned.node_left.delayed_timeout: "100ms"
+
+  - do:
+      indices.create:
+        index: empty_index # index to ensure we can recover empty indices
+        body:
+          # if the node with the replica is the first to be restarted, then delayed
+          # allocation will kick in, and the cluster health won't return to GREEN
+          # before timing out
+          index.unassigned.node_left.delayed_timeout: "100ms"
+
   - do:
       bulk:
         refresh: true

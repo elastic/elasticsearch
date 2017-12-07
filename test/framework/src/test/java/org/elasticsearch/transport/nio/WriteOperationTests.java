@@ -26,6 +26,7 @@ import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -48,11 +49,7 @@ public class WriteOperationTests extends ESTestCase {
         WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
 
-        when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(10);
-            return 10;
-        });
+        when(channel.write(any(ByteBuffer[].class))).thenReturn(10);
 
         writeOp.flush();
 
@@ -62,15 +59,10 @@ public class WriteOperationTests extends ESTestCase {
     public void testPartialFlush() throws IOException {
         WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
-        when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(5);
-            return 5;
-        });
+        when(channel.write(any(ByteBuffer[].class))).thenReturn(5);
 
         writeOp.flush();
 
         assertFalse(writeOp.isFullyFlushed());
-        assertEquals(5, writeOp.getByteReferences()[0].getReadRemaining());
     }
 }

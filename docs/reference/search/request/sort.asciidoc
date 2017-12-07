@@ -132,7 +132,7 @@ field support has a `nested` sort option with the following properties:
     current nested object.
 
 [WARNING]
-.Nested sort options before Elasticseach 6.1
+.Nested sort options before Elasticsearch 6.1
 ============================================
 
 The `nested_path` and `nested_filter` options have been deprecated in

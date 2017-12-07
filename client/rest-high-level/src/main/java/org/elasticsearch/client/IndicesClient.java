@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -72,7 +74,7 @@ public final class IndicesClient {
      */
     public CreateIndexResponse createIndex(CreateIndexRequest createIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
-            Collections.emptySet(), headers);
+                Collections.emptySet(), headers);
     }
 
     /**
@@ -86,4 +88,27 @@ public final class IndicesClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
             listener, Collections.emptySet(), headers);
     }
+
+    /**
+     * Opens an index using the Open Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Open Index API on elastic.co</a>
+     */
+    public OpenIndexResponse openIndex(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
+                Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously opens an index using the Open Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Open Index API on elastic.co</a>
+     */
+    public void openIndexAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
+                listener, Collections.emptySet(), headers);
+    }
+
 }

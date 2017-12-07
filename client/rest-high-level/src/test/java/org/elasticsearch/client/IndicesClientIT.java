@@ -25,14 +25,21 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.equalTo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -128,16 +135,73 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testOpenExistingIndex() throws IOException {
+        String[] indices = randomIndices(1, 5);
+        for (String index : indices) {
+            createIndex(index);
+            closeIndex(index);
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(exception.getMessage().contains(index), equalTo(true));
+        }
+
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
+        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::openIndex,
+                highLevelClient().indices()::openIndexAsync);
+        assertTrue(openIndexResponse.isAcknowledged());
+
+        for (String index : indices) {
+            Response response = client().performRequest("GET", index + "/_search");
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        }
+    }
+
+    public void testOpenNonExistentIndex() throws IOException {
+        String[] nonExistentIndices = randomIndices(1, 5);
+        for (String nonExistentIndex : nonExistentIndices) {
+            assertFalse(indexExists(nonExistentIndex));
+        }
+
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+
+        OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::openIndex,
+                highLevelClient().indices()::openIndexAsync);
+        assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
+        ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
+                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+        assertEquals(RestStatus.NOT_FOUND, strictException.status());
+    }
+
+    private static String[] randomIndices(int minIndicesNum, int maxIndicesNum) {
+        int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        }
+        return indices;
+    }
+
     private static void createIndex(String index) throws IOException {
         Response response = client().performRequest("PUT", index);
-
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     private static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest("HEAD", index);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
 
-        return response.getStatusLine().getStatusCode() == 200;
+    private static void closeIndex(String index) throws IOException {
+        Response response = client().performRequest("POST", index + "/_close");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @SuppressWarnings("unchecked")

@@ -201,6 +201,3 @@ specifying the request `body`:
 | `ctx.trigger.scheduled_time` | The time this watch was supposed to be triggered.
 | `ctx.metadata.*`             | Any metadata associated with the watch.
 |======
-
-NOTE: The search input runs as a system user with elevated privileges, including
-permission to read all indices.

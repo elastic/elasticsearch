@@ -175,7 +175,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 this.topDocsCollector = TopScoreDocCollector.create(numHits, searchAfter);
             } else {
                 this.topDocsCollector = TopFieldCollector.create(sortAndFormats.sort, numHits,
-                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore);
+                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore, true);
             }
         }
 

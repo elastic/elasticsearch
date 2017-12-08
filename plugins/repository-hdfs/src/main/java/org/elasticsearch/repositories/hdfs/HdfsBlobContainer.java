@@ -157,39 +157,30 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         }
 
         public int read() throws IOException {
-            return doPrivilegedOrThrow(in::read);
+            return securityContext.doPrivilegedOrThrow(in::read);
         }
 
         public int read(byte b[]) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
         }
 
         public int read(byte b[], int off, int len) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b, off, len));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
         }
 
         public long skip(long n) throws IOException {
-            return doPrivilegedOrThrow(() -> in.skip(n));
+            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
         }
 
         public int available() throws IOException {
-            return doPrivilegedOrThrow(() -> in.available());
+            return securityContext.doPrivilegedOrThrow(() -> in.available());
         }
 
         public synchronized void reset() throws IOException {
-            doPrivilegedOrThrow(() -> {
+            securityContext.doPrivilegedOrThrow(() -> {
                 in.reset();
                 return null;
             });
-        }
-
-        private <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
-            SpecialPermission.check();
-            try {
-                return AccessController.doPrivileged(action, null, securityContext.getRestrictedExecutionPermissions());
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
         }
     }
 }

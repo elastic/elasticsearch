@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -40,6 +41,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
+    private boolean waitForNoInitializingShards = false;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
@@ -72,6 +74,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
         }
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            waitForNoInitializingShards = in.readBoolean();
+        }
     }
 
     @Override
@@ -100,6 +105,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             out.writeBoolean(true);
             Priority.writeTo(waitForEvents, out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeBoolean(waitForNoInitializingShards);
         }
     }
 
@@ -164,6 +172,21 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      */
     public ClusterHealthRequest waitForNoRelocatingShards(boolean waitForNoRelocatingShards) {
         this.waitForNoRelocatingShards = waitForNoRelocatingShards;
+        return this;
+    }
+
+    public boolean waitForNoInitializingShards() {
+        return waitForNoInitializingShards;
+    }
+
+    /**
+     * Sets whether the request should wait for there to be no initializing shards before
+     * retrieving the cluster health status.  Defaults to {@code false}, meaning the
+     * operation does not wait on there being no more initializing shards.  Set to <code>true</code>
+     * to wait until the number of initializing shards in the cluster is 0.
+     */
+    public ClusterHealthRequest waitForNoInitializingShards(boolean waitForNoInitializingShards) {
+        this.waitForNoInitializingShards = waitForNoInitializingShards;
         return this;
     }
 

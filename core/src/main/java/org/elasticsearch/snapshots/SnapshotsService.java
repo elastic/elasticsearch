@@ -496,7 +496,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          ExceptionsHelper.detailedMessage(exception),
                                                          0,
                                                          Collections.emptyList(),
-                                                         snapshot.getRepositoryStateId());
+                                                         snapshot.getRepositoryStateId(),
+                                                         snapshot.includeGlobalState());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to close snapshot in repository", snapshot.snapshot()), inner);
@@ -510,7 +511,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
         return new SnapshotInfo(entry.snapshot().getSnapshotId(),
                                    entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                                   entry.startTime());
+                                   entry.startTime(), entry.includeGlobalState());
     }
 
     /**
@@ -968,7 +969,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         failure,
                         entry.shards().size(),
                         Collections.unmodifiableList(shardFailures),
-                        entry.getRepositoryStateId());
+                        entry.getRepositoryStateId(),
+                        entry.includeGlobalState());
                     removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);

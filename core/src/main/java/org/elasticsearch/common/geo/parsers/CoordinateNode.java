@@ -41,7 +41,7 @@ public class CoordinateNode implements ToXContentObject {
      * @param coordinate
      *            Coordinate for the Node
      */
-    protected CoordinateNode(Coordinate coordinate) {
+    CoordinateNode(Coordinate coordinate) {
         this.coordinate = coordinate;
         this.children = null;
     }
@@ -52,17 +52,13 @@ public class CoordinateNode implements ToXContentObject {
      * @param children
      *            Children of the Node
      */
-    protected CoordinateNode(List<CoordinateNode> children) {
+    CoordinateNode(List<CoordinateNode> children) {
         this.children = children;
         this.coordinate = null;
     }
 
     public boolean isEmpty() {
         return (coordinate == null && (children == null || children.isEmpty()));
-    }
-
-    public boolean isMultiPoint() {
-        return children != null && children.size() > 1;
     }
 
     @Override

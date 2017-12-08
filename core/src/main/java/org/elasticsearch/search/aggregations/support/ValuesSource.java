@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 
 import java.io.IOException;
+import java.util.function.LongUnaryOperator;
 
 public abstract class ValuesSource {
 
@@ -90,6 +92,11 @@ public abstract class ValuesSource {
                     return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
                 }
 
+                @Override
+                public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
+                    return LongUnaryOperator.identity();
+                }
+
             };
 
             @Override
@@ -103,6 +110,10 @@ public abstract class ValuesSource {
                     throws IOException;
 
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
+                    throws IOException;
+
+            /** Returns a mapping from segment ordinals to global ordinals. */
+            public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
                     throws IOException;
 
             public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
@@ -141,6 +152,18 @@ public abstract class ValuesSource {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
+                }
+
+                @Override
+                public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
+                    final OrdinalMap map = global.getOrdinalMap();
+                    if (map == null) {
+                        // segments and global ordinals are the same
+                        return LongUnaryOperator.identity();
+                    }
+                    final org.apache.lucene.util.LongValues segmentToGlobalOrd = map.getGlobalOrds(context.ord);
+                    return segmentToGlobalOrd::get;
                 }
             }
         }

@@ -223,7 +223,8 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<InternalBucket>(bucketsList.size()), keyed, pipelineAggregators(),
+        reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, pipelineAggregators(),
                 getMetaData());
         for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));

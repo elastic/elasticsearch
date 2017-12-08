@@ -293,7 +293,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 B removed = ordered.insertWithOverflow(b);
                 if (removed != null) {
                     otherDocCount += removed.getDocCount();
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                 }
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
         }
         B[] list = createBucketsArray(ordered.size());

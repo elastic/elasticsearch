@@ -202,4 +202,8 @@ public class ScoresUpdater {
             updatesPersister.updateResults(toUpdate);
         }
     }
+
+    long getNormalizationWindow() {
+        return normalizationWindow;
+    }
 }

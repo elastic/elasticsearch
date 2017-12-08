@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -37,11 +38,45 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void test() throws Exception {
+    public void testDefaultRenormalization() throws Exception {
+        String jobId = "basic-renormalization-it-test-default-renormalization-job";
+        createAndRunJob(jobId, null);
+
+        List<AnomalyRecord> records = getRecords(jobId);
+        assertThat(records.size(), equalTo(2));
+        AnomalyRecord laterRecord = records.get(0);
+        assertThat(laterRecord.getActual().get(0), equalTo(100.0));
+        AnomalyRecord earlierRecord = records.get(1);
+        assertThat(earlierRecord.getActual().get(0), equalTo(10.0));
+        assertThat(laterRecord.getRecordScore(), greaterThan(earlierRecord.getRecordScore()));
+
+        // This is the key assertion: if renormalization never happened then the record_score would
+        // be the same as the initial_record_score on the anomaly record that happened earlier
+        assertThat(earlierRecord.getInitialRecordScore(), greaterThan(earlierRecord.getRecordScore()));
+
+        // Since this job ran for 50 buckets, it's a good place to assert
+        // that established model memory matches model memory in the job stats
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
+        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+        Job updatedJob = getJob(jobId).get(0);
+        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+    }
+
+    public void testRenormalizationDisabled() throws Exception {
+        String jobId = "basic-renormalization-it-test-renormalization-disabled-job";
+        createAndRunJob(jobId, 0L);
+
+        List<AnomalyRecord> records = getRecords(jobId);
+        for (AnomalyRecord record : records) {
+            assertThat(record.getInitialRecordScore(), equalTo(record.getRecordScore()));
+        }
+    }
+
+    private void createAndRunJob(String jobId, Long renormalizationWindow) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 
-        Job.Builder job = buildAndRegisterJob("basic-renormalization-it-job", bucketSpan);
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan, renormalizationWindow);
         openJob(job.getId());
         postData(job.getId(), generateData(startTime, bucketSpan, 50,
                 bucketIndex -> {
@@ -56,28 +91,9 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
                     }
                 }).stream().collect(Collectors.joining()));
         closeJob(job.getId());
-
-        List<AnomalyRecord> records = getRecords(job.getId());
-        assertThat(records.size(), equalTo(2));
-        AnomalyRecord laterRecord = records.get(0);
-        assertThat(laterRecord.getActual().get(0), equalTo(100.0));
-        AnomalyRecord earlierRecord = records.get(1);
-        assertThat(earlierRecord.getActual().get(0), equalTo(10.0));
-        assertThat(laterRecord.getRecordScore(), greaterThan(earlierRecord.getRecordScore()));
-
-        // This is the key assertion: if renormalization never happened then the record_score would
-        // be the same as the initial_record_score on the anomaly record that happened earlier
-        assertThat(earlierRecord.getInitialRecordScore(), greaterThan(earlierRecord.getRecordScore()));
-
-        // Since this job ran for 50 buckets, it's a good place to assert
-        // that established model memory matches model memory in the job stats
-        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
-        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        Job updatedJob = getJob(job.getId()).get(0);
-        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
     }
 
-    private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {
+    private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan, Long renormalizationWindow) throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
@@ -85,6 +101,9 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
+        if (renormalizationWindow != null) {
+            job.setRenormalizationWindowDays(renormalizationWindow);
+        }
         registerJob(job);
         putJob(job);
         return job;

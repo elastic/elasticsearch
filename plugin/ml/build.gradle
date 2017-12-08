@@ -7,21 +7,21 @@ test.enabled=false
 licenseHeaders.enabled = false
 
 configurations {
-  nativeBundle {
-    resolutionStrategy.dependencySubstitution {
-      if (findProject(':machine-learning-cpp') != null) {
-        substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
-      } else {
-        substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:ml-cpp-snapshot")
-      }
+    nativeBundle {
+        resolutionStrategy.dependencySubstitution {
+            if (findProject(':machine-learning-cpp') != null) {
+                substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
+            } else {
+                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:ml-cpp-snapshot")
+            }
+        }
     }
-  }
 }
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-common:${version}"
+    compile "org.elasticsearch:x-pack-core:${version}"
 
     // ml deps
     compile 'net.sf.supercsv:super-csv:2.4.0'
@@ -30,7 +30,7 @@ dependencies {
 }
 
 dependencyLicenses {
-  ignoreSha 'x-pack-common'
+    ignoreSha 'x-pack-core'
 }
 
 parent.bundlePlugin {

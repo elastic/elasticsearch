@@ -12,7 +12,7 @@ licenseHeaders.enabled = false
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-common:${version}"
+    compile "org.elasticsearch:x-pack-core:${version}"
 
     // monitoring deps
     compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
@@ -20,13 +20,13 @@ dependencies {
 }
 
 dependencyLicenses {
-  mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
-  mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
-  mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-  ignoreSha 'x-pack-common'
-  ignoreSha 'elasticsearch-rest-client'
-  ignoreSha 'transport-netty4'
-  ignoreSha 'elasticsearch-rest-client-sniffer'
+    mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
+    mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
+    mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+    ignoreSha 'x-pack-core'
+    ignoreSha 'elasticsearch-rest-client'
+    ignoreSha 'transport-netty4'
+    ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
 parent.bundlePlugin {

@@ -1,0 +1,7 @@
+[float]
+[[ml-dfeeds]]
+=== {dfeeds-cap}
+
+Jobs can analyze either a one-off batch of data or continuously in real time.
+{dfeeds-cap} retrieve data from {es} for analysis. Alternatively you can
+{ref}/ml-post-data.html[POST data] from any source directly to an API.

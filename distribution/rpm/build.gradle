@@ -19,8 +19,6 @@
 
 import org.elasticsearch.gradle.LoggedExec
 
-import javax.security.auth.login.Configuration
-
 task buildRpm(type: Rpm) {
   dependsOn preparePackagingFiles
   baseName 'elasticsearch' // this is what pom generation uses for artifactId

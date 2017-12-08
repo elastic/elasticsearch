@@ -1,0 +1,24 @@
+[float]
+[[ml-jobs]]
+=== Jobs
+
+Machine learning jobs contain the configuration information and metadata
+necessary to perform an analytics task. For a list of the properties associated
+with a job, see {ref}/ml-job-resource.html[Job Resources].
+
+[float]
+[[ml-detectors]]
+=== Detectors
+
+As part of the configuration information that is associated with a job,
+detectors define the type of analysis that needs to be done. They also specify
+which fields to analyze. You can have more than one detector in a job, which
+is more efficient than running multiple jobs against the same data. For a list
+of the properties associated with detectors, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+
+[float]
+[[ml-function-overview]]
+=== Analytical functions
+
+See <<ml-functions>>.

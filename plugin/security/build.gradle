@@ -9,7 +9,7 @@ licenseHeaders.enabled = false
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-common:${version}"
+    compile "org.elasticsearch:x-pack-core:${version}"
     // security deps
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
@@ -19,11 +19,11 @@ dependencies {
 }
 
 dependencyLicenses {
-  mapping from: /netty-.*/, to: 'netty'
-  mapping from: /bc.*/, to: 'bouncycastle'
-  mapping from: /transport-netty.*/, to: 'elasticsearch'
-  ignoreSha 'x-pack-common'
-  ignoreSha 'transport-netty4'
+    mapping from: /netty-.*/, to: 'netty'
+    mapping from: /bc.*/, to: 'bouncycastle'
+    mapping from: /transport-netty.*/, to: 'elasticsearch'
+    ignoreSha 'x-pack-core'
+    ignoreSha 'transport-netty4'
 }
 
 parent.bundlePlugin {

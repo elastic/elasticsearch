@@ -51,6 +51,7 @@ subprojects {
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
+  ext.projectSubstitutions += [ "org.elasticsearch:x-pack-common:${version}": ':x-pack-elasticsearch:plugin:common']
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     if (version.branch != null) {

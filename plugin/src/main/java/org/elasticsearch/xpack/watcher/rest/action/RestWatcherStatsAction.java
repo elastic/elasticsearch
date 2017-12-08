@@ -34,7 +34,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
     @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest restRequest, WatcherClient client) throws IOException {
-        Set<String> metrics = Strings.splitStringByCommaToSet(restRequest.param("metric", ""));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(restRequest.param("metric", ""));
 
         WatcherStatsRequest request = new WatcherStatsRequest();
         if (metrics.contains("_all")) {

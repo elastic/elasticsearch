@@ -20,9 +20,11 @@ import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
-import org.elasticsearch.ElasticsearchException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -34,6 +36,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -43,6 +46,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
+import org.joda.time.DateTime;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -50,9 +55,11 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -78,7 +85,7 @@ public class SSLServiceTests extends ESTestCase {
             testnodeStoreType = randomBoolean() ? "jks" : null;
         } else {
             testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
-            testnodeStoreType = "PKCS12";
+            testnodeStoreType = randomBoolean() ? "PKCS12" : null;
         }
         logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
@@ -333,7 +340,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", testnodeStore)
                 .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
-                .putList("xpack.ssl.cipher_suites", new String[]{"foo", "bar"})
+                .putList("xpack.ssl.cipher_suites", new String[] { "foo", "bar" })
                 .build();
         IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));
@@ -454,6 +461,98 @@ public class SSLServiceTests extends ESTestCase {
         assertEquals(message, ce.getMessage());
         ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null));
         assertEquals(message, ce.getMessage());
+    }
+
+    public void testReadCertificateInformation() throws Exception {
+        final Path jksPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        final Path p12Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
+        final Path pemPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt");
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
+
+        final Settings settings = Settings.builder()
+                .put("xpack.ssl.keystore.path", jksPath)
+                .put("xpack.ssl.truststore.path", jksPath)
+                .put("xpack.http.ssl.keystore.path", p12Path)
+                .put("xpack.security.authc.realms.ad.type", "ad")
+                .put("xpack.security.authc.realms.ad.ssl.certificate_authorities", pemPath)
+                .setSecureSettings(secureSettings)
+                .build();
+
+        final SSLService sslService = new SSLService(settings, env);
+        final List<CertificateInfo> certificates = new ArrayList<>(sslService.getLoadedCertificates());
+        assertThat(certificates, iterableWithSize(7));
+        Collections.sort(certificates,
+                Comparator.comparing((CertificateInfo c) -> c.alias() == null ? "" : c.alias()).thenComparing(CertificateInfo::path));
+
+        final Iterator<CertificateInfo> iterator = certificates.iterator();
+        CertificateInfo cert = iterator.next();
+        assertThat(cert.alias(), nullValue());
+        assertThat(cert.path(), equalTo(pemPath.toString()));
+        assertThat(cert.format(), equalTo("PEM"));
+        assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
+        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2029-08-27T16:32:42Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("activedir"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
+        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2029-08-27T16:32:42Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("openldap"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("d3850b2b1995ad5f"));
+        assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2027-07-23T16:41:14Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testclient"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("b9d497f2924bbe29"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:55Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode"));
+        assertThat(cert.path(), equalTo(p12Path.toString()));
+        assertThat(cert.format(), equalTo("PKCS12"));
+        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode-client-profile"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("c0ea4216e8ff0fd8"));
+        assertThat(cert.subjectDn(), equalTo("CN=testnode-client-profile"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:56Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        assertFalse(iterator.hasNext());
     }
 
     @Network

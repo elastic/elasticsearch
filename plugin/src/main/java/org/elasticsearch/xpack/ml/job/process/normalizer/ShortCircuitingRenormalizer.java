@@ -43,7 +43,16 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     @Override
+    public boolean isEnabled() {
+        return scoresUpdater.getNormalizationWindow() > 0;
+    }
+
+    @Override
     public void renormalize(Quantiles quantiles) {
+        if (!isEnabled()) {
+            return;
+        }
+
         // This will throw NPE if quantiles is null, so do it first
         QuantilesWithLatch quantilesWithLatch = new QuantilesWithLatch(quantiles, new CountDownLatch(1));
         // Needed to ensure work is not added while the tryFinishWork() method is running

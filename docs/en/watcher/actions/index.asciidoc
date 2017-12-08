@@ -73,6 +73,3 @@ a document and the index action indexes all of them in a bulk.
 
 An `_id` value can be added per document to dynamically set the ID of the indexed
 document.
-
-NOTE: The index action runs as a system user with elevated privileges, including
-permission to write all indices. 

@@ -253,14 +253,15 @@ public class SecurityTests extends ESTestCase {
         int numIters = randomIntBetween(1,10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
-            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn);
+            String discoveryType = randomFrom("single-node", "zen", randomAlphaOfLength(4));
+            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
             MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
             TestUtils.putLicense(builder, license);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
             EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
                     License.OperationMode.STANDARD);
-            if (productionModes.contains(license.operationMode()) && tlsOn == false) {
+            if (productionModes.contains(license.operationMode()) && tlsOn == false && "single-node".equals(discoveryType) == false) {
                 IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
                 assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
             } else {

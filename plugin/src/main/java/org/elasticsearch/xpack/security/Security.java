@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -177,6 +178,8 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -599,7 +602,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class)
+                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
+                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, GetCertificateInfoAction.TransportAction.class)
         );
     }
 
@@ -639,7 +643,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new RestPutRoleMappingAction(settings, restController, licenseState),
                 new RestDeleteRoleMappingAction(settings, restController, licenseState),
                 new RestGetTokenAction(settings, restController, licenseState),
-                new RestInvalidateTokenAction(settings, restController, licenseState)
+                new RestInvalidateTokenAction(settings, restController, licenseState),
+                new RestGetCertificateInfoAction(settings, restController)
         );
     }
 
@@ -966,7 +971,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings))
+            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
+                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex());
         }
         return null;
@@ -974,15 +980,18 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean isTLSEnabled;
+        private final String discoveryType;
 
-        ValidateTLSOnJoin(boolean isTLSEnabled) {
+        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType) {
             this.isTLSEnabled = isTLSEnabled;
+            this.discoveryType = discoveryType;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());
-            if (license != null && license.isProductionLicense() && isTLSEnabled == false) {
+            if (license != null && license.isProductionLicense() &&
+                    isTLSEnabled == false && "single-node".equals(discoveryType) == false) {
                 throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
             }
         }

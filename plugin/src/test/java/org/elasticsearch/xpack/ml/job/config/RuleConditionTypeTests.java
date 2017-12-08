@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -110,4 +111,17 @@ public class RuleConditionTypeTests extends ESTestCase {
         }
     }
 
+    public void testIsNumerical() {
+        for (RuleConditionType type : EnumSet.allOf(RuleConditionType.class)) {
+            boolean isNumerical = type.isNumerical();
+            if (type == RuleConditionType.NUMERICAL_ACTUAL ||
+                type == RuleConditionType.NUMERICAL_DIFF_ABS ||
+                type == RuleConditionType.NUMERICAL_TYPICAL) {
+                assertTrue(isNumerical);
+            } else {
+                assertFalse(isNumerical);
+            }
+
+        }
+    }
 }

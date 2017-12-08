@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.cert.CertificateException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
-
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * Represents the configuration for an SSLContext
@@ -187,8 +191,8 @@ public final class SSLConfiguration {
                 // TODO: we should not support loading a keystore from sysprops...
                 try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
                     return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), "jks", keystorePassword, keystorePassword,
-                        System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
-                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                            System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
+                            System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
                 }
             }
             return KeyConfig.NONE;
@@ -248,7 +252,7 @@ public final class SSLConfiguration {
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
                 return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), "jks", truststorePassword,
-                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
             }
         } else if (global != null && keyConfig == global.keyConfig()) {
             return global.trustConfig();
@@ -268,5 +272,18 @@ public final class SSLConfiguration {
             return listSetting.get(settings);
         }
         return defaultValue;
+    }
+
+    /**
+     * Returns information about each certificate that referenced by this SSL configurations.
+     * This includes certificates used for identity (with a private key) and those used for trust, but excludes
+     * certificates that are provided by the JRE.
+     * @see TrustConfig#certificates(Environment)
+     */
+    List<CertificateInfo> getDefinedCertificates(@Nullable Environment environment) throws GeneralSecurityException, IOException {
+        List<CertificateInfo> certificates = new ArrayList<>();
+        certificates.addAll(keyConfig.certificates(environment));
+        certificates.addAll(trustConfig.certificates(environment));
+        return certificates;
     }
 }

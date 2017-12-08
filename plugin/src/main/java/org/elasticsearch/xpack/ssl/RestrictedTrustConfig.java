@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ssl;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -17,6 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * An implementation of {@link TrustConfig} that constructs a {@link RestrictedTrustManager}.
@@ -45,6 +48,11 @@ public final class RestrictedTrustConfig extends TrustConfig {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to initialize TrustManager for {}", e, toString());
         }
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+        return delegate.certificates(environment);
     }
 
     @Override

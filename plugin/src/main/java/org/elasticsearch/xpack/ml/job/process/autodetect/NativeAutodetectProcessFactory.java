@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -53,14 +54,14 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot,
-                                                     Quantiles quantiles, Set<MlFilter> filters,
+    public AutodetectProcess createAutodetectProcess(Job job,
+                                                     AutodetectParams params,
                                                      ExecutorService executorService,
                                                      Runnable onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
-                true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
-        createNativeProcess(job, quantiles, filters, processPipes, filesToDelete);
+                true, false, true, true, params.modelSnapshot() != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
+        createNativeProcess(job, params, processPipes, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
 
         StateProcessor stateProcessor = new StateProcessor(settings, client);
@@ -82,17 +83,18 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
-    private void createNativeProcess(Job job, Quantiles quantiles, Set<MlFilter> filters, ProcessPipes processPipes,
+    private void createNativeProcess(Job job, AutodetectParams autodetectParams, ProcessPipes processPipes,
                                      List<Path> filesToDelete) {
         try {
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
                     settings, nativeController, processPipes)
-                    .referencedFilters(filters);
+                    .referencedFilters(autodetectParams.filters())
+                    .specialEvents(autodetectParams.specialEvents());
 
             // if state is null or empty it will be ignored
             // else it is used to restore the quantiles
-            if (quantiles != null) {
-                autodetectBuilder.quantiles(quantiles);
+            if (autodetectParams.quantiles() != null) {
+                autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
 
             autodetectBuilder.build();

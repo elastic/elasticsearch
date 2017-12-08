@@ -9,6 +9,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -199,21 +200,22 @@ public class ControlMsgToProcessWriter {
     }
 
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
-        StringWriter configWriter = new StringWriter();
-        configWriter.append(UPDATE_MESSAGE_CODE).append("[detectorRules]\n");
-        configWriter.append("detectorIndex=").append(Integer.toString(detectorIndex)).append("\n");
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[detectorRules]\n");
+        stringBuilder.append("detectorIndex=").append(Integer.toString(detectorIndex)).append("\n");
 
-        configWriter.append("rulesJson=");
+        stringBuilder.append("rulesJson=");
 
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startArray();
-        for (DetectionRule rule : rules) {
-            rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startArray();
+            for (DetectionRule rule : rules) {
+                rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+            builder.endArray();
+            stringBuilder.append(builder.string());
         }
-        builder.endArray();
-        configWriter.append(builder.string());
 
-        writeMessage(configWriter.toString());
+        writeMessage(stringBuilder.toString());
     }
 
     /**

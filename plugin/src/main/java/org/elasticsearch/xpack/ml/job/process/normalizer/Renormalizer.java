@@ -8,6 +8,13 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
 public interface Renormalizer {
+
+    /**
+     * Is renormalization enabled?
+     * @return {@code true} if renormalization is enabled or {@code false} otherwise
+     */
+    boolean isEnabled();
+
     /**
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records

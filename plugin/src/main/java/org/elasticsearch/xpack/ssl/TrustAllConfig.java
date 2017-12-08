@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.net.Socket;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -65,6 +69,11 @@ class TrustAllConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         return TRUST_MANAGER;
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
+        return Collections.emptyList();
     }
 
     @Override

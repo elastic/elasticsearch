@@ -325,7 +325,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verifyNoMoreInteractions(persister);
     }
 
-    public void testProcessResult_quantiles() {
+    public void testProcessResult_quantiles_givenRenormalizationIsEnabled() {
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, bulkBuilder);
@@ -333,12 +333,32 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);
+        when(renormalizer.isEnabled()).thenReturn(true);
         processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistQuantiles(quantiles);
         verify(bulkBuilder).executeRequest();
         verify(persister).commitResultWrites(JOB_ID);
+        verify(renormalizer, times(1)).isEnabled();
         verify(renormalizer, times(1)).renormalize(quantiles);
+        verifyNoMoreInteractions(persister);
+        verifyNoMoreInteractions(renormalizer);
+    }
+
+    public void testProcessResult_quantiles_givenRenormalizationIsDisabled() {
+        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
+
+        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, bulkBuilder);
+        context.deleteInterimRequired = false;
+        AutodetectResult result = mock(AutodetectResult.class);
+        Quantiles quantiles = mock(Quantiles.class);
+        when(result.getQuantiles()).thenReturn(quantiles);
+        when(renormalizer.isEnabled()).thenReturn(false);
+        processorUnderTest.processResult(context, result);
+
+        verify(persister, times(1)).persistQuantiles(quantiles);
+        verify(bulkBuilder).executeRequest();
+        verify(renormalizer, times(1)).isEnabled();
         verifyNoMoreInteractions(persister);
         verifyNoMoreInteractions(renormalizer);
     }

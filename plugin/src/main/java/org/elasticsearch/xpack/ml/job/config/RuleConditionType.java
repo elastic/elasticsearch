@@ -14,10 +14,21 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum RuleConditionType implements Writeable {
-    CATEGORICAL,
-    NUMERICAL_ACTUAL,
-    NUMERICAL_TYPICAL,
-    NUMERICAL_DIFF_ABS;
+    CATEGORICAL(false),
+    NUMERICAL_ACTUAL(true),
+    NUMERICAL_TYPICAL(true),
+    NUMERICAL_DIFF_ABS(true),
+    TIME(false);
+
+    private final boolean isNumerical;
+
+    RuleConditionType(boolean isNumerical) {
+        this.isNumerical = isNumerical;
+    }
+
+    public boolean isNumerical() {
+        return isNumerical;
+    }
 
     /**
      * Case-insensitive from string method.

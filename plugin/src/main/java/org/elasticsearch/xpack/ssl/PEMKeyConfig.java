@@ -19,16 +19,18 @@ import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
  * Implementation of a key configuration that is backed by a PEM encoded key file and one or more certificates
@@ -41,8 +43,9 @@ class PEMKeyConfig extends KeyConfig {
 
     /**
      * Creates a new key configuration backed by the key and certificate chain provided
-     * @param keyPath the path to the key file
-     * @param keyPassword the password for the key.
+     *
+     * @param keyPath       the path to the key file
+     * @param keyPassword   the password for the key.
      * @param certChainPath the path to the file containing the certificate chain
      */
     PEMKeyConfig(String keyPath, SecureString keyPassword, String certChainPath) {
@@ -58,12 +61,29 @@ class PEMKeyConfig extends KeyConfig {
             if (privateKey == null) {
                 throw new IllegalArgumentException("private key [" + keyPath + "] could not be loaded");
             }
-            Certificate[] certificateChain = CertUtils.readCertificates(Collections.singletonList(certPath), environment);
+            Certificate[] certificateChain = getCertificateChain(environment);
 
             return CertUtils.keyManager(certificateChain, privateKey, keyPassword.getChars());
         } catch (IOException | UnrecoverableKeyException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
+    }
+
+    private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
+        return CertUtils.readCertificates(Collections.singletonList(certPath), environment);
+    }
+
+    @Override
+    Collection<CertificateInfo> certificates(Environment environment) throws CertificateException, IOException {
+        final Certificate[] chain = getCertificateChain(environment);
+        final List<CertificateInfo> info = new ArrayList<>(chain.length);
+        for (int i = 0; i < chain.length; i++) {
+            final Certificate cert = chain[i];
+            if (cert instanceof X509Certificate) {
+                info.add(new CertificateInfo(certPath, "PEM", null, i == 0, (X509Certificate) cert));
+            }
+        }
+        return info;
     }
 
     @Override
@@ -84,7 +104,7 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(certPath), environment);
+            Certificate[] certificates = getCertificateChain(environment);
             return CertUtils.trustManager(certificates);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);

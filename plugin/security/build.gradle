@@ -1,0 +1,31 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-security'
+
+// TODO: enable this once we have tests
+test.enabled=false
+licenseHeaders.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    compile "org.elasticsearch:x-pack-common:${version}"
+    // security deps
+    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.58'
+    compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
+    testCompile 'com.google.jimfs:jimfs:1.1'
+}
+
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /bc.*/, to: 'bouncycastle'
+  mapping from: /transport-netty.*/, to: 'elasticsearch'
+  ignoreSha 'x-pack-common'
+  ignoreSha 'transport-netty4'
+}
+
+parent.bundlePlugin {
+    from jar
+}

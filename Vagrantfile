@@ -143,6 +143,7 @@ Vagrant.configure(2) do |config|
     'windows-2016'.tap do |box|
       config.vm.define box, define_opts do |config|
         config.vm.box = windows_2016_box
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
         config.vm.provision 'enable long paths', type: 'shell', inline: <<-SHELL
           Set-ItemProperty -Path "HKLM:/SYSTEM/CurrentControlSet/Control/Filesystem/" -Name "LongPathsEnabled" -Value 1
         SHELL
@@ -408,12 +409,8 @@ def windows_common(config, name)
   SHELL
 
   # Windows' system APIs limit paths to 260 characters. In server 2016 we can raise this limit,
-  # (see LongPathsEnabled) but not in server 2012r2. This adds a powershell module that wraps
-  # robocopy, which can handle paths longer than the system limit. The wrapper converts
-  # robocopy's unusual exit code and error handling to the behavior we'd normally expect
-  #
-  # https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
-  # https://ss64.com/nt/robocopy-exit.html
+  # (see LongPathsEnabled above) but not in server 2012r2. This adds a powershell module that has basic
+  # copy and delete command that can handle long paths
   config.vm.provision 'long path shim module', type: 'shell' do |s|
     s.privileged = false
     s.inline = <<-SHELL
@@ -433,6 +430,16 @@ def windows_common(config, name)
   powershell_install_deps config
 end
 
+# Powershell's filesystem commands cannot handle long paths by default. This module implements
+# the required commands by calling Robocopy [1], a Windows system utility for moving files around
+# that can handle long paths by default. Robocopy returns unusual exit codes [2] so we call it in
+# a wrapper that converts them to what we'd normally expect.
+#
+# The Remove-Long-Path function works by syncing the contents of an empty directory to the
+# delete target, which has the effect of recursively deleting it.
+#
+# [1] https://ss64.com/nt/robocopy.html
+# [2] https://ss64.com/nt/robocopy-exit.html
 def powershell_long_path_module
   <<-SHELL
     function Copy-Long-Path {
@@ -478,6 +485,13 @@ def powershell_long_path_module
   SHELL
 end
 
+# Gradle is the only dependency that needs to be installed. Setting PATH and
+# GRADLE_HOME won't take affect in any existing login sessions. This is not
+# a problem for remote powershell commands after provisioning - the changes
+# will be visible to them. The session you log into via the Virtualbox GUI
+# will not have the changes visible - you'll need to logout and log back
+# in as the vagrant user. The environment variable changes apply for all
+# users in the system.
 def powershell_install_deps(config)
   config.vm.provision 'install deps', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"

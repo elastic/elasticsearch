@@ -363,9 +363,17 @@ quality boxes available in vagrant atlas:
 
 * sles-11
 
-We're missing the following because our tests are very linux/bash centric:
+Windows boxes currently supported by the Vagrantfile (but not used in packaging
+tests yet) are
 
-* Windows Server 2012
+* windows-2012r2 aka Windows Server 2012 R2
+* windows-2016 aka Windows Server 2016
+
+Unfortunately licensing issues prevent us from providing Windows boxes for
+public use. You can provide your own by setting the environment variables
+`VAGRANT_WINDOWS_2012R2_BOX` and/or `VAGRANT_WINDOWS_2016_BOX` with IDs of
+images that support remote connections through WinRM and remote Powershell
+sessions.
 
 It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:

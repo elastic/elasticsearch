@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -352,6 +353,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
 
+        // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {
             return resolveSearchRoutingAllIndices(state.metaData(), routing);
         }
@@ -361,7 +363,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         // List of indices that don't require any routing
         Set<String> norouting = new HashSet<>();
         if (routing != null) {
-            paramRouting = Strings.splitStringByCommaToSet(routing);
+            paramRouting = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
         }
 
         for (String expression : resolvedExpressions) {
@@ -436,9 +438,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Sets the same routing for all indices
      */
-    private Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
+    public Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
-            Set<String> r = Strings.splitStringByCommaToSet(routing);
+            Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metaData.getConcreteAllIndices();
             for (String index : concreteIndices) {

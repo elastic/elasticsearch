@@ -1,0 +1,38 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-ml'
+
+// TODO: enable this once we have tests
+test.enabled=false
+licenseHeaders.enabled = false
+
+configurations {
+  nativeBundle {
+    resolutionStrategy.dependencySubstitution {
+      if (findProject(':machine-learning-cpp') != null) {
+        substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
+      } else {
+        substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:ml-cpp-snapshot")
+      }
+    }
+  }
+}
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    compile "org.elasticsearch:x-pack-common:${version}"
+
+    // ml deps
+    compile 'net.sf.supercsv:super-csv:2.4.0'
+    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+    testCompile 'org.ini4j:ini4j:0.5.2'
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-common'
+}
+
+parent.bundlePlugin {
+    from jar
+}

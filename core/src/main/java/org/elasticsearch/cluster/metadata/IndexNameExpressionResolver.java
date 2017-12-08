@@ -367,7 +367,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         // List of indices that don't require any routing
         Set<String> norouting = new HashSet<>();
         if (routing != null) {
-            paramRouting = Strings.splitStringByCommaToSet(routing);
+            paramRouting = Strings.tokenizeByCommaToSet(routing);
         }
 
         for (String expression : resolvedExpressions) {
@@ -444,7 +444,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      */
     private Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
-            Set<String> r = Strings.splitStringByCommaToSet(routing);
+            Set<String> r = Strings.tokenizeByCommaToSet(routing);
             Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metaData.getConcreteAllIndices();
             for (String index : concreteIndices) {

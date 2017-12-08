@@ -58,7 +58,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         this.indexRouting = indexRouting;
         this.searchRouting = searchRouting;
         if (searchRouting != null) {
-            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+            searchRoutingValues = Collections.unmodifiableSet(Strings.tokenizeByCommaToSet(searchRouting));
         } else {
             searchRoutingValues = emptySet();
         }
@@ -186,7 +186,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         }
         if (in.readBoolean()) {
             searchRouting = in.readString();
-            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+            searchRoutingValues = Collections.unmodifiableSet(Strings.tokenizeByCommaToSet(searchRouting));
         } else {
             searchRouting = null;
             searchRoutingValues = emptySet();

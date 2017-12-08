@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-graph'
+
+// TODO: enable this once we have tests
+test.enabled=false
+licenseHeaders.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    compile "org.elasticsearch:x-pack-common:${version}"
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-common'
+}
+
+parent.bundlePlugin {
+    from jar
+}

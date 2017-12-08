@@ -180,6 +180,11 @@ final class DocumentParser {
             String[] parts = fullFieldPath.split("\\.");
             for (String part : parts) {
                 if (Strings.hasText(part) == false) {
+                    // check if the field name contains only whitespace
+                    if (Strings.isEmpty(part) == false) {
+                        throw new IllegalArgumentException(
+                                "object field cannot contain only whitespace: ['" + fullFieldPath + "']");
+                    }
                     throw new IllegalArgumentException(
                             "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
                 }

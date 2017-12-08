@@ -1391,7 +1391,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 () -> client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
 
         assertThat(emptyFieldNameException.getMessage(), containsString(
-                "object field cannot contain only white spaces: ['top.aoeu. ']"));
+                "object field cannot contain only whitespace: ['top.aoeu. ']"));
     }
 
     public void testBlankFieldNames() throws Exception {

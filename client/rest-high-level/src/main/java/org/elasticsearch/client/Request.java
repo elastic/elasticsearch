@@ -123,7 +123,7 @@ public final class Request {
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -146,7 +146,7 @@ public final class Request {
 
         parameters.withTimeout(openIndexRequest.timeout());
         parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
-        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards(), ActiveShardCount.NONE);
         parameters.withIndicesOptions(openIndexRequest.indicesOptions());
 
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
@@ -158,7 +158,7 @@ public final class Request {
         Params parameters = Params.builder();
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
-        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
@@ -326,7 +326,7 @@ public final class Request {
         parameters.withVersionType(indexRequest.versionType());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(indexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -347,7 +347,7 @@ public final class Request {
         parameters.withParent(updateRequest.parent());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         parameters.withDocAsUpsert(updateRequest.docAsUpsert());
         parameters.withFetchSourceContext(updateRequest.fetchSource());
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
@@ -583,9 +583,9 @@ public final class Request {
             return this;
         }
 
-        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
-            if (activeShardCount != null && activeShardCount != ActiveShardCount.DEFAULT) {
-                return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
+        Params withWaitForActiveShards(ActiveShardCount currentActiveShardCount, ActiveShardCount defaultActiveShardCount) {
+            if (currentActiveShardCount != null && currentActiveShardCount != defaultActiveShardCount) {
+                return putParam("wait_for_active_shards", currentActiveShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
         }

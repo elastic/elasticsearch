@@ -38,6 +38,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -252,7 +253,7 @@ public class RequestTests extends ESTestCase {
 
         setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(createIndexRequest, expectedParams);
-        setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+        setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
 
         if (randomBoolean()) {
             boolean updateAllTypes = randomBoolean();
@@ -306,7 +307,7 @@ public class RequestTests extends ESTestCase {
         setRandomTimeout(openIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(openIndexRequest, expectedParams);
         setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
-        setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, expectedParams);
+        setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
 
         Request request = Request.openIndex(openIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
@@ -446,7 +447,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("refresh", refreshPolicy.getValue());
             }
         }
-        setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
+        setRandomWaitForActiveShards(updateRequest::waitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         setRandomVersion(updateRequest, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
         if (randomBoolean()) {
@@ -1019,11 +1020,21 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomWaitForActiveShards(Consumer<Integer> setter, Map<String, String> expectedParams) {
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                                     Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            int waitForActiveShards = randomIntBetween(0, 10);
-            setter.accept(waitForActiveShards);
-            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
+            int waitForActiveShardsInt = randomIntBetween(-1, 5);
+            String waitForActiveShardsString;
+            if (waitForActiveShardsInt == -1) {
+                waitForActiveShardsString = "all";
+            } else {
+                waitForActiveShardsString = String.valueOf(waitForActiveShardsInt);
+            }
+            ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsString);
+            setter.accept(activeShardCount);
+            if (defaultActiveShardCount.equals(activeShardCount) == false) {
+                expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+            }
         }
     }
 

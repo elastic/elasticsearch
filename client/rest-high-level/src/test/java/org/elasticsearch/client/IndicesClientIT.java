@@ -27,22 +27,21 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.equalTo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -145,10 +144,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertThat(exception.getMessage().contains(index), equalTo(true));
         }
 
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices).waitForActiveShards(ActiveShardCount.ONE);
         OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::openIndex,
                 highLevelClient().indices()::openIndexAsync);
         assertTrue(openIndexResponse.isAcknowledged());
+        assertTrue(openIndexResponse.isShardsAcknowledged());
 
         for (String index : indices) {
             Response response = client().performRequest("GET", index + "/_search");

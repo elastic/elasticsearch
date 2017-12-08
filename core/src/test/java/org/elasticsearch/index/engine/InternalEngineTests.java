@@ -2983,6 +2983,50 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testDoubleDeliveryReplicaAppendingAndDeleteOnly() throws IOException {
+        final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index operation = appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        Engine.Index retry = appendOnlyReplica(doc, true, 1, randomIntBetween(0, 5));
+        Engine.Delete delete = new Engine.Delete(operation.type(), operation.id(), operation.uid(),
+            Math.max(retry.seqNo(), operation.seqNo())+1, operation.primaryTerm(), operation.version()+1, operation.versionType(),
+            REPLICA, operation.startTime()+1);
+        // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
+        // and the version lookup is skipped
+        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
+        if (randomBoolean()) {
+            Engine.IndexResult indexResult = engine.index(operation);
+            assertFalse(engine.indexWriterHasDeletions());
+            assertEquals(0, engine.getNumVersionLookups());
+            assertNotNull(indexResult.getTranslogLocation());
+            engine.delete(delete);
+            assertEquals(1, engine.getNumVersionLookups());
+            assertTrue(engine.indexWriterHasDeletions());
+            Engine.IndexResult retryResult = engine.index(retry);
+            assertEquals(belowLckp ? 1 : 2, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
+        } else {
+            Engine.IndexResult retryResult = engine.index(retry);
+            assertFalse(engine.indexWriterHasDeletions());
+            assertEquals(1, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            engine.delete(delete);
+            assertTrue(engine.indexWriterHasDeletions());
+            assertEquals(2, engine.getNumVersionLookups());
+            Engine.IndexResult indexResult = engine.index(operation);
+            assertEquals(belowLckp ? 2 : 3, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
+        }
+
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+            assertEquals(0, topDocs.totalHits);
+        }
+    }
+
     public void testDoubleDeliveryReplicaAppendingOnly() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);

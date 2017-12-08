@@ -444,7 +444,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Sets the same routing for all indices
      */
-    Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
+    public Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
             Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();

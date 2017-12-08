@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -173,6 +174,13 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
 
         assertThat(
                 indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2,tw , ltw , lw", (String[])null),
+                equalTo(newMap(
+                        "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test3", newSet("0", "1", "2", "tw ", " ltw ", " lw"))));
+
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metaData(), "0,1,2,tw , ltw , lw"),
                 equalTo(newMap(
                         "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
                         "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),

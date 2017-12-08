@@ -250,6 +250,13 @@ def linux_common(config,
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     touch /etc/is_vagrant_vm
   SHELL
+
+  # This prevents leftovers from previous tests using the
+  # same VM from messing up the current test
+  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+    rm -rf /tmp/elasticsearch*
+  SHELL
+
   sh_set_prompt config, name
   sh_install_deps(
     config,
@@ -392,11 +399,6 @@ Defaults   env_keep += "BATS_ARCHIVES"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
-  # This prevents leftovers from previous tests using the
-  # same VM from messing up the current test
-  config.vm.provision "clean_tmp", run: "always", type: "shell", inline: <<-SHELL
-    rm -rf /tmp/elasticsearch*
-  SHELL
 end
 
 def windows_common(config, name)
@@ -405,6 +407,10 @@ def windows_common(config, name)
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
+  SHELL
+
+  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+    Remove-Item -Recurse -Force C:\\tmp\\elasticsearch*
   SHELL
 
   config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL

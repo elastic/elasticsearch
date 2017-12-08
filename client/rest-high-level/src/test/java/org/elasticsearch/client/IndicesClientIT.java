@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -28,21 +30,19 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.equalTo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -136,7 +136,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testOpenExistingIndex() throws IOException {
-        String[] indices = randomIndices(1, 5);
+        String[] indices = randomIndicesNames(1, 5);
         for (String index : indices) {
             createIndex(index);
             closeIndex(index);
@@ -157,7 +157,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testOpenNonExistentIndex() throws IOException {
-        String[] nonExistentIndices = randomIndices(1, 5);
+        String[] nonExistentIndices = randomIndicesNames(1, 5);
         for (String nonExistentIndex : nonExistentIndices) {
             assertFalse(indexExists(nonExistentIndex));
         }
@@ -180,7 +180,39 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
-    private static String[] randomIndices(int minIndicesNum, int maxIndicesNum) {
+    public void testCloseExistingIndex() throws IOException {
+        String[] indices = randomIndicesNames(1, 5);
+        for (String index : indices) {
+            createIndex(index);
+            Response response = client().performRequest("GET", index + "/_search");
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        }
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::closeIndex,
+                highLevelClient().indices()::closeIndexAsync);
+        assertTrue(closeIndexResponse.isAcknowledged());
+
+        for (String index : indices) {
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(exception.getMessage().contains(index), equalTo(true));
+        }
+    }
+
+    public void testCloseNonExistentIndex() throws IOException {
+        String[] nonExistentIndices = randomIndicesNames(1, 5);
+        for (String nonExistentIndex : nonExistentIndices) {
+            assertFalse(indexExists(nonExistentIndex));
+        }
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(nonExistentIndices);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(closeIndexRequest, highLevelClient().indices()::closeIndex, highLevelClient().indices()::closeIndexAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
         int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

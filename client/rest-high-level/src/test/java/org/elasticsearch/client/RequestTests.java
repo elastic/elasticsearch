@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -270,17 +271,10 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testDeleteIndex() {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-
-        int numIndices = randomIntBetween(0, 5);
-        String[] indices = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
-        }
-        deleteIndexRequest.indices(indices);
+        String[] indices = IndicesClientIT.randomIndicesNames(0, 5);
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
-
         setRandomTimeout(deleteIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(deleteIndexRequest, expectedParams);
 
@@ -294,12 +288,8 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testOpenIndex() {
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest();
-        int numIndices = randomIntBetween(1, 5);
-        String[] indices = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
-        }
+        String[] indices = IndicesClientIT.randomIndicesNames(1, 5);
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
         openIndexRequest.indices(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -310,6 +300,23 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.openIndex(openIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testCloseIndex() {
+        String[] indices = IndicesClientIT.randomIndicesNames(1, 5);
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(closeIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(closeIndexRequest, expectedParams);
+        setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions, expectedParams);
+
+        Request request = Request.closeIndex(closeIndexRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(expectedParams, equalTo(request.getParameters()));
         assertThat(request.getMethod(), equalTo("POST"));
@@ -693,13 +700,9 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        SearchRequest searchRequest = new SearchRequest();
-        int numIndices = randomIntBetween(0, 5);
-        String[] indices = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
-        }
-        searchRequest.indices(indices);
+        String[] indices = IndicesClientIT.randomIndicesNames(0, 5);
+        SearchRequest searchRequest = new SearchRequest(indices);
+
         int numTypes = randomIntBetween(0, 5);
         String[] types = new String[numTypes];
         for (int i = 0; i < numTypes; i++) {

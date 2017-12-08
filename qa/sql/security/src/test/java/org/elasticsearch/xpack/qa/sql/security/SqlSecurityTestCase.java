@@ -556,7 +556,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         }
                         log.put("action", action);
                         // Use a sorted list for indices for consistent error reporting
-                        List<String> indices = new ArrayList<>(Strings.splitStringByCommaToSet(m.group(i++)));
+                        List<String> indices = new ArrayList<>(Strings.tokenizeByCommaToSet(m.group(i++)));
                         Collections.sort(indices);
                         if ("test_admin".equals(principal)) {
                             /* Sometimes we accidentally sneak access to the security tables. This is fine, SQL

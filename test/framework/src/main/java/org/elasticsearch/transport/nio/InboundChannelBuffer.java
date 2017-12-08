@@ -19,9 +19,16 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -30,39 +37,56 @@ import java.util.function.Supplier;
  * the pages internally. If more space is needed at the end of the buffer {@link #ensureCapacity(long)} can
  * be called and the buffer will expand using the supplier provided.
  */
-public final class InboundChannelBuffer {
+public final class InboundChannelBuffer implements Releasable {
 
-    private static final int PAGE_SIZE = 1 << 14;
+    private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
 
 
-    private final ArrayDeque<ByteBuffer> pages;
-    private final Supplier<ByteBuffer> pageSupplier;
+    private final ArrayDeque<Page> pages;
+    private final Supplier<Page> pageSupplier;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private long capacity = 0;
     private long internalIndex = 0;
     // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
 
-    public InboundChannelBuffer() {
-        this(() -> ByteBuffer.wrap(new byte[PAGE_SIZE]));
-    }
-
-    private InboundChannelBuffer(Supplier<ByteBuffer> pageSupplier) {
+    public InboundChannelBuffer(Supplier<Page> pageSupplier) {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
         this.capacity = PAGE_SIZE * pages.size();
         ensureCapacity(PAGE_SIZE);
     }
 
+    @Override
+    public void close() {
+        if (isClosed.compareAndSet(false, true)) {
+            Page page;
+            List<RuntimeException> closingExceptions = new ArrayList<>();
+            while ((page = pages.pollFirst()) != null) {
+                try {
+                    page.close();
+                } catch (RuntimeException e) {
+                    closingExceptions.add(e);
+                }
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
+        }
+    }
+
     public void ensureCapacity(long requiredCapacity) {
+        if (isClosed.get()) {
+            throw new IllegalStateException("Cannot allocate new pages if the buffer is closed.");
+        }
         if (capacity < requiredCapacity) {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                pages.addLast(pageSupplier.get());
+                Page page = pageSupplier.get();
+                pages.addLast(page);
             }
             capacity += pagesToAdd * PAGE_SIZE;
         }
@@ -81,7 +105,7 @@ public final class InboundChannelBuffer {
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
         for (int i = 0; i < pagesToRelease; i++) {
-            pages.removeFirst();
+            pages.removeFirst().close();
         }
         capacity -= bytesToRelease;
         internalIndex = Math.max(internalIndex - bytesToRelease, 0);
@@ -112,12 +136,12 @@ public final class InboundChannelBuffer {
         }
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
-        Iterator<ByteBuffer> pageIterator = pages.iterator();
-        ByteBuffer firstBuffer = pageIterator.next().duplicate();
+        Iterator<Page> pageIterator = pages.iterator();
+        ByteBuffer firstBuffer = pageIterator.next().byteBuffer.duplicate();
         firstBuffer.position(firstBuffer.position() + offset);
         buffers[0] = firstBuffer;
         for (int i = 1; i < buffers.length; i++) {
-            buffers[i] = pageIterator.next().duplicate();
+            buffers[i] = pageIterator.next().byteBuffer.duplicate();
         }
         if (finalLimit != 0) {
             buffers[buffers.length - 1].limit(finalLimit);
@@ -148,11 +172,11 @@ public final class InboundChannelBuffer {
         int indexInPage = indexInPage(indexWithOffset);
 
         ByteBuffer[] buffers = new ByteBuffer[pages.size() - pageIndex];
-        Iterator<ByteBuffer> pageIterator = pages.descendingIterator();
+        Iterator<Page> pageIterator = pages.descendingIterator();
         for (int i = buffers.length - 1; i > 0; --i) {
-            buffers[i] = pageIterator.next().duplicate();
+            buffers[i] = pageIterator.next().byteBuffer.duplicate();
         }
-        ByteBuffer firstPostIndexBuffer = pageIterator.next().duplicate();
+        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer.duplicate();
         firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
         buffers[0] = firstPostIndexBuffer;
 
@@ -200,5 +224,22 @@ public final class InboundChannelBuffer {
 
     private int indexInPage(long index) {
         return (int) (index & PAGE_MASK);
+    }
+
+    public static class Page implements Releasable {
+
+        private final ByteBuffer byteBuffer;
+        private final Releasable releasable;
+
+        public Page(ByteBuffer byteBuffer, Releasable releasable) {
+            this.byteBuffer = byteBuffer;
+            this.releasable = releasable;
+        }
+
+        @Override
+        public void close() {
+            releasable.close();
+        }
+
     }
 }

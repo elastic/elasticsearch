@@ -24,10 +24,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +46,7 @@ import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
@@ -68,6 +71,7 @@ public class NioTransport extends TcpTransport {
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     private final OpenChannels openChannels = new OpenChannels(logger);
+    private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
@@ -76,8 +80,10 @@ public class NioTransport extends TcpTransport {
     private int acceptorNumber;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                        NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
+                        PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                        CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.pageCacheRecycler = pageCacheRecycler;
     }
 
     @Override
@@ -184,8 +190,14 @@ public class NioTransport extends TcpTransport {
     }
 
     private Consumer<NioSocketChannel> getContextSetter(String profileName) {
-        return (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c),
-            this::exceptionCaught);
+        return (c) -> {
+            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
+                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes);
+            };
+            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), new InboundChannelBuffer(pageSupplier)),
+                new TcpWriteContext(c), this::exceptionCaught);
+        };
     }
 
     private void acceptChannel(NioSocketChannel channel) {

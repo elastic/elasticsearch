@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -51,6 +53,8 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -343,4 +347,37 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         assertEquals("Should have index name in response", "foo", response.index());
     }
+
+    public void testIndexWithUnknownSetting() throws Exception {
+        final int replicas = internalCluster().numDataNodes() - 1;
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", replicas).build();
+        client().admin().indices().prepareCreate("test").setSettings(settings).get();
+        ensureGreen("test");
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData metaData = state.getMetaData().index("test");
+        for (final NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
+            final IndexMetaData brokenMetaData =
+                    IndexMetaData
+                            .builder(metaData)
+                            .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", "true"))
+                            .build();
+            // so evil
+            IndexMetaData.FORMAT.write(brokenMetaData, services.indexPaths(brokenMetaData.getIndex()));
+        }
+        internalCluster().fullRestart();
+        ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race
+        final ClusterState stateAfterRestart = client().admin().cluster().prepareState().get().getState();
+
+        // the index should not be open after we restart and recover the broken index metadata
+        assertThat(stateAfterRestart.getMetaData().index(metaData.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
+
+        // try to open the index
+        final ElasticsearchException e =
+                expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
+        assertThat(e, hasToString(containsString("Failed to verify index " + metaData.getIndex())));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
+    }
+
 }

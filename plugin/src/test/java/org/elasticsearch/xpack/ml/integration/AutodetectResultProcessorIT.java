@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledge
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.normalizer.noop.NoOpRenormalizer;
+import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -64,6 +64,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
@@ -72,6 +74,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     private JobProvider jobProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
     private AutoDetectResultProcessor resultProcessor;
+    private Renormalizer renormalizer;
 
     @Override
     protected Settings nodeSettings()  {
@@ -94,8 +97,9 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobProvider(client(), builder.build());
+        renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, new NoOpRenormalizer(),
+        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer,
                 new JobResultsPersister(nodeSettings(), client()), jobProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
@@ -168,6 +172,38 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
+    }
+
+    public void testParseQuantiles_GivenRenormalizationIsEnabled() throws Exception {
+        when(renormalizer.isEnabled()).thenReturn(true);
+
+        ResultsBuilder builder = new ResultsBuilder();
+        Quantiles quantiles = createQuantiles();
+        builder.addQuantiles(quantiles);
+
+        resultProcessor.process(builder.buildTestProcess());
+        resultProcessor.awaitCompletion();
+
+        Optional<Quantiles> persistedQuantiles = getQuantiles();
+        assertTrue(persistedQuantiles.isPresent());
+        assertEquals(quantiles, persistedQuantiles.get());
+        verify(renormalizer).renormalize(quantiles);
+    }
+
+    public void testParseQuantiles_GivenRenormalizationIsDisabled() throws Exception {
+        when(renormalizer.isEnabled()).thenReturn(false);
+
+        ResultsBuilder builder = new ResultsBuilder();
+        Quantiles quantiles = createQuantiles();
+        builder.addQuantiles(quantiles);
+
+        resultProcessor.process(builder.buildTestProcess());
+        resultProcessor.awaitCompletion();
+
+        Optional<Quantiles> persistedQuantiles = getQuantiles();
+        assertTrue(persistedQuantiles.isPresent());
+        assertEquals(quantiles, persistedQuantiles.get());
+        verify(renormalizer, never()).renormalize(quantiles);
     }
 
     public void testDeleteInterimResults() throws Exception {

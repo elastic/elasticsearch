@@ -41,6 +41,7 @@ public class WatcherClientHelper {
         } else {
             try (ThreadContext.StoredContext ignored = client.threadPool().getThreadContext().stashContext()) {
                 Map<String, String> filteredHeaders = watch.status().getHeaders().entrySet().stream()
+                        .filter(Watcher.HEADER_FILTERS::contains)
                         .filter(e -> Watcher.HEADER_FILTERS.contains(e.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 client.threadPool().getThreadContext().copyHeaders(filteredHeaders.entrySet());

@@ -261,13 +261,14 @@ public class AutoDetectResultProcessor {
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
+            LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", context.jobId, quantiles.getTimestamp());
             persister.persistQuantiles(quantiles);
             context.bulkResultsPersister.executeRequest();
 
-            if (processKilled == false) {
+            if (processKilled == false && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
                 persister.commitResultWrites(context.jobId);
-                LOGGER.debug("[{}] Quantiles parsed from output - will trigger renormalization of scores", context.jobId);
+                LOGGER.debug("[{}] Quantiles queued for renormalization", context.jobId);
                 renormalizer.renormalize(quantiles);
             }
         }

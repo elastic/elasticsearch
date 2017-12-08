@@ -23,3 +23,31 @@ existing <<jvm-options,`jvm.options`>>, you should add the line
 `-Djava.io.tmpdir=${ES_TMPDIR}`. It is safe to do this on all OS as we preserve
 using a private temporary directory on non-Linux systems with the same
 mechanism.
+
+=== GC logging
+
+Starting in Elasticsearch 6.2.0, JVM <<gc-logging,GC logging>> is enabled out of
+the box. This lightweight facility gives insight into GC issues. The settings
+for this are in <<jvm-options,`jvm.options`>> and default to keeping 2 GB worth
+(rotating every 64 MB) of logs in the default logs directory. If you are
+upgrading from a previous version of Elasticsearch and preserve your existing
+<<jvm-options,`jvm.options`>>, you should add the following GC logging settings
+so that this valuable debugging information is available:
+
+[source,sh]
+--------------------------------------------------
+-XX:+PrintGCDetails
+-XX:+PrintGCDateStamps
+-XX:+PrintTenuringDistribution
+-XX:+PrintGCApplicationStoppedTime
+-Xloggc:logs/gc.log or /var/log/elasticsearch/gc.log <1>
+-XX:+UseGCLogFileRotation
+-XX:NumberOfGCLogFiles=32
+-XX:GCLogFileSize=64m
+--------------------------------------------------
+
+<1> If you have installed Elasticsearch from the RPM or the Debian packaging
+distributions and use the default logging location use `/var/log/elasticsearch`
+otherwise if you have installed from the `tar.gz` or `zip` archive distributions
+and use the default logging location use `logs/gc.log`; otherwise, set the
+location to the absolute path to your log files.

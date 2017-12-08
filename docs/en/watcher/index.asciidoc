@@ -63,11 +63,6 @@ A full history of all watches is maintained in an Elasticsearch index. This
 history keeps track of each time a watch is triggered and records the results
 from the query, whether the condition was met, and what actions were taken.
 
-NOTE: Watches run with elevated privileges. Users mapped to the built-in
-`watcher_admin` role or any other role to which the `manage_watcher` cluster
-privilege is assigned should be reviewed and granted only to personnel with
-appropriate trust levels to read and write all indices.
-
 --
 
 include::getting-started.asciidoc[]

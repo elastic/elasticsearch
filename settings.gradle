@@ -20,7 +20,7 @@ List projects = [
   'distribution:tar',
   'distribution:deb',
   'distribution:rpm',
-  'distribution:tools:java-version-checker',
+  'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'test:framework',
   'test:fixtures:example-fixture',

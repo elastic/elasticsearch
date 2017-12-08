@@ -69,7 +69,9 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
     @Nullable
-    private final List<ReferenceManager.RefreshListener> refreshListeners;
+    private final List<ReferenceManager.RefreshListener> externalRefreshListener;
+    @Nullable
+    private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
     private final boolean forceNewHistoryUUID;
@@ -120,7 +122,8 @@ public final class EngineConfig {
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> refreshListeners, Sort indexSort,
+                        List<ReferenceManager.RefreshListener> externalRefreshListener,
+                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
@@ -147,7 +150,8 @@ public final class EngineConfig {
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
         this.forceNewHistoryUUID = forceNewHistoryUUID;
-        this.refreshListeners = refreshListeners;
+        this.externalRefreshListener = externalRefreshListener;
+        this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
@@ -343,11 +347,17 @@ public final class EngineConfig {
     }
 
     /**
-     * The refresh listeners to add to Lucene
+     * The refresh listeners to add to Lucene for externally visible refreshes
      */
-    public List<ReferenceManager.RefreshListener> getRefreshListeners() {
-        return refreshListeners;
+    public List<ReferenceManager.RefreshListener> getExternalRefreshListener() {
+        return externalRefreshListener;
     }
+
+    /**
+     * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
+     */
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
+
 
     /**
      * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID

@@ -111,19 +111,20 @@ then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
 `Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above it is required to disable IDEA run launcher to avoid
-finding yourself in "jar hell", which can be achieved by adding the
+IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
+`idea_rt.jar` causing "jar hell". This can be achieved by adding the
 `-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties)
-or by adding `idea.no.launcher=true` to the
+option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
+Alternatively, `idea.no.launcher=true` can be set in the
 [`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties within IDEA. You
-may also need to [remove `ant-javafx.jar` from your
+file which can be accessed under Help > Edit Custom Properties (this will require a
+restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
+`Run->Edit Configurations->...->Defaults->JUnit` and change the value for the `Shorten command line` setting from
+`user-local default: none` to `classpath file`. You may also need to [remove `ant-javafx.jar` from your
 classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell. Additionally, in order to run tests directly
-from IDEA 2017.3 and above, go to `Run->Edit Configurations...` and change the
-value for the `Shorten command line` setting from `user-local default: none` to
-`classpath file`.
+reported as a source of jar hell.
+
+To run an instance of elasticsearch from the source code run `gradle run`
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This

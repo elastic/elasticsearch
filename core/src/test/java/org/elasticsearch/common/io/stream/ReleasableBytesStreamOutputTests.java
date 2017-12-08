@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,7 +31,7 @@ public class ReleasableBytesStreamOutputTests extends ESTestCase {
 
     public void testRelease() throws Exception {
         MockBigArrays mockBigArrays =
-            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         try (ReleasableBytesStreamOutput output =
                  getRandomReleasableBytesStreamOutput(mockBigArrays)) {
             output.writeBoolean(randomBoolean());

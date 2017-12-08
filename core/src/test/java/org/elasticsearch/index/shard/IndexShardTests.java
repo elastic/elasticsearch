@@ -92,6 +92,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -1215,24 +1216,13 @@ public class IndexShardTests extends IndexShardTestCase {
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "test", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, "test", "test",
-                new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
-            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount));
+            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
+        indexDoc(shard, "test", "test");
+        shard.writeIndexingBuffer();
+        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+2));
         closeShards(shard);
-    }
-
-    private ParsedDocument testParsedDocument(String id, String type, String routing,
-                                              ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
-        Field idField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
-        Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(idField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, XContentType.JSON,
-            mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -2863,6 +2853,10 @@ public class IndexShardTests extends IndexShardTestCase {
         for (Thread t : threads) {
             t.join();
         }
+
+        // We need to wait for all ongoing merges to complete. The reason is that during a merge the
+        // IndexWriter holds the core cache key open and causes the memory to be registered in the breaker
+        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
 
         // Close remaining searchers
         IOUtils.close(searchers);

@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -59,7 +60,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
@@ -74,6 +74,11 @@ import org.elasticsearch.common.Randomness;
  * multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
+
+    /**
+     * A regex for the valid characters that a setting name in the keystore may use.
+     */
+    private static final Pattern ALLOWED_SETTING_NAME = Pattern.compile("[a-z0-9_\\-.]+");
 
     public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
 
@@ -384,12 +389,25 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /**
+     * Ensure the given setting name is allowed.
+     *
+     * @throws IllegalArgumentException if the setting name is not valid
+     */
+    public static void validateSettingName(String setting) {
+        if (ALLOWED_SETTING_NAME.matcher(setting).matches() == false) {
+            throw new IllegalArgumentException("Setting name [" + setting + "] does not match the allowed setting name pattern ["
+                + ALLOWED_SETTING_NAME.pattern() + "]");
+        }
+    }
+
+    /**
      * Set a string setting.
      *
      * @throws IllegalArgumentException if the value is not ASCII
      */
     void setString(String setting, char[] value) throws GeneralSecurityException {
         assert isLoaded();
+        validateSettingName(setting);
         if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
             throw new IllegalArgumentException("Value must be ascii");
         }
@@ -401,6 +419,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /** Set a file setting. */
     void setFile(String setting, byte[] bytes) throws GeneralSecurityException {
         assert isLoaded();
+        validateSettingName(setting);
         bytes = Base64.getEncoder().encode(bytes);
         char[] chars = new char[bytes.length];
         for (int i = 0; i < chars.length; ++i) {

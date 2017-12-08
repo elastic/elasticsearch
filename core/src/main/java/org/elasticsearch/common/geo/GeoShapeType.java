@@ -241,6 +241,11 @@ public enum GeoShapeType {
             }
             return coordinates;
         }
+
+        @Override
+        public String wktName() {
+            return BBOX;
+        }
     },
     CIRCLE("circle") {
         @Override
@@ -273,11 +278,13 @@ public enum GeoShapeType {
 
     private final String shapename;
     private static Map<String, GeoShapeType> shapeTypeMap = new HashMap<>();
+    private static final String BBOX = "BBOX";
 
     static {
         for (GeoShapeType type : values()) {
             shapeTypeMap.put(type.shapename, type);
         }
+        shapeTypeMap.put(ENVELOPE.wktName().toLowerCase(Locale.ROOT), ENVELOPE);
     }
 
     GeoShapeType(String shapename) {
@@ -300,6 +307,11 @@ public enum GeoShapeType {
                                             ShapeBuilder.Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 
+    /** wkt shape name */
+    public String wktName() {
+        return this.shapename;
+    }
+
     public static List<Entry> getShapeWriteables() {
         List<Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new Entry(ShapeBuilder.class, PointBuilder.TYPE.shapeName(), PointBuilder::new));
@@ -312,5 +324,10 @@ public enum GeoShapeType {
         namedWriteables.add(new Entry(ShapeBuilder.class, MultiPolygonBuilder.TYPE.shapeName(), MultiPolygonBuilder::new));
         namedWriteables.add(new Entry(ShapeBuilder.class, GeometryCollectionBuilder.TYPE.shapeName(), GeometryCollectionBuilder::new));
         return namedWriteables;
+    }
+
+    @Override
+    public String toString() {
+        return this.shapename;
     }
 }

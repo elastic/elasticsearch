@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +55,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
@@ -164,13 +164,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
 
-        indexScopedSettings.validate(normalizedSettings, false); // don't validate dependencies here we check it below
-        // never allow to change the number of shards
+        indexScopedSettings.validate(normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false  /* don't validate wildcards */),
+            false); //don't validate dependencies here we check it below never allow to change the number of shards
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
-            assert setting != null; // we already validated the normalized settings
+            boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
+            assert setting != null // we already validated the normalized settings
+                || (isWildcard && normalizedSettings.hasValue(key) == false)
+                : "unknown setting: " + key + " isWildcard: " + isWildcard + " hasValue: " + normalizedSettings.hasValue(key);
             settingsForClosedIndices.copy(key, normalizedSettings);
-            if (setting.isDynamic()) {
+            if (isWildcard || setting.isDynamic()) {
                 settingsForOpenIndices.copy(key, normalizedSettings);
             } else {
                 skippedSettings.add(key);

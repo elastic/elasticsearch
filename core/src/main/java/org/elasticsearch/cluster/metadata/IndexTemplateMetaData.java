@@ -96,6 +96,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
                                  ImmutableOpenMap<String, IndexMetaData.Custom> customs,
                                  boolean inferIndexNameFromAlias) {
+        if (patterns == null || patterns.isEmpty()) {
+            throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
+        }
         this.name = name;
         this.order = order;
         this.version = version;
@@ -262,7 +265,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(patterns);
         } else {
-            out.writeString(patterns.size() > 0 ? patterns.get(0) : "");
+            out.writeString(patterns.get(0));
         }
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());

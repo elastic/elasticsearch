@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
     public RestSqlCliAction(Settings settings, RestController controller) {
         super(settings, Proto.INSTANCE);
-        controller.registerHandler(POST, "/_sql/cli", this);
+        controller.registerHandler(POST, "/_xpack/sql/cli", this);
     }
 
     @Override

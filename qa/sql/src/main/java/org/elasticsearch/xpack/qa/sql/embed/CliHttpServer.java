@@ -12,7 +12,7 @@ import org.elasticsearch.client.Client;
  */
 public class CliHttpServer extends ProtoHttpServer {
     public CliHttpServer(Client client) {
-        super(client, new CliProtoHandler(client), "/_sql/cli");
+        super(client, new CliProtoHandler(client), "/_xpack/sql/cli");
     }
 
     @Override

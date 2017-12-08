@@ -54,7 +54,7 @@ public class CliHttpClient {
 
     private Response post(Request request) throws SQLException {
         return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
-            JreHttpUrlConnection.http("_sql/cli", "error_trace", cfg, con ->
+            JreHttpUrlConnection.http("_xpack/sql/cli", "error_trace", cfg, con ->
                 con.post(
                     out -> Proto.INSTANCE.writeRequest(request, out),
                     in -> Proto.INSTANCE.readResponse(request, in)

@@ -58,7 +58,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     public RestSqlJdbcAction(Settings settings, RestController controller, SqlLicenseChecker sqlLicenseChecker,
                              IndexResolver indexResolver) {
         super(settings, Proto.INSTANCE);
-        controller.registerHandler(POST, "/_sql/jdbc", this);
+        controller.registerHandler(POST, "/_xpack/sql/jdbc", this);
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.indexResolver = indexResolver;
     }

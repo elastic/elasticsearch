@@ -287,7 +287,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     new StringEntity("{}", ContentType.APPLICATION_JSON));
             return;
         }
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest("POST", "/_sql", emptyMap(),
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest("POST", "/_xpack/sql", emptyMap(),
                 new StringEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}", ContentType.APPLICATION_JSON)));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("Invalid index testsqlfailsonindexwithtwotypes; contains more than one type"));

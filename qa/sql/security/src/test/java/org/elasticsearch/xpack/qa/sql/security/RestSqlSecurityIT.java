@@ -135,7 +135,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
         private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity) throws IOException {
             Header[] headers = asUser == null ? new Header[0] : new Header[] {new BasicHeader("es-security-runas-user", asUser)};
-            Response response = client().performRequest("POST", "/_sql", singletonMap("format", "json"), entity, headers);
+            Response response = client().performRequest("POST", "/_xpack/sql", singletonMap("format", "json"), entity, headers);
             return toMap(response);
         }
 

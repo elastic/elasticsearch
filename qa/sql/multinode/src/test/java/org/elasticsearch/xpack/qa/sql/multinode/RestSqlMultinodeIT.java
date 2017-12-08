@@ -104,7 +104,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("rows", singletonList(singletonList(count)));
         expected.put("size", 1);
 
-        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_sql", singletonMap("format", "json"),
+        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", singletonMap("format", "json"),
                 new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
 
         if (false == expected.equals(actual)) {

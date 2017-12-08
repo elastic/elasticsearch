@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 public class JdbcHttpServer extends ProtoHttpServer {
 
     public JdbcHttpServer(Client client) {
-        super(client, new JdbcProtoHandler(client), "/_sql/jdbc");
+        super(client, new JdbcProtoHandler(client), "/_xpack/sql/jdbc");
     }
 
     @Override

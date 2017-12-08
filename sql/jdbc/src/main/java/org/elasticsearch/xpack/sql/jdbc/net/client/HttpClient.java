@@ -49,7 +49,7 @@ class HttpClient {
     Response post(Request request) throws SQLException {
         try {
             return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
-                JreHttpUrlConnection.http("_sql/jdbc", "error_trace", cfg, con ->
+                JreHttpUrlConnection.http("_xpack/sql/jdbc", "error_trace", cfg, con ->
                     con.post(
                         out -> Proto.INSTANCE.writeRequest(request, out),
                         in -> Proto.INSTANCE.readResponse(request, in)

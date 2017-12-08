@@ -182,7 +182,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         params.put("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         params.put("pretty", "true");        // Improves error reporting readability
         params.put("format", "json");        // JSON is easier to parse then a table
-        Response response = client().performRequest("POST", "/_sql" + suffix, params, sql);
+        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, params, sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
@@ -325,7 +325,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql) throws IOException {
-        Response  response = client().performRequest("POST", "/_sql" + suffix, singletonMap("error_trace", "true"), sql);
+        Response  response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")

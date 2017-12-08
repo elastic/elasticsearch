@@ -7,7 +7,7 @@ into native Elasticsearch queries. For example:
 
 [source,js]
 --------------------------------------------------
-POST /_sql/translate
+POST /_xpack/sql/translate
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 10

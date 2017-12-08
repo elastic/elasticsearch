@@ -34,8 +34,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSqlAction extends BaseRestHandler {
     public RestSqlAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_sql", this);
-        controller.registerHandler(POST, "/_sql", this);
+        controller.registerHandler(GET, "/_xpack/sql", this);
+        controller.registerHandler(POST, "/_xpack/sql", this);
     }
 
     @Override

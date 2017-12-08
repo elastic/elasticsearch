@@ -197,8 +197,8 @@ public class SqlTranslateAction
     public static class RestAction extends BaseRestHandler {
         public RestAction(Settings settings, RestController controller) {
             super(settings);
-            controller.registerHandler(GET, "/_sql/translate", this);
-            controller.registerHandler(POST, "/_sql/translate", this);
+            controller.registerHandler(GET, "/_xpack/sql/translate", this);
+            controller.registerHandler(POST, "/_xpack/sql/translate", this);
         }
 
         @Override

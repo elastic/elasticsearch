@@ -181,7 +181,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         }
 
         // Execute
-        InputStream response = getRestClient().performRequest("POST", "/_sql/jdbc", emptyMap(), entity).getEntity().getContent();
+        InputStream response = getRestClient().performRequest("POST", "/_xpack/sql/jdbc", emptyMap(), entity).getEntity().getContent();
 
         // Deserialize bytes to response like JDBC does
         try {

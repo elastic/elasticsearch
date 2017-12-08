@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.security.user.LogstashSystemUser;
  */
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
-    private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
+    private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);
 
     private final CheckedFunction<Environment, CommandLineHttpClient, Exception> clientFunction;

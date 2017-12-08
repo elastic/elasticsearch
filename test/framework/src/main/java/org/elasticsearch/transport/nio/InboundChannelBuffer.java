@@ -19,12 +19,15 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -62,21 +65,15 @@ public final class InboundChannelBuffer implements Releasable {
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
             Page page;
-            RuntimeException closingException = null;
+            List<RuntimeException> closingExceptions = new ArrayList<>();
             while ((page = pages.pollFirst()) != null) {
                 try {
                     page.close();
                 } catch (RuntimeException e) {
-                    if (closingException == null) {
-                        closingException = e;
-                    } else {
-                        closingException.addSuppressed(e);
-                    }
+                    closingExceptions.add(e);
                 }
             }
-            if (closingException != null) {
-                throw closingException;
-            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }
 

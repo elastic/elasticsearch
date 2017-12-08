@@ -36,11 +36,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -107,7 +105,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testUpdateMappingWithoutType() throws Exception {
+    public void testUpdateMappingWithoutType() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         Settings.builder()
@@ -128,7 +126,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
-    public void testUpdateMappingWithoutTypeMultiObjects() throws Exception {
+    public void testUpdateMappingWithoutTypeMultiObjects() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         Settings.builder()
@@ -148,7 +146,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 equalTo("{\"doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
-    public void testUpdateMappingWithConflicts() throws Exception {
+    public void testUpdateMappingWithConflicts() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         Settings.builder()
@@ -167,7 +165,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testUpdateMappingWithNormsConflicts() throws Exception {
+    public void testUpdateMappingWithNormsConflicts() {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
                 .execute().actionGet();
@@ -184,7 +182,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     /*
     Second regression test for https://github.com/elastic/elasticsearch/issues/3381
      */
-    public void testUpdateMappingNoChanges() throws Exception {
+    public void testUpdateMappingNoChanges() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         Settings.builder()
@@ -251,7 +249,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("type", (Object) "keyword"));
+        assertThat(fieldSettings, hasEntry("type", "keyword"));
 
         // but we still validate the _default_ type
         logger.info("Confirming _default_ mappings validation");
@@ -276,40 +274,36 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
 
         for (int j = 0; j < threads.length; j++) {
-            threads[j] = new Thread(new Runnable() {
-                @SuppressWarnings("unchecked")
-                @Override
-                public void run() {
-                    try {
-                        barrier.await();
+            threads[j] = new Thread(() -> {
+                try {
+                    barrier.await();
 
-                        for (int i = 0; i < 100; i++) {
-                            if (stop.get()) {
-                                return;
-                            }
-
-                            Client client1 = clientArray.get(i % clientArray.size());
-                            Client client2 = clientArray.get((i + 1) % clientArray.size());
-                            String indexName = i % 2 == 0 ? "test2" : "test1";
-                            String typeName = "type";
-                            String fieldName = Thread.currentThread().getName() + "_" + i;
-
-                            PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
-                                    JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                            .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
-                                            .endObject().endObject()
-                            ).get();
-
-                            assertThat(response.isAcknowledged(), equalTo(true));
-                            GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                            ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
-                            assertThat(mappings.containsKey(typeName), equalTo(true));
-                            assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
+                    for (int i = 0; i < 100; i++) {
+                        if (stop.get()) {
+                            return;
                         }
-                    } catch (Exception e) {
-                        threadException.set(e);
-                        stop.set(true);
+
+                        Client client1 = clientArray.get(i % clientArray.size());
+                        Client client2 = clientArray.get((i + 1) % clientArray.size());
+                        String indexName = i % 2 == 0 ? "test2" : "test1";
+                        String typeName = "type";
+                        String fieldName = Thread.currentThread().getName() + "_" + i;
+
+                        PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
+                                JsonXContent.contentBuilder().startObject().startObject(typeName)
+                                        .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
+                                        .endObject().endObject()
+                        ).get();
+
+                        assertThat(response.isAcknowledged(), equalTo(true));
+                        GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                        ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
+                        assertThat(mappings.containsKey(typeName), equalTo(true));
+                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
                     }
+                } catch (Exception e) {
+                    threadException.set(e);
+                    stop.set(true);
                 }
             });
 
@@ -325,7 +319,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     }
 
-    public void testPutMappingsWithBlocks() throws Exception {
+    public void testPutMappingsWithBlocks() {
         createIndex("test");
         ensureGreen();
 
@@ -350,7 +344,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testUpdateMappingOnAllTypes() throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testUpdateMappingOnAllTypes() {
         assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
         assertAcked(prepareCreate("index")
                 .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))

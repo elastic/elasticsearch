@@ -17,17 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.tools;
+package org.elasticsearch.common.bytes;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-/**
- * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
- */
-@Retention(RetentionPolicy.CLASS)
-@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
-@interface SuppressForbidden {
-    String reason();
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+public class ByteBufferReferenceTests extends AbstractBytesReferenceTestCase {
+
+    private void initializeBytes(byte[] bytes) {
+        for (int i = 0 ; i < bytes.length; ++i) {
+            bytes[i] = (byte) i;
+        }
+    }
+
+    @Override
+    protected BytesReference newBytesReference(int length) throws IOException {
+        return newBytesReferenceWithOffsetOfZero(length);
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        initializeBytes(bytes);
+        return new ByteBufferReference(ByteBuffer.wrap(bytes));
+    }
 }

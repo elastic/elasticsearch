@@ -80,7 +80,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteBuffers()[0]);
     }
 
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
@@ -97,7 +97,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteBuffers()[0]);
     }
 
     public void testWriteIsQueuedInChannel() throws Exception {

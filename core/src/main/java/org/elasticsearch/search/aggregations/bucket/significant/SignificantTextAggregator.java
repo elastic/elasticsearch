@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 
 public class SignificantTextAggregator extends BucketsAggregator {
-    
+
     private final StringFilter includeExclude;
     protected final BucketCountThresholds bucketCountThresholds;
     protected long numCollectedDocs;
@@ -90,20 +90,20 @@ public class SignificantTextAggregator extends BucketsAggregator {
         this.sourceFieldNames = sourceFieldNames;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
         if(filterDuplicateText){
-            dupSequenceSpotter = new DuplicateByteSequenceSpotter();        
+            dupSequenceSpotter = new DuplicateByteSequenceSpotter();
             lastTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
         }
     }
 
-    
-    
+
+
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         final BytesRefBuilder previous = new BytesRefBuilder();
         return new LeafBucketCollectorBase(sub, null) {
-            
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 collectFromSource(doc, bucket, fieldName, sourceFieldNames);
@@ -112,8 +112,8 @@ public class SignificantTextAggregator extends BucketsAggregator {
                     dupSequenceSpotter.startNewSequence();
                 }
             }
-            
-            private void processTokenStream(int doc, long bucket, TokenStream ts, BytesRefHash inDocTerms, String fieldText) 
+
+            private void processTokenStream(int doc, long bucket, TokenStream ts, BytesRefHash inDocTerms, String fieldText)
                     throws IOException{
                 if (dupSequenceSpotter != null) {
                     ts = new DeDuplicatingTokenFilter(ts, dupSequenceSpotter);
@@ -151,35 +151,35 @@ public class SignificantTextAggregator extends BucketsAggregator {
                     ts.close();
                 }
             }
-            
+
             private void collectFromSource(int doc, long bucket, String indexedFieldName, String[] sourceFieldNames) throws IOException {
                 MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
                 if(fieldType == null){
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+indexedFieldName
-                            +"] since it is not present");                    
+                            +"] since it is not present");
                 }
 
                 SourceLookup sourceLookup = context.lookup().source();
                 sourceLookup.setSegmentAndDocument(ctx, doc);
                 BytesRefHash inDocTerms = new BytesRefHash(256, context.bigArrays());
-                
-                try {                
+
+                try {
                     for (String sourceField : sourceFieldNames) {
-                        List<Object> textsToHighlight = sourceLookup.extractRawValues(sourceField);    
+                        List<Object> textsToHighlight = sourceLookup.extractRawValues(sourceField);
                         textsToHighlight = textsToHighlight.stream().map(obj -> {
                             if (obj instanceof BytesRef) {
                                 return fieldType.valueForDisplay(obj).toString();
                             } else {
                                 return obj;
                             }
-                        }).collect(Collectors.toList());                
-                        
-                        Analyzer analyzer = fieldType.indexAnalyzer();                
+                        }).collect(Collectors.toList());
+
+                        Analyzer analyzer = fieldType.indexAnalyzer();
                         for (Object fieldValue : textsToHighlight) {
                             String fieldText = fieldValue.toString();
                             TokenStream ts = analyzer.tokenStream(indexedFieldName, fieldText);
-                            processTokenStream(doc, bucket, ts, inDocTerms, fieldText);                     
-                        }                    
+                            processTokenStream(doc, bucket, ts, inDocTerms, fieldText);
+                        }
                     }
                 } finally{
                     Releasables.close(inDocTerms);
@@ -220,7 +220,10 @@ public class SignificantTextAggregator extends BucketsAggregator {
             spare.updateScore(significanceHeuristic);
 
             spare.bucketOrd = i;
-            spare = ordered.insertWithOverflow(spare);            
+            spare = ordered.insertWithOverflow(spare);
+            if (spare == null) {
+                consumeBucketsAndMaybeBreak(1);
+            }
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];

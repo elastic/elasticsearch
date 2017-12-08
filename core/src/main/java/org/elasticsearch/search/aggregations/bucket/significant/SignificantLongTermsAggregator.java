@@ -101,6 +101,9 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
             spare.bucketOrd = i;
             spare = ordered.insertWithOverflow(spare);
+            if (spare == null) {
+                consumeBucketsAndMaybeBreak(1);
+            }
         }
 
         final SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];

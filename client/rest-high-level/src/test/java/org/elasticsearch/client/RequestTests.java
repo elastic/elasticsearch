@@ -25,7 +25,9 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -40,7 +42,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -81,7 +82,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -91,10 +91,12 @@ import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.Request.enforceSameContentType;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
 
-    public void testConstructor() throws Exception {
+    public void testConstructor() {
         final String method = randomFrom("GET", "PUT", "POST", "HEAD", "DELETE");
         final String endpoint = randomAlphaOfLengthBetween(1, 10);
         final Map<String, String> parameters = singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -120,7 +122,7 @@ public class RequestTests extends ESTestCase {
         assertTrue("Request constructor is not public", Modifier.isPublic(constructors[0].getModifiers()));
     }
 
-    public void testClassVisibility() throws Exception {
+    public void testClassVisibility() {
         assertTrue("Request class is not public", Modifier.isPublic(Request.class.getModifiers()));
     }
 
@@ -144,7 +146,7 @@ public class RequestTests extends ESTestCase {
         getAndExistsTest(Request::get, "GET");
     }
 
-    public void testDelete() throws IOException {
+    public void testDelete() {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
@@ -153,9 +155,9 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
 
         setRandomTimeout(deleteRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomRefreshPolicy(deleteRequest, expectedParams);
+        setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
-        setRandomVersionType(deleteRequest, expectedParams);
+        setRandomVersionType(deleteRequest::versionType, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -220,27 +222,13 @@ public class RequestTests extends ESTestCase {
                     expectedParams.put("version", Long.toString(version));
                 }
             }
-            if (randomBoolean()) {
-                VersionType versionType = randomFrom(VersionType.values());
-                getRequest.versionType(versionType);
-                if (versionType != VersionType.INTERNAL) {
-                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-                }
-            }
+            setRandomVersionType(getRequest::versionType, expectedParams);
             if (randomBoolean()) {
                 int numStoredFields = randomIntBetween(1, 10);
                 String[] storedFields = new String[numStoredFields];
-                StringBuilder storedFieldsParam = new StringBuilder();
-                for (int i = 0; i < numStoredFields; i++) {
-                    String storedField = randomAlphaOfLengthBetween(3, 10);
-                    storedFields[i] = storedField;
-                    storedFieldsParam.append(storedField);
-                    if (i < numStoredFields - 1) {
-                        storedFieldsParam.append(",");
-                    }
-                }
+                String storedFieldsParam = randomFields(storedFields);
                 getRequest.storedFields(storedFields);
-                expectedParams.put("stored_fields", storedFieldsParam.toString());
+                expectedParams.put("stored_fields", storedFieldsParam);
             }
             if (randomBoolean()) {
                 randomizeFetchSourceContextParams(getRequest::fetchSourceContext, expectedParams);
@@ -253,7 +241,35 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
-    public void testDeleteIndex() throws IOException {
+    public void testCreateIndex() throws IOException {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+
+        String indexName = "index-" + randomAlphaOfLengthBetween(2, 5);
+
+        createIndexRequest.index(indexName);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(createIndexRequest, expectedParams);
+        setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+
+        if (randomBoolean()) {
+            boolean updateAllTypes = randomBoolean();
+            createIndexRequest.updateAllTypes(updateAllTypes);
+            if (updateAllTypes) {
+                expectedParams.put("update_all_types", Boolean.TRUE.toString());
+            }
+        }
+
+        Request request = Request.createIndex(createIndexRequest);
+        assertEquals("/" + indexName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("PUT", request.getMethod());
+        assertToXContentBody(createIndexRequest, request.getEntity());
+    }
+
+    public void testDeleteIndex() {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
 
         int numIndices = randomIntBetween(0, 5);
@@ -277,6 +293,29 @@ public class RequestTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testOpenIndex() {
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest();
+        int numIndices = randomIntBetween(1, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        openIndexRequest.indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(openIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(openIndexRequest, expectedParams);
+        setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
+        setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, expectedParams);
+
+        Request request = Request.openIndex(openIndexRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getEntity(), nullValue());
+    }
+
     public void testIndex() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);
@@ -296,7 +335,7 @@ public class RequestTests extends ESTestCase {
         }
 
         setRandomTimeout(indexRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomRefreshPolicy(indexRequest, expectedParams);
+        setRandomRefreshPolicy(indexRequest::setRefreshPolicy, expectedParams);
 
         // There is some logic around _create endpoint and version/version type
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
@@ -304,7 +343,7 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
         } else {
             setRandomVersion(indexRequest, expectedParams);
-            setRandomVersionType(indexRequest, expectedParams);
+            setRandomVersionType(indexRequest::versionType, expectedParams);
         }
 
         if (frequently()) {
@@ -407,25 +446,9 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("refresh", refreshPolicy.getValue());
             }
         }
-        if (randomBoolean()) {
-            int waitForActiveShards = randomIntBetween(0, 10);
-            updateRequest.waitForActiveShards(waitForActiveShards);
-            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
-        }
-        if (randomBoolean()) {
-            long version = randomLong();
-            updateRequest.version(version);
-            if (version != Versions.MATCH_ANY) {
-                expectedParams.put("version", Long.toString(version));
-            }
-        }
-        if (randomBoolean()) {
-            VersionType versionType = randomFrom(VersionType.values());
-            updateRequest.versionType(versionType);
-            if (versionType != VersionType.INTERNAL) {
-                expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-            }
-        }
+        setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
+        setRandomVersion(updateRequest, expectedParams);
+        setRandomVersionType(updateRequest::versionType, expectedParams);
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);
@@ -469,7 +492,7 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    public void testUpdateWithDifferentContentTypes() throws IOException {
+    public void testUpdateWithDifferentContentTypes() {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), XContentType.JSON));
@@ -492,13 +515,7 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", BulkShardRequest.DEFAULT_TIMEOUT.getStringRep());
         }
 
-        if (randomBoolean()) {
-            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-            bulkRequest.setRefreshPolicy(refreshPolicy);
-            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                expectedParams.put("refresh", refreshPolicy.getValue());
-            }
-        }
+        setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -511,7 +528,7 @@ public class RequestTests extends ESTestCase {
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
-            DocWriteRequest<?> docWriteRequest = null;
+            DocWriteRequest<?> docWriteRequest;
             if (opType == DocWriteRequest.OpType.INDEX) {
                 IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
                 docWriteRequest = indexRequest;
@@ -541,6 +558,8 @@ public class RequestTests extends ESTestCase {
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
                 docWriteRequest = new DeleteRequest(index, type, id);
+            } else {
+                throw new UnsupportedOperationException("optype [" + opType + "] not supported");
             }
 
             if (randomBoolean()) {
@@ -945,31 +964,15 @@ public class RequestTests extends ESTestCase {
             } else {
                 int numIncludes = randomIntBetween(0, 5);
                 String[] includes = new String[numIncludes];
-                StringBuilder includesParam = new StringBuilder();
-                for (int i = 0; i < numIncludes; i++) {
-                    String include = randomAlphaOfLengthBetween(3, 10);
-                    includes[i] = include;
-                    includesParam.append(include);
-                    if (i < numIncludes - 1) {
-                        includesParam.append(",");
-                    }
-                }
+                String includesParam = randomFields(includes);
                 if (numIncludes > 0) {
-                    expectedParams.put("_source_include", includesParam.toString());
+                    expectedParams.put("_source_include", includesParam);
                 }
                 int numExcludes = randomIntBetween(0, 5);
                 String[] excludes = new String[numExcludes];
-                StringBuilder excludesParam = new StringBuilder();
-                for (int i = 0; i < numExcludes; i++) {
-                    String exclude = randomAlphaOfLengthBetween(3, 10);
-                    excludes[i] = exclude;
-                    excludesParam.append(exclude);
-                    if (i < numExcludes - 1) {
-                        excludesParam.append(",");
-                    }
-                }
+                String excludesParam = randomFields(excludes);
                 if (numExcludes > 0) {
-                    expectedParams.put("_source_exclude", excludesParam.toString());
+                    expectedParams.put("_source_exclude", excludesParam);
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }
@@ -1016,10 +1019,18 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomRefreshPolicy(ReplicatedWriteRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomWaitForActiveShards(Consumer<Integer> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            int waitForActiveShards = randomIntBetween(0, 10);
+            setter.accept(waitForActiveShards);
+            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
+        }
+    }
+
+    private static void setRandomRefreshPolicy(Consumer<WriteRequest.RefreshPolicy> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-            request.setRefreshPolicy(refreshPolicy);
+            setter.accept(refreshPolicy);
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
                 expectedParams.put("refresh", refreshPolicy.getValue());
             }
@@ -1036,13 +1047,26 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomVersionType(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomVersionType(Consumer<VersionType> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             VersionType versionType = randomFrom(VersionType.values());
-            request.versionType(versionType);
+            setter.accept(versionType);
             if (versionType != VersionType.INTERNAL) {
                 expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
             }
         }
+    }
+
+    private static String randomFields(String[] fields) {
+        StringBuilder excludesParam = new StringBuilder();
+        for (int i = 0; i < fields.length; i++) {
+            String exclude = randomAlphaOfLengthBetween(3, 10);
+            fields[i] = exclude;
+            excludesParam.append(exclude);
+            if (i < fields.length - 1) {
+                excludesParam.append(",");
+            }
+        }
+        return excludesParam.toString();
     }
 }

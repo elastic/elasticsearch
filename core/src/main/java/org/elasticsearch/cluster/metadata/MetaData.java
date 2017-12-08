@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -382,13 +383,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(MappingMetaData mappingMetaData,
-                                                Predicate<String> fieldPredicate) throws IOException {
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
         if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }
-        Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
-        Map<String, Object> properties = (Map<String, Object>)sourceAsMap.get("properties");
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();
+        Map<String, Object> mapping;
+        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetaData.type())) {
+            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetaData.type());
+        } else {
+            mapping = sourceAsMap;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>)mapping.get("properties");
         if (properties == null || properties.isEmpty()) {
             return mappingMetaData;
         }
@@ -400,6 +407,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     @SuppressWarnings("unchecked")
     private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
+        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();

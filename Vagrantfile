@@ -392,6 +392,11 @@ Defaults   env_keep += "BATS_ARCHIVES"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
+  # This prevents leftovers from previous tests using the
+  # same VM from messing up the current test
+  config.vm.provision "clean_tmp", run: "always", type: "shell", inline: <<-SHELL
+    rm -rf /tmp/elasticsearch*
+  SHELL
 end
 
 def windows_common(config, name)

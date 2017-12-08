@@ -1268,7 +1268,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a function which given an index name, returns a predicate which fields must match in order to be returned by get mappings,
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
-     * The predicate receives the the field name as input argument. In case multiple plugins register a field filter through
+     * The predicate receives the field name as input argument. In case multiple plugins register a field filter through
      * {@link org.elasticsearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be
      * returned by get mappings, get index, get field mappings and field capabilities API.
      */

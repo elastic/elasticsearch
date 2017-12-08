@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -60,7 +61,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     protected InternalCardinality createTestInstance(String name,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(p,
-                new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()), 1);
+                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 1);
         algos.add(hllpp);
         for (int i = 0; i < 100; i++) {
             hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
@@ -107,7 +108,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             break;
         case 1:
             HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(state.precision(),
-                    new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()), 0);
+                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 0);
             newState.merge(0, state, 0);
             int extraValues = between(10, 100);
             for (int i = 0; i < extraValues; i++) {

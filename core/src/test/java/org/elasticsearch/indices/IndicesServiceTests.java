@@ -257,7 +257,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
             assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
-        assertAcked(client().admin().indices().prepareOpen("test"));
+        assertAcked(client().admin().indices().prepareOpen("test").setTimeout(TimeValue.timeValueSeconds(1)));
 
     }
 

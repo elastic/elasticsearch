@@ -104,8 +104,6 @@ public class Netty4Transport extends TcpTransport {
     protected final int workerCount;
     protected final ByteSizeValue receivePredictorMin;
     protected final ByteSizeValue receivePredictorMax;
-    // package private for testing
-    volatile Netty4OpenChannelsHandler serverOpenChannels;
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
@@ -132,8 +130,6 @@ public class Netty4Transport extends TcpTransport {
         try {
             bootstrap = createBootstrap();
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
-                this.serverOpenChannels = openChannels;
                 for (ProfileSettings profileSettings : profileSettings) {
                     createServerBootstrap(profileSettings);
                     bindServer(profileSettings);
@@ -243,12 +239,6 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    public long getNumOpenServerConnections() {
-        Netty4OpenChannelsHandler channels = serverOpenChannels;
-        return channels == null ? 0 : channels.numberOfOpenChannels();
-    }
-
-    @Override
     protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> listener)
         throws IOException {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
@@ -294,7 +284,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
-        Releasables.close(serverOpenChannels, () -> {
+        Releasables.close(() -> {
             final List<Tuple<String, Future<?>>> serverBootstrapCloseFutures = new ArrayList<>(serverBootstraps.size());
             for (final Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
                 serverBootstrapCloseFutures.add(
@@ -349,7 +339,6 @@ public class Netty4Transport extends TcpTransport {
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             serverAcceptedChannel(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
         }

@@ -181,9 +181,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
-                sb.append("routing[] ");
+                sb.append("routing[]");
             } else {
-                sb.append("routing[").append(doc.routing()).append("] ");
+                sb.append("routing[").append(doc.routing()).append("]");
             }
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
@@ -193,7 +193,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
                 sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
             } catch (IOException e) {
-                sb.append(", source[_failed_to_convert_]");
+                sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
             }
             return sb.toString();
         }

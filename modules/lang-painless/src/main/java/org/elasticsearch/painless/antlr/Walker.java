@@ -1076,9 +1076,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             }
         }
 
+        FunctionReserved lambdaReserved = (FunctionReserved)reserved.pop();
+        reserved.peek().addUsedVariables(lambdaReserved);
+
         String name = nextLambda();
-        return new ELambda(name, (FunctionReserved)reserved.pop(), location(ctx),
-                           paramTypes, paramNames, statements);
+        return new ELambda(name, lambdaReserved, location(ctx), paramTypes, paramNames, statements);
     }
 
     @Override

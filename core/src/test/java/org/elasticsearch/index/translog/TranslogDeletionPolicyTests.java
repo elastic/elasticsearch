@@ -43,18 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TranslogDeletionPolicyTests extends ESTestCase {
 
-    public static TranslogDeletionPolicy createTranslogDeletionPolicy() {
-        return new TranslogDeletionPolicy(
-            IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
-            IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getDefault(Settings.EMPTY).getMillis()
-        );
-    }
-
-    public static TranslogDeletionPolicy createTranslogDeletionPolicy(IndexSettings indexSettings) {
-        return new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
-            indexSettings.getTranslogRetentionAge().getMillis());
-    }
-
     public void testNoRetention() throws IOException {
         long now = System.currentTimeMillis();
         Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter = createReadersAndWriter(now);

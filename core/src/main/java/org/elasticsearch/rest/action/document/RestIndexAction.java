@@ -31,6 +31,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -63,8 +64,15 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
+            validateOpType(request.params().get("op_type"));
             request.params().put("op_type", "create");
             return RestIndexAction.this.prepareRequest(request, client);
+        }
+
+        void validateOpType(String opType) {
+            if (null != opType && false == "create".equals(opType.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("opType must be 'create', found: [" + opType + "]");
+            }
         }
     }
 

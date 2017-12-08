@@ -24,34 +24,19 @@ import org.elasticsearch.painless.Definition.Type;
 
 import java.util.Objects;
 
-import static org.elasticsearch.painless.Definition.BOOLEAN_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_TYPE;
-import static org.elasticsearch.painless.Definition.DEF_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.NUMBER_TYPE;
-import static org.elasticsearch.painless.Definition.OBJECT_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_TYPE;
-import static org.elasticsearch.painless.Definition.STRING_TYPE;
-
 /**
  * Used during the analysis phase to collect legal type casts and promotions
  * for type-checking and later to write necessary casts in the bytecode.
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
+    private Definition definition;
+
+    public AnalyzerCaster(Definition definition) {
+        this.definition = definition;
+    }
+
+    public Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
         Objects.requireNonNull(actual);
         Objects.requireNonNull(expected);
 
@@ -61,421 +46,421 @@ public final class AnalyzerCaster {
 
         if (actual.dynamic) {
             if (expected.clazz == boolean.class) {
-                return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
+                return new Cast(definition.DefType, definition.BooleanType, explicit, null, definition.booleanType, null, null);
             } else if (expected.clazz == byte.class) {
-                return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
+                return new Cast(definition.DefType, definition.ByteType, explicit, null, definition.byteType, null, null);
             } else if (expected.clazz == short.class) {
-                return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
+                return new Cast(definition.DefType, definition.ShortType, explicit, null, definition.shortType, null, null);
             } else if (expected.clazz == char.class) {
-                return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
+                return new Cast(definition.DefType, definition.CharacterType, explicit, null, definition.charType, null, null);
             } else if (expected.clazz == int.class) {
-                return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
+                return new Cast(definition.DefType, definition.IntegerType, explicit, null, definition.intType, null, null);
             } else if (expected.clazz == long.class) {
-                return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
+                return new Cast(definition.DefType, definition.LongType, explicit, null, definition.longType, null, null);
             } else if (expected.clazz == float.class) {
-                return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
+                return new Cast(definition.DefType, definition.FloatType, explicit, null, definition.floatType, null, null);
             } else if (expected.clazz == double.class) {
-                return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+                return new Cast(definition.DefType, definition.DoubleType, explicit, null, definition.doubleType, null, null);
             }
         } else if (actual.clazz == Object.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.ByteType, true, null, definition.byteType, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.ShortType, true, null, definition.shortType, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.CharacterType, true, null, definition.charType, null, null);
             } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.IntegerType, true, null, definition.intType, null, null);
             } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.LongType, true, null, definition.longType, null, null);
             } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.FloatType, true, null, definition.floatType, null, null);
             } else if (expected.clazz == double.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+                return new Cast(definition.ObjectType, definition.DoubleType, true, null, definition.doubleType, null, null);
             }
         } else if (actual.clazz == Number.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.ByteType, true, null, definition.byteType, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.ShortType, true, null, definition.shortType, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.CharacterType, true, null, definition.charType, null, null);
             } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.IntegerType, true, null, definition.intType, null, null);
             } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.LongType, true, null, definition.longType, null, null);
             } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.FloatType, true, null, definition.floatType, null, null);
             } else if (expected.clazz == double.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+                return new Cast(definition.NumberType, definition.DoubleType, true, null, definition.doubleType, null, null);
             }
         } else if (actual.clazz == String.class) {
             if (expected.clazz == char.class && explicit) {
-                return new Cast(STRING_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.StringType, definition.charType, true);
             }
         } else if (actual.clazz == boolean.class) {
             if (expected.dynamic) {
-                return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+                return new Cast(definition.BooleanType, definition.DefType, explicit, null, null, definition.booleanType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+                return new Cast(definition.BooleanType, definition.ObjectType, explicit, null, null, definition.booleanType, null);
             } else if (expected.clazz == Boolean.class && internal) {
-                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, null, null, null, BOOLEAN_TYPE);
+                return new Cast(definition.booleanType, definition.booleanType, explicit, null, null, null, definition.booleanType);
             }
         } else if (actual.clazz == byte.class) {
             if (expected.dynamic) {
-                return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
+                return new Cast(definition.ByteType, definition.DefType, explicit, null, null, definition.byteType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
+                return new Cast(definition.ByteType, definition.ObjectType, explicit, null, null, definition.byteType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
+                return new Cast(definition.ByteType, definition.NumberType, explicit, null, null, definition.byteType, null);
             } else if (expected.clazz == short.class) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit);
+                return new Cast(definition.byteType, definition.shortType, explicit);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.byteType, definition.charType, true);
             } else if (expected.clazz == int.class) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit);
+                return new Cast(definition.byteType, definition.intType, explicit);
             } else if (expected.clazz == long.class) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit);
+                return new Cast(definition.byteType, definition.longType, explicit);
             } else if (expected.clazz == float.class) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit);
+                return new Cast(definition.byteType, definition.floatType, explicit);
             } else if (expected.clazz == double.class) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.byteType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && internal) {
-                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, null, null, null, BYTE_TYPE);
+                return new Cast(definition.byteType, definition.byteType, explicit, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && internal) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+                return new Cast(definition.byteType, definition.shortType, explicit, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.byteType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+                return new Cast(definition.byteType, definition.intType, explicit, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && internal) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+                return new Cast(definition.byteType, definition.longType, explicit, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.byteType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.byteType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == short.class) {
             if (expected.dynamic) {
-                return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
+                return new Cast(definition.ShortType, definition.DefType, explicit, null, null, definition.shortType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
+                return new Cast(definition.ShortType, definition.ObjectType, explicit, null, null, definition.shortType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
+                return new Cast(definition.ShortType, definition.NumberType, explicit, null, null, definition.shortType, null);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.shortType, definition.byteType, true);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.shortType, definition.charType, true);
             } else if (expected.clazz == int.class) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit);
+                return new Cast(definition.shortType, definition.intType, explicit);
             } else if (expected.clazz == long.class) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit);
+                return new Cast(definition.shortType, definition.longType, explicit);
             } else if (expected.clazz == float.class) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit);
+                return new Cast(definition.shortType, definition.floatType, explicit);
             } else if (expected.clazz == double.class) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.shortType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.shortType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && internal) {
-                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+                return new Cast(definition.shortType, definition.shortType, explicit, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.shortType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+                return new Cast(definition.shortType, definition.intType, explicit, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && internal) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+                return new Cast(definition.shortType, definition.longType, explicit, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.shortType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.shortType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == char.class) {
             if (expected.dynamic) {
-                return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
+                return new Cast(definition.CharacterType, definition.DefType, explicit, null, null, definition.charType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
+                return new Cast(definition.CharacterType, definition.ObjectType, explicit, null, null, definition.charType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(CHAR_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, CHAR_TYPE, null);
+                return new Cast(definition.CharacterType, definition.NumberType, explicit, null, null, definition.charType, null);
             } else if (expected.clazz == String.class) {
-                return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
+                return new Cast(definition.charType, definition.StringType, explicit);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.charType, definition.byteType, true);
             } else if (expected.clazz == short.class && explicit) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, true);
+                return new Cast(definition.charType, definition.shortType, true);
             } else if (expected.clazz == int.class) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit);
+                return new Cast(definition.charType, definition.intType, explicit);
             } else if (expected.clazz == long.class) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit);
+                return new Cast(definition.charType, definition.longType, explicit);
             } else if (expected.clazz == float.class) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit);
+                return new Cast(definition.charType, definition.floatType, explicit);
             } else if (expected.clazz == double.class) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.charType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.charType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && internal) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+                return new Cast(definition.charType, definition.shortType, explicit, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && internal) {
-                return new Cast(CHAR_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.charType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+                return new Cast(definition.charType, definition.intType, explicit, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && internal) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+                return new Cast(definition.charType, definition.longType, explicit, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.charType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.charType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == int.class) {
             if (expected.dynamic) {
-                return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
+                return new Cast(definition.IntegerType, definition.DefType, explicit, null, null, definition.intType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
+                return new Cast(definition.IntegerType, definition.ObjectType, explicit, null, null, definition.intType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(INT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, INT_TYPE, null);
+                return new Cast(definition.IntegerType, definition.NumberType, explicit, null, null, definition.intType, null);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.intType, definition.byteType, true);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.intType, definition.charType, true);
             } else if (expected.clazz == short.class && explicit) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true);
+                return new Cast(definition.intType, definition.shortType, true);
             } else if (expected.clazz == long.class) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit);
+                return new Cast(definition.intType, definition.longType, explicit);
             } else if (expected.clazz == float.class) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit);
+                return new Cast(definition.intType, definition.floatType, explicit);
             } else if (expected.clazz == double.class) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.intType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.intType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+                return new Cast(definition.intType, definition.shortType, true, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.intType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(INT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+                return new Cast(definition.intType, definition.intType, explicit, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && internal) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+                return new Cast(definition.intType, definition.longType, explicit, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.intType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.intType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == long.class) {
             if (expected.dynamic) {
-                return new Cast(LONG_OBJ_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
+                return new Cast(definition.LongType, definition.DefType, explicit, null, null, definition.longType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(LONG_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, LONG_TYPE, null);
+                return new Cast(definition.LongType, definition.ObjectType, explicit, null, null, definition.longType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(LONG_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, LONG_TYPE, null);
+                return new Cast(definition.LongType, definition.NumberType, explicit, null, null, definition.longType, null);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.longType, definition.byteType, true);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.longType, definition.charType, true);
             } else if (expected.clazz == short.class && explicit) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true);
+                return new Cast(definition.longType, definition.shortType, true);
             } else if (expected.clazz == int.class && explicit) {
-                return new Cast(LONG_TYPE, INT_TYPE, true);
+                return new Cast(definition.longType, definition.intType, true);
             } else if (expected.clazz == float.class) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit);
+                return new Cast(definition.longType, definition.floatType, explicit);
             } else if (expected.clazz == double.class) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.longType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.longType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+                return new Cast(definition.longType, definition.shortType, true, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.longType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(LONG_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+                return new Cast(definition.longType, definition.intType, true, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && internal) {
-                return new Cast(LONG_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+                return new Cast(definition.longType, definition.longType, explicit, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.longType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.longType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == float.class) {
             if (expected.dynamic) {
-                return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                return new Cast(definition.FloatType, definition.DefType, explicit, null, null, definition.floatType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                return new Cast(definition.FloatType, definition.ObjectType, explicit, null, null, definition.floatType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                return new Cast(definition.FloatType, definition.NumberType, explicit, null, null, definition.floatType, null);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.floatType, definition.byteType, true);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.floatType, definition.charType, true);
             } else if (expected.clazz == short.class && explicit) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true);
+                return new Cast(definition.floatType, definition.shortType, true);
             } else if (expected.clazz == int.class && explicit) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true);
+                return new Cast(definition.floatType, definition.intType, true);
             } else if (expected.clazz == long.class && explicit) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true);
+                return new Cast(definition.floatType, definition.longType, true);
             } else if (expected.clazz == double.class) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit);
+                return new Cast(definition.floatType, definition.doubleType, explicit);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.floatType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+                return new Cast(definition.floatType, definition.shortType, true, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.floatType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+                return new Cast(definition.floatType, definition.intType, true, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
+                return new Cast(definition.floatType, definition.longType, true, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && internal) {
-                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.floatType, definition.floatType, explicit, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.floatType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == double.class) {
             if (expected.dynamic) {
-                return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                return new Cast(definition.DoubleType, definition.DefType, explicit, null, null, definition.doubleType, null);
             } else if (expected.clazz == Object.class && internal) {
-                return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                return new Cast(definition.DoubleType, definition.ObjectType, explicit, null, null, definition.doubleType, null);
             } else if (expected.clazz == Number.class && internal) {
-                return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                return new Cast(definition.DoubleType, definition.NumberType, explicit, null, null, definition.doubleType, null);
             } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true);
+                return new Cast(definition.doubleType, definition.byteType, true);
             } else if (expected.clazz == char.class && explicit) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true);
+                return new Cast(definition.doubleType, definition.charType, true);
             } else if (expected.clazz == short.class && explicit) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true);
+                return new Cast(definition.doubleType, definition.shortType, true);
             } else if (expected.clazz == int.class && explicit) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true);
+                return new Cast(definition.doubleType, definition.intType, true);
             } else if (expected.clazz == long.class && explicit) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true);
+                return new Cast(definition.doubleType, definition.longType, true);
             } else if (expected.clazz == float.class && explicit) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true);
+                return new Cast(definition.doubleType, definition.floatType, true);
             } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+                return new Cast(definition.doubleType, definition.byteType, true, null, null, null, definition.byteType);
             } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+                return new Cast(definition.doubleType, definition.shortType, true, null, null, null, definition.shortType);
             } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+                return new Cast(definition.doubleType, definition.charType, true, null, null, null, definition.charType);
             } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+                return new Cast(definition.doubleType, definition.intType, true, null, null, null, definition.intType);
             } else if (expected.clazz == Long.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
+                return new Cast(definition.doubleType, definition.longType, true, null, null, null, definition.longType);
             } else if (expected.clazz == Float.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
+                return new Cast(definition.doubleType, definition.floatType, true, null, null, null, definition.floatType);
             } else if (expected.clazz == Double.class && internal) {
-                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+                return new Cast(definition.doubleType, definition.doubleType, explicit, null, null, null, definition.doubleType);
             }
         } else if (actual.clazz == Boolean.class) {
             if (expected.clazz == boolean.class && internal) {
-                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, BOOLEAN_TYPE, null, null, null);
+                return new Cast(definition.booleanType, definition.booleanType, explicit, definition.booleanType, null, null, null);
             }
         } else if (actual.clazz == Byte.class) {
             if (expected.clazz == byte.class && internal) {
-                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.byteType, explicit, definition.byteType, null, null, null);
             } else if (expected.clazz == short.class && internal) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.shortType, explicit, definition.byteType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.charType, true, definition.byteType, null, null, null);
             } else if (expected.clazz == int.class && internal) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.intType, explicit, definition.byteType, null, null, null);
             } else if (expected.clazz == long.class && internal) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.longType, explicit, definition.byteType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.floatType, explicit, definition.byteType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, BYTE_TYPE, null, null, null);
+                return new Cast(definition.byteType, definition.doubleType, explicit, definition.byteType, null, null, null);
             }
         } else if (actual.clazz == Short.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.byteType, true, definition.shortType, null, null, null);
             } else if (expected.clazz == short.class && internal) {
-                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.shortType, explicit, definition.shortType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.charType, true, definition.shortType, null, null, null);
             } else if (expected.clazz == int.class && internal) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.intType, explicit, definition.shortType, null, null, null);
             } else if (expected.clazz == long.class && internal) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.longType, explicit, definition.shortType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.floatType, explicit, definition.shortType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, SHORT_TYPE, null, null, null);
+                return new Cast(definition.shortType, definition.doubleType, explicit, definition.shortType, null, null, null);
             }
         } else if (actual.clazz == Character.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.byteType, true, definition.charType, null, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, true, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.shortType, true, definition.charType, null, null, null);
             } else if (expected.clazz == char.class && internal) {
-                return new Cast(CHAR_TYPE, CHAR_TYPE, explicit, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.charType, explicit, definition.charType, null, null, null);
             } else if (expected.clazz == int.class && internal) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.intType, explicit, definition.charType, null, null, null);
             } else if (expected.clazz == long.class && internal) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.longType, explicit, definition.charType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.floatType, explicit, definition.charType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, CHAR_TYPE, null, null, null);
+                return new Cast(definition.charType, definition.doubleType, explicit, definition.charType, null, null, null);
             }
         } else if (actual.clazz == Integer.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.byteType, true, definition.intType, null, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.shortType, true, definition.intType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.charType, true, definition.intType, null, null, null);
             } else if (expected.clazz == int.class && internal) {
-                return new Cast(INT_TYPE, INT_TYPE, explicit, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.intType, explicit, definition.intType, null, null, null);
             } else if (expected.clazz == long.class && internal) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.longType, explicit, definition.intType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.floatType, explicit, definition.intType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, INT_TYPE, null, null, null);
+                return new Cast(definition.intType, definition.doubleType, explicit, definition.intType, null, null, null);
             }
         } else if (actual.clazz == Long.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.byteType, true, definition.longType, null, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.shortType, true, definition.longType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.charType, true, definition.longType, null, null, null);
             } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(LONG_TYPE, INT_TYPE, true, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.intType, true, definition.longType, null, null, null);
             } else if (expected.clazz == long.class && internal) {
-                return new Cast(LONG_TYPE, LONG_TYPE, explicit, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.longType, explicit, definition.longType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.floatType, explicit, definition.longType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, LONG_TYPE, null, null, null);
+                return new Cast(definition.longType, definition.doubleType, explicit, definition.longType, null, null, null);
             }
         } else if (actual.clazz == Float.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.byteType, true, definition.floatType, null, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.shortType, true, definition.floatType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.charType, true, definition.floatType, null, null, null);
             } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.intType, true, definition.floatType, null, null, null);
             } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.longType, true, definition.floatType, null, null, null);
             } else if (expected.clazz == float.class && internal) {
-                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.floatType, explicit, definition.floatType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, FLOAT_TYPE, null, null, null);
+                return new Cast(definition.floatType, definition.doubleType, explicit, definition.floatType, null, null, null);
             }
         } else if (actual.clazz == Double.class) {
             if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.byteType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.shortType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.charType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.intType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.longType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.floatType, true, definition.doubleType, null, null, null);
             } else if (expected.clazz == double.class && internal) {
-                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, DOUBLE_TYPE, null, null, null);
+                return new Cast(definition.doubleType, definition.doubleType, explicit, definition.doubleType, null, null, null);
             }
         }
 
@@ -489,7 +474,7 @@ public final class AnalyzerCaster {
         }
     }
 
-    public static Object constCast(Location location, final Object constant, final Cast cast) {
+    public Object constCast(Location location, final Object constant, final Cast cast) {
         Class<?> fsort = cast.from.clazz;
         Class<?> tsort = cast.to.clazz;
 
@@ -525,98 +510,98 @@ public final class AnalyzerCaster {
         }
     }
 
-    public static Type promoteNumeric(Type from, boolean decimal) {
+    public Type promoteNumeric(Type from, boolean decimal) {
         Class<?> sort = from.clazz;
 
         if (from.dynamic) {
-            return DEF_TYPE;
+            return definition.DefType;
         } else if ((sort == double.class) && decimal) {
-            return DOUBLE_TYPE;
+            return definition.doubleType;
         } else if ((sort == float.class) && decimal) {
-            return  FLOAT_TYPE;
+            return  definition.floatType;
         } else if (sort == long.class) {
-            return LONG_TYPE;
+            return definition.longType;
         } else if (sort == int.class || sort == char.class || sort == short.class || sort == byte.class) {
-            return INT_TYPE;
+            return definition.intType;
         }
 
         return null;
     }
 
-    public static Type promoteNumeric(Type from0, Type from1, boolean decimal) {
+    public Type promoteNumeric(Type from0, Type from1, boolean decimal) {
         Class<?> sort0 = from0.clazz;
         Class<?> sort1 = from1.clazz;
 
         if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+            return definition.DefType;
         }
 
         if (decimal) {
             if (sort0 == double.class || sort1 == double.class) {
-                return DOUBLE_TYPE;
+                return definition.doubleType;
             } else if (sort0 == float.class || sort1 == float.class) {
-                return FLOAT_TYPE;
+                return definition.floatType;
             }
         }
 
         if (sort0 == long.class || sort1 == long.class) {
-            return LONG_TYPE;
+            return definition.longType;
         } else if (sort0 == int.class   || sort1 == int.class   ||
                    sort0 == char.class  || sort1 == char.class  ||
                    sort0 == short.class || sort1 == short.class ||
                    sort0 == byte.class  || sort1 == byte.class) {
-            return INT_TYPE;
+            return definition.intType;
         }
 
         return null;
     }
 
-    public static Type promoteAdd(Type from0, Type from1) {
+    public Type promoteAdd(Type from0, Type from1) {
         Class<?> sort0 = from0.clazz;
         Class<?> sort1 = from1.clazz;
 
         if (sort0 == String.class || sort1 == String.class) {
-            return STRING_TYPE;
+            return definition.StringType;
         }
 
         return promoteNumeric(from0, from1, true);
     }
 
-    public static Type promoteXor(Type from0, Type from1) {
+    public Type promoteXor(Type from0, Type from1) {
         Class<?> sort0 = from0.clazz;
         Class<?> sort1 = from1.clazz;
 
         if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+            return definition.DefType;
         }
 
         if (sort0 == boolean.class || sort1 == boolean.class) {
-            return BOOLEAN_TYPE;
+            return definition.booleanType;
         }
 
         return promoteNumeric(from0, from1, false);
     }
 
-    public static Type promoteEquality(Type from0, Type from1) {
+    public Type promoteEquality(Type from0, Type from1) {
         Class<?> sort0 = from0.clazz;
         Class<?> sort1 = from1.clazz;
 
         if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+            return definition.DefType;
         }
 
         if (sort0.isPrimitive() && sort1.isPrimitive()) {
             if (sort0 == boolean.class && sort1 == boolean.class) {
-                return BOOLEAN_TYPE;
+                return definition.booleanType;
             }
 
             return promoteNumeric(from0, from1, true);
         }
 
-        return OBJECT_TYPE;
+        return definition.ObjectType;
     }
 
-    public static Type promoteConditional(Type from0, Type from1, Object const0, Object const1) {
+    public Type promoteConditional(Type from0, Type from1, Object const0, Object const1) {
         if (from0.equals(from1)) {
             return from0;
         }
@@ -625,46 +610,46 @@ public final class AnalyzerCaster {
         Class<?> sort1 = from1.clazz;
 
         if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+            return definition.DefType;
         }
 
         if (sort0.isPrimitive() && sort1.isPrimitive()) {
             if (sort0 == boolean.class && sort1 == boolean.class) {
-                return BOOLEAN_TYPE;
+                return definition.booleanType;
             }
 
             if (sort0 == double.class || sort1 == double.class) {
-                return DOUBLE_TYPE;
+                return definition.doubleType;
             } else if (sort0 == float.class || sort1 == float.class) {
-                return FLOAT_TYPE;
+                return definition.floatType;
             } else if (sort0 == long.class || sort1 == long.class) {
-                return LONG_TYPE;
+                return definition.longType;
             } else {
                 if (sort0 == byte.class) {
                     if (sort1 == byte.class) {
-                        return BYTE_TYPE;
+                        return definition.byteType;
                     } else if (sort1 == short.class) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return SHORT_TYPE;
+                        return definition.shortType;
                     } else if (sort1 == char.class) {
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     }
                 } else if (sort0 == short.class) {
                     if (sort1 == byte.class) {
@@ -672,43 +657,43 @@ public final class AnalyzerCaster {
                             final short constant = (short)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return SHORT_TYPE;
+                        return definition.shortType;
                     } else if (sort1 == short.class) {
-                        return SHORT_TYPE;
+                        return definition.shortType;
                     } else if (sort1 == char.class) {
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return SHORT_TYPE;
+                                return definition.shortType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     }
                 } else if (sort0 == char.class) {
                     if (sort1 == byte.class) {
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == short.class) {
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == char.class) {
-                        return CHAR_TYPE;
+                        return definition.charType;
                     } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     }
                 } else if (sort0 == int.class) {
                     if (sort1 == byte.class) {
@@ -716,33 +701,33 @@ public final class AnalyzerCaster {
                             final int constant = (int)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == short.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == char.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return definition.byteType;
                             }
                         }
 
-                        return INT_TYPE;
+                        return definition.intType;
                     } else if (sort1 == int.class) {
-                        return INT_TYPE;
+                        return definition.intType;
                     }
                 }
             }
@@ -752,8 +737,6 @@ public final class AnalyzerCaster {
         // TODO: to calculate the highest upper bound for the two types and return that.
         // TODO: However, for now we just return objectType that may require an extra cast.
 
-        return OBJECT_TYPE;
+        return definition.ObjectType;
     }
-
-    private AnalyzerCaster() {}
 }

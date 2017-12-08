@@ -26,13 +26,13 @@ public class MultiCommandTests extends CommandTestCase {
 
     static class DummyMultiCommand extends MultiCommand {
         DummyMultiCommand() {
-            super("A dummy multi command");
+            super("A dummy multi command", () -> {});
         }
     }
 
     static class DummySubCommand extends Command {
         DummySubCommand() {
-            super("A dummy subcommand");
+            super("A dummy subcommand", () -> {});
         }
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {

@@ -98,8 +98,8 @@ parameter in the same way as the search api.
 So far we've only been updating documents without changing their source. That
 is genuinely useful for things like
 <<picking-up-a-new-property,picking up new properties>> but it's only half the
-fun. `_update_by_query` supports a `script` object to update the document. This
-will increment the `likes` field on all of kimchy's tweets:
+fun. `_update_by_query` <<modules-scripting-using,supports scripts>> to update
+the document. This will increment the `likes` field on all of kimchy's tweets:
 
 [source,js]
 --------------------------------------------------

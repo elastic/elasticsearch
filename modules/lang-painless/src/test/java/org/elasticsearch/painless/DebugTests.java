@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final Definition definition = Definition.BUILTINS;
+    private final Definition definition = Definition.DEFINITION;
 
     public void testExplain() {
         // Debug.explain can explain an object

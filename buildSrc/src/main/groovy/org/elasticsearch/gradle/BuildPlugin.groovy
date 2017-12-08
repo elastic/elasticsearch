@@ -123,9 +123,11 @@ class BuildPlugin implements Plugin<Project> {
             }
             println "  Random Testing Seed   : ${project.testSeed}"
 
-            // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('3.3')
-            if (GradleVersion.current() < minGradle) {
+            // enforce Gradle version
+            final GradleVersion currentGradleVersion = GradleVersion.current();
+
+            final GradleVersion minGradle = GradleVersion.version('3.3')
+            if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
 
@@ -231,7 +233,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
     private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
-        return "_transitive_${groupId}:${artifactId}:${version}"
+        return "_transitive_${groupId}_${artifactId}_${version}"
     }
 
     /**

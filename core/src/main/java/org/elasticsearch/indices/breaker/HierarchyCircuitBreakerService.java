@@ -63,6 +63,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.NodeScope);
+    public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.NodeScope);
+    public static final Setting<CircuitBreaker.Type> ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING =
+        new Setting<>("indices.breaker.accounting.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+
     public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("network.breaker.inflight_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
@@ -74,6 +81,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings inFlightRequestsSettings;
     private volatile BreakerSettings requestSettings;
+    private volatile BreakerSettings accountingSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
@@ -98,6 +106,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
         );
 
+        this.accountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING,
+                ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+        );
+
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
                 CircuitBreaker.Type.PARENT);
@@ -109,6 +123,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
         registerBreaker(this.inFlightRequestsSettings);
+        registerBreaker(this.accountingSettings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);

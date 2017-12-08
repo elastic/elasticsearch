@@ -77,6 +77,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -287,7 +288,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState();
+        checkStaticState(false);
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -340,7 +341,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escape(msg)));
+                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
@@ -393,8 +394,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    protected static void checkStaticState(boolean afterClass) throws Exception {
+        if (afterClass) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
+        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
@@ -765,8 +768,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         return terminated;
     }
 
-    public static boolean terminate(ThreadPool service) throws InterruptedException {
-        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+    public static boolean terminate(ThreadPool threadPool) throws InterruptedException {
+        return ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     /**
@@ -811,7 +814,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new NodeEnvironment(build, new Environment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     /** Return consistent index settings for the provided index version. */
@@ -1205,7 +1208,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings,
                                                   AnalysisPlugin... analysisPlugins) throws IOException {
-        Environment env = new Environment(nodeSettings);
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(analysisRegistry.build(indexSettings),

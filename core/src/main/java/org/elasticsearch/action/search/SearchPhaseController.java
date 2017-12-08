@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -73,13 +74,16 @@ public final class SearchPhaseController extends AbstractComponent {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BigArrays bigArrays;
-    private final ScriptService scriptService;
+    private final Function<Boolean, ReduceContext> reduceContextFunction;
 
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+    /**
+     * Constructor.
+     * @param settings Node settings
+     * @param reduceContextFunction A function that builds a context for the reduce of an {@link InternalAggregation}
+     */
+    public SearchPhaseController(Settings settings, Function<Boolean, ReduceContext> reduceContextFunction) {
         super(settings);
-        this.bigArrays = bigArrays;
-        this.scriptService = scriptService;
+        this.reduceContextFunction = reduceContextFunction;
     }
 
     public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
@@ -496,7 +500,7 @@ public final class SearchPhaseController extends AbstractComponent {
             }
         }
         final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, true);
+        ReduceContext reduceContext = reduceContextFunction.apply(true);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
@@ -513,7 +517,7 @@ public final class SearchPhaseController extends AbstractComponent {
      * that relevant for the final reduce step. For final reduce see {@link #reduceAggs(List, List, ReduceContext)}
      */
     private InternalAggregations reduceAggsIncrementally(List<InternalAggregations> aggregationsList) {
-        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, false);
+        ReduceContext reduceContext = reduceContextFunction.apply(false);
         return aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             null, reduceContext);
     }

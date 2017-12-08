@@ -33,8 +33,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -87,10 +89,23 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
+    protected void asyncShardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener) throws IOException {
+        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        indexShard.awaitShardSearchActive(b -> {
+            try {
+                super.asyncShardOperation(request, shardId, listener);
+            } catch (Exception ex) {
+                listener.onFailure(ex);
+            }
+        });
+    }
+
+    @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
             new String[]{request.type()}, request.nowInMillis, request.filteringAlias());
-        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
+        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
             Term uidTerm = context.mapperService().createUidTerm(request.type(), request.id());

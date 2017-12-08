@@ -25,7 +25,7 @@ documented individually.
 
 By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>> and
 <<modules-transport,transport (internal)>> communication. This is fine for
-downloading and playing with Elasticsearch, and everyday development but it's
+downloading and playing with Elasticsearch as well as everyday development, but it's
 useless for production systems. To join a cluster, an Elasticsearch node must be
 reachable via transport communication. To join a cluster over an external
 network interface, a node must bind transport to an external interface and not
@@ -227,3 +227,9 @@ have issues that can lead to index corruption when the G1GC collector is
 enabled.  The versions impacted are those earlier than the version of
 HotSpot that shipped with JDK 8u40. The G1GC check detects these early
 versions of the HotSpot JVM.
+
+=== All permission check
+
+The all permission check ensures that the security policy used during bootstrap
+does not grant the `java.security.AllPermission` to Elasticsearch. Running with
+the all permission granted is equivalent to disabling the security manager.

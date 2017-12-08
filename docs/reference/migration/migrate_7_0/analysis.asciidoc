@@ -1,0 +1,15 @@
+[[breaking_70_analysis_changes]]
+=== Analysis changes
+
+==== The `delimited_payload_filter` is renamed
+
+The `delimited_payload_filter` is renamed to `delimited_payload`, the old name is 
+deprecated and will be removed at some point, so it should be replaced by 
+`delimited_payload`.
+
+
+==== Limiting the number of tokens produced by _analyze
+
+To safeguard against out of memory errors, the number of tokens that can be produced
+using the `_analyze` endpoint has been limited to 10000. This default limit can be changed
+for a particular index with the index setting `index.analyze.max_token_count`.

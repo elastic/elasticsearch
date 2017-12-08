@@ -22,13 +22,17 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -275,6 +279,15 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (omitNorms()) {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            } else {
+                return new NormsFieldExistsQuery(name());
+            }
+        }
+
+        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;
@@ -332,6 +345,9 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
+            if (fieldType().omitNorms()) {
+                createFieldNamesField(context, fields);
+            }
         }
     }
 

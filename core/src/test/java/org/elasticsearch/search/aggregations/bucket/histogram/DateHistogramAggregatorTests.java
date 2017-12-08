@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.io.IOException;
@@ -38,6 +39,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 
 public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -335,28 +338,82 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testMaxBucket() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        List<String> timestamps = Arrays.asList(
+            "2010-01-01T00:00:00.000Z",
+            "2011-01-01T00:00:00.000Z",
+            "2017-01-01T00:00:00.000Z"
+        );
+
+        TooManyBucketsException exc = expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            histogram -> {}, 2));
+
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
+            histogram -> {}, 2));
+
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
+            histogram -> {}, 100));
+
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+            aggregation ->
+                aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5))
+                    .field(DATE_FIELD)
+                    .subAggregation(
+                        AggregationBuilders.dateHistogram("1")
+                            .dateHistogramInterval(DateHistogramInterval.seconds(5))
+                            .field(DATE_FIELD)
+                    ),
+            histogram -> {}, 5));
+    }
+
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<DateHistogramAggregationBuilder> configure,
                                 Consumer<Histogram> verify) throws IOException {
-        executeTestCase(false, query, dataset, configure, verify);
+        testSearchCase(query, dataset, configure, verify, 10000);
+    }
+
+    private void testSearchCase(Query query, List<String> dataset,
+                                Consumer<DateHistogramAggregationBuilder> configure,
+                                Consumer<Histogram> verify,
+                                int maxBucket) throws IOException {
+        executeTestCase(false, query, dataset, configure, verify, maxBucket);
     }
 
     private void testSearchAndReduceCase(Query query, List<String> dataset,
                                          Consumer<DateHistogramAggregationBuilder> configure,
                                          Consumer<Histogram> verify) throws IOException {
-        executeTestCase(true, query, dataset, configure, verify);
+        testSearchAndReduceCase(query, dataset, configure, verify, 1000);
+    }
+
+    private void testSearchAndReduceCase(Query query, List<String> dataset,
+                                         Consumer<DateHistogramAggregationBuilder> configure,
+                                         Consumer<Histogram> verify,
+                                         int maxBucket) throws IOException {
+        executeTestCase(true, query, dataset, configure, verify, maxBucket);
     }
 
     private void testBothCases(Query query, List<String> dataset,
                                Consumer<DateHistogramAggregationBuilder> configure,
                                Consumer<Histogram> verify) throws IOException {
-        testSearchCase(query, dataset, configure, verify);
-        testSearchAndReduceCase(query, dataset, configure, verify);
+        testBothCases(query, dataset, configure, verify, 10000);
+    }
+
+    private void testBothCases(Query query, List<String> dataset,
+                               Consumer<DateHistogramAggregationBuilder> configure,
+                               Consumer<Histogram> verify,
+                               int maxBucket) throws IOException {
+        testSearchCase(query, dataset, configure, verify, maxBucket);
+        testSearchAndReduceCase(query, dataset, configure, verify, maxBucket);
     }
 
     private void executeTestCase(boolean reduced, Query query, List<String> dataset,
                                  Consumer<DateHistogramAggregationBuilder> configure,
-                                 Consumer<Histogram> verify) throws IOException {
+                                 Consumer<Histogram> verify,
+                                 int maxBucket) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -389,9 +446,9 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
                 InternalDateHistogram histogram;
                 if (reduced) {
-                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
                 } else {
-                    histogram = search(indexSearcher, query, aggregationBuilder, fieldType);
+                    histogram = search(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
                 }
                 verify.accept(histogram);
             }

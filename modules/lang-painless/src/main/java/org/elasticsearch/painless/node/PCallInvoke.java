@@ -73,7 +73,7 @@ public final class PCallInvoke extends AExpression {
         Struct struct = prefix.actual.struct;
 
         if (prefix.actual.clazz.isPrimitive()) {
-            struct = Definition.getBoxedType(prefix.actual).struct;
+            struct = locals.getDefinition().getBoxedType(prefix.actual).struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());

@@ -28,17 +28,21 @@ import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -54,6 +58,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -288,6 +293,15 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
@@ -341,7 +355,8 @@ public class RangeFieldMapper extends FieldMapper {
             range = context.parseExternalValue(Range.class);
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            final XContentParser.Token start = parser.currentToken();
+            if (start == XContentParser.Token.START_OBJECT) {
                 RangeFieldType fieldType = fieldType();
                 RangeType rangeType = fieldType.rangeType;
                 String fieldName = null;
@@ -381,6 +396,8 @@ public class RangeFieldMapper extends FieldMapper {
                     }
                 }
                 range = new Range(rangeType, from, to, includeFrom, includeTo);
+            } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+                range = parseIpRangeFromCidr(parser);
             } else {
                 throw new MapperParsingException("error parsing field ["
                     + name() + "], expected an object but got " + parser.currentName());
@@ -390,6 +407,9 @@ public class RangeFieldMapper extends FieldMapper {
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
         fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+        if (docValued == false && (indexed || stored)) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override
@@ -417,6 +437,23 @@ public class RangeFieldMapper extends FieldMapper {
         }
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
+        }
+    }
+
+    private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {
+        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(parser.text());
+        // create the lower value by zeroing out the host portion, upper value by filling it with all ones.
+        byte[] lower = cidr.v1().getAddress();
+        byte[] upper = lower.clone();
+        for (int i = cidr.v2(); i < 8 * lower.length; i++) {
+            int m = 1 << 7 - (i & 7);
+            lower[i >> 3] &= ~m;
+            upper[i >> 3] |= m;
+        }
+        try {
+            return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
+        } catch (UnknownHostException bogus) {
+            throw new AssertionError(bogus);
         }
     }
 

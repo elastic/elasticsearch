@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -100,7 +101,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         mSearchResponses.add(new MultiSearchResponse.Item(response, null));
                     }
 
-                    listener.onResponse(new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0])));
+                    listener.onResponse(
+                            new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000)));
                 }
             };
 
@@ -152,10 +154,11 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
                     null, null, null, false, null, 1);
                 SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
-                listener.onResponse(new MultiSearchResponse(new MultiSearchResponse.Item[]{
-                    new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                    new MultiSearchResponse.Item(response, null)
-                }));
+                listener.onResponse(new MultiSearchResponse(
+                    new MultiSearchResponse.Item[]{
+                            new MultiSearchResponse.Item(null, new RuntimeException("boom")),
+                            new MultiSearchResponse.Item(response, null)
+                    }, randomIntBetween(1, 10000)));
             }
         };
 
@@ -225,6 +228,45 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+
+        SearchHits hits = new SearchHits(new SearchHit[0], 1, 1.0f);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
+        AtomicReference<SearchResponse> reference = new AtomicReference<>();
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, r ->
+            new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                }
+            }
+        );
+        phase.run();
+        mockSearchPhaseContext.assertNoFailure();
+        assertNotNull(reference.get());
+        assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
+    }
+
+    public void testExpandRequestOptions() throws IOException {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                final QueryBuilder postFilter = QueryBuilders.existsQuery("foo");
+                assertTrue(request.requests().stream().allMatch((r) -> "foo".equals(r.preference())));
+                assertTrue(request.requests().stream().allMatch((r) -> "baz".equals(r.routing())));
+                assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
+            }
+        };
+        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
+            .collapse(
+                new CollapseBuilder("someField")
+                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz"))
+            )
+            .postFilter(QueryBuilders.existsQuery("foo")))
+            .preference("foobar")
+            .routing("baz");
 
         SearchHits hits = new SearchHits(new SearchHit[0], 1, 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);

@@ -451,19 +451,22 @@ public class IndexSettingsTests extends ESTestCase {
 
         {
             // validation should fail since we are not ignoring private settings
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings));
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean()));
             assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
         }
 
         {
             // validation should fail since we are not ignoring private settings
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings, false, randomBoolean()));
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean()));
             assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
         }
 
         // nothing should happen since we are ignoring private settings
-        indexScopedSettings.validate(settings, true, randomBoolean());
+        indexScopedSettings.validate(settings, randomBoolean(), true, randomBoolean());
     }
 
     public void testArchivedSettingsValidation() {
@@ -473,19 +476,22 @@ public class IndexSettingsTests extends ESTestCase {
 
         {
             // validation should fail since we are not ignoring archived settings
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings));
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean()));
             assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
         }
 
         {
             // validation should fail since we are not ignoring archived settings
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings, randomBoolean(), false));
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), false));
             assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
         }
 
         // nothing should happen since we are ignoring archived settings
-        indexScopedSettings.validate(settings, randomBoolean(), true);
+        indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), true);
     }
 
     public void testArchiveBrokenIndexSettings() {
@@ -542,7 +548,7 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(index.isSingleType());
             expectThrows(IllegalArgumentException.class, () -> {
                 index.getScopedSettings()
-                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build());
+                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build(), false);
             });
         }
         {

@@ -21,15 +21,17 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -39,40 +41,39 @@ import static org.mockito.Mockito.when;
 
 public class TcpReadContextTests extends ESTestCase {
 
-    private static String PROFILE = "profile";
     private TcpReadHandler handler;
     private int messageLength;
-    private NioSocketChannel channel;
+    private TcpNioSocketChannel channel;
     private TcpReadContext readContext;
 
     @Before
-    public void init() throws IOException {
+    public void init() {
         handler = mock(TcpReadHandler.class);
 
         messageLength = randomInt(96) + 4;
-        channel = mock(NioSocketChannel.class);
-        readContext = new TcpReadContext(channel, handler);
-
-        when(channel.getProfile()).thenReturn(PROFILE);
+        channel = mock(TcpNioSocketChannel.class);
+        Supplier<InboundChannelBuffer.Page> pageSupplier = () ->
+            new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {});
+        readContext = new TcpReadContext(channel, handler, new InboundChannelBuffer(pageSupplier));
     }
 
     public void testSuccessfulRead() throws IOException {
         byte[] bytes = createMessage(messageLength);
         byte[] fullMessage = combineMessageAndHeader(bytes);
 
-        final AtomicInteger bufferCapacity = new AtomicInteger();
-        when(channel.read(any(NetworkBytesReference.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference reference = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ByteBuffer buffer = reference.getWriteByteBuffer();
-            bufferCapacity.set(reference.getWriteRemaining());
-            buffer.put(fullMessage);
-            reference.incrementWrite(fullMessage.length);
+        final AtomicLong bufferCapacity = new AtomicLong();
+        when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
+            ByteBuffer byteBuffer = buffer.sliceBuffersFrom(buffer.getIndex())[0];
+            bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
+            byteBuffer.put(fullMessage);
+            buffer.incrementIndex(fullMessage.length);
             return fullMessage.length;
         });
 
         readContext.read();
 
-        verify(handler).handleMessage(new BytesArray(bytes), channel, PROFILE, messageLength);
+        verify(handler).handleMessage(new BytesArray(bytes), channel, messageLength);
         assertEquals(1024 * 16, bufferCapacity.get());
 
         BytesArray bytesArray = new BytesArray(new byte[10]);
@@ -85,15 +86,15 @@ public class TcpReadContextTests extends ESTestCase {
         byte[] fullPart1 = combineMessageAndHeader(part1, messageLength + messageLength);
         byte[] part2 = createMessage(messageLength);
 
-        final AtomicInteger bufferCapacity = new AtomicInteger();
+        final AtomicLong bufferCapacity = new AtomicLong();
         final AtomicReference<byte[]> bytes = new AtomicReference<>();
 
-        when(channel.read(any(NetworkBytesReference.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference reference = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ByteBuffer buffer = reference.getWriteByteBuffer();
-            bufferCapacity.set(reference.getWriteRemaining());
-            buffer.put(bytes.get());
-            reference.incrementWrite(bytes.get().length);
+        when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
+            ByteBuffer byteBuffer = buffer.sliceBuffersFrom(buffer.getIndex())[0];
+            bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
+            byteBuffer.put(bytes.get());
+            buffer.incrementIndex(bytes.get().length);
             return bytes.get().length;
         });
 
@@ -110,7 +111,7 @@ public class TcpReadContextTests extends ESTestCase {
         assertEquals(1024 * 16 - fullPart1.length, bufferCapacity.get());
 
         CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(part1), new BytesArray(part2));
-        verify(handler).handleMessage(reference, channel, PROFILE, messageLength + messageLength);
+        verify(handler).handleMessage(reference, channel, messageLength + messageLength);
     }
 
     public void testReadThrowsIOException() throws IOException {
@@ -123,6 +124,15 @@ public class TcpReadContextTests extends ESTestCase {
         } catch (Exception ex) {
             assertSame(ioException, ex);
         }
+    }
+
+    public void closeClosesChannelBuffer() {
+        InboundChannelBuffer buffer = mock(InboundChannelBuffer.class);
+        TcpReadContext readContext = new TcpReadContext(channel, handler, buffer);
+
+        readContext.close();
+
+        verify(buffer).close();
     }
 
     private static byte[] combineMessageAndHeader(byte[] bytes) {
@@ -146,5 +156,4 @@ public class TcpReadContextTests extends ESTestCase {
         }
         return bytes;
     }
-
 }

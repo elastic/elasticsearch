@@ -210,3 +210,16 @@
       catch: missing
       indices.get_template:
         name: "my_template"
+
+---
+"Put index template without index_patterns":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  the error message is updated in v6.0.0
+
+  - do:
+      catch: /index patterns are missing/
+      indices.put_template:
+        name: test
+        body: {}

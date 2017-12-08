@@ -48,23 +48,23 @@ final class EConstant extends AExpression {
     @Override
     void analyze(Locals locals) {
         if (constant instanceof String) {
-            actual = Definition.STRING_TYPE;
+            actual = locals.getDefinition().StringType;
         } else if (constant instanceof Double) {
-            actual = Definition.DOUBLE_TYPE;
+            actual = locals.getDefinition().doubleType;
         } else if (constant instanceof Float) {
-            actual = Definition.FLOAT_TYPE;
+            actual = locals.getDefinition().floatType;
         } else if (constant instanceof Long) {
-            actual = Definition.LONG_TYPE;
+            actual = locals.getDefinition().longType;
         } else if (constant instanceof Integer) {
-            actual = Definition.INT_TYPE;
+            actual = locals.getDefinition().intType;
         } else if (constant instanceof Character) {
-            actual = Definition.CHAR_TYPE;
+            actual = locals.getDefinition().charType;
         } else if (constant instanceof Short) {
-            actual = Definition.SHORT_TYPE;
+            actual = locals.getDefinition().shortType;
         } else if (constant instanceof Byte) {
-            actual = Definition.BYTE_TYPE;
+            actual = locals.getDefinition().byteType;
         } else if (constant instanceof Boolean) {
-            actual = Definition.BOOLEAN_TYPE;
+            actual = locals.getDefinition().booleanType;
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

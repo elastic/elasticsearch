@@ -2,7 +2,7 @@
 === Date Histogram Aggregation
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
-only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
+only be applied on date values. Since dates are represented in Elasticsearch internally as long values, it is possible
 to use the normal `histogram` on dates as well, though accuracy will be compromised. The reason for this is in the fact
 that time based intervals are not fixed (think of leap years and on the number of days in a month). For this reason,
 we need special support for time based data. From a functionality perspective, this histogram supports the same features

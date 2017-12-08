@@ -298,7 +298,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened("test1", "test2");
     }
 
-    public void testOpenWaitingForActiveShardsFailed() {
+    public void testOpenWaitingForActiveShardsFailed() throws Exception {
         Client client = client();
         Settings settings = Settings.builder()
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -308,8 +308,10 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareClose("test").get());
 
         OpenIndexResponse response = client.admin().indices().prepareOpen("test").setTimeout("100ms").setWaitForActiveShards(2).get();
-        assertAcked(response);
         assertThat(response.isShardsAcknowledged(), equalTo(false));
+        assertBusy(() -> assertThat(client.admin().cluster().prepareState().get().getState().metaData().index("test").getState(),
+            equalTo(IndexMetaData.State.OPEN)));
+        ensureGreen("test");
     }
 
     private void assertIndexIsOpened(String... indices) {

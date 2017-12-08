@@ -274,7 +274,7 @@ Elasticsearch 8.x::
 
 Elasticsearch 9.x::
 
-* The `include_in_type` parameter is removed.
+* The `include_type_name` parameter is removed.
 
 [float]
 === Migrating multi-type indices to single-type

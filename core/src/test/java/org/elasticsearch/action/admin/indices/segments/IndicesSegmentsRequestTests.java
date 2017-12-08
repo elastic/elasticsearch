@@ -55,6 +55,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "type1", id).setSource("text", "sometext").get();
         }
         client().admin().indices().prepareFlush("test").get();
+        client().admin().indices().prepareRefresh().get();
     }
 
     public void testBasic() {

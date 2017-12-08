@@ -49,10 +49,7 @@ GET my_index/_search
 
 `lang`::
 
-    Specifies the language the script is written in.  Defaults to `painless` but
-    may be set to any of languages listed in <<modules-scripting>>. The
-    default language may be changed in the `elasticsearch.yml` config file by
-    setting `script.default_lang` to the appropriate language.
+    Specifies the language the script is written in.  Defaults to `painless`.
 
 
 `source`, `id`::
@@ -107,6 +104,30 @@ minute will be compiled. You can change this setting dynamically by setting
 `script.max_compilations_rate`.
 
 ========================================
+
+[float]
+[[modules-scripting-short-script-form]]
+=== Short Script Form
+A short script form can be used for brevity. In the short form, `script` is represented
+by a string instead of an object. This string contains the source of the script.
+
+Short form:
+
+[source,js]
+----------------------
+  "script": "ctx._source.likes++"
+----------------------
+// NOTCONSOLE
+
+The same script in the normal form:
+
+[source,js]
+----------------------
+  "script": {
+    "source": "ctx._source.likes++"
+  }
+----------------------
+// NOTCONSOLE
 
 [float]
 [[modules-scripting-stored-scripts]]

@@ -38,7 +38,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin {
 
     // force to parse our definition at startup (not on the user's first script)
     static {
-        Definition.VOID_TYPE.hashCode();
+        Definition.DEFINITION.hashCode();
     }
 
     @Override

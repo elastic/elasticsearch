@@ -5,7 +5,7 @@ A similarity (scoring / ranking model) defines how matching documents
 are scored. Similarity is per field, meaning that via the mapping one
 can define a different similarity per field.
 
-Configuring a custom similarity is considered a expert feature and the
+Configuring a custom similarity is considered an expert feature and the
 builtin similarities are most likely sufficient as is described in
 <<similarity>>.
 

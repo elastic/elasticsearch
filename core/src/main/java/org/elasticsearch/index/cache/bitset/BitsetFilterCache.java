@@ -249,7 +249,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
             }
 
             if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter());
+                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
             }
 
             final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());

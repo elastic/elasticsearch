@@ -593,10 +593,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
-        client().admin().indices().prepareFlush("test").get();
 
         client().prepareIndex("test", legacy() ? "type1" : "doc", "3").setSource("p_field", 1).get();
-        client().admin().indices().prepareFlush("test").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(boolQuery().must(matchAllQuery()).filter(hasChildQuery("child", matchAllQuery(), ScoreMode.None))).get();
@@ -881,8 +880,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         } else {
             client().prepareIndex("test", "doc", "3").setSource("p_field", 2).get();
         }
-        client().admin().indices().prepareFlush("test").get();
 
+        refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(boolQuery().must(matchAllQuery()).filter(hasChildQuery("child", termQuery("c_field", 1), ScoreMode.None)))
                 .get();
@@ -911,7 +910,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", "foo bar").get();
-        client().admin().indices().prepareFlush("test").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
                 hasChildQuery("child", matchQuery("c_field", "foo"), ScoreMode.None)

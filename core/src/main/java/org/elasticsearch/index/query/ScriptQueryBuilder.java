@@ -153,23 +153,17 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            // TODO: Do this if/when we can assume scripts are pure functions
-            // and they have a reliable equals impl
-            /*if (this == obj)
-                return true;
             if (sameClassAs(obj) == false)
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
-            return Objects.equals(script, other.script);*/
-            return this == obj;
+            return Objects.equals(script, other.script);
         }
 
         @Override
         public int hashCode() {
-            // TODO: Do this if/when we can assume scripts are pure functions
-            // and they have a reliable equals impl
-            // return Objects.hash(classHash(), script);
-            return System.identityHashCode(this);
+            int h = classHash();
+            h = 31 * h + script.hashCode();
+            return h;
         }
 
         @Override
@@ -195,6 +189,14 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                         }
                     };
                     return new ConstantScoreScorer(this, score(), twoPhase);
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    // TODO: Change this to true when we can assume that scripts are pure functions
+                    // ie. the return value is always the same given the same conditions and may not
+                    // depend on the current timestamp, other documents, etc.
+                    return false;
                 }
             };
         }

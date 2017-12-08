@@ -26,6 +26,9 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 public final class SnapshotMatchers {
@@ -50,8 +53,12 @@ public final class SnapshotMatchers {
     /**
      * Consumes a snapshot and make sure it's content is as expected
      */
-    public static Matcher<Translog.Snapshot> equalsTo(ArrayList<Translog.Operation> ops) {
+    public static Matcher<Translog.Snapshot> equalsTo(List<Translog.Operation> ops) {
         return new EqualMatcher(ops.toArray(new Translog.Operation[ops.size()]));
+    }
+
+    public static Matcher<Translog.Snapshot> containsOperationsInAnyOrder(Collection<Translog.Operation> expectedOperations) {
+        return new ContainingInAnyOrderMatcher(expectedOperations);
     }
 
     public static class SizeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
@@ -127,5 +134,60 @@ public final class SnapshotMatchers {
         }
     }
 
+    public static class ContainingInAnyOrderMatcher extends TypeSafeMatcher<Translog.Snapshot> {
+        private final Collection<Translog.Operation> expectedOps;
+        private List<Translog.Operation> notFoundOps;
+        private List<Translog.Operation> notExpectedOps;
 
+        static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
+            final List<Translog.Operation> actualOps = new ArrayList<>();
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                actualOps.add(op);
+            }
+            return actualOps;
+        }
+
+        public ContainingInAnyOrderMatcher(Collection<Translog.Operation> expectedOps) {
+            this.expectedOps = expectedOps;
+        }
+
+        @Override
+        protected boolean matchesSafely(Translog.Snapshot snapshot) {
+            try {
+                List<Translog.Operation> actualOps = drainAll(snapshot);
+                notFoundOps = expectedOps.stream()
+                    .filter(o -> actualOps.contains(o) == false)
+                    .collect(Collectors.toList());
+                notExpectedOps = actualOps.stream()
+                    .filter(o -> expectedOps.contains(o) == false)
+                    .collect(Collectors.toList());
+                return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to read snapshot content", ex);
+            }
+        }
+
+        @Override
+        protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+            if (notFoundOps.isEmpty() == false) {
+                mismatchDescription
+                    .appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
+            }
+            if (notExpectedOps.isEmpty() == false) {
+                if (notFoundOps.isEmpty() == false) {
+                    mismatchDescription.appendText("; ");
+                }
+                mismatchDescription
+                    .appendText("not expected ").appendValueList("[", ", ", "]", notExpectedOps);
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("snapshot contains ")
+                .appendValueList("[", ", ", "]", expectedOps)
+                .appendText(" in any order.");
+        }
+    }
 }

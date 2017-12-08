@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -86,6 +88,36 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+    }
+
+    /**
+     * Test that ignore_malformed on GeoShapeFieldMapper does not fail the entire document
+     */
+    public void testIgnoreMalformed() throws Exception {
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get());
+        ensureGreen();
+
+        // test self crossing ccw poly not crossing dateline
+        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray().value(176.0).value(15.0).endArray()
+            .startArray().value(-177.0).value(10.0).endArray()
+            .startArray().value(-177.0).value(-10.0).endArray()
+            .startArray().value(176.0).value(-15.0).endArray()
+            .startArray().value(-177.0).value(15.0).endArray()
+            .startArray().value(172.0).value(0.0).endArray()
+            .startArray().value(176.0).value(15.0).endArray()
+            .endArray()
+            .endArray()
+            .endObject().string();
+
+        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
+            polygonGeoJson));
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 
     private String findNodeName(String index) {

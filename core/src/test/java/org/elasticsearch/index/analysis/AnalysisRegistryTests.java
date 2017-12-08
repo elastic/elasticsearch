@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -56,8 +57,8 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
-        return new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap());
+        return new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
+                emptyMap(), emptyMap(), emptyMap());
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
@@ -157,8 +158,8 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return singletonMap("mock", MockFactory::new);
             }
         };
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(new Environment(settings), singletonList(plugin)).getAnalysisRegistry()
-                .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
+                singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
 
         // This shouldn't contain English stopwords
         try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_camel_case")) {

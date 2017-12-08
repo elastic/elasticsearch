@@ -30,7 +30,7 @@ influencers.
   By default, interim results are included.
 
 `influencer_score`::
-  (double) Returns influencers with anomaly scores higher than this value.
+  (double) Returns influencers with anomaly scores greater or equal than this value.
 
 `page`::
 `from`:::

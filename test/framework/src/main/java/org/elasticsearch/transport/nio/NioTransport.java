@@ -70,7 +70,7 @@ public class NioTransport extends TcpTransport {
 
     private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private final NioMachine nioMachine;
+    private final NioGroup nioGroup;
     private TcpChannelFactory clientChannelFactory;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
@@ -84,7 +84,7 @@ public class NioTransport extends TcpTransport {
             acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
         }
 
-        nioMachine = new NioMachine(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+        nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
             AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
             NioTransport.NIO_WORKER_COUNT.get(settings), this::getSocketEventHandler);
     }
@@ -92,13 +92,13 @@ public class NioTransport extends TcpTransport {
     @Override
     protected TcpNioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        return nioMachine.bindServerChannel(address, channelFactory);
+        return nioGroup.bindServerChannel(address, channelFactory);
     }
 
     @Override
     protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
-        TcpNioSocketChannel channel = nioMachine.openChannel(node.getAddress().address(), clientChannelFactory);
+        TcpNioSocketChannel channel = nioGroup.openChannel(node.getAddress().address(), clientChannelFactory);
         channel.addConnectListener(connectListener);
         return channel;
     }
@@ -110,7 +110,7 @@ public class NioTransport extends TcpTransport {
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new TcpChannelFactory(clientProfileSettings, getContextSetter("client"), getServerContextSetter());
 
-            nioMachine.start();
+            nioGroup.start();
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
@@ -135,7 +135,7 @@ public class NioTransport extends TcpTransport {
 
     @Override
     protected void stopInternal() {
-        nioMachine.stop();
+        nioGroup.stop();
         profileToChannelFactory.clear();
     }
 

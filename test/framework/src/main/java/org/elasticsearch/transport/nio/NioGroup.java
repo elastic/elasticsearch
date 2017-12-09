@@ -32,7 +32,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class NioMachine {
+public class NioGroup {
 
     private final Logger logger;
 
@@ -48,10 +48,10 @@ public class NioMachine {
     private final Function<Logger, SocketEventHandler> socketEventHandlerFunction;
     private RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
 
-    public NioMachine(Logger logger, ThreadFactory acceptorThreadFactory, int acceptorCount,
-                      BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
-                      ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
-                      Function<Logger, SocketEventHandler> socketEventHandlerFunction) {
+    public NioGroup(Logger logger, ThreadFactory acceptorThreadFactory, int acceptorCount,
+                    BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
+                    ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
+                    Function<Logger, SocketEventHandler> socketEventHandlerFunction) {
         this.logger = logger;
         this.acceptorThreadFactory = acceptorThreadFactory;
         this.acceptorEventHandlerFunction = acceptorEventHandlerFunction;

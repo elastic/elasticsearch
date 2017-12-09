@@ -2856,7 +2856,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // We need to wait for all ongoing merges to complete. The reason is that during a merge the
         // IndexWriter holds the core cache key open and causes the memory to be registered in the breaker
-        primary.forceMerge(new ForceMergeRequest());
+        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
 
         // Close remaining searchers
         IOUtils.close(searchers);

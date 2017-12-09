@@ -195,22 +195,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    protected volatile TransportService transportService;
-    // node id to actual channel
-    protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
+    private volatile TransportService transportService;
 
-    protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    // node id to actual channel
+    private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     private final Map<String, List<TcpChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    protected final KeyedLock<String> connectionLock = new KeyedLock<>();
+    private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
-    protected final ReadWriteLock closeLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     protected final boolean compress;
-    protected volatile BoundTransportAddress boundAddress;
+    private volatile BoundTransportAddress boundAddress;
     private final String transportName;
     protected final ConnectionProfile defaultConnectionProfile;
 
@@ -438,7 +438,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             if (closed.compareAndSet(false, true)) {
                 try {
                     if (lifecycle.stopped()) {
@@ -582,7 +582,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
@@ -602,6 +602,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
                         TcpChannel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
+                        logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                         channels.add(channel);
                     } catch (Exception e) {
                         // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
@@ -1041,6 +1042,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accept channel set once";
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
 
     /**
@@ -1738,15 +1740,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    /**
-     * Returns count of currently open connections
-     */
-    protected abstract long getNumOpenServerConnections();
-
     @Override
     public final TransportStats getStats() {
-        return new TransportStats(
-            getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
+        return new TransportStats(acceptedChannels.size(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
             transmittedBytesMetric.sum());
     }
 

@@ -32,17 +32,13 @@ public class TcpReadContext implements ReadContext {
 
     private final TcpReadHandler handler;
     private final TcpNioSocketChannel channel;
-    private final TcpFrameDecoder frameDecoder;
-    private final InboundChannelBuffer channelBuffer = new InboundChannelBuffer();
+    private final InboundChannelBuffer channelBuffer;
+    private final TcpFrameDecoder frameDecoder = new TcpFrameDecoder();
 
-    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
-        this((TcpNioSocketChannel) channel, handler, new TcpFrameDecoder());
-    }
-
-    public TcpReadContext(TcpNioSocketChannel channel, TcpReadHandler handler, TcpFrameDecoder frameDecoder) {
+    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, InboundChannelBuffer channelBuffer) {
         this.handler = handler;
-        this.channel = channel;
-        this.frameDecoder = frameDecoder;
+        this.channel = (TcpNioSocketChannel) channel;
+        this.channelBuffer = channelBuffer;
     }
 
     @Override
@@ -82,6 +78,11 @@ public class TcpReadContext implements ReadContext {
         return bytesRead;
     }
 
+    @Override
+    public void close() {
+        channelBuffer.close();
+    }
+
     private static BytesReference toBytesReference(InboundChannelBuffer channelBuffer) {
         ByteBuffer[] writtenToBuffers = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
         ByteBufferReference[] references = new ByteBufferReference[writtenToBuffers.length];
@@ -91,5 +92,4 @@ public class TcpReadContext implements ReadContext {
 
         return new CompositeBytesReference(references);
     }
-
 }

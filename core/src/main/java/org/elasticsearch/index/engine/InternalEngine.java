@@ -366,10 +366,8 @@ public class InternalEngine extends Engine {
             case OPEN_INDEX_AND_TRANSLOG:
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
                 return store.loadSeqNoStats(globalCheckpoint);
-
             case OPEN_INDEX_CREATE_TRANSLOG:
                 return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
-
             case CREATE_INDEX_AND_TRANSLOG:
                 return new SeqNoStats(
                     SequenceNumbers.NO_OPS_PERFORMED,

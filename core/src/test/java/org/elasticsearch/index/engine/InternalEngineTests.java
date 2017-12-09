@@ -84,6 +84,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -4159,8 +4160,10 @@ public class InternalEngineTests extends EngineTestCase {
             defaultSettings.getScopedSettings());
         IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
         builder.settings(Settings.builder().put(indexSettings.getSettings())
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "10nanos", "500ms", "7s", "2m", "60m"))
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "5b", "2kb", "1mb", "50gb"))
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(),
+                randomBoolean() ? "-1" : TimeValue.timeValueMillis(randomNonNegativeLong()).getStringRep())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+                randomBoolean() ? "-1" : new ByteSizeValue(randomNonNegativeLong()).toString())
         );
         indexSettings.updateIndexMetaData(builder.build());
 

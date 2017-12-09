@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,8 +41,11 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -355,17 +360,29 @@ public class CreateIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings(settings).get();
         ensureGreen("test");
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData metaData = state.getMetaData().index("test");
-        for (final NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
-            final IndexMetaData brokenMetaData =
-                    IndexMetaData
-                            .builder(metaData)
-                            .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", "true"))
-                            .build();
-            // so evil
-            IndexMetaData.FORMAT.write(brokenMetaData, services.indexPaths(brokenMetaData.getIndex()));
+
+        final Set<String> dataOrMasterNodeNames = new HashSet<>();
+        for (final ObjectCursor<DiscoveryNode> node : state.nodes().getMasterAndDataNodes().values()) {
+            assertTrue(dataOrMasterNodeNames.add(node.value.getName()));
         }
-        internalCluster().fullRestart();
+
+        final IndexMetaData metaData = state.getMetaData().index("test");
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                if (dataOrMasterNodeNames.contains(nodeName)) {
+                    final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, nodeName);
+                    final IndexMetaData brokenMetaData =
+                            IndexMetaData
+                                    .builder(metaData)
+                                    .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
+                                    .build();
+                    // so evil
+                    IndexMetaData.FORMAT.write(brokenMetaData, nodeEnvironment.indexPaths(brokenMetaData.getIndex()));
+                }
+                return Settings.EMPTY;
+            }
+        });
         ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race
         final ClusterState stateAfterRestart = client().admin().cluster().prepareState().get().getState();
 

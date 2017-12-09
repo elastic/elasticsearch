@@ -192,11 +192,6 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public long getNumOpenServerConnections() {
-                    return 0;
-                }
-
-                @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);

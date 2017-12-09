@@ -96,7 +96,7 @@ public class NettyTcpChannel implements TcpChannel {
             }
         });
         channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
-        
+
         if (channel.eventLoop().isShutdown()) {
             listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
@@ -104,5 +104,13 @@ public class NettyTcpChannel implements TcpChannel {
 
     public Channel getLowLevelChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return "NettyTcpChannel{" +
+            "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + channel.remoteAddress() +
+            '}';
     }
 }

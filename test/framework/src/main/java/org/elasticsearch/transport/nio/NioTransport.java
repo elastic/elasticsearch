@@ -47,7 +47,6 @@ import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -69,7 +68,6 @@ public class NioTransport extends TcpTransport {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
-    private final OpenChannels openChannels = new OpenChannels(logger);
     private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final NioMachine nioMachine;
@@ -92,25 +90,15 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    public long getNumOpenServerConnections() {
-        return openChannels.serverChannelsCount();
-    }
-
-    @Override
     protected TcpNioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        TcpNioServerSocketChannel serverChannel = nioMachine.bindServerChannel(address, channelFactory);
-        openChannels.serverChannelOpened(serverChannel);
-        serverChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(serverChannel)));
-        return serverChannel;
+        return nioMachine.bindServerChannel(address, channelFactory);
     }
 
     @Override
     protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         TcpNioSocketChannel channel = nioMachine.openChannel(node.getAddress().address(), clientChannelFactory);
-        openChannels.clientChannelOpened(channel);
-        channel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
         channel.addConnectListener(connectListener);
         return channel;
     }
@@ -171,10 +159,7 @@ public class NioTransport extends TcpTransport {
     }
 
     private void acceptChannel(NioSocketChannel channel) {
-        TcpNioSocketChannel tcpChannel = (TcpNioSocketChannel) channel;
-        openChannels.acceptedChannelOpened(tcpChannel);
-        tcpChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
-        serverAcceptedChannel(tcpChannel);
+        serverAcceptedChannel((TcpNioSocketChannel) channel);
 
     }
 

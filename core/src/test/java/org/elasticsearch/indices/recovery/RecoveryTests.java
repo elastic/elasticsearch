@@ -22,11 +22,13 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -39,16 +41,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -104,52 +102,44 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
     public void testRecoveryWithOutOfOrderDelete() throws Exception {
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
-            final boolean isolateFirstBatch = randomBoolean();
-            final boolean duplicateStaleIndexOp = randomBoolean();
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id", VersionType.EXTERNAL, u -> {});
             orgReplica.getTranslog().rollGeneration(); // isolate the delete in it's own generation
+
             orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON),
                 u -> {});
-
-            if (isolateFirstBatch) {
-                flushShard(orgReplica, true);
-                if (duplicateStaleIndexOp) {
-                    orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                        SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON),
-                        u -> {
-                        });
-                }
-            }
-            // index a second item into the second generation, skipping seq# 2. Local checkpoint is now 1, which will make this generation
-            // stick around
+            long uncommittedBytes = orgReplica.translogStats().getUncommittedSizeInBytes();
+            // Flushing a new commit with local checkpoint=1 allows to delete the 1st translog file.
+            orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            // index a second item into the second generation, skipping seq# 2.
             orgReplica.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id2", new BytesArray("{}"), XContentType.JSON), u -> {});
-
-            final List<Long> expectedTranslogOps = new ArrayList<>(Arrays.asList(1L, 0L, 3L, 2L)); // 2L is NoOp.
+            final int translogOps;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     logger.info("--> flushing shard (translog will be trimmed)");
                     IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
+                    // Adjusts the translog size retention policy so that it will retain only the 2nd but not 1st translog gen.
                     builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
                         .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+                            new ByteSizeValue(uncommittedBytes + 1).toString())
                     );
                     orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
-                    orgReplica.updateGlobalCheckpointOnReplica(1L, "test");
-                    if (isolateFirstBatch) {
-                        // An operation with seqno=1L won't be retained in the translog.
-                        expectedTranslogOps.remove(1L);
-                        if (duplicateStaleIndexOp == false) {
-                            expectedTranslogOps.remove(0L);
-                        }
-                    }
+                    translogOps = 3; // 2 ops + seqno gaps
+                } else {
+                    logger.info("--> flushing shard (translog will be retained)");
+                    translogOps = 4; // 3 ops + seqno gaps
                 }
-                flushShard(orgReplica, true);
+                orgReplica.updateGlobalCheckpointOnReplica(1L, "test");
+                flushShard(orgReplica);
+            } else {
+                translogOps = 4; // 3 ops + seqno gaps
             }
+
             final IndexShard orgPrimary = shards.getPrimary();
             shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
 
@@ -157,14 +147,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(1);
 
-            try (Translog.Snapshot snapshot = newReplica.getTranslog().newSnapshot()) {
-                final List<Long> actualOps = new ArrayList<>();
-                Translog.Operation op;
-                while ((op = snapshot.next()) != null) {
-                    actualOps.add(op.seqNo());
-                }
-                assertThat(actualOps, containsInAnyOrder(expectedTranslogOps.toArray(new Long[expectedTranslogOps.size()])));
-            }
+            assertThat(newReplica.getTranslog().totalOperations(), equalTo(translogOps));
         }
     }
 

@@ -4,7 +4,7 @@ dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 }
 
-archivesBaseName = 'x-pack-common'
+archivesBaseName = 'x-pack-core'
 
 // TODO: enable this once we have tests
 test.enabled=false

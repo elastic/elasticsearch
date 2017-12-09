@@ -9,11 +9,11 @@ licenseHeaders.enabled = false
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-common:${version}"
+    compile "org.elasticsearch:x-pack-core:${version}"
 }
 
 dependencyLicenses {
-  ignoreSha 'x-pack-common'
+    ignoreSha 'x-pack-core'
 }
 
 parent.bundlePlugin {

@@ -57,10 +57,11 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, we can safely delete all existing index commits because:
-                // 1. The engine will create a fresh index commit with the same actual data immediately.
-                // 2. We should never refer these existing commits again as they belong to another engine.
-                commits.forEach(IndexCommit::delete);
+                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, we can delete all commits except the last commit,
+                // without updating the translog policy because these commits do not belong this engine.
+                for (int i = 0; i < commits.size() - 1; i++) {
+                    commits.get(i).delete();
+                }
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
@@ -97,10 +98,15 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
         final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
+        final String expectedTranslogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
 
         // Commits are sorted by age (the 0th one is the oldest commit).
         for (int i = commits.size() - 1; i >= 0; i--) {
             final Map<String, String> commitUserData = commits.get(i).getUserData();
+            // Index commit with a different TRANSLOG_UUID_KEY don't belong to this engine, skip it.
+            if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
+                return i + 1;
+            }
             // 5.x commits do not contain MAX_SEQ_NO.
             if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
                 return i;

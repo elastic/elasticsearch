@@ -81,6 +81,5 @@ task checkRpm(type: LoggedExec) {
   }
 }
 
-// task that sanity checks if the RPM archive can be extracted
 checkRpm.dependsOn buildRpm
 check.dependsOn checkRpm

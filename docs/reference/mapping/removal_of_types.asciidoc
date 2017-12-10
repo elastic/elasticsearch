@@ -67,7 +67,7 @@ This can lead to frustration when, for example, you want `deleted` to be a
 `date` field in one type and a `boolean` field in another type in the same
 index.
 
-On top of that, storing different entities that have few or no fields in
+On top of that, storing different types that have few or no fields in
 common in the same index leads to sparse data and interferes with Lucene's
 ability to compress documents efficiently.
 

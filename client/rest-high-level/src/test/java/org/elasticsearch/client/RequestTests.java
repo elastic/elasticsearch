@@ -271,7 +271,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testDeleteIndex() {
-        String[] indices = IndicesClientIT.randomIndicesNames(0, 5);
+        String[] indices = randomIndicesNames(0, 5);
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -288,7 +288,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testOpenIndex() {
-        String[] indices = IndicesClientIT.randomIndicesNames(1, 5);
+        String[] indices = randomIndicesNames(1, 5);
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
         openIndexRequest.indices(indices);
 
@@ -307,7 +307,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testCloseIndex() {
-        String[] indices = IndicesClientIT.randomIndicesNames(1, 5);
+        String[] indices = randomIndicesNames(1, 5);
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -700,7 +700,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        String[] indices = IndicesClientIT.randomIndicesNames(0, 5);
+        String[] indices = randomIndicesNames(0, 5);
         SearchRequest searchRequest = new SearchRequest(indices);
 
         int numTypes = randomIntBetween(0, 5);
@@ -1071,5 +1071,14 @@ public class RequestTests extends ESTestCase {
             }
         }
         return excludesParam.toString();
+    }
+
+    private static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
+        int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        }
+        return indices;
     }
 }

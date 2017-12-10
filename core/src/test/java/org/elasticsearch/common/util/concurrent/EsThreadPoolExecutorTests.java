@@ -50,7 +50,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     }
 
     private void runThreadPoolExecutorTest(final int fill, final String executor) {
-        final CountDownLatch latch = new CountDownLatch(fill);
+        final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < fill; i++) {
             node().injector().getInstance(ThreadPool.class).executor(executor).execute(() -> {
                 try {
@@ -64,12 +64,12 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
         final AtomicBoolean rejected = new AtomicBoolean();
         node().injector().getInstance(ThreadPool.class).executor(executor).execute(new AbstractRunnable() {
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
 
             }
 
             @Override
-            public void onRejection(Exception e) {
+            public void onRejection(final Exception e) {
                 rejected.set(true);
                 assertThat(e, hasToString(containsString("name = es-thread-pool-executor-tests/" + executor + ", ")));
             }

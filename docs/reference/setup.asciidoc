@@ -40,6 +40,8 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
+include::setup/jvm-options.asciidoc[]
+
 include::setup/secure-settings.asciidoc[]
 
 include::setup/logging-config.asciidoc[]

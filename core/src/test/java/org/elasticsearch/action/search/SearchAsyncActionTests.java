@@ -113,7 +113,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 null,
                 new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests()) {
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -203,7 +204,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 null,
                 new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests()) {
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -306,7 +308,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                         0,
                         null,
                         new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                        request.getMaxConcurrentShardRequests()) {
+                        request.getMaxConcurrentShardRequests(),
+                        SearchResponse.Clusters.EMPTY) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override

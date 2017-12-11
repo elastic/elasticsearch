@@ -2,3 +2,5 @@
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
+
+include::upgrade.asciidoc[]

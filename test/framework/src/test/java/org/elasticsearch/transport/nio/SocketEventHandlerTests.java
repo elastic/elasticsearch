@@ -55,13 +55,13 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(BiConsumer.class);
         SocketSelector socketSelector = mock(SocketSelector.class);
-        handler = new SocketEventHandler(logger, exceptionHandler, mock(OpenChannels.class));
+        handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
-        channel = new DoNotRegisterChannel("", rawChannel, socketSelector);
+        channel = new DoNotRegisterChannel(rawChannel, socketSelector);
         readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setContexts(readContext, new TcpWriteContext(channel));
+        channel.setContexts(readContext, new TcpWriteContext(channel), exceptionHandler);
         channel.register();
         channel.finishConnect();
 
@@ -122,8 +122,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         BytesArray bytesArray = new BytesArray(new byte[1]);
-        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(bytesArray);
-        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, networkBuffer, mock(ActionListener.class)));
+        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, bytesArray, mock(ActionListener.class)));
 
         when(rawChannel.write(ByteBuffer.wrap(bytesArray.array()))).thenReturn(1);
         handler.handleWrite(channel);
@@ -138,8 +137,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         BytesArray bytesArray = new BytesArray(new byte[1]);
-        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(bytesArray, 1, 0);
-        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, networkBuffer, mock(ActionListener.class)));
+        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, bytesArray, mock(ActionListener.class)));
 
         when(rawChannel.write(ByteBuffer.wrap(bytesArray.array()))).thenReturn(0);
         handler.handleWrite(channel);

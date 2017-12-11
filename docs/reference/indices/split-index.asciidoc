@@ -1,23 +1,36 @@
 [[indices-split-index]]
 == Split Index
 
-number_of_routing_shards
+The split index API allows you to split an existing index into a new index,
+where each original primary shard is split into two or more primary shards in
+the new index.
 
-The split index API allows you to split an existing index into a new index
-with multiple of it's primary shards. Similarly to the <<indices-shrink-index,Shrink API>>
-where the number of primary shards in the shrunk index must be a factor of the source index.
-The `_split` API requires the source index to be created with a specific number of routing shards
-in order to be split in the future. (Note: this requirement might be remove in future releases)
-The number of routing shards specify the hashing space that is used internally to distribute documents
-across shards, in oder to have a consistent hashing that is compatible with the method elasticsearch
-uses today.
-For example an index with `8` primary shards and a `index.number_of_routing_shards` of `32`
-can be split into `16` and `32` primary shards. An index with `1` primary shard
-and `index.number_of_routing_shards` of `64` can be split into `2`, `4`, `8`, `16`, `32` or `64`.
-The same works for non power of two routing shards ie. an index with `1` primary shard and
-`index.number_of_routing_shards` set to `15` can be split into `3` and `15` or alternatively`5` and `15`.
-The number of shards in the split index must always be a factor of `index.number_of_routing_shards`
-in the source index. Before splitting, a (primary) copy of every shard in the index must be active in the cluster.
+The number of times the index can be split (and the number of shards that each
+original shard can be split into) is determined by the
+`index.number_of_routing_shards` setting. The number of routing shards
+specifies the hashing space that is used internally to distribute documents
+across shards with consistent hashing. For instance, a 5 shard index with
+`number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a
+factor of `2` or `3`.  In other words, it could be split as follows:
+
+* `5` -> `10` -> `30`  (split by 2, then by 3)
+* `5` -> `15` -> `30` (split by 3, then by 2)
+* `5` -> `30` (split by 6)
+
+While you can set the `index.number_of_routing_shards` setting explicitly at
+index creation time, the default value depends upon the number of primary
+shards in the original index.  The default is designed to allow you to split
+by factors of 2 up to a maximum of 1024 shards.  However, the original number
+of primary shards must taken into account.  For instance, an index created
+with 5 primary shards could be split into 10, 20, 40, 80, 160, 320, or a
+maximum of 740 shards (with a single split action or multiple split actions).
+
+If the original index contains one primary shard (or a multi-shard index has
+been <<indices-shrink-index,shrunk>> down to a single primary shard), then the
+index may by split into an arbitrary number of shards greater than 1.  The
+properties of the default number of routing shards will then apply to the
+newly split index.
+
 
 Splitting works as follows:
 
@@ -29,7 +42,7 @@ Splitting works as follows:
   into the new index, which is a much more time consuming process.)
 
 * Once the low level files are created all documents will be `hashed` again to delete
-  documents that belong in a different shard.
+  documents that belong to a different shard.
 
 * Finally, it recovers the target index as though it were a closed index which
   had just been re-opened.
@@ -37,22 +50,18 @@ Splitting works as follows:
 [float]
 === Preparing an index for splitting
 
-Create an index with a routing shards factor:
+Create a new index:
 
 [source,js]
 --------------------------------------------------
 PUT my_source_index
 {
-    "settings": {
-        "index.number_of_shards" : 1,
-        "index.number_of_routing_shards" : 2 <1>
-    }
+  "settings": {
+    "index.number_of_shards" : 1
+  }
 }
 -------------------------------------------------
 // CONSOLE
-
-<1> Allows to split the index into two shards or in other words, it allows
-    for a single split operation.
 
 In order to split an index, the index must be marked as read-only,
 and have <<cluster-health,health>> `green`.
@@ -75,7 +84,7 @@ PUT /my_source_index/_settings
     changes like deleting the index.
 
 [float]
-=== Spitting an index
+=== Splitting an index
 
 To split `my_source_index` into a new index called `my_target_index`, issue
 the following request:
@@ -102,7 +111,7 @@ Indices can only be split if they satisfy the following requirements:
 
 * the target index must not exist
 
-* The index must have less primary shards than the target index.
+* The source index must have fewer primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
   number of primary shards in the source index.
@@ -128,7 +137,7 @@ POST my_source_index/_split/my_target_index
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_routing_shards" : 5, "index.number_of_shards": "1"}}\n/]
+// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_shards": "1"}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.

@@ -366,7 +366,7 @@ final class QueryAnalyzer {
                                 // positives for percolator queries with range queries than term based queries.
                                 // The is because the way number fields are extracted from the document to be percolated.
                                 // Per field a single range is extracted and if a percolator query has two or more range queries
-                                // on the same field than the the minimum should match can be higher than clauses in the CoveringQuery.
+                                // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
                                 // Therefore right now the minimum should match is incremented once per number field when processing
                                 // the percolator query at index time.
                                 if (seenRangeFields.add(t[0].range.fieldName)) {

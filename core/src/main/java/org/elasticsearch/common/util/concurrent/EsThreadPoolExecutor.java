@@ -37,7 +37,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     /**
      * Name used in error reporting.
      */
-    protected final String name;
+    private final String name;
+
+    final String getName() {
+        return name;
+    }
 
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
@@ -138,21 +142,32 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public String toString() {
+    public final String toString() {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
-        b.append(name).append(", ");
+        b.append("name = ").append(name).append(", ");
         if (getQueue() instanceof SizeBlockingQueue) {
             @SuppressWarnings("rawtypes")
             SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
+        appendThreadPoolExecutorDetails(b);
         /*
          * ThreadPoolExecutor has some nice information in its toString but we
          * can't get at it easily without just getting the toString.
          */
         b.append(super.toString()).append(']');
         return b.toString();
+    }
+
+    /**
+     * Append details about this thread pool to the specified {@link StringBuilder}. All details should be appended as key/value pairs in
+     * the form "%s = %s, "
+     *
+     * @param sb the {@link StringBuilder} to append to
+     */
+    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {
+
     }
 
     protected Runnable wrapRunnable(Runnable command) {

@@ -72,7 +72,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 assert isDisruptedNodeThread(currentThreadName) == false :
                     "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
-                // if there are shared resources between caller thread and and suspended threads
+                // if there are shared resources between caller thread and suspended threads
                 // see unsafeClasses to how to avoid that
                 final AtomicReference<Exception> suspendingError = new AtomicReference<>();
                 final Thread suspendingThread = new Thread(new AbstractRunnable() {

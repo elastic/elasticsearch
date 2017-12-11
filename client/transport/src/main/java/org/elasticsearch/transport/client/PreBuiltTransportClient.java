@@ -30,7 +30,6 @@ import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.search.aggregations.composite.CompositeAggregationPlugin;
 import org.elasticsearch.transport.Netty4Plugin;
 
 import java.util.Arrays;
@@ -45,10 +44,13 @@ import java.util.concurrent.TimeUnit;
  * {@link PercolatorPlugin},
  * {@link MustachePlugin},
  * {@link ParentJoinPlugin}
- * {@link CompositeAggregationPlugin}
  * plugins for the client. These plugins are all the required modules for Elasticsearch.
+ *
+ * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
+ * be removed in Elasticsearch 8.0.
  */
 @SuppressWarnings({"unchecked","varargs"})
+@Deprecated
 public class PreBuiltTransportClient extends TransportClient {
 
     static {
@@ -90,8 +92,7 @@ public class PreBuiltTransportClient extends TransportClient {
                 ReindexPlugin.class,
                 PercolatorPlugin.class,
                 MustachePlugin.class,
-                ParentJoinPlugin.class,
-                CompositeAggregationPlugin.class));
+                ParentJoinPlugin.class));
 
     /**
      * Creates a new transport client with pre-installed plugins.

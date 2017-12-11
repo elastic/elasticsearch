@@ -1377,6 +1377,23 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testDynamicFieldsEmptyName() throws Exception {
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("top.")
+                .startObject()
+                .startObject("aoeu")
+                .field("a", 1).field(" ", 2)
+                .endObject()
+                .endObject().endArray()
+                .endObject().bytes();
+
+        IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
+                () -> client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
+
+        assertThat(emptyFieldNameException.getMessage(), containsString(
+                "object field cannot contain only whitespace: ['top.aoeu. ']"));
+    }
+
     public void testBlankFieldNames() throws Exception {
         final BytesReference bytes = XContentFactory.jsonBuilder()
                 .startObject()

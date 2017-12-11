@@ -129,7 +129,7 @@ The following project appears to be abandoned:
 == Lua
 
 * https://github.com/DhavalKapil/elasticsearch-lua[elasticsearch-lua]:
-  Lua client for elasticsearch
+  Lua client for Elasticsearch
 
 [[dotnet]]
 == .NET
@@ -218,7 +218,7 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
   Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
 
 * https://github.com/toptal/chewy[chewy]:
-  Chewy is ODM and wrapper for official elasticsearch client
+  Chewy is an ODM and wrapper for the official Elasticsearch client
 
 * https://github.com/ankane/searchkick[Searchkick]:
   Intelligent search made easy

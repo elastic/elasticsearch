@@ -62,6 +62,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -465,11 +466,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testIndexSortScrollOptimization() throws Exception {
         Directory dir = newDirectory();
-        final Sort sort = new Sort(
+        final Sort indexSort = new Sort(
             new SortField("rank", SortField.Type.INT),
             new SortField("tiebreaker", SortField.Type.INT)
         );
-        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(indexSort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < numDocs; ++i) {
@@ -483,44 +484,49 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
 
-        TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        ScrollContext scrollContext = new ScrollContext();
-        scrollContext.lastEmittedDoc = null;
-        scrollContext.maxScore = Float.NaN;
-        scrollContext.totalHits = -1;
-        context.scrollContext(scrollContext);
-        context.setTask(new SearchTask(123L, "", "", "", null));
-        context.setSize(10);
-        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW, DocValueFormat.RAW}));
-
         final IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher contextSearcher = new IndexSearcher(reader);
+        List<SortAndFormats> searchSortAndFormats = new ArrayList<>();
+        searchSortAndFormats.add(new SortAndFormats(indexSort, new DocValueFormat[]{DocValueFormat.RAW, DocValueFormat.RAW}));
+        // search sort is a prefix of the index sort
+        searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[]{DocValueFormat.RAW}));
+        for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
+            IndexSearcher contextSearcher = new IndexSearcher(reader);
+            TestSearchContext context = new TestSearchContext(null, indexShard);
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            ScrollContext scrollContext = new ScrollContext();
+            scrollContext.lastEmittedDoc = null;
+            scrollContext.maxScore = Float.NaN;
+            scrollContext.totalHits = -1;
+            context.scrollContext(scrollContext);
+            context.setTask(new SearchTask(123L, "", "", "", null));
+            context.setSize(10);
+            context.sort(searchSortAndFormat);
 
-        QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
-        assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
-        assertNull(context.queryResult().terminatedEarly());
-        assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
-        int sizeMinus1 = context.queryResult().topDocs().scoreDocs.length - 1;
-        FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[sizeMinus1];
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, searchSortAndFormat.sort);
+            assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
+            assertNull(context.queryResult().terminatedEarly());
+            assertThat(context.terminateAfter(), equalTo(0));
+            assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+            int sizeMinus1 = context.queryResult().topDocs().scoreDocs.length - 1;
+            FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[sizeMinus1];
 
-        contextSearcher = getAssertingEarlyTerminationSearcher(reader, 10);
-        QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, sort);
-        assertNull(context.queryResult().terminatedEarly());
-        assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
-        FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[0];
-        for (int i = 0; i < sort.getSort().length; i++) {
-            @SuppressWarnings("unchecked")
-            FieldComparator<Object> comparator = (FieldComparator<Object>) sort.getSort()[i].getComparator(1, i);
-            int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
-            if (cmp == 0) {
-                continue;
+            contextSearcher = getAssertingEarlyTerminationSearcher(reader, 10);
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, searchSortAndFormat.sort);
+            assertNull(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().totalHits, equalTo((long) numDocs));
+            assertThat(context.terminateAfter(), equalTo(0));
+            assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+            FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[0];
+            for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
+                @SuppressWarnings("unchecked")
+                FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(1, i);
+                int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
+                if (cmp == 0) {
+                    continue;
+                }
+                assertThat(cmp, equalTo(1));
+                break;
             }
-            assertThat(cmp, equalTo(1));
-            break;
         }
         reader.close();
         dir.close();

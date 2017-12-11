@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -177,7 +178,7 @@ public class TcpTransportTests extends ESTestCase {
         try {
             TcpTransport transport = new TcpTransport(
                 "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
-                new BigArrays(Settings.EMPTY, null), null, null, null) {
+                new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override
                 protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
@@ -185,14 +186,9 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout,
-                                                      ActionListener<TcpChannel> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
+                    throws IOException {
                     return new FakeChannel(messageCaptor);
-                }
-
-                @Override
-                public long getNumOpenServerConnections() {
-                    return 0;
                 }
 
                 @Override
@@ -251,7 +247,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void addCloseListener(ActionListener<TcpChannel> listener) {
+        public void addCloseListener(ActionListener<Void> listener) {
         }
 
         @Override
@@ -269,7 +265,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
             messageCaptor.set(reference);
         }
     }

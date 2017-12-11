@@ -20,9 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -30,38 +28,25 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final CompletableFuture<NioChannel> connectContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
+    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
     private WriteContext writeContext;
     private ReadContext readContext;
+    private BiConsumer<NioSocketChannel, Exception> exceptionContext;
     private Exception connectException;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
-    }
-
-    @Override
-    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
-        // TODO: Temporary conversion due to types
-        writeContext.sendMessage(reference, new ActionListener<NioChannel>() {
-            @Override
-            public void onResponse(NioChannel nioChannel) {
-                listener.onResponse(nioChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 
     @Override
@@ -71,6 +56,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         if (writeContext.hasQueuedWriteOps()) {
             writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
+        readContext.close();
 
         super.closeFromSelector();
     }
@@ -80,40 +66,33 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytesReference[] references) throws IOException {
-        int written;
-        if (references.length == 1) {
-            written = socketChannel.write(references[0].getReadByteBuffer());
+    public int write(ByteBuffer[] buffers) throws IOException {
+        if (buffers.length == 1) {
+            return socketChannel.write(buffers[0]);
         } else {
-            ByteBuffer[] buffers = new ByteBuffer[references.length];
-            for (int i = 0; i < references.length; ++i) {
-                buffers[i] = references[i].getReadByteBuffer();
-            }
-            written = (int) socketChannel.write(buffers);
+            return (int) socketChannel.write(buffers);
         }
-        if (written <= 0) {
-            return written;
-        }
-
-        NetworkBytesReference.vectorizedIncrementReadIndexes(Arrays.asList(references), written);
-
-        return written;
     }
 
-    public int read(NetworkBytesReference reference) throws IOException {
-        int bytesRead = socketChannel.read(reference.getWriteByteBuffer());
+    public int read(InboundChannelBuffer buffer) throws IOException {
+        int bytesRead = (int) socketChannel.read(buffer.sliceBuffersFrom(buffer.getIndex()));
 
         if (bytesRead == -1) {
             return bytesRead;
         }
 
-        reference.incrementWrite(bytesRead);
+        buffer.incrementIndex(bytesRead);
         return bytesRead;
     }
 
-    public void setContexts(ReadContext readContext, WriteContext writeContext) {
-        this.readContext = readContext;
-        this.writeContext = writeContext;
+    public void setContexts(ReadContext readContext, WriteContext writeContext, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
+        if (contextsSet.compareAndSet(false, true)) {
+            this.readContext = readContext;
+            this.writeContext = writeContext;
+            this.exceptionContext = exceptionContext;
+        } else {
+            throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
+        }
     }
 
     public WriteContext getWriteContext() {
@@ -122,6 +101,10 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public ReadContext getReadContext() {
         return readContext;
+    }
+
+    public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
+        return exceptionContext;
     }
 
     public InetSocketAddress getRemoteAddress() {
@@ -169,20 +152,19 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectContext.complete(this);
+            connectContext.complete(null);
         }
         return isConnected;
     }
 
-    public void addConnectListener(ActionListener<NioChannel> listener) {
+    public void addConnectListener(ActionListener<Void> listener) {
         connectContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     @Override
     public String toString() {
         return "NioSocketChannel{" +
-            "profile=" + getProfile() +
-            ", localAddress=" + getLocalAddress() +
+            "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + remoteAddress +
             '}';
     }

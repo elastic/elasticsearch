@@ -437,7 +437,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, 0);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27454")
     public void testPointsOnly() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -465,7 +464,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // test that point was inserted
         SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
-                .setQuery(geoIntersectionQuery("location", shape))
+                .setQuery(matchAllQuery())
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());

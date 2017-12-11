@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
@@ -74,17 +73,6 @@ public interface AutodetectProcess extends Closeable {
      */
     void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules)
             throws IOException;
-
-    /**
-     * Write the updated special events overwriting any previous events.
-     * Writing an empty list of special events removes any previously set events.
-     *
-     * @param numberOfDetectors The number of detectors in the job. All will be
-     *                          updated with the special events
-     * @param specialEvents List of events to update
-     * @throws IOException If the write fails
-     */
-    void writeUpdateSpecialEventsMessage(int numberOfDetectors, List<SpecialEvent> specialEvents) throws IOException;
 
     /**
      * Flush the job pushing any stale data into autodetect.

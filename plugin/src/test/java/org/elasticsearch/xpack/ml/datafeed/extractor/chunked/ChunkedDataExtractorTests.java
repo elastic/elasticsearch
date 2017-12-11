@@ -321,7 +321,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"from\":200000,\"to\":400000"));
     }
 
-    public void testCancelGivenNextWasNeverCalled() throws IOException {
+    public void testCancelGivenNextWasNeverCalled() {
         chunkSpan = TimeValue.timeValueSeconds(1);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
         extractor.setNextResponse(createSearchResponse(10L, 1000L, 2200L));
@@ -446,7 +446,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     private ChunkedDataExtractorContext createContext(long start, long end) {
         return new ChunkedDataExtractorContext(jobId, timeField, indices, types, query, scrollSize, start, end, chunkSpan,
-                ChunkedDataExtractorFactory.newIdentityTimeAligner());
+                ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap());
     }
 
     private static class StubSubExtractor implements DataExtractor {
@@ -465,7 +465,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         }
 
         @Override
-        public Optional<InputStream> next() throws IOException {
+        public Optional<InputStream> next() {
             if (streams.isEmpty()) {
                 hasNext = false;
                 return Optional.empty();

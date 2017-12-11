@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -66,7 +65,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L), new Assignment("node_id", ""));
         tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("foo"), DatafeedState.STARTED);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        tasksBuilder.build();
 
         Job job = createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
@@ -76,7 +75,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
-                .putDatafeed(datafeedConfig)
+                .putDatafeed(datafeedConfig, null)
                 .build();
         StopDatafeedAction.validateDatafeedTask("foo", mlMetadata2);
     }
@@ -88,12 +87,12 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();
@@ -102,7 +101,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         List<String> stoppingDatafeeds = new ArrayList<>();
         StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_1"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
-        assertEquals(Arrays.asList("datafeed_1"), startedDatafeeds);
+        assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
 
         startedDatafeeds.clear();
@@ -120,17 +119,17 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
 
         addTask("datafeed_3", 0L, "node-1", DatafeedState.STOPPING, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_3", "job_id_3").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();
@@ -139,8 +138,8 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         List<String> stoppingDatafeeds = new ArrayList<>();
         StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("_all"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
-        assertEquals(Arrays.asList("datafeed_1"), startedDatafeeds);
-        assertEquals(Arrays.asList("datafeed_3"), stoppingDatafeeds);
+        assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
+        assertEquals(Collections.singletonList("datafeed_3"), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();

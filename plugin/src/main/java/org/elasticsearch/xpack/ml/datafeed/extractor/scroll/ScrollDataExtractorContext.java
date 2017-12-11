@@ -9,6 +9,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 class ScrollDataExtractorContext {
@@ -22,10 +23,11 @@ class ScrollDataExtractorContext {
     final int scrollSize;
     final long start;
     final long end;
+    final Map<String, String> headers;
 
     ScrollDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, List<String> types,
                                       QueryBuilder query, List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize,
-                                      long start, long end) {
+                                      long start, long end, Map<String, String> headers) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -35,5 +37,6 @@ class ScrollDataExtractorContext {
         this.scrollSize = scrollSize;
         this.start = start;
         this.end = end;
+        this.headers = headers;
     }
 }

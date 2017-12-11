@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,7 +82,7 @@ public class DatafeedManagerTests extends ESTestCase {
         Job job = createDatafeedJob().build(new Date());
         mlMetadata.putJob(job, false);
         DatafeedConfig datafeed = createDatafeedConfig("datafeed_id", job.getId()).build();
-        mlMetadata.putDatafeed(datafeed);
+        mlMetadata.putDatafeed(datafeed, null);
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
@@ -109,6 +111,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         auditor = mock(Auditor.class);
         threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -248,7 +251,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }
     }
 
-    public void testDatafeedTaskWaitsUntilJobIsOpened() throws Exception {
+    public void testDatafeedTaskWaitsUntilJobIsOpened() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
@@ -288,7 +291,7 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
-    public void testDatafeedTaskStopsBecauseJobFailedWhileOpening() throws Exception {
+    public void testDatafeedTaskStopsBecauseJobFailedWhileOpening() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
@@ -316,7 +319,7 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(task).stop("job_never_opened", TimeValue.timeValueSeconds(20));
     }
 
-    public void testDatafeedGetsStoppedWhileWaitingForJobToOpen() throws Exception {
+    public void testDatafeedGetsStoppedWhileWaitingForJobToOpen() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())

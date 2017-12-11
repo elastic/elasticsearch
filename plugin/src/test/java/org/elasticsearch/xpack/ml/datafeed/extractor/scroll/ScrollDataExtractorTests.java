@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +26,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -117,7 +120,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     @Before
     public void setUpTests() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
         capturedSearchRequests = new ArrayList<>();
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
@@ -269,7 +275,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createErrorResponse());
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenContinueScrollResponseHasError() throws IOException {
@@ -288,7 +294,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         extractor.setNextResponse(createErrorResponse());
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenInitSearchResponseHasShardFailures() throws IOException {
@@ -297,7 +303,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithShardFailures());
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
@@ -306,7 +312,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithUnavailableShards(1));
 
         assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, () -> extractor.next());
+        IOException e = expectThrows(IOException.class, extractor::next);
         assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [1] unavailable shards"));
     }
 
@@ -333,7 +339,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(output.isPresent(), is(true));
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testResetScollUsesLastResultTimestamp() throws IOException {
@@ -389,7 +395,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertEquals(new Long(1400L), extractor.getLastTimestamp());
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(SearchPhaseExecutionException.class, () -> extractor.next());
+        expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
     public void testSearchPhaseExecutionExceptionOnInitScroll() throws IOException {
@@ -398,7 +404,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithShardFailures());
         extractor.setNextResponse(createResponseWithShardFailures());
 
-        expectThrows(IOException.class, () -> extractor.next());
+        expectThrows(IOException.class, extractor::next);
 
         List<String> capturedClearScrollIds = getCapturedClearScrollIds();
         assertThat(capturedClearScrollIds.isEmpty(), is(true));
@@ -412,8 +418,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
                 "script2", new Script(ScriptType.INLINE, "painless", "return domainSplit('foo.com', params);", emptyMap()), false);
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
-        ScrollDataExtractorContext context =  new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                types, query, sFields, scrollSize, 1000, 2000);
+        ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
+                types, query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -460,7 +466,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end);
+        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end,
+                Collections.emptyMap());
     }
 
     private SearchResponse createEmptySearchResponse() {
@@ -475,9 +482,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         for (int i = 0; i < timestamps.size(); i++) {
             SearchHit hit = new SearchHit(randomInt());
             Map<String, DocumentField> fields = new HashMap<>();
-            fields.put(extractedFields.timeField(), new DocumentField("time", Arrays.asList(timestamps.get(i))));
-            fields.put("field_1", new DocumentField("field_1", Arrays.asList(field1Values.get(i))));
-            fields.put("field_2", new DocumentField("field_2", Arrays.asList(field2Values.get(i))));
+            fields.put(extractedFields.timeField(), new DocumentField("time", Collections.singletonList(timestamps.get(i))));
+            fields.put("field_1", new DocumentField("field_1", Collections.singletonList(field1Values.get(i))));
+            fields.put("field_2", new DocumentField("field_2", Collections.singletonList(field2Values.get(i))));
             hit.fields(fields);
             hits.add(hit);
         }

@@ -11,7 +11,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -46,7 +45,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getScriptFields(),
                 datafeedConfig.getScrollSize(),
                 start,
-                end);
+                end,
+                datafeedConfig.getHeaders());
         return new ScrollDataExtractor(client, dataExtractorContext);
     }
 

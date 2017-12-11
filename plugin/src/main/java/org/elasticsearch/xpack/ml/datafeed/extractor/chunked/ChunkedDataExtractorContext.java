@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 class ChunkedDataExtractorContext {
@@ -29,10 +30,11 @@ class ChunkedDataExtractorContext {
     final long end;
     final TimeValue chunkSpan;
     final TimeAligner timeAligner;
+    final Map<String, String> headers;
 
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, List<String> types,
                                 QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan,
-                                TimeAligner timeAligner) {
+                                TimeAligner timeAligner, Map<String, String> headers) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -43,5 +45,6 @@ class ChunkedDataExtractorContext {
         this.end = end;
         this.chunkSpan = chunkSpan;
         this.timeAligner = Objects.requireNonNull(timeAligner);
+        this.headers = headers;
     }
 }

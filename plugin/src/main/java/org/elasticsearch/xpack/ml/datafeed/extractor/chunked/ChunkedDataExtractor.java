@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
+import org.elasticsearch.xpack.ml.MlClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
@@ -133,7 +134,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-            return searchRequestBuilder.get();
+        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
     }
 
     private Optional<InputStream> getNextStream() throws IOException {

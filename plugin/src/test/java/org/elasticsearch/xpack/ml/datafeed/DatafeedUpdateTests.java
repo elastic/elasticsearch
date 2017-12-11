@@ -25,9 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig.Mode;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -93,7 +91,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     @Override
-    protected DatafeedUpdate doParseInstance(XContentParser parser) throws IOException {
+    protected DatafeedUpdate doParseInstance(XContentParser parser) {
         return DatafeedUpdate.PARSER.apply(parser, null).build();
     }
 
@@ -111,12 +109,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_failBecauseTargetDatafeedHasDifferentId() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed));
+        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null));
     }
 
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed);
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, null);
         assertThat(datafeed, equalTo(updatedDatafeed));
     }
 
@@ -127,7 +125,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedUpdate.Builder updated = new DatafeedUpdate.Builder(datafeed.getId());
         updated.setScrollSize(datafeed.getScrollSize() + 1);
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
 
         DatafeedConfig.Builder expectedDatafeed = new DatafeedConfig.Builder(datafeed);
         expectedDatafeed.setScrollSize(datafeed.getScrollSize() + 1);
@@ -136,40 +134,40 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_givenFullUpdateNoAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
-        datafeedBuilder.setIndices(Arrays.asList("i_1"));
-        datafeedBuilder.setTypes(Arrays.asList("t_1"));
+        datafeedBuilder.setIndices(Collections.singletonList("i_1"));
+        datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
-        update.setIndices(Arrays.asList("i_2"));
-        update.setTypes(Arrays.asList("t_2"));
+        update.setIndices(Collections.singletonList("i_2"));
+        update.setTypes(Collections.singletonList("t_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
         update.setQuery(QueryBuilders.termQuery("a", "b"));
-        update.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
+        update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
 
         assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
-        assertThat(updatedDatafeed.getIndices(), equalTo(Arrays.asList("i_2")));
-        assertThat(updatedDatafeed.getTypes(), equalTo(Arrays.asList("t_2")));
+        assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
+        assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
         assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
-                equalTo(Arrays.asList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
+                equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
     }
 
     public void testApply_givenAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
-        datafeedBuilder.setIndices(Arrays.asList("i_1"));
-        datafeedBuilder.setTypes(Arrays.asList("t_1"));
+        datafeedBuilder.setIndices(Collections.singletonList("i_1"));
+        datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
@@ -177,17 +175,17 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime)));
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
 
-        assertThat(updatedDatafeed.getIndices(), equalTo(Arrays.asList("i_1")));
-        assertThat(updatedDatafeed.getTypes(), equalTo(Arrays.asList("t_1")));
+        assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
+        assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_1")));
         assertThat(updatedDatafeed.getAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
                         AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
     }
 
     @Override
-    protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
+    protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
         switch (between(0, 10)) {
         case 0:

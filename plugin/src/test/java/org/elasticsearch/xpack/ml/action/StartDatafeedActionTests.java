@@ -43,7 +43,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = PersistentTasksCustomMetaData.builder().build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1)
+                .putDatafeed(datafeedConfig1, null)
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
@@ -60,7 +60,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1)
+                .putDatafeed(datafeedConfig1, null)
                 .build();
 
         StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
@@ -76,7 +76,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1)
+                .putDatafeed(datafeedConfig1, null)
                 .build();
 
         StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);

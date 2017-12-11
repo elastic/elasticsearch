@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 import org.junit.Before;
@@ -24,8 +25,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -39,6 +42,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
     private static final String BASIC_AUTH_VALUE_ML_ADMIN =
             basicAuthHeaderValue("ml_admin", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS =
+            basicAuthHeaderValue("ml_admin_plus_data", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected Settings restClientSettings() {
@@ -50,25 +55,39 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return true;
     }
 
-    private void setupUser() throws IOException {
-        String password = new String(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.getChars());
-
-        // This user has admin rights on machine learning, but (importantly for the tests) no
-        // rights on any of the data indexes
-        String user = "{"
-                + "  \"password\" : \"" + password + "\","
-                + "  \"roles\" : [ \"machine_learning_admin\" ]"
+    private void setupDataAccessRole(String index) throws IOException {
+        String json = "{"
+                + "  \"indices\" : ["
+                + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"read\"] }"
+                + "  ]"
                 + "}";
 
-        client().performRequest("put", "_xpack/security/user/ml_admin", Collections.emptyMap(),
-                new StringEntity(user, ContentType.APPLICATION_JSON));
+        client().performRequest("put", "_xpack/security/role/test_data_access", Collections.emptyMap(),
+                new StringEntity(json, ContentType.APPLICATION_JSON));
+    }
+
+    private void setupUser(String user, List<String> roles) throws IOException {
+        String password = new String(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.getChars());
+
+        String json = "{"
+                + "  \"password\" : \"" + password + "\","
+                + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"
+                + "}";
+
+        client().performRequest("put", "_xpack/security/user/" + user, Collections.emptyMap(),
+                new StringEntity(json, ContentType.APPLICATION_JSON));
     }
 
     @Before
     public void setUpData() throws Exception {
-        setupUser();
+        setupDataAccessRole("network-data");
+        // This user has admin rights on machine learning, but (importantly for the tests) no rights
+        // on any of the data indexes
+        setupUser("ml_admin", Collections.singletonList("machine_learning_admin"));
+        // This user has admin rights on machine learning, and read access to the network-data index
+        setupUser("ml_admin_plus_data", Arrays.asList("machine_learning_admin", "test_data_access"));
         addAirlineData();
-        addNetworkData();
+        addNetworkData("network-data");
     }
 
     private void addAirlineData() throws IOException {
@@ -221,7 +240,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest("post", "_refresh");
     }
 
-    private void addNetworkData() throws IOException {
+    private void addNetworkData(String index) throws IOException {
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         String mappings = "{"
@@ -241,19 +260,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "network-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
+        client().performRequest("put", index, Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         String docTemplate = "{\"timestamp\":%d,\"host\":\"%s\",\"network_bytes_out\":%d}";
         Date date = new Date(1464739200735L);
         for (int i=0; i<120; i++) {
             long byteCount = randomNonNegativeLong();
             String jsonDoc = String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount);
-            client().performRequest("post", "network-data/doc", Collections.emptyMap(),
+            client().performRequest("post", index + "/doc", Collections.emptyMap(),
                     new StringEntity(jsonDoc, ContentType.APPLICATION_JSON));
 
             byteCount = randomNonNegativeLong();
             jsonDoc = String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount);
-            client().performRequest("post", "network-data/doc", Collections.emptyMap(),
+            client().performRequest("post", index + "/doc", Collections.emptyMap(),
                     new StringEntity(jsonDoc, ContentType.APPLICATION_JSON));
 
             date = new Date(date.getTime() + 10_000);
@@ -262,7 +281,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
     }
-
 
     public void testLookbackOnlyWithMixedTypes() throws Exception {
         new LookbackOnlyTestHelper("test-lookback-only-with-mixed-types", "airline-data")
@@ -494,6 +512,52 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":240"));
     }
 
+    public void testLookbackWithoutPermissions() throws Exception {
+        String jobId = "permission-test-network-job";
+        String job = "{\"analysis_config\" :{\"bucket_span\":\"300s\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"bytes-delta\",\"by_field_name\":\"hostname\"}]},"
+                + "\"data_description\" : {\"time_field\":\"timestamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations =
+                "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
+                        + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
+                        + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+
+        // At the time we create the datafeed the user can access the network-data index that we have access to
+        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+                .setAggregations(aggregations)
+                .setChunkingTimespan("300s")
+                .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
+                .build();
+
+        // Change the role so that the user can no longer access network-data
+        setupDataAccessRole("some-other-data");
+
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId, BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        // We expect that no data made it through to the job
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":0"));
+
+        // There should be a notification saying that there was a problem extracting data
+        client().performRequest("post", "_refresh");
+        Response notificationsResponse = client().performRequest("get", Auditor.NOTIFICATIONS_INDEX + "/_search?q=job_id:" + jobId);
+        String notificationsResponseAsString = responseEntityToString(notificationsResponse);
+        assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
+                "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data]\""));
+    }
+
     public void testLookbackWithPipelineBucketAgg() throws Exception {
         String jobId = "pipeline-bucket-agg-job";
         String job = "{\"analysis_config\" :{\"bucket_span\":\"1h\","
@@ -665,10 +729,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
         }
     }
-
     private void startDatafeedAndWaitUntilStopped(String datafeedId) throws Exception {
+        startDatafeedAndWaitUntilStopped(datafeedId, BASIC_AUTH_VALUE_SUPER_USER);
+    }
+
+    private void startDatafeedAndWaitUntilStopped(String datafeedId, String authHeader) throws Exception {
         Response startDatafeedRequest = client().performRequest("post",
-                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
+                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z",
+                new BasicHeader("Authorization", authHeader));
         assertThat(startDatafeedRequest.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(startDatafeedRequest), equalTo("{\"started\":true}"));
         assertBusy(() -> {
@@ -763,9 +831,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         }
 
         DatafeedBuilder setChunkingTimespan(String timespan) {
-                        chunkingTimespan = timespan;
-                        return this;
-                 }
+            chunkingTimespan = timespan;
+            return this;
+        }
 
         Response build() throws IOException {
             String datafeedConfig = "{"

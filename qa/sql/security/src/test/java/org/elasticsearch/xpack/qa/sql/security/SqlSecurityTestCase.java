@@ -49,6 +49,8 @@ import static org.hamcrest.Matchers.hasItems;
 public abstract class SqlSecurityTestCase extends ESRestTestCase {
     /**
      * Actions taken by this test.
+     * <p>
+     * For methods that take {@code user} a {@code null} user means "use the admin".
      */
     protected interface Actions {
         void queryWorksAsAdmin() throws Exception;
@@ -179,6 +181,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             oneTimeSetup = false;
             auditFailure = false;
         }
+    }
+
+    @Override
+    protected String getProtocol() {
+        return RestSqlIT.SSL_ENABLED ? "https" : "http";
     }
 
     public void testQueryWorksAsAdmin() throws Exception {

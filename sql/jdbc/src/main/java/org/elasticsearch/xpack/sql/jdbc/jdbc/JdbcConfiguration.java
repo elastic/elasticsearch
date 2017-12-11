@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
 // jdbc:es://[host|ip]
 // jdbc:es://[host|ip]:port/(prefix)
 // jdbc:es://[host|ip]:port/(prefix)(?options=value&)
-// 
+//
 // Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
 //
 
@@ -50,7 +50,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
-    // to cater to the principle of least surprise 
+    // to cater to the principle of least surprise
     // really, the way to move forward is to specify a calendar or the timezone manually
     static final String TIME_ZONE_DEFAULT = TimeZone.getDefault().getID();
 
@@ -94,7 +94,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     private static URI parseUrl(String u) throws JdbcSQLException {
         String url = u;
-        String format = "jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*";
+        String format = "jdbc:es://[http|https]?[host[:port]]*/[prefix]*[?[option=value]&]*";
         if (!canAccept(u)) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
@@ -108,7 +108,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     private static String removeJdbcPrefix(String connectionString) throws JdbcSQLException {
         if (connectionString.startsWith(URL_PREFIX)) {
-            return "http://" + connectionString.substring(URL_PREFIX.length());
+            return connectionString.substring(URL_PREFIX.length());
         } else {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + connectionString + "]");
         }
@@ -183,7 +183,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
             info.add(prop);
         }
-        
+
         return info.toArray(new DriverPropertyInfo[info.size()]);
     }
 }

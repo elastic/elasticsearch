@@ -70,7 +70,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         // JDBC only supports a single node at a time so we just give it one.
         return cluster.split(",")[0];
         /* This doesn't include "jdbc:es://" because we want the example in
-         * esJdbc to be obvious. */
+         * esJdbc to be obvious and because we want to use getProtocol to add
+         * https if we are running against https. */
     }
 
     public Connection esJdbc() throws SQLException {
@@ -81,8 +82,9 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     protected Connection useDriverManager() throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
         // tag::connect-dm
-        String address = "jdbc:es://" + elasticsearchAddress();   // <1>
+        String address = "jdbc:es://" + elasticsearchAddress;     // <1>
         Properties connectionProperties = connectionProperties(); // <2>
         Connection connection = DriverManager.getConnection(address, connectionProperties);
         // end::connect-dm
@@ -91,9 +93,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     protected Connection useDataSource() throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
         // tag::connect-ds
         JdbcDataSource dataSource = new JdbcDataSource();
-        String address = "jdbc:es://" + elasticsearchAddress();   // <1>
+        String address = "jdbc:es://" + elasticsearchAddress;     // <1>
         dataSource.setUrl(address);
         Properties connectionProperties = connectionProperties(); // <2>
         dataSource.setProperties(connectionProperties);

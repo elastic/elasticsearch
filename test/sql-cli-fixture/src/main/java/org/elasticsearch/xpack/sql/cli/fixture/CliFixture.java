@@ -83,8 +83,8 @@ public class CliFixture {
                 try {
                     println("accepting on localhost:" + server.getLocalPort());
                     Socket s = server.accept();
-                    String url = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8)).readLine();
-                    if (url == null || url.isEmpty()) {
+                    String line = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8)).readLine();
+                    if (line == null || line.isEmpty()) {
                         continue;
                     }
                     List<String> command = new ArrayList<>();
@@ -100,7 +100,7 @@ public class CliFixture {
                     command.add("-Dorg.jline.terminal.dumb=true");
                     command.add("-jar");
                     command.add(cliJar.toString());
-                    command.addAll(Arrays.asList(url.split(" ")));
+                    command.addAll(Arrays.asList(line.split(" ")));
                     ProcessBuilder cliBuilder = new ProcessBuilder(command);
                     cliBuilder.redirectErrorStream(true);
                     Process process = cliBuilder.start();

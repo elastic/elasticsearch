@@ -1,3 +1,7 @@
+integTestRunner {
+  systemProperty 'tests.ssl.enabled', 'false'
+}
+
 integTestCluster {
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

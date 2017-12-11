@@ -17,6 +17,11 @@ public class JdbcConnectionIT extends ConnectionTestCase {
     }
 
     @Override
+    protected String getProtocol() {
+        return RestSqlIT.SSL_ENABLED ? "https" : "http";
+    }
+
+    @Override
     protected Properties connectionProperties() {
         Properties properties = super.connectionProperties();
         properties.putAll(JdbcSecurityIT.adminProperties());

@@ -33,12 +33,14 @@ public final class UriUtils {
         // check if URI can be parsed correctly without adding scheme
         // if the connection string is in format host:port or just host, the host is going to be null
         // if the connection string contains IPv6 localhost [::1] the parsing will fail
+        URISyntaxException firstException = null;
         try {
             uri = new URI(connectionString);
             if (uri.getHost() == null || uri.getScheme() == null) {
                 uri = null;
             }
         } catch (URISyntaxException e) {
+            firstException = e;
             uri = null;
         }
 
@@ -47,7 +49,12 @@ public final class UriUtils {
             try {
                 return new URI("http://" + connectionString);
             } catch (URISyntaxException e) {
-                throw new IllegalArgumentException("Invalid connection configuration [" + connectionString + "]: " + e.getMessage(), e);
+                IllegalArgumentException ie =
+                    new IllegalArgumentException("Invalid connection configuration [" + connectionString + "]: " + e.getMessage(), e);
+                if (firstException != null) {
+                    ie.addSuppressed(firstException);
+                }
+                throw ie;
             }
         } else {
             // We managed to parse URI and all necessary pieces are present, let's make sure the scheme is correct
@@ -70,4 +77,3 @@ public final class UriUtils {
         }
     }
 }
-

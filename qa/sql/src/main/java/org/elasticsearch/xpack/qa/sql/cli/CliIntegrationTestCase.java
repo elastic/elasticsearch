@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
 import org.elasticsearch.xpack.qa.sql.embed.CliHttpServer;
 import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.junit.After;
@@ -65,7 +66,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      */
     @Before
     public void startCli() throws IOException {
-        cli = new RemoteCli(esUrlPrefix() + ES.get());
+        cli = new RemoteCli(ES.get(), true, securityConfig());
     }
 
     @After
@@ -79,11 +80,10 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     }
 
     /**
-     * Prefix to the Elasticsearch URL. Override to add
-     * authentication support.
+     * Override to add security configuration to the cli.
      */
-    protected String esUrlPrefix() {
-        return "";
+    protected SecurityConfig securityConfig() {
+        return null;
     }
 
     protected void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

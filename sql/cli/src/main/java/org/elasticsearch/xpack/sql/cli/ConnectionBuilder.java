@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
@@ -27,14 +31,19 @@ public class ConnectionBuilder {
         this.cliTerminal = cliTerminal;
     }
 
-    public ConnectionConfiguration buildConnection(String arg) throws UserException {
+    /**
+     * Build the connection.
+     * @param connectionStringArg the connection string to connect to
+     * @param keystoreLocation the location of the keystore to configure. If null then use the system keystore.
+     */
+    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation) throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();
         String user = null;
         String password = null;
-        if (arg != null) {
-            connectionString = arg;
+        if (connectionStringArg != null) {
+            connectionString = connectionStringArg;
             uri = removeQuery(parseURI(connectionString, DEFAULT_URI), connectionString, DEFAULT_URI);
             user = uri.getUserInfo();
             if (user != null) {
@@ -49,6 +58,29 @@ public class ConnectionBuilder {
             connectionString = DEFAULT_CONNECTION_STRING;
         }
 
+        if (keystoreLocation != null) {
+            if (false == "https".equals(uri.getScheme())) {
+                throw new UserException(ExitCodes.USAGE, "keystore file specified without https");
+            }
+            Path p = Paths.get(keystoreLocation);
+            checkIfExists("keystore file", p);
+            String keystorePassword = cliTerminal.readPassword("keystore password: ");
+
+            /*
+             * Set both the keystore and truststore settings which is required
+             * to everything work smoothly. I'm not totally sure why we have
+             * two settings but that is a problem for another day.
+             */
+            properties.put("ssl.keystore.location", keystoreLocation);
+            properties.put("ssl.keystore.pass", keystorePassword);
+            properties.put("ssl.truststore.location", keystoreLocation);
+            properties.put("ssl.truststore.pass", keystorePassword);
+        }
+
+        if ("https".equals(uri.getScheme())) {
+            properties.put("ssl", "true");
+        }
+
         if (user != null) {
             if (password == null) {
                 password = cliTerminal.readPassword("password: ");
@@ -57,7 +89,20 @@ public class ConnectionBuilder {
             properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
         }
 
+        return newConnectionConfiguration(uri, connectionString, properties);
+    }
+
+    protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString, Properties properties) {
         return new ConnectionConfiguration(uri, connectionString, properties);
+    }
+
+    protected void checkIfExists(String name, Path p) throws UserException {
+        if (false == Files.exists(p)) {
+            throw new UserException(ExitCodes.USAGE, name + " [" + p + "] doesn't exist");
+         }
+         if (false == Files.isRegularFile(p)) {
+             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
+         }
     }
 
 }

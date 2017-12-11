@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.cli;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.BufferedReader;
@@ -23,7 +24,9 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
@@ -57,7 +60,9 @@ public class RemoteCli implements Closeable {
     private final PrintWriter out;
     private final BufferedReader in;
 
-    public RemoteCli(String elasticsearchAddress) throws IOException {
+    public RemoteCli(String elasticsearchAddress, boolean checkConnectionOnStartup,
+            @Nullable SecurityConfig security) throws IOException {
+        // Connect
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -75,10 +80,39 @@ public class RemoteCli implements Closeable {
         });
         logger.info("connected");
         socket.setSoTimeout(10000);
-
         out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
-        out.println(elasticsearchAddress);
         in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+
+        // Start the CLI
+        String command;
+        if (security == null) {
+            command = elasticsearchAddress;
+        } else {
+            command = security.user + "@" + elasticsearchAddress;
+            if (security.https) {
+                command = "https://" + command;
+            } else if (randomBoolean()) {
+                command = "http://" + command;
+            }
+            if (security.keystoreLocation != null) {
+                command = command + " -keystore_location " + security.keystoreLocation;
+            }
+        }
+        if (false == checkConnectionOnStartup) {
+            command += " -check false";
+        }
+        out.println(command);
+
+        // Feed it passwords if needed
+        if (security != null && security.keystoreLocation != null) {
+            assertEquals("keystore password: ", readUntil(s -> s.endsWith(": ")));
+            out.println(security.keystorePassword);
+        }
+        if (security != null) {
+            assertEquals("password: ", readUntil(s -> s.endsWith(": ")));
+            out.println(security.password);
+        }
+
         // Throw out the logo and warnings about making a dumb terminal
         while (false == readLine().contains("SQL"));
         // Throw out the empty line before all the good stuff
@@ -135,5 +169,65 @@ public class RemoteCli implements Closeable {
         String line = in.readLine().replace("\u001B", "");
         logger.info("in : {}", line);
         return line;
+    }
+
+    private String readUntil(Predicate<String> end) throws IOException {
+        StringBuilder b = new StringBuilder();
+        String result;
+        do {
+            int c = in.read();
+            if (c == -1) {
+                throw new IOException("got eof before end");
+            }
+            b.append((char) c);
+            result = b.toString();
+        } while (false == end.test(result));
+        logger.info("in : {}", result);
+        return result;
+    }
+
+    public static class SecurityConfig {
+        private final boolean https;
+        private final String user;
+        private final String password;
+        @Nullable
+        private final String keystoreLocation;
+        @Nullable
+        private final String keystorePassword;
+
+        public SecurityConfig(boolean https, String user, String password,
+                @Nullable String keystoreLocation, @Nullable String keystorePassword) {
+            if (user == null) {
+                throw new IllegalArgumentException(
+                    "[user] is required. Send [null] instead of a SecurityConfig to run without security.");
+            }
+            if (password == null) {
+                throw new IllegalArgumentException(
+                    "[password] is required. Send [null] instead of a SecurityConfig to run without security.");
+            }
+            if (keystoreLocation == null) {
+                if (keystorePassword != null) {
+                    throw new IllegalArgumentException("[keystorePassword] cannot be specified if [keystoreLocation] is not specified");
+                }
+            } else {
+                if (keystorePassword == null) {
+                    throw new IllegalArgumentException("[keystorePassword] is required if [keystoreLocation] is specified");
+                }
+            }
+
+            this.https = https;
+            this.user = user;
+            this.password = password;
+            this.keystoreLocation = keystoreLocation;
+            this.keystorePassword = keystorePassword;
+        }
+
+        public String keystoreLocation() {
+            return keystoreLocation;
+        }
+
+        public String keystorePassword() {
+            return keystorePassword;
+        }
     }
 }

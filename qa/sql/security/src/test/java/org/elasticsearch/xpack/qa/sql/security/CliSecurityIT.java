@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
-
+import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -19,18 +23,43 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
-    static final String NO_INIT_CONNECTION_CHECK_PREFIX = "-c false ";
-    static String adminEsUrlPrefix() {
-        return "test_admin:x-pack-test-password@";
+    static SecurityConfig adminSecurityConfig() {
+        String keystoreLocation;
+        String keystorePassword;
+        if (RestSqlIT.SSL_ENABLED) {
+            Path keyStore;
+            try {
+                keyStore = PathUtils.get(RestSqlIT.class.getResource("/test-node.jks").toURI());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("exception while reading the store", e);
+            }
+            if (!Files.exists(keyStore)) {
+                throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
+            }
+            keystoreLocation = keyStore.toAbsolutePath().toString();
+            keystorePassword = "keypass";
+        } else {
+            keystoreLocation = null;
+            keystorePassword = null;
+        }
+        return new SecurityConfig(RestSqlIT.SSL_ENABLED, "test_admin", "x-pack-test-password", keystoreLocation, keystorePassword);
     }
 
     /**
      * Perform security test actions using the CLI.
      */
     private static class CliActions implements Actions {
+        private SecurityConfig userSecurity(String user) {
+            SecurityConfig admin = adminSecurityConfig();
+            if (user == null) {
+                return admin;
+            }
+            return new SecurityConfig(RestSqlIT.SSL_ENABLED, user, "testpass", admin.keystoreLocation(), admin.keystorePassword());
+        }
+
         @Override
         public void queryWorksAsAdmin() throws Exception {
-            try (RemoteCli cli = new RemoteCli(adminEsUrlPrefix() + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, adminSecurityConfig())) {
                 assertThat(cli.command("SELECT * FROM test ORDER BY a"), containsString("a       |       b       |       c"));
                 assertEquals("---------------+---------------+---------------", cli.readLine());
                 assertThat(cli.readLine(), containsString("1              |2              |3"));
@@ -56,7 +85,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         public void expectMatchesAdmin(String adminSql, String user, String userSql,
                 CheckedConsumer<RemoteCli, Exception> customizer) throws Exception {
             List<String> adminResult = new ArrayList<>();
-            try (RemoteCli cli = new RemoteCli(adminEsUrlPrefix() + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, adminSecurityConfig())) {
                 customizer.accept(cli);
                 adminResult.add(cli.command(adminSql));
                 String line;
@@ -68,7 +97,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
             }
 
             Iterator<String> expected = adminResult.iterator();
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
                 customizer.accept(cli);
                 assertTrue(expected.hasNext());
                 assertEquals(expected.next(), cli.command(userSql));
@@ -86,7 +115,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectDescribe(Map<String, String> columns, String user) throws Exception {
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
                 assertThat(cli.command("DESCRIBE test"), containsString("column     |     type"));
                 assertEquals("---------------+---------------", cli.readLine());
                 for (Map.Entry<String, String> column : columns.entrySet()) {
@@ -98,7 +127,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
                 assertThat(cli.command("SHOW TABLES"), containsString("table"));
                 assertEquals("---------------", cli.readLine());
                 for (String table : tables) {
@@ -110,7 +139,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectUnknownIndex(String user, String sql) throws Exception {
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
                 assertThat(cli.command(sql), containsString("Bad request"));
                 assertThat(cli.readLine(), containsString("Unknown index"));
             }
@@ -118,25 +147,21 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
-            // Skip initial check to make sure it doesn't trip
-            try (RemoteCli cli = new RemoteCli(NO_INIT_CONNECTION_CHECK_PREFIX + userPrefix(user) + elasticsearchAddress())) {
+            /*
+             * Cause the CLI to skip its connection test on startup so we
+             * can get a forbidden exception when we run the query.
+             */
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), false, userSecurity(user))) {
                 assertThat(cli.command(sql), containsString("is unauthorized for user [" + user + "]"));
             }
         }
 
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
                 assertThat(cli.command(sql), containsString("[1;31mBad request"));
                 assertThat(cli.readLine(), containsString("Unknown column [" + column + "][1;23;31m][0m"));
             }
-        }
-
-        private String userPrefix(String user) {
-            if (user == null) {
-                return adminEsUrlPrefix();
-            }
-            return user + ":testpass@";
         }
     }
 

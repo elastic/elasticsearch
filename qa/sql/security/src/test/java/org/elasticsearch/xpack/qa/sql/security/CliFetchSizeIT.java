@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
+import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
 
 public class CliFetchSizeIT extends FetchSizeTestCase {
     @Override
@@ -15,7 +16,12 @@ public class CliFetchSizeIT extends FetchSizeTestCase {
     }
 
     @Override
-    protected String esUrlPrefix() {
-        return CliSecurityIT.adminEsUrlPrefix();
+    protected String getProtocol() {
+        return RestSqlIT.SSL_ENABLED ? "https" : "http";
+    }
+
+    @Override
+    protected SecurityConfig securityConfig() {
+        return CliSecurityIT.adminSecurityConfig();
     }
 }

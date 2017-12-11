@@ -26,12 +26,16 @@ import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
 
 public class Cli extends Command {
     private final OptionSpec<Boolean> debugOption;
+    private final OptionSpec<String> keystoreLocation;
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
 
@@ -41,6 +45,12 @@ public class Cli extends Command {
                 "Enable debug logging")
                 .withRequiredArg().ofType(Boolean.class)
                 .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.debug", "false")));
+        this.keystoreLocation = parser.acceptsAll(
+                    Arrays.asList("k", "keystore_location"),
+                    "Location of a keystore to use when setting up SSL. "
+                    + "If specified then the CLI will prompt for a keystore password. "
+                    + "If specified when the uri isn't https then an error is thrown.")
+                .withRequiredArg().ofType(String.class);
         this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"),
                 "Enable initial connection check on startup")
                 .withRequiredArg().ofType(Boolean.class)
@@ -77,15 +87,21 @@ public class Cli extends Command {
     @Override
     protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
         boolean debug = debugOption.value(options);
-        boolean check = checkOption.value(options);
+        boolean checkConnection = checkOption.value(options);
         List<String> args = connectionString.values(options);
         if (args.size() > 1) {
             throw new UserException(ExitCodes.USAGE, "expecting a single uri");
         }
-        execute(args.size() == 1 ? args.get(0) : null, debug, check);
+        String uri = args.size() == 1 ? args.get(0) : null;
+        args = keystoreLocation.values(options);
+        if (args.size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "expecting a single keystore file");
+        }
+        String keystoreLocationValue = args.size() == 1 ? args.get(0) : null;
+        execute(uri, debug, keystoreLocationValue, checkConnection);
     }
 
-    private void execute(String uri, boolean debug, boolean check) throws Exception {
+    private void execute(String uri, boolean debug, String keystoreLocation, boolean checkConnection) throws Exception {
         CliCommand cliCommand = new CliCommands(
                 new PrintLogoCommand(),
                 new ClearScreenCliCommand(),
@@ -96,10 +112,10 @@ public class Cli extends Command {
         );
         try (CliTerminal cliTerminal = new JLineTerminal()) {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
-            ConnectionConfiguration con = connectionBuilder.buildConnection(uri);
+            ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation);
             CliSession cliSession = new CliSession(new CliHttpClient(con));
             cliSession.setDebug(debug);
-            if (check) {
+            if (checkConnection) {
                 checkConnection(cliSession, cliTerminal, con);
             }
             new CliRepl(cliTerminal, cliSession, cliCommand).execute();

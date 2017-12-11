@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
 import org.elasticsearch.xpack.qa.sql.cli.ShowTestCase;
 
 public class CliShowIT extends ShowTestCase {
@@ -15,7 +16,12 @@ public class CliShowIT extends ShowTestCase {
     }
 
     @Override
-    protected String esUrlPrefix() {
-        return CliSecurityIT.adminEsUrlPrefix();
+    protected String getProtocol() {
+        return RestSqlIT.SSL_ENABLED ? "https" : "http";
+    }
+
+    @Override
+    protected SecurityConfig securityConfig() {
+        return CliSecurityIT.adminSecurityConfig();
     }
 }

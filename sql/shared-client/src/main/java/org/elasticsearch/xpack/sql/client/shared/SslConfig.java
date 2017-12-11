@@ -26,30 +26,30 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
-class SslConfig {
+public class SslConfig {
 
-    private static final String SSL = "ssl";
+    public static final String SSL = "ssl";
     private static final String SSL_DEFAULT = "false";
 
-    private static final String SSL_PROTOCOL = "ssl.protocol";
+    public static final String SSL_PROTOCOL = "ssl.protocol";
     private static final String SSL_PROTOCOL_DEFAULT = "TLS"; // SSL alternative
 
-    private static final String SSL_KEYSTORE_LOCATION = "ssl.keystore.location";
+    public static final String SSL_KEYSTORE_LOCATION = "ssl.keystore.location";
     private static final String SSL_KEYSTORE_LOCATION_DEFAULT = "";
 
-    private static final String SSL_KEYSTORE_PASS = "ssl.keystore.pass";
+    public static final String SSL_KEYSTORE_PASS = "ssl.keystore.pass";
     private static final String SSL_KEYSTORE_PASS_DEFAULT = "";
 
-    private static final String SSL_KEYSTORE_TYPE = "ssl.keystore.type";
+    public static final String SSL_KEYSTORE_TYPE = "ssl.keystore.type";
     private static final String SSL_KEYSTORE_TYPE_DEFAULT = "JKS"; // PCKS12
 
-    private static final String SSL_TRUSTSTORE_LOCATION = "ssl.truststore.location";
+    public static final String SSL_TRUSTSTORE_LOCATION = "ssl.truststore.location";
     private static final String SSL_TRUSTSTORE_LOCATION_DEFAULT = "";
 
-    private static final String SSL_TRUSTSTORE_PASS = "ssl.truststore.pass";
+    public static final String SSL_TRUSTSTORE_PASS = "ssl.truststore.pass";
     private static final String SSL_TRUSTSTORE_PASS_DEFAULT = "";
 
-    private static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
+    public static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
     private static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "JKS";
 
     static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(SSL, SSL_PROTOCOL,
@@ -63,7 +63,6 @@ class SslConfig {
     private final SSLContext sslContext;
 
     SslConfig(Properties settings) {
-        // ssl
         enabled = StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
         protocol = settings.getProperty(SSL_PROTOCOL, SSL_PROTOCOL_DEFAULT);
         keystoreLocation = settings.getProperty(SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_LOCATION_DEFAULT);

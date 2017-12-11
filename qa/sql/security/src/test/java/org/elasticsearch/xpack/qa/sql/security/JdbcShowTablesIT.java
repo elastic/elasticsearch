@@ -17,6 +17,11 @@ public class JdbcShowTablesIT extends ShowTablesTestCase {
     }
 
     @Override
+    protected String getProtocol() {
+        return RestSqlIT.SSL_ENABLED ? "https" : "http";
+    }
+
+    @Override
     protected Properties connectionProperties() {
         Properties sp = super.connectionProperties();
         sp.putAll(JdbcSecurityIT.adminProperties());

@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
-
+import org.elasticsearch.xpack.sql.client.shared.SslConfig;
 import java.net.URI;
+import java.nio.file.Path;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -22,7 +26,7 @@ public class ConnectionBuilderTests extends ESTestCase {
     public void testDefaultConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        ConnectionConfiguration con = connectionBuilder.buildConnection(null);
+        ConnectionConfiguration con = connectionBuilder.buildConnection(null, null);
         assertNull(con.authUser());
         assertNull(con.authPass());
         assertEquals("http://localhost:9200/", con.connectionString());
@@ -38,7 +42,7 @@ public class ConnectionBuilderTests extends ESTestCase {
     public void testBasicConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        ConnectionConfiguration con = connectionBuilder.buildConnection("http://foobar:9242/");
+        ConnectionConfiguration con = connectionBuilder.buildConnection("http://foobar:9242/", null);
         assertNull(con.authUser());
         assertNull(con.authPass());
         assertEquals("http://foobar:9242/", con.connectionString());
@@ -49,7 +53,7 @@ public class ConnectionBuilderTests extends ESTestCase {
     public void testUserAndPasswordConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        ConnectionConfiguration con = connectionBuilder.buildConnection("http://user:pass@foobar:9242/");
+        ConnectionConfiguration con = connectionBuilder.buildConnection("http://user:pass@foobar:9242/", null);
         assertEquals("user", con.authUser());
         assertEquals("pass", con.authPass());
         assertEquals("http://user:pass@foobar:9242/", con.connectionString());
@@ -61,7 +65,7 @@ public class ConnectionBuilderTests extends ESTestCase {
         CliTerminal testTerminal = mock(CliTerminal.class);
         when(testTerminal.readPassword("password: ")).thenReturn("password");
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        ConnectionConfiguration con = connectionBuilder.buildConnection("http://user@foobar:9242/");
+        ConnectionConfiguration con = connectionBuilder.buildConnection("http://user@foobar:9242/", null);
         assertEquals("user", con.authUser());
         assertEquals("password", con.authPass());
         assertEquals("http://user@foobar:9242/", con.connectionString());
@@ -69,4 +73,37 @@ public class ConnectionBuilderTests extends ESTestCase {
         verify(testTerminal, times(1)).readPassword(any());
         verifyNoMoreInteractions(testTerminal);
     }
+
+    public void testKeystoreAndUserInteractiveConnection() throws Exception {
+        CliTerminal testTerminal = mock(CliTerminal.class);
+        when(testTerminal.readPassword("keystore password: ")).thenReturn("keystore password");
+        when(testTerminal.readPassword("password: ")).thenReturn("password");
+        AtomicBoolean called = new AtomicBoolean(false);
+        ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal) {
+            @Override
+            protected void checkIfExists(String name, Path p) {
+                // Stubbed so we don't need permission to read the file
+            }
+
+            @Override
+            protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString,
+                    Properties properties) {
+                // Stub building the actual configuration because we don't have permission to read the keystore.
+                assertEquals("true", properties.get(SslConfig.SSL));
+                assertEquals("keystore_location", properties.get(SslConfig.SSL_KEYSTORE_LOCATION));
+                assertEquals("keystore password", properties.get(SslConfig.SSL_KEYSTORE_PASS));
+                assertEquals("keystore_location", properties.get(SslConfig.SSL_TRUSTSTORE_LOCATION));
+                assertEquals("keystore password", properties.get(SslConfig.SSL_TRUSTSTORE_PASS));
+
+                called.set(true);
+                return null;
+            }
+        };
+        assertNull(connectionBuilder.buildConnection("https://user@foobar:9242/", "keystore_location"));
+        assertTrue(called.get());
+        verify(testTerminal, times(2)).readPassword(any());
+        verifyNoMoreInteractions(testTerminal);
+    }
+
+
 }

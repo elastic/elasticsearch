@@ -8,7 +8,11 @@ package org.elasticsearch.xpack.qa.sql.security;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -21,6 +25,7 @@ import java.util.Properties;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.randomKnownTimeZone;
+import static org.elasticsearch.xpack.qa.sql.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
@@ -31,6 +36,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         properties.put("user", "test_admin");
         properties.put("password", "x-pack-test-password");
         // end::admin_properties
+        addSslPropertiesIfNeeded(properties);
         return properties;
     }
 
@@ -38,7 +44,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         Properties props = new Properties();
         props.put("timezone", randomKnownTimeZone());
         props.putAll(properties);
-        return DriverManager.getConnection("jdbc:es://" + elasticsearchAddress(), props);
+        String scheme = SSL_ENABLED ? "https" : "http";
+        return DriverManager.getConnection("jdbc:es://" + scheme + "://" + elasticsearchAddress(), props);
     }
 
     static Properties userProperties(String user) {
@@ -48,7 +55,30 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         Properties prop = new Properties();
         prop.put("user", user);
         prop.put("password", "testpass");
+        addSslPropertiesIfNeeded(prop);
         return prop;
+    }
+
+    private static void addSslPropertiesIfNeeded(Properties properties) {
+        if (false == SSL_ENABLED) {
+            return;
+        }
+        Path keyStore;
+        try {
+            keyStore = PathUtils.get(RestSqlIT.class.getResource("/test-node.jks").toURI());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException("exception while reading the store", e);
+        }
+        if (!Files.exists(keyStore)) {
+            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
+        }
+        String keyStoreStr = keyStore.toAbsolutePath().toString();
+
+        properties.put("ssl", "true");
+        properties.put("ssl.keystore.location", keyStoreStr);
+        properties.put("ssl.keystore.pass", "keypass");
+        properties.put("ssl.truststore.location", keyStoreStr);
+        properties.put("ssl.truststore.pass", "keypass");
     }
 
     static void expectActionMatchesAdmin(CheckedFunction<Connection, ResultSet, SQLException> adminAction,

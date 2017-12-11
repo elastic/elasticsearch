@@ -56,6 +56,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         if (writeContext.hasQueuedWriteOps()) {
             writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
+        readContext.close();
 
         super.closeFromSelector();
     }

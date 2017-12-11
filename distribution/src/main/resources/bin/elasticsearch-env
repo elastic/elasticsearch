@@ -80,7 +80,7 @@ if [ -z "$ES_TMPDIR" ]; then
   mktemp_coreutils=$?
   set -e
   if [ $mktemp_coreutils -eq 0 ]; then
-    ES_TMPDIR=`mktemp -d --tmpdir "elasticearch.XXXXXXXX"`
+    ES_TMPDIR=`mktemp -d --tmpdir "elasticsearch.XXXXXXXX"`
   else
     ES_TMPDIR=`mktemp -d -t elasticsearch`
   fi

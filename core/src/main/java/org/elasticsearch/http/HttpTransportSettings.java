@@ -26,8 +26,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -92,6 +94,9 @@ public final class HttpTransportSettings {
     // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
     public static final Setting<Boolean> SETTING_HTTP_RESET_COOKIES =
         Setting.boolSetting("http.reset_cookies", false, Property.NodeScope);
+
+    public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT =
+        Setting.timeSetting("http.read_timeout", new TimeValue(30, TimeUnit.SECONDS), new TimeValue(0), Property.NodeScope);
 
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
         boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);

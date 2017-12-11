@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -442,6 +443,55 @@ public class IndexSettingsTests extends ESTestCase {
         settings.updateIndexMetaData(
                 newIndexMeta("index", Settings.builder().put(key, newSize.toString()).build()));
         assertEquals(actual, settings.getGenerationThresholdSize());
+    }
+
+    public void testPrivateSettingsValidation() {
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, System.currentTimeMillis()).build();
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+
+        {
+            // validation should fail since we are not ignoring private settings
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean()));
+            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+        }
+
+        {
+            // validation should fail since we are not ignoring private settings
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean()));
+            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+        }
+
+        // nothing should happen since we are ignoring private settings
+        indexScopedSettings.validate(settings, randomBoolean(), true, randomBoolean());
+    }
+
+    public void testArchivedSettingsValidation() {
+        final Settings settings =
+                Settings.builder().put(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX + "foo", System.currentTimeMillis()).build();
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+
+        {
+            // validation should fail since we are not ignoring archived settings
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean()));
+            assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
+        }
+
+        {
+            // validation should fail since we are not ignoring archived settings
+            final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), false));
+            assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
+        }
+
+        // nothing should happen since we are ignoring archived settings
+        indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), true);
     }
 
     public void testArchiveBrokenIndexSettings() {

@@ -38,6 +38,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -1019,11 +1020,17 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomWaitForActiveShards(Consumer<Integer> setter, Map<String, String> expectedParams) {
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            int waitForActiveShards = randomIntBetween(0, 10);
-            setter.accept(waitForActiveShards);
-            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
+            String waitForActiveShardsString;
+            int waitForActiveShards = randomIntBetween(-1, 5);
+            if (waitForActiveShards == -1) {
+                waitForActiveShardsString = "all";
+            } else {
+                waitForActiveShardsString = String.valueOf(waitForActiveShards);
+            }
+            setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
+            expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
         }
     }
 

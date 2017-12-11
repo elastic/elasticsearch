@@ -764,7 +764,7 @@ public final class Definition {
                 simpleTypesMap.get(importedPainlessTypeName).clazz == javaClass ||
                 whitelistStruct.onlyFQNJavaClassName == false && (simpleTypesMap.containsKey(importedPainlessTypeName) == false ||
                 simpleTypesMap.get(importedPainlessTypeName).clazz != javaClass)) {
-            throw new IllegalArgumentException("inconsistent only_fqn parameters specified for type [" + painlessTypeName + "]");
+            throw new IllegalArgumentException("inconsistent only_fqn parameters found for type [" + painlessTypeName + "]");
         }
     }
 

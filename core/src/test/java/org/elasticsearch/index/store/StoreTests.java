@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
@@ -85,6 +86,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
@@ -1070,4 +1074,50 @@ public class StoreTests extends ESTestCase {
         }
         store.close();
     }
+
+    public void testCheckIndexLock() throws Exception {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Store store = new Store(shardId, INDEX_SETTINGS, new LuceneManagedDirectoryService(random()), new DummyShardLock(shardId));
+        final long numDocs = between(1, 100);
+        try (IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                doc.add(new TextField("body", randomUnicodeOfLength(10), randomBoolean() ? Field.Store.YES : Field.Store.NO));
+                doc.add(new SortedDocValuesField("dv", new BytesRef(randomUnicodeOfLength(10))));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+        }
+
+        final Store.MetadataSnapshot originalSnapshot = store.getMetadata(null, true);
+        assertThat(originalSnapshot.getNumDocs(), equalTo(numDocs));
+
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Thread thread = new Thread(() -> {
+            latch.countDown();
+            while (stop.get() == false) {
+                try {
+                    Store.MetadataSnapshot snapshot = store.getMetadata(null, true);
+                    assertThat(snapshot.getNumDocs(), equalTo(numDocs));
+                    assertThat(snapshot.recoveryDiff(originalSnapshot).different.size(), equalTo(0));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        thread.start();
+        int iters = iterations(10, 100);
+        latch.await(5, TimeUnit.SECONDS);
+        for (int i = 0; i < iters; i++) {
+            try (CheckIndex checkIndex = store.createCheckIndex()) {
+                assertThat(checkIndex.checkIndex().clean, equalTo(true));
+            }
+        }
+        assertTrue(stop.compareAndSet(false, true));
+        thread.join(5_000);
+        store.close();
+    }
+
 }

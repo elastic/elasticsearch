@@ -1891,7 +1891,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         internalIndexingStats.noopUpdate(type);
     }
 
-    private void checkIndex() throws IOException {
+    void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
@@ -1930,7 +1930,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else {
             // full checkindex
-            try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+            try (CheckIndex checkIndex = store.createCheckIndex()) {
                 checkIndex.setInfoStream(out);
                 CheckIndex.Status status = checkIndex.checkIndex();
                 out.flush();

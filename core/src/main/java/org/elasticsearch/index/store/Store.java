@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -342,6 +343,36 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.writeLock().unlock();
         }
 
+    }
+
+    /**
+     * Create a {@link CheckIndex} under the metadata lock.
+     * Closing this {@link CheckIndex} will also unlock the acquired the metadata lock.
+     */
+    public CheckIndex createCheckIndex() throws IOException {
+        metadataLock.writeLock().lock();
+        final Lock indexWriterLock;
+        try {
+            indexWriterLock = directory().obtainLock(IndexWriter.WRITE_LOCK_NAME);
+        } catch (IOException ex) {
+            metadataLock.writeLock().unlock();
+            throw ex;
+        }
+        return new CheckIndex(directory(), new Lock() {
+            @Override
+            public void close() throws IOException {
+                try {
+                    indexWriterLock.close();
+                } finally {
+                    metadataLock.writeLock().unlock();
+                }
+            }
+
+            @Override
+            public void ensureValid() throws IOException {
+                indexWriterLock.ensureValid();
+            }
+        });
     }
 
     public StoreStats stats() throws IOException {

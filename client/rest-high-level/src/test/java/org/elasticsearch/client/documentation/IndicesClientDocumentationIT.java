@@ -22,6 +22,8 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -188,6 +190,70 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::create-index-execute-async
+        }
+    }
+
+    public void closeIndex() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::close-index-request
+            CloseIndexRequest request = new CloseIndexRequest("index"); // <1>
+            // end::close-index-request
+
+            // tag::close-index-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::close-index-request-timeout
+            // tag::close-index-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::close-index-request-masterTimeout
+
+            // tag::close-index-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::close-index-request-indicesOptions
+
+            // tag::close-index-execute
+            CloseIndexResponse closeIndexResponse = client.indices().closeIndex(request);
+            // end::close-index-execute
+
+            // tag::close-index-response
+            boolean acknowledged = closeIndexResponse.isAcknowledged(); // <1>
+            // end::close-index-response
+            assertTrue(acknowledged);
+
+            // tag::close-index-execute-async
+            client.indices().closeIndexAsync(request, new ActionListener<CloseIndexResponse>() {
+                @Override
+                public void onResponse(CloseIndexResponse deleteIndexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::close-index-execute-async
+        }
+
+        {
+            // tag::close-index-notfound
+            try {
+                CloseIndexRequest request = new CloseIndexRequest("does_not_exist");
+                client.indices().closeIndex(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::close-index-notfound
         }
     }
 }

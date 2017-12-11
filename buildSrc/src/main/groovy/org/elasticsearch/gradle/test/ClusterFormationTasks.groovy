@@ -269,35 +269,6 @@ class ClusterFormationTasks {
                     into node.baseDir
                 }
                 break;
-            case 'rpm':
-                File rpmDatabase = new File(node.baseDir, 'rpm-database')
-                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
-                /* Delay reading the location of the rpm file until task execution */
-                Object rpm = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
-                        '--dbpath', rpmDatabase,
-                        '--relocate', "/=${rpmExtracted}",
-                        '-i', rpm
-                    doFirst {
-                        rpmDatabase.deleteDir()
-                        rpmExtracted.deleteDir()
-                    }
-                    outputs.dir rpmExtracted
-                }
-                break;
-            case 'deb':
-                /* Delay reading the location of the deb file until task execution */
-                File debExtracted = new File(node.baseDir, 'deb-extracted')
-                Object deb = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'dpkg-deb', '-x', deb, debExtracted
-                    doFirst {
-                        debExtracted.deleteDir()
-                    }
-                    outputs.dir debExtracted
-                }
-                break;
             default:
                 throw new InvalidUserDataException("Unknown distribution: ${node.config.distribution}")
         }

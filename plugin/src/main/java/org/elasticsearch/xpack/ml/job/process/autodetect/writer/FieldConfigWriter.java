@@ -79,8 +79,8 @@ public class FieldConfigWriter {
 
     private void writeDetectors(StringBuilder contents) throws IOException {
         int counter = 0;
-
-        List<DetectionRule> events = specialEvents.stream().map(SpecialEvent::toDetectionRule).collect(Collectors.toList());
+        List<DetectionRule> events = specialEvents.stream().map(e -> e.toDetectionRule(config.getBucketSpan()))
+                .collect(Collectors.toList());
 
         for (Detector detector : config.getDetectors()) {
             int detectorId = counter++;

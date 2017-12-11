@@ -21,7 +21,7 @@ $ java -jar cli-{version}.jar https://some.server:9200
 The cli jar is entirely stand alone and can be moved whereever it is
 needed.
 
-Once the CLI is running you can use any <<sql-query-dsl,query>> that
+Once the CLI is running you can use any <<sql-spec,query>> that
 Elasticsearch supports:
 
 [source,sqlcli]

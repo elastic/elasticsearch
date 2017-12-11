@@ -110,7 +110,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             };
             for (String index : concreteIndices) {
-                shardAction.execute(new FieldCapabilitiesIndexRequest(request.fields(), index), innerListener);
+                shardAction.execute(new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices), innerListener);
             }
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead

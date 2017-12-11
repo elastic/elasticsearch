@@ -135,7 +135,11 @@ public class NioTransport extends TcpTransport {
 
     @Override
     protected void stopInternal() {
-        nioGroup.stop();
+        try {
+            nioGroup.stop();
+        } catch (Exception e) {
+            logger.warn("unexpected exception while stopping nio group", e);
+        }
         profileToChannelFactory.clear();
     }
 

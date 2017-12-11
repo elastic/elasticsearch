@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -31,7 +32,19 @@ import java.util.concurrent.ThreadFactory;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+/**
+ * The NioGroup is a group of selectors for interfacing with java nio. When it is started it will create the
+ * configured number of socket and acceptor selectors. Each selector will be running in a dedicated thread.
+ * Server connections can be bound using the {@link #bindServerChannel(InetSocketAddress, ChannelFactory)}
+ * method. Client connections can be opened using the {@link #openChannel(InetSocketAddress, ChannelFactory)}
+ * method.
+ *
+ * The logic specific to a particular channel is provided by the {@link ChannelFactory} passed to the method
+ * when the channel is created. This is what allows an NioGroup to support different channel types.
+ */
 public class NioGroup {
 
     private final Logger logger;
@@ -64,24 +77,31 @@ public class NioGroup {
     }
 
     public void start() throws IOException {
-        for (int i = 0; i < socketSelectorCount; ++i) {
-            SocketSelector selector = new SocketSelector(socketEventHandlerFunction.apply(logger));
-            socketSelectors.add(selector);
+        try {
+            for (int i = 0; i < socketSelectorCount; ++i) {
+                SocketSelector selector = new SocketSelector(socketEventHandlerFunction.apply(logger));
+                socketSelectors.add(selector);
+            }
+            startSelectors(socketSelectors, socketSelectorThreadFactory);
+
+            for (int i = 0; i < acceptorCount; ++i) {
+                SocketSelector[] childSelectors = this.socketSelectors.toArray(new SocketSelector[this.socketSelectors.size()]);
+                Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(childSelectors);
+                AcceptingSelector acceptor = new AcceptingSelector(acceptorEventHandlerFunction.apply(logger, selectorSupplier));
+                acceptors.add(acceptor);
+            }
+            startSelectors(acceptors, acceptorThreadFactory);
+        } catch (Exception e) {
+            try {
+                stop();
+            } catch (Exception e1) {
+                e.addSuppressed(e1);
+            }
+            throw e;
         }
 
-        startSelectors(socketSelectors, socketSelectorThreadFactory);
-
-
-        for (int i = 0; i < acceptorCount; ++i) {
-            Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(socketSelectors);
-            AcceptingSelector acceptor = new AcceptingSelector(acceptorEventHandlerFunction.apply(logger, selectorSupplier));
-            acceptors.add(acceptor);
-        }
-
-        startSelectors(acceptors, acceptorThreadFactory);
-
-        socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors);
-        acceptorSupplier = new RoundRobinSupplier<>(acceptors);
+        socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new SocketSelector[socketSelectors.size()]));
+        acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new AcceptingSelector[acceptors.size()]));
     }
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
@@ -96,16 +116,8 @@ public class NioGroup {
         return factory.openNioChannel(address, socketSelectorSupplier.get());
     }
 
-    public void stop() {
-        for (AcceptingSelector acceptor : acceptors) {
-            shutdownSelector(acceptor);
-        }
-        acceptors.clear();
-
-        for (SocketSelector selector : socketSelectors) {
-            shutdownSelector(selector);
-        }
-        socketSelectors.clear();
+    public void stop() throws IOException {
+        IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
     }
 
     private static <S extends ESSelector> void startSelectors(Iterable<S> selectors, ThreadFactory threadFactory) {
@@ -114,14 +126,6 @@ public class NioGroup {
                 threadFactory.newThread(acceptor::runLoop).start();
                 acceptor.isRunningFuture().actionGet();
             }
-        }
-    }
-
-    private void shutdownSelector(ESSelector selector) {
-        try {
-            selector.close();
-        } catch (Exception e) {
-            logger.warn("unexpected exception while stopping selector", e);
         }
     }
 }

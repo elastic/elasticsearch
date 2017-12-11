@@ -35,8 +35,17 @@ The Search API returns `400 - Bad request` while it would previously return
 *   number of filters in the adjacency matrix aggregation is too large
 
 
-==== Scroll queries cannot use the request_cache anymore
+==== Scroll queries cannot use the `request_cache` anymore
 
-Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
+Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
+
+==== Term Suggesters supported distance algorithms
+
+The following string distance algorithms were given additional names in 6.2 and
+their existing names were deprecated. The deprecated names have now been
+removed.
+
+* 	`levenstein` - replaced by `levenshtein`
+* 	`jarowinkler` - replaced by `jaro_winkler`

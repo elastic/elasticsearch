@@ -102,6 +102,8 @@ public class CliFixture {
                     command.add(cliJar.toString());
                     command.addAll(Arrays.asList(line.split(" ")));
                     ProcessBuilder cliBuilder = new ProcessBuilder(command);
+                    // Clear the environment to drop JAVA_TOOLS which prints strange things on startup
+                    cliBuilder.environment().clear();
                     cliBuilder.redirectErrorStream(true);
                     Process process = cliBuilder.start();
                     println("started " + command);

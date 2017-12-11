@@ -128,6 +128,7 @@ public class MultiBucketConsumerService {
 
         public void reset() {
             this.count = 0;
+            this.hasLogged = false;
         }
 
         public int getCount() {

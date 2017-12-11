@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 /**
  * Tests for setting {@link Statement#setFetchSize(int)} and
@@ -51,6 +53,27 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             }
         }
     }
+
+    /**
+     * Test for {@code SELECT} that is implemented as a scroll query.
+     * In this test we don't retrieve all records and rely on close() to clean the cursor
+     */
+    public void testIncompleteScroll() throws Exception {
+        try (Connection c = esJdbc();
+             Statement s = c.createStatement()) {
+            s.setFetchSize(4);
+            try (ResultSet rs = s.executeQuery("SELECT * FROM test ORDER BY test_field ASC")) {
+                for (int i = 0; i < 10; i++) {
+                    assertEquals(4, rs.getFetchSize());
+                    assertTrue(rs.next());
+                    assertEquals(i, rs.getInt(1));
+                }
+                assertTrue(rs.next());
+            }
+        }
+        assertNoSearchContexts();
+    }
+
 
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.

@@ -43,6 +43,11 @@ public interface Cursor extends NamedWriteable {
     void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener);
 
     /**
+     *  Cleans the resources associated with the cursor
+     */
+    void clear(Configuration cfg, Client client, ActionListener<Boolean> listener);
+
+    /**
      * The {@link NamedWriteable}s required to deserialize {@link Cursor}s.
      */
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

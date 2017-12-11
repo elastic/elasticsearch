@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xpack.qa.sql.embed.CliHttpServer;
+import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -29,6 +30,7 @@ import java.security.AccessControlException;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class CliIntegrationTestCase extends ESRestTestCase {
     /**
@@ -67,12 +69,13 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     }
 
     @After
-    public void orderlyShutdown() throws IOException, InterruptedException {
+    public void orderlyShutdown() throws Exception {
         if (cli == null) {
             // failed to connect to the cli so there is nothing to do here
             return;
         }
         cli.close();
+        assertNoSearchContexts();
     }
 
     /**

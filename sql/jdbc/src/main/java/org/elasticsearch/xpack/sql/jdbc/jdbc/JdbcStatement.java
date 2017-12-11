@@ -48,7 +48,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     }
 
     @Override
-    public void close() {
+    public void close() throws SQLException {
         if (!closed) {
             closed = true;
             closeResultSet();
@@ -382,7 +382,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         }
     }
 
-    protected final void closeResultSet() {
+    protected final void closeResultSet() throws SQLException {
         if (rs != null) {
             ignoreResultSetClose = true;
             try {
@@ -394,7 +394,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         }
     }
 
-    final void resultSetWasClosed() {
+    final void resultSetWasClosed() throws SQLException {
         if (closeOnCompletion && !ignoreResultSetClose) {
             close();
         }

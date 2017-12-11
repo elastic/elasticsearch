@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.cli;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryCloseRequest;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryCloseResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
@@ -22,6 +24,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Map;
 import java.util.TimeZone;
 
 public class CliHttpClient {
@@ -45,6 +49,11 @@ public class CliHttpClient {
     public QueryResponse nextPage(String cursor) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout());
         return (QueryResponse) post(request);
+    }
+
+    public QueryCloseResponse queryClose(String cursor) throws SQLException {
+        QueryCloseRequest request = new QueryCloseRequest(cursor);
+        return (QueryCloseResponse) post(request);
     }
 
     private TimeoutInfo timeout() {

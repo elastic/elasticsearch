@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 
@@ -501,6 +502,7 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
                 action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
+                action.equals(SqlClearCursorAction.NAME) ||
                 action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 

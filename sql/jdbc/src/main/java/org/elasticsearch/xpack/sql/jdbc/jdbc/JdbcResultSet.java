@@ -109,12 +109,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     }
 
     @Override
-    public void close() {
+    public void close() throws SQLException {
         if (!closed) {
             closed = true;
             if (statement != null) {
                 statement.resultSetWasClosed();
             }
+            cursor.close();
         }
     }
 

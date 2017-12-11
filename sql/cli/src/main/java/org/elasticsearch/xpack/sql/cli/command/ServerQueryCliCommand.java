@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
@@ -20,42 +21,41 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
-        QueryResponse response;
+        QueryResponse response = null;
+        CliHttpClient cliClient = cliSession.getClient();
         try {
-            response = cliSession.getClient().queryInit(line, cliSession.getFetchSize());
+            response = cliClient.queryInit(line, cliSession.getFetchSize());
+            if (response.data.startsWith("digraph ")) {
+                handleGraphviz(terminal, response.data);
+                return true;
+            }
+            while (true) {
+                handleText(terminal, response.data);
+                if (response.cursor().isEmpty()) {
+                    // Successfully finished the entire query!
+                    terminal.flush();
+                    return true;
+                }
+                if (false == cliSession.getFetchSeparator().equals("")) {
+                    terminal.println(cliSession.getFetchSeparator());
+                }
+                response = cliSession.getClient().nextPage(response.cursor());
+            }
         } catch (SQLException e) {
             if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
                 terminal.error("Server error", e.getMessage());
             } else {
                 terminal.error("Bad request", e.getMessage());
             }
-            return true;
-        }
-        if (response.data.startsWith("digraph ")) {
-            handleGraphviz(terminal, response.data);
-            return true;
-        }
-        while (true) {
-            handleText(terminal, response.data);
-            if (response.cursor().isEmpty()) {
-                // Successfully finished the entire query!
-                terminal.flush();
-                return true;
-            }
-            if (false == cliSession.getFetchSeparator().equals("")) {
-                terminal.println(cliSession.getFetchSeparator());
-            }
-            try {
-                response = cliSession.getClient().nextPage(response.cursor());
-            } catch (SQLException e) {
-                if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
-                    terminal.error("Server error", e.getMessage());
-                } else {
-                    terminal.error("Bad request", e.getMessage());
+            if (response != null && response.cursor().isEmpty() == false) {
+                try {
+                    cliClient.queryClose(response.cursor());
+                } catch (SQLException ex) {
+                    terminal.error("Could not close cursor", ex.getMessage());
                 }
-                return true;
             }
         }
+        return true;
     }
 
     private void handleText(CliTerminal terminal, String str) {

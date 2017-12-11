@@ -110,7 +110,7 @@ public class Scroller {
         }
 
         @Override
-        protected SchemaRowSet handleResponse(SearchResponse response) {
+        protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
 
             final List<Object[]> extractedAggs = new ArrayList<>();
             AggValues aggValues = new AggValues(extractedAggs);
@@ -156,9 +156,9 @@ public class Scroller {
             }
 
             aggValues.init(maxDepth, query.limit());
-            clearScroll(response.getScrollId());
-
-            return new AggsRowSet(schema, aggValues, aggColumns);
+            clearScroll(response.getScrollId(), ActionListener.wrap(
+                    succeeded -> listener.onResponse(new AggsRowSet(schema, aggValues, aggColumns)),
+                    listener::onFailure));
         }
 
         private Object[] extractAggValue(ColumnReference col, SearchResponse response) {
@@ -230,7 +230,8 @@ public class Scroller {
             super.onResponse(response);
         }
 
-        protected SchemaRowSet handleResponse(SearchResponse response) {
+        @Override
+        protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
             SearchHit[] hits = response.getHits().getHits();
             List<HitExtractor> exts = getExtractors();
 
@@ -239,23 +240,23 @@ public class Scroller {
                 String scrollId = response.getScrollId();
 
                 // if there's an id, try to setup next scroll
-                if (scrollId != null) {
+                if (scrollId != null &&
                     // is all the content already retrieved?
-                    if (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
                     // or maybe the limit has been reached
-                            || (hits.length >= query.limit() && query.limit() > -1)) {
+                            || (hits.length >= query.limit() && query.limit() > -1))) {
                         // if so, clear the scroll
-                        clearScroll(scrollId);
-                        // and remove it to indicate no more data is expected
-                        scrollId = null;
-                    }
+                        clearScroll(response.getScrollId(), ActionListener.wrap(
+                                succeeded -> listener.onResponse(new InitialSearchHitRowSet(schema, exts, hits, query.limit(), null)),
+                                listener::onFailure));
+                } else {
+                    listener.onResponse(new InitialSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
                 }
-                return new InitialSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
             }
             // no hits
             else {
-                clearScroll(response.getScrollId());
-                return Rows.empty(schema);
+                clearScroll(response.getScrollId(), ActionListener.wrap(succeeded -> listener.onResponse(Rows.empty(schema)),
+                        listener::onFailure));
             }
         }
 
@@ -321,18 +322,22 @@ public class Scroller {
                 if (!CollectionUtils.isEmpty(failure)) {
                     onFailure(new ExecutionException(failure[0].reason(), failure[0].getCause()));
                 }
-                listener.onResponse(handleResponse(response));
+                handleResponse(response, listener);
             } catch (Exception ex) {
                 onFailure(ex);
             }
         }
 
-        protected abstract SchemaRowSet handleResponse(SearchResponse response);
+        protected abstract void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener);
 
-        protected final void clearScroll(String scrollId) {
+        protected final void clearScroll(String scrollId, ActionListener<Boolean> listener) {
             if (scrollId != null) {
-                // fire and forget
-                client.prepareClearScroll().addScrollId(scrollId).execute();
+                client.prepareClearScroll().addScrollId(scrollId).execute(
+                        ActionListener.wrap(
+                                clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
+                                listener::onFailure));
+            } else {
+                listener.onResponse(false);
             }
         }
 

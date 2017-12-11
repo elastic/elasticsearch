@@ -36,7 +36,7 @@ public final class Proto extends AbstractProto {
         META_COLUMN(MetaColumnRequest::new),
         QUERY_INIT(QueryInitRequest::new),
         QUERY_PAGE(QueryPageRequest::new),
-        //        QUERY_CLOSE(QueryClosenRequest::new), TODO implement me
+        QUERY_CLOSE(QueryCloseRequest::new)
         ;
 
         private final RequestReader reader;
@@ -71,7 +71,7 @@ public final class Proto extends AbstractProto {
         META_COLUMN(MetaColumnResponse::new),
         QUERY_INIT(QueryInitResponse::new),
         QUERY_PAGE(QueryPageResponse::new),
-//        QUERY_CLOSE(QueryClosenResponse::new)  TODO implement me
+        QUERY_CLOSE(QueryCloseResponse::new)
         ;
 
         private final ResponseReader reader;

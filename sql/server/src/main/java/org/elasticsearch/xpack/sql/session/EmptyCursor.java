@@ -35,6 +35,12 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
+    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+        // There is nothing to clean
+        listener.onResponse(false);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         return obj == this;
     }

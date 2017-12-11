@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseRequest;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
@@ -95,6 +97,8 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
             return queryInit(client, (QueryInitRequest) request);
         case QUERY_PAGE:
             return queryPage(client, (QueryPageRequest) request);
+        case QUERY_CLOSE:
+            return queryClose(client, (QueryCloseRequest) request);
         default:
             throw new IllegalArgumentException("Unsupported action [" + requestType + "]");
         }
@@ -164,5 +168,12 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                 response -> new QueryPageResponse(System.nanoTime() - start,
                         Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(response.cursor(), types)),
                     new SqlResponsePayload(types, response.rows()))));
+    }
+
+    private Consumer<RestChannel> queryClose(Client client, QueryCloseRequest request) {
+        Cursor cursor = Cursor.decodeFromString(request.cursor);
+        SqlClearCursorAction.Request sqlRequest = new SqlClearCursorAction.Request(cursor);
+        return channel -> client.execute(SqlClearCursorAction.INSTANCE, sqlRequest, toActionListener(channel,
+                response -> new QueryCloseResponse(response.isSucceeded())));
     }
 }

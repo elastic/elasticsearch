@@ -71,4 +71,8 @@ public class PlanExecutor {
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
         cursor.nextPage(cfg, client, listener);
     }
+
+    public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {
+        cursor.clear(cfg, client, listener);
+    }
 }

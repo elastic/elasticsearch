@@ -275,9 +275,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
         String expected =
                 "test           \n" +
-                "---------------\n" +
-                "test           \n" +
-                "test           \n";
+                        "---------------\n" +
+                        "test           \n" +
+                        "test           \n";
         Tuple<String, String> response = runSqlAsText("SELECT * FROM test");
         logger.warn(expected);
         logger.warn(response.v1());
@@ -318,6 +318,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expected.put("size", 0);
         expected.put("rows", emptyList());
         assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
+
+        Map<String, Object> response = runSql("/close", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+        assertEquals(true, response.get("succeeded"));
+
+        assertEquals(0, getNumberOfSearchContexts("test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql) throws IOException {
@@ -325,7 +330,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql) throws IOException {
-        Response  response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql);
+        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
@@ -338,6 +343,36 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
         }
+    }
+
+    public static int getNumberOfSearchContexts(String index) throws IOException {
+        Response response = client().performRequest("GET", "/_stats/search");
+        Map<String, Object> stats;
+        try (InputStream content = response.getEntity().getContent()) {
+            stats = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+        return getOpenContexts(stats, index);
+    }
+
+    public static void assertNoSearchContexts() throws IOException {
+        Response response = client().performRequest("GET", "/_stats/search");
+        Map<String, Object> stats;
+        try (InputStream content = response.getEntity().getContent()) {
+            stats = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> indexStats = (Map<String, Object>) stats.get("indices");
+        for (String index : indexStats.keySet()) {
+            if (index.startsWith(".") == false) { // We are not interested in internal indices
+                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static int getOpenContexts(Map<String, Object> indexStats, String index) {
+        return (int) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>)
+                indexStats.get("indices")).get(index)).get("total")).get("search")).get("open_contexts");
     }
 
 }

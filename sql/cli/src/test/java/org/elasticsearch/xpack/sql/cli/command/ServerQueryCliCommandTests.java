@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryCloseResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
 
@@ -78,6 +79,23 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         assertEquals("first-----\nsecond<flush/>", testTerminal.toString());
         verify(client, times(1)).queryInit(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testCursorCleanupOnError() throws Exception {
+        TestTerminal testTerminal = new TestTerminal();
+        CliHttpClient client = mock(CliHttpClient.class);
+        CliSession cliSession = new CliSession(client);
+        cliSession.setFetchSize(15);
+        when(client.queryInit("test query", 15)).thenReturn(new QueryInitResponse(123, "my_cursor1", "first"));
+        when(client.nextPage("my_cursor1")).thenThrow(new SQLException("test exception"));
+        when(client.queryClose("my_cursor1")).thenReturn(new QueryCloseResponse(true));
+        ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
+        assertEquals("first<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());
+        verify(client, times(1)).queryInit(eq("test query"), eq(15));
+        verify(client, times(1)).nextPage(any());
+        verify(client, times(1)).queryClose(eq("my_cursor1"));
         verifyNoMoreInteractions(client);
     }
 

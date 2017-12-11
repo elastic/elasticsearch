@@ -70,7 +70,8 @@ public class SqlPlugin implements ActionPlugin {
         return Arrays.asList(new RestSqlAction(settings, restController),
                              new SqlTranslateAction.RestAction(settings, restController),
                              new RestSqlCliAction(settings, restController),
-                             new RestSqlJdbcAction(settings, restController, sqlLicenseChecker, indexResolver));
+                             new RestSqlJdbcAction(settings, restController, sqlLicenseChecker, indexResolver),
+                             new SqlClearCursorAction.RestAction(settings, restController));
     }
 
     @Override
@@ -80,6 +81,7 @@ public class SqlPlugin implements ActionPlugin {
         }
 
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
-                             new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class));
+                             new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class),
+                             new ActionHandler<>(SqlClearCursorAction.INSTANCE, SqlClearCursorAction.TransportAction.class));
     }
 }

@@ -71,6 +71,11 @@ public class JdbcCursor implements Cursor {
     }
 
     @Override
+    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+        delegate.clear(cfg, client, listener);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

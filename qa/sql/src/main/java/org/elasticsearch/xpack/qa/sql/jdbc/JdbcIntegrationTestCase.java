@@ -16,9 +16,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.qa.sql.embed.EmbeddedJdbcServer;
+import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -35,6 +38,7 @@ import java.util.Set;
 import java.util.TimeZone;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     /**
@@ -51,6 +55,12 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     @ClassRule
     public static final EmbeddedJdbcServer EMBEDDED_SERVER = EMBED_SQL ? new EmbeddedJdbcServer() : null;
+
+    @After
+    public void checkSearchContent() throws Exception {
+        // Some context might linger due to fire and forget nature of scroll cleanup
+        assertNoSearchContexts();
+    }
 
     /**
      * Read an address for Elasticsearch suitable for the JDBC driver from the system properties.

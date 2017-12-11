@@ -74,7 +74,6 @@ public class SqlRequest extends AbstractSqlRequest {
         return this;
     }
 
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

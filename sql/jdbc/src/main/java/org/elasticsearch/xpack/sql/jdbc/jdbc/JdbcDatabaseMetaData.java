@@ -1257,5 +1257,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         public int batchSize() {
             return data.length;
         }
+
+        @Override
+        public void close() throws SQLException {
+            // this cursor doesn't hold any resource - no need to clean up
+        }
     }
 }

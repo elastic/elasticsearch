@@ -57,4 +57,11 @@ class DefaultCursor implements Cursor {
     public int batchSize() {
         return page.rows();
     }
+
+    @Override
+    public void close() throws SQLException {
+        if (cursor.isEmpty() == false) {
+            client.queryClose(cursor);
+        }
+    }
 }

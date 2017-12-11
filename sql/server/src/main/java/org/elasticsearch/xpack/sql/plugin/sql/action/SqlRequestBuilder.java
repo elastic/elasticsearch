@@ -33,13 +33,13 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
         return this;
     }
 
-    public SqlRequestBuilder filter(QueryBuilder filter) {
-        request.filter(filter);
+    public SqlRequestBuilder cursor(Cursor cursor) {
+        request.cursor(cursor);
         return this;
     }
 
-    public SqlRequestBuilder nextPageKey(Cursor nextPageInfo) {
-        request.cursor(nextPageInfo);
+    public SqlRequestBuilder filter(QueryBuilder filter) {
+        request.filter(filter);
         return this;
     }
 
@@ -55,6 +55,11 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
 
     public SqlRequestBuilder pageTimeout(TimeValue timeout) {
         request.pageTimeout(timeout);
+        return this;
+    }
+
+    public SqlRequestBuilder fetchSize(int fetchSize) {
+        request.fetchSize(fetchSize);
         return this;
     }
 }

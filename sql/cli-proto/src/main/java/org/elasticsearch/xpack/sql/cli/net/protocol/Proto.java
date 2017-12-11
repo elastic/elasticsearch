@@ -33,7 +33,8 @@ public final class Proto extends AbstractProto {
     public enum RequestType implements AbstractProto.RequestType {
         INFO(InfoRequest::new),
         QUERY_INIT(QueryInitRequest::new),
-        QUERY_PAGE(QueryPageRequest::new);
+        QUERY_PAGE(QueryPageRequest::new),
+        QUERY_CLOSE(QueryCloseRequest::new);
 
         private final RequestReader reader;
 
@@ -64,7 +65,8 @@ public final class Proto extends AbstractProto {
     public enum ResponseType implements AbstractProto.ResponseType {
         INFO(InfoResponse::new),
         QUERY_INIT(QueryInitResponse::new),
-        QUERY_PAGE(QueryPageResponse::new);
+        QUERY_PAGE(QueryPageResponse::new),
+        QUERY_CLOSE(QueryCloseResponse::new);
 
         private final ResponseReader reader;
 

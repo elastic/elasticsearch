@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
@@ -57,10 +59,23 @@ public class ScrollCursor implements Cursor {
     public void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener) {
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
-            int limitHits = limit;
-            listener.onResponse(new ScrolledSearchHitRowSet(extractors, response.getHits().getHits(),
-                    limitHits, response.getScrollId()));
+            ScrolledSearchHitRowSet rowSet = new ScrolledSearchHitRowSet(extractors, response.getHits().getHits(),
+                    limit, response.getScrollId());
+            if (rowSet.nextPageCursor() == Cursor.EMPTY ) {
+                // we are finished with this cursor, let's clean it before continuing
+                clear(cfg, client, ActionListener.wrap(success -> listener.onResponse(rowSet), listener::onFailure));
+            } else {
+                listener.onResponse(rowSet);
+            }
         }, listener::onFailure));
+    }
+
+    @Override
+    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+        cleanCursor(client, scrollId,
+                ActionListener.wrap(
+                        clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
+                        listener::onFailure));
     }
 
     @Override
@@ -83,4 +98,11 @@ public class ScrollCursor implements Cursor {
     public String toString() {
         return "cursor for scroll [" + scrollId + "]";
     }
+
+    public static void cleanCursor(Client client, String scrollId, ActionListener<ClearScrollResponse> listener) {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(scrollId);
+        client.clearScroll(clearScrollRequest, listener);
+    }
+
 }

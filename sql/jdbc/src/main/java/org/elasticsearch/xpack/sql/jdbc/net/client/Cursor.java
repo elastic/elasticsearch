@@ -27,4 +27,6 @@ public interface Cursor {
      * server in the current batch.
      */
     int batchSize();
+
+    void close() throws SQLException;
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
-import org.elasticsearch.xpack.sql.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
@@ -60,4 +59,5 @@ class HttpClient {
             throw new JdbcSQLException(ex, "Transport failure");
         }
     }
+
 }

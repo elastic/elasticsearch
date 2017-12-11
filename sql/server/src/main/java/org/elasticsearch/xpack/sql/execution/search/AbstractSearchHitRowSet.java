@@ -22,6 +22,7 @@ import java.util.Set;
  */
 abstract class AbstractSearchHitRowSet extends AbstractRowSet {
     private final SearchHit[] hits;
+    private final Cursor cursor;
     private final String scrollId;
     private final List<HitExtractor> extractors;
     private final Set<String> innerHits = new LinkedHashSet<>();
@@ -75,6 +76,21 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
         size = limitHits < 0 ? sz : Math.min(sz, limitHits);
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
+
+        if (scrollId == null) {
+            /* SearchResponse can contain a null scroll when you start a
+             * scroll but all results fit in the first page. */
+            cursor = Cursor.EMPTY;
+        } else {
+            // compute remaining limit
+            int remainingLimit = limit - size;
+            // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
+            if (size == 0 || remainingLimit == 0) {
+                cursor = Cursor.EMPTY;
+            } else {
+                cursor = new ScrollCursor(scrollId, extractors, remainingLimit);
+            }
+        }
     }
 
     @Override
@@ -152,17 +168,6 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
 
     @Override
     public Cursor nextPageCursor() {
-        if (scrollId == null) {
-            /* SearchResponse can contain a null scroll when you start a
-             * scroll but all results fit in the first page. */
-            return Cursor.EMPTY;
-        }
-        // compute remaining limit
-        int remainingLimit = limit - size;
-        // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
-        if (size == 0 || remainingLimit == 0) {
-            return Cursor.EMPTY;
-        }
-        return new ScrollCursor(scrollId, extractors, remainingLimit);
+        return cursor;
     }
 }

@@ -16,10 +16,12 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryCloseRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseResponse;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
@@ -64,6 +66,8 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
             return queryInit(client, (QueryInitRequest) request);
         case QUERY_PAGE:
             return queryPage(client, (QueryPageRequest) request);
+        case QUERY_CLOSE:
+            return queryClose(client, (QueryCloseRequest) request);
         default:
             throw new IllegalArgumentException("Unsupported action [" + requestType + "]");
         }
@@ -101,5 +105,12 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
             return new QueryPageResponse(System.nanoTime() - start,
                     Cursor.encodeToString(Version.CURRENT, CliFormatterCursor.wrap(response.cursor(), formatter)), data);
         }));
+    }
+
+    private Consumer<RestChannel> queryClose(Client client, QueryCloseRequest request) {
+        Cursor cursor = Cursor.decodeFromString(request.cursor);
+        SqlClearCursorAction.Request sqlRequest = new SqlClearCursorAction.Request(cursor);
+        return channel -> client.execute(SqlClearCursorAction.INSTANCE, sqlRequest, toActionListener(channel,
+                response -> new QueryCloseResponse(response.isSucceeded())));
     }
 }

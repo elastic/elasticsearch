@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseRequest;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
@@ -24,7 +26,9 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class JdbcHttpClient {
     @FunctionalInterface
@@ -67,6 +71,11 @@ public class JdbcHttpClient {
     public String nextPage(String cursor, Page page, RequestMeta meta) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
         return ((QueryPageResponse) http.post(request)).cursor();
+    }
+
+    public boolean queryClose(String cursor) throws SQLException {
+        QueryCloseRequest request = new QueryCloseRequest(cursor);
+        return ((QueryCloseResponse) http.post(request)).succeeded();
     }
 
     public InfoResponse serverInfo() throws SQLException {

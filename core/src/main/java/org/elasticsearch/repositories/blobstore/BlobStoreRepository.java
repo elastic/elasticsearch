@@ -368,9 +368,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeIndexGen(updatedRepositoryData, repositoryStateId);
 
             // delete the snapshot file
-            safeSnapshotBlobDelete(snapshot, snapshotId.getUUID());
+            deleteSnapshotBlobIgnoringErrors(snapshot, snapshotId.getUUID());
             // delete the global metadata file
-            safeGlobalMetaDataBlobDelete(snapshot, snapshotId.getUUID());
+            deleteGlobalMetaDataBlobIgnoringErrors(snapshot, snapshotId.getUUID());
 
             // Now delete all indices
             for (String index : indices) {
@@ -422,7 +422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void safeSnapshotBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
+    private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
         try {
             snapshotFormat.delete(snapshotsBlobContainer, blobId);
         } catch (IOException e) {
@@ -435,7 +435,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void safeGlobalMetaDataBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
+    private void deleteGlobalMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
         try {
             globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
         } catch (IOException e) {

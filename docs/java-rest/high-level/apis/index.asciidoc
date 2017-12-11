@@ -2,6 +2,8 @@ include::createindex.asciidoc[]
 
 include::deleteindex.asciidoc[]
 
+include::open_index.asciidoc[]
+
 include::close_index.asciidoc[]
 
 include::_index.asciidoc[]

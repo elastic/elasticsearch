@@ -137,7 +137,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     @Override
     protected Runnable wrapRunnable(Runnable command) {
         if (command instanceof PrioritizedRunnable) {
-            if ((command instanceof TieBreakingPrioritizedRunnable)) {
+            if (command instanceof TieBreakingPrioritizedRunnable) {
                 return command;
             }
             Priority priority = ((PrioritizedRunnable) command).priority();
@@ -145,9 +145,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         } else if (command instanceof PrioritizedFutureTask) {
             return command;
         } else { // it might be a callable wrapper...
-            if (command instanceof TieBreakingPrioritizedRunnable) {
-                return command;
-            }
             return new TieBreakingPrioritizedRunnable(super.wrapRunnable(command), Priority.NORMAL, insertionOrder.incrementAndGet());
         }
     }

@@ -75,9 +75,6 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
-            ESToParentBlockJoinQuery blockJoinQuery = (ESToParentBlockJoinQuery) sourceQuery;
-            flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof BoostingQuery) {
             BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;
             //flatten positive query with query boost

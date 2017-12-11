@@ -26,11 +26,11 @@ include::{es-repo-dir}/reference/index-shared3.asciidoc[]
 :edit_url!:
 include::sql/index.asciidoc[]
 include::monitoring/index.asciidoc[]
+
+:edit_url!:
 include::rest-api/index.asciidoc[]
 
-# TODO before merging SQL we need to fiddle with this to make sure it is right
-# Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3084
-
+:edit_url!:
 include::commands/index.asciidoc[]
 
 :edit_url:

@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
 import java.net.InetAddress;

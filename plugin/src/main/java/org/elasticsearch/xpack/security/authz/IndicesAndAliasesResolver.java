@@ -5,6 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.stream.Collectors;
+
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -26,18 +38,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
-
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.stream.Collectors;
 
 public class IndicesAndAliasesResolver {
 
@@ -84,6 +84,7 @@ public class IndicesAndAliasesResolver {
      * <br>
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
+
     public ResolvedIndices resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
         if (request instanceof IndicesAliasesRequest) {
             ResolvedIndices indices = ResolvedIndices.empty();

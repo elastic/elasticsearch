@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.transport.TransportMessage;
 
 import java.net.InetAddress;
 

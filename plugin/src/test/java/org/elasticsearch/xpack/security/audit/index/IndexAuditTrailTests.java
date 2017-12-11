@@ -524,7 +524,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -571,7 +571,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
         assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));

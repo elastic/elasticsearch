@@ -279,7 +279,6 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         if (events.contains(ACCESS_DENIED)) {
             String indices = indicesString(message);
             final LocalNodeInfo localNodeInfo = this.localNodeInfo;
-
             if (indices != null) {
                 logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
                         localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), principal(user),

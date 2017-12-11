@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import java.net.InetAddress;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -13,10 +17,6 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.user.User;
-
-import java.net.InetAddress;
-import java.util.Collections;
-import java.util.List;
 
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
 

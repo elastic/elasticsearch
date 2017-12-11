@@ -57,6 +57,12 @@ setup:
 
   - do:
       search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "integer_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
         body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
 
   - match: { hits.total: 3 }

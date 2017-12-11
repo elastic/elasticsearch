@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
-class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     /**
      * Resets the internal map and adjusts it's capacity as if there were no indexing operations.
@@ -54,14 +54,30 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final Map<BytesRef,VersionValue> old;
 
-        Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
+        // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
+        // where we know that documents can't have any duplicates so we can skip the version map entirely. This reduces
+        // the memory pressure significantly for this use-case where we often get a massive amount of small document (metrics).
+        // if the version map is in safeAccess mode we track all version in the version map. yet if a document comes in that needs
+        // safe access but we are not in this mode we force a refresh and make the map as safe access required. All subsequent ops will
+        // respect that and fill the version map. The nice part here is that we are only really requiring this for a single ID and since
+        // we hold the ID lock in the engine while we do all this it's safe to do it globally unlocked.
+        // NOTE: these values can both be non-volatile since it's ok to read a stale value per doc ID. We serialize changes in the engine
+        // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
+        // map reference itself.
+        boolean safeAccessRequested = false;
+        boolean unsafe = false;
+        // the previous map needed safe access ie. a delete or a non-autoID or unsafe(retry) update was indexed
+        // in this case we try to carry-on the de-optimized case and enforce safe access
+        final boolean needsSafeAccess;
+
+        Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old, boolean neededSafeAccess) {
            this.current = current;
            this.old = old;
+           this.needsSafeAccess = neededSafeAccess;
         }
 
         Maps() {
-            this(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(),
-                 Collections.emptyMap());
+            this(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(), Collections.emptyMap(), false);
         }
     }
 
@@ -113,7 +129,10 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size()), maps.current);
+        final int mapSize = maps.current.size();
+        boolean carryOnSafeAccess = maps.safeAccessRequested// previous map was forced to use safe access so we carry it over
+            || (mapSize == 0 && maps.needsSafeAccess); // previous map was empty but the map before needed it so we maintain it
+        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(mapSize), maps.current, carryOnSafeAccess);
 
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -128,13 +147,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        maps = new Maps(maps.current, Collections.emptyMap());
+        maps = new Maps(maps.current, Collections.emptyMap(), maps.needsSafeAccess || maps.safeAccessRequested);
     }
 
     /** Returns the live version (add or delete) for this uid. */
     VersionValue getUnderLock(final BytesRef uid) {
         Maps currentMaps = maps;
-
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
@@ -149,11 +167,39 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         return tombstones.get(uid);
     }
 
+    boolean isUnsafe() {
+        return maps.unsafe;
+    }
+
+    void enforceSafeAccess() {
+        maps.safeAccessRequested = true;
+    }
+
+    boolean isSafeAccessRequired() {
+        Maps maps = this.maps;
+        return maps.needsSafeAccess || maps.safeAccessRequested;
+    }
+
+    /** Adds this uid/version to the pending adds map iff the map needs safe access.  */
+    void maybePutUnderLock(BytesRef uid, VersionValue version) {
+        Maps maps = this.maps;
+        if (maps.needsSafeAccess || maps.safeAccessRequested) {
+            putUnderLock(uid, version);
+        } else {
+            maps.unsafe = true;
+        }
+    }
+
     /** Adds this uid/version to the pending adds map. */
     void putUnderLock(BytesRef uid, VersionValue version) {
+        Maps maps = this.maps;
+        putUnderLock(uid, version, maps);
+    }
+
+    /** Adds this uid/version to the pending adds map. */
+    private void putUnderLock(BytesRef uid, VersionValue version, Maps maps) {
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
-
         final VersionValue prev = maps.current.put(uid, version);
         if (prev != null) {
             // Deduct RAM for the version we just replaced:

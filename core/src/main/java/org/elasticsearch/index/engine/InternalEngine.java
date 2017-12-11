@@ -559,7 +559,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
+                VersionValue versionValue = getVersionFromMap(get.uid().bytes());
                 if (versionValue != null) {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
@@ -597,7 +597,7 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
-        final VersionValue versionValue = versionMap.getUnderLock(op.uid().bytes());
+        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
             if  (op.seqNo() > versionValue.seqNo ||
@@ -634,7 +634,7 @@ public class InternalEngine extends Engine {
     /** resolves the current version of the document, returning null if not found */
     private VersionValue resolveDocVersion(final Operation op) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
-        VersionValue versionValue = versionMap.getUnderLock(op.uid().bytes());
+        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final long currentVersion = loadCurrentVersionFromIndex(op.uid());
@@ -646,6 +646,21 @@ public class InternalEngine extends Engine {
             versionValue = null;
         }
         return versionValue;
+    }
+
+    private VersionValue getVersionFromMap(BytesRef id) {
+        if (versionMap.isUnsafe()) {
+            synchronized (versionMap) {
+                // we are switching from an unsafe map to a safe map. This might happen concurrently
+                // but we only need to do this once since the last operation per ID is to add to the version
+                // map so once we pass this point we can safely lookup from the version map.
+                if (versionMap.isUnsafe()) {
+                    refresh("unsafe_version_map", SearcherScope.INTERNAL);
+                }
+                versionMap.enforceSafeAccess();
+            }
+        }
+        return versionMap.getUnderLock(id);
     }
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
@@ -835,6 +850,7 @@ public class InternalEngine extends Engine {
             assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
             plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
         } else {
+            versionMap.enforceSafeAccess();
             // drop out of order operations
             assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
                 "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
@@ -878,10 +894,12 @@ public class InternalEngine extends Engine {
         if (canOptimizeAddDocument(index)) {
             if (mayHaveBeenIndexedBefore(index)) {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
+                versionMap.enforceSafeAccess();
             } else {
                 plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
             }
         } else {
+            versionMap.enforceSafeAccess();
             // resolves incoming version
             final VersionValue versionValue = resolveDocVersion(index);
             final long currentVersion;
@@ -927,7 +945,7 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 index(index.docs(), indexWriter);
             }
-            versionMap.putUnderLock(index.uid().bytes(),
+            versionMap.maybePutUnderLock(index.uid().bytes(),
                 new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
@@ -1047,7 +1065,8 @@ public class InternalEngine extends Engine {
      * Asserts that the doc in the index operation really doesn't exist
      */
     private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
-        final VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
+        final VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes()); // this uses direct access to the version map -
+        // no refresh needed here
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
@@ -1073,6 +1092,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
+        versionMap.enforceSafeAccess();
         assert Objects.equals(delete.uid().field(), uidField) : delete.uid().field();
         assert assertVersionType(delete);
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
@@ -2146,6 +2166,15 @@ public class InternalEngine extends Engine {
         numIndexVersionsLookups.inc();
         return true;
     }
+
+    int getVersionMapSize() {
+        return versionMap.getAllCurrent().size();
+    }
+
+    boolean isSafeAccessRequired() {
+        return versionMap.isSafeAccessRequired();
+    }
+
 
     /**
      * Returns <code>true</code> iff the index writer has any deletions either buffered in memory or

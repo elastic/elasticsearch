@@ -747,30 +747,24 @@ public final class Definition {
             Struct struct = new Struct(painlessTypeName, javaClass, org.objectweb.asm.Type.getType(javaClass));
             structsMap.put(painlessTypeName, struct);
 
-            if (simpleTypesMap.containsKey(painlessTypeName) == false && simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
-                simpleTypesMap.put(painlessTypeName, getTypeInternal(painlessTypeName));
+            if (whitelistStruct.onlyFQNJavaClassName) {
+                simpleTypesMap.put(painlessTypeName, getType(painlessTypeName));
+            } else if (simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
+                simpleTypesMap.put(importedPainlessTypeName, getType(painlessTypeName));
+                structsMap.put(importedPainlessTypeName, struct);
+            } else {
+                throw new IllegalArgumentException("duplicate short name [" + importedPainlessTypeName + "] " +
+                        "found for struct [" + painlessTypeName + "]");
             }
         } else if (existingStruct.clazz.equals(javaClass) == false) {
             throw new IllegalArgumentException("struct [" + painlessTypeName + "] is used to " +
                     "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] and " +
                     "[" + existingStruct.clazz.getName() + "]");
-        }
-
-        if (whitelistStruct.onlyFQNJavaClassName == false) {
-            existingStruct = structsMap.get(importedPainlessTypeName);
-
-            if (existingStruct == null) {
-                structsMap.put(importedPainlessTypeName, structsMap.get(painlessTypeName));
-                Type painlessType = simpleTypesMap.remove(painlessTypeName);
-
-                if (simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
-                    simpleTypesMap.put(importedPainlessTypeName, painlessType);
-                }
-            } else if (existingStruct.clazz.equals(javaClass) == false) {
-                throw new IllegalArgumentException("simple type name [" + painlessTypeName + "] found for types " +
-                    "[" + whitelistStruct.javaClassName + "] and [" + existingStruct.clazz.getName() + "]; " +
-                    "at least one must require fully qualified name using 'only_fqn'");
-            }
+        } else if (whitelistStruct.onlyFQNJavaClassName && simpleTypesMap.containsKey(importedPainlessTypeName) &&
+                simpleTypesMap.get(importedPainlessTypeName).clazz == javaClass ||
+                whitelistStruct.onlyFQNJavaClassName == false && (simpleTypesMap.containsKey(importedPainlessTypeName) == false ||
+                simpleTypesMap.get(importedPainlessTypeName).clazz != javaClass)) {
+            throw new IllegalArgumentException("inconsistent only_fqn parameters specified for type [" + painlessTypeName + "]");
         }
     }
 

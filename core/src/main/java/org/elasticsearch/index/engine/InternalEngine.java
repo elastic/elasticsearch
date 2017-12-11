@@ -700,13 +700,9 @@ public class InternalEngine extends Engine {
     }
 
     private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-            // legacy support
-            assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
-                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
-        } else if (origin == Operation.Origin.PRIMARY) {
+        if (origin == Operation.Origin.PRIMARY) {
             assert assertOriginPrimarySequenceNumber(seqNo);
-        } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+        } else {
             // sequence number should be set when operation origin is not primary
             assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + origin;
         }
@@ -717,15 +713,6 @@ public class InternalEngine extends Engine {
         // sequence number should not be set when operation origin is primary
         assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
                 : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
-        return true;
-    }
-
-    private boolean assertSequenceNumberBeforeIndexing(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1) ||
-            origin == Operation.Origin.PRIMARY) {
-            // sequence number should be set when operation origin is primary or when all shards are on new nodes
-            assert seqNo >= 0 : "ops should have an assigned seq no.; origin: " + origin;
-        }
         return true;
     }
 
@@ -842,13 +829,7 @@ public class InternalEngine extends Engine {
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
             final OpVsLuceneDocStatus opVsLucene;
-            if (index.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
-                // created by an old version.
-                assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                    "index is newly created but op has no sequence numbers. op: " + index;
-                opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
-            } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
+            if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
                 // this can happen during recovery where older operations are sent from the translog that are already
                 // part of the lucene commit (either from a peer recovery or a local translog)
@@ -910,7 +891,7 @@ public class InternalEngine extends Engine {
 
     private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
         throws IOException {
-        assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
+        assert plan.seqNoForIndexing >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
         assert plan.indexIntoLucene;
         /* Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
@@ -1135,11 +1116,7 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
         final OpVsLuceneDocStatus opVsLucene;
-        if (delete.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                "index is newly created but op has no sequence numbers. op: " + delete;
-            opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
-        } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
+        if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)

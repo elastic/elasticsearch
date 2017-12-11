@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -26,6 +28,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
@@ -69,7 +72,6 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         return true; // just to have better control over the triggers
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1517")
     public void testTransformFields() throws Exception {
         String index = "the-index";
         String type = "the-type";
@@ -116,12 +118,15 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                                                                 .includeDefaults(true)
                                                                 .get();
 
-            for (Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> map : response.mappings().values()) {
-                Map<String, GetFieldMappingsResponse.FieldMappingMetaData> watchRecord = map.get("doc");
-                assertThat(watchRecord, hasKey("result.actions.transform.payload"));
-                GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = watchRecord.get("result.actions.transform.payload");
-                assertThat(fieldMappingMetaData.isNull(), is(true));
-            }
+            // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
+            List<Boolean> payloadNulls = response.mappings().values().stream()
+                    .map(map -> map.get("doc"))
+                    .map(map -> map.get("result.actions.transform.payload"))
+                    .filter(Objects::nonNull)
+                    .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)
+                    .collect(Collectors.toList());
+
+            assertThat(payloadNulls, hasItem(true));
         });
     }
 }

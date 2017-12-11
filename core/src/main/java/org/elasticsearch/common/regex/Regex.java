@@ -151,6 +151,10 @@ public class Regex {
         return false;
     }
 
+    public static Pattern compile(String regex) {
+        return Pattern.compile(regex, 0);
+    }
+
     public static Pattern compile(String regex, String flags) {
         int pFlags = flags == null ? 0 : flagsFromString(flags);
         return Pattern.compile(regex, pFlags);

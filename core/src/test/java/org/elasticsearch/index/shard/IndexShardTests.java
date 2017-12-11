@@ -1221,7 +1221,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexDoc(shard, "test", "test");
         shard.writeIndexingBuffer();
-        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+2));
+        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         closeShards(shard);
     }
 

@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
-import org.elasticsearch.xpack.sql.jdbc.util.Version;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;

@@ -3,20 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.util;
+package org.elasticsearch.xpack.sql.client.shared;
 
 import org.elasticsearch.test.ESTestCase;
 
 public class VersionTests extends ESTestCase {
-    public void testVersionIsCurrent() {
-        /* This test will only work properly in gradle because in gradle we run the tests
-         * using the jar. */
-        assertEquals(org.elasticsearch.Version.CURRENT.toString(), Version.versionNumber());
-        assertNotNull(Version.versionHash());
-        assertEquals(org.elasticsearch.Version.CURRENT.major, Version.versionMajor());
-        assertEquals(org.elasticsearch.Version.CURRENT.minor, Version.versionMinor());
-    }
-
     public void test70Version() {
         int[] ver = Version.from("7.0.0-alpha");
         assertEquals(7, ver[0]);
@@ -40,6 +31,6 @@ public class VersionTests extends ESTestCase {
 
     public void testInvalidVersion() {
         Error err = expectThrows(Error.class, () -> Version.from("7.1"));
-        assertEquals("Detected Elasticsearch SQL JDBC driver but found invalid version 7.1", err.getMessage());
+        assertEquals("Detected Elasticsearch SQL jar but found invalid version 7.1", err.getMessage());
     }
 }

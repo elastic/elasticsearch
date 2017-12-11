@@ -3,9 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.util;
-
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
+package org.elasticsearch.xpack.sql.client.shared;
 
 import java.io.IOException;
 import java.net.URL;
@@ -29,7 +27,7 @@ public abstract class Version {
             return new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]) };
         }
         else {
-            throw new Error("Detected Elasticsearch SQL JDBC driver but found invalid version " + ver);
+            throw new Error("Detected Elasticsearch SQL jar but found invalid version " + ver);
         }
     }
 
@@ -41,7 +39,7 @@ public abstract class Version {
         try {
             res = Version.class.getClassLoader().getResources(target);
         } catch (IOException ex) {
-            throw new Error("Cannot detect Elasticsearch SQL JDBC driver jar; it typically indicates a deployment issue...");
+            throw new Error("Cannot detect Elasticsearch SQL jar; it typically indicates a deployment issue...");
         }
 
         if (res != null) {
@@ -55,7 +53,7 @@ public abstract class Version {
             int foundJars = 0;
             if (normalized.size() > 1) {
                 StringBuilder sb = new StringBuilder(
-                        "Multiple Elasticsearch SQL JDBC driver versions detected in the classpath; please use only one\n");
+                        "Multiple Elasticsearch SQL versions detected in the classpath; please use only one\n");
                 for (String s : normalized) {
                     if (s.contains("jar:")) {
                         foundJars++;
@@ -88,7 +86,7 @@ public abstract class Version {
                 min = vers[1];
                 rev = vers[2];
             } catch (Exception ex) {
-                throw new Error("Detected Elasticsearch SQL JDBC driver but cannot retrieve its version", ex);
+                throw new Error("Detected Elasticsearch SQL jar but cannot retrieve its version", ex);
             }
         }
         VER_MAJ = maj;

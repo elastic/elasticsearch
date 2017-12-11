@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -99,7 +100,7 @@ public class CliFixture {
                     command.add("-Dorg.jline.terminal.dumb=true");
                     command.add("-jar");
                     command.add(cliJar.toString());
-                    command.add(url);
+                    command.addAll(Arrays.asList(url.split(" ")));
                     ProcessBuilder cliBuilder = new ProcessBuilder(command);
                     cliBuilder.redirectErrorStream(true);
                     Process process = cliBuilder.start();

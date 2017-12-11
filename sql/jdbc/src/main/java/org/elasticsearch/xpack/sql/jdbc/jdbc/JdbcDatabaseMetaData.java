@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
-import org.elasticsearch.xpack.sql.jdbc.util.Version;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;

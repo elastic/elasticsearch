@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
+    static final String NO_INIT_CONNECTION_CHECK_PREFIX = "-c false ";
     static String adminEsUrlPrefix() {
         return "test_admin:x-pack-test-password@";
     }
@@ -117,7 +118,8 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
-            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+            // Skip initial check to make sure it doesn't trip
+            try (RemoteCli cli = new RemoteCli(NO_INIT_CONNECTION_CHECK_PREFIX + userPrefix(user) + elasticsearchAddress())) {
                 assertThat(cli.command(sql), containsString("is unauthorized for user [" + user + "]"));
             }
         }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
-import org.elasticsearch.xpack.sql.jdbc.util.Version;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;

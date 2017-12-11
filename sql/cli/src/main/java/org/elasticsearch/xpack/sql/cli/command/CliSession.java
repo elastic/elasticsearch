@@ -6,7 +6,12 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
+import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
+import org.elasticsearch.xpack.sql.client.shared.ClientException;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
+
+import java.sql.SQLException;
 
 /**
  * Stores information about the current session
@@ -18,7 +23,7 @@ public class CliSession {
     private boolean debug;
 
     public CliSession(CliHttpClient cliHttpClient) {
-        this.cliHttpClient =  cliHttpClient;
+        this.cliHttpClient = cliHttpClient;
     }
 
     public CliHttpClient getClient() {
@@ -50,5 +55,18 @@ public class CliSession {
 
     public boolean isDebug() {
         return debug;
+    }
+
+    public void checkConnection() throws ClientException {
+        InfoResponse response;
+        try {
+            response = cliHttpClient.serverInfo();
+        } catch (SQLException ex) {
+            throw new ClientException(ex);
+        }
+        // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
+        if (response.majorVersion != Version.versionMajor() || response.minorVersion != Version.versionMinor()) {
+            throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " + Version.version());
+        }
     }
 }

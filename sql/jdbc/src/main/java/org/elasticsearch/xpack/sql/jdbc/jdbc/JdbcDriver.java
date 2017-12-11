@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.jdbc.util.Version;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;

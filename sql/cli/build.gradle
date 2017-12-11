@@ -95,3 +95,12 @@ task run {
         .waitFor()
   }
 }
+
+// Use the jar for testing so we can get the proper version information
+test {
+  classpath -= compileJava.outputs.files
+  classpath -= configurations.compile
+  classpath -= configurations.runtime
+  classpath += jar.outputs.files
+  dependsOn jar
+}

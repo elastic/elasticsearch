@@ -217,11 +217,6 @@ public class MockTcpTransport extends TcpTransport {
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
     }
 
-    @Override
-    public long getNumOpenServerConnections() {
-        return 1;
-    }
-
     public final class MockChannel implements Closeable, TcpChannel {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;

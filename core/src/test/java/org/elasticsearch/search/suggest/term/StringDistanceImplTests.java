@@ -58,16 +58,6 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
         assertThat(e.getMessage(), equalTo("Input string is null"));
     }
 
-    public void testLevensteinDeprecation() {
-        assertThat(StringDistanceImpl.resolve("levenstein"), equalTo(StringDistanceImpl.LEVENSHTEIN));
-        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
-    }
-
-    public void testJaroWinklerDeprecation() {
-        assertThat(StringDistanceImpl.resolve("jaroWinkler"), equalTo(StringDistanceImpl.JARO_WINKLER));
-        assertWarnings("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
-    }
-
     @Override
     public void testWriteTo() throws IOException {
         assertWriteToStream(StringDistanceImpl.INTERNAL, 0);
@@ -85,5 +75,4 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(3, StringDistanceImpl.JARO_WINKLER);
         assertReadFromStream(4, StringDistanceImpl.NGRAM);
     }
-
 }

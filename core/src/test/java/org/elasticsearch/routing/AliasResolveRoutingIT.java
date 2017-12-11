@@ -32,14 +32,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AliasResolveRoutingIT extends ESIntegTestCase {
-
 
     // see https://github.com/elastic/elasticsearch/issues/13278
     public void testSearchClosedWildcardIndex() throws ExecutionException, InterruptedException {
@@ -52,10 +50,17 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
             client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
         refresh("test-*");
-        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")).get(), 3L);
+        assertHitCount(
+                client()
+                        .prepareSearch()
+                        .setIndices("alias-*")
+                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                        .setQuery(queryStringQuery("quick"))
+                        .get(),
+                3L);
     }
 
-    public void testResolveIndexRouting() throws Exception {
+    public void testResolveIndexRouting() {
         createIndex("test1");
         createIndex("test2");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -97,9 +102,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         }
     }
 
-    public void testResolveSearchRouting() throws Exception {
+    public void testResolveSearchRouting() {
         createIndex("test1");
         createIndex("test2");
+        createIndex("test3");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().indices().prepareAliases()
@@ -108,7 +114,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                 .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))
                 .addAliasAction(AliasActions.add().index("test2").alias("alias21").routing("1"))
                 .addAliasAction(AliasActions.add().index("test1").alias("alias0").routing("0"))
-                .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0")).get();
+                .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0"))
+                .addAliasAction(AliasActions.add().index("test3").alias("alias3tw").routing("tw "))
+                .addAliasAction(AliasActions.add().index("test3").alias("alias3ltw").routing(" ltw "))
+                .addAliasAction(AliasActions.add().index("test3").alias("alias3lw").routing(" lw")).get();
 
         ClusterState state = clusterService().state();
         IndexNameExpressionResolver indexNameExpressionResolver = internalCluster().getInstance(IndexNameExpressionResolver.class);
@@ -118,7 +127,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias10"), equalTo(newMap("test1", newSet("0"))));
         assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0", "alias10"), equalTo(newMap("test1", newSet("0"))));
         assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "1", "alias10"), nullValue());
-        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias0"), equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, null, "alias0"),
+                equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
 
         assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"alias10", "alias20"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
@@ -143,12 +154,41 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("1"))));
         assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2", new String[]{"test1", "alias10", "alias21"}),
                 equalTo(newMap("test1", newSet("0", "1", "2"), "test2", newSet("1"))));
+
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "tw , ltw , lw", "test1"),
+                equalTo(newMap("test1", newSet("tw ", " ltw ", " lw"))));
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "tw , ltw , lw", "alias3tw"),
+                equalTo(newMap("test3", newSet("tw "))));
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "tw , ltw , lw", "alias3ltw"),
+                equalTo(newMap("test3", newSet(" ltw "))));
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "tw , ltw , lw", "alias3lw"),
+                equalTo(newMap("test3", newSet(" lw"))));
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "0,tw , ltw , lw", "test1", "alias3ltw"),
+                equalTo(newMap("test1", newSet("0", "tw ", " ltw ", " lw"), "test3", newSet(" ltw "))));
+
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2,tw , ltw , lw", (String[])null),
+                equalTo(newMap(
+                        "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test3", newSet("0", "1", "2", "tw ", " ltw ", " lw"))));
+
+        assertThat(
+                indexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metaData(), "0,1,2,tw , ltw , lw"),
+                equalTo(newMap(
+                        "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
+                        "test3", newSet("0", "1", "2", "tw ", " ltw ", " lw"))));
     }
 
     private <T> Set<T> newSet(T... elements) {
         return newHashSet(elements);
     }
-
 
     private <K, V> Map<K, V> newMap(K key, V value) {
         Map<K, V> r = new HashMap<>();
@@ -160,6 +200,14 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         Map<K, V> r = new HashMap<>();
         r.put(key1, value1);
         r.put(key2, value2);
+        return r;
+    }
+
+    private <K, V> Map<K, V> newMap(K key1, V value1, K key2, V value2, K key3, V value3) {
+        Map<K, V> r = new HashMap<>();
+        r.put(key1, value1);
+        r.put(key2, value2);
+        r.put(key3, value3);
         return r;
     }
 

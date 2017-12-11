@@ -464,19 +464,13 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     static StringDistance resolveDistance(String distanceVal) {
-        distanceVal = distanceVal.toLowerCase(Locale.US);
+        distanceVal = distanceVal.toLowerCase(Locale.ROOT);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+        } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
-        } else if ("levenstein".equals(distanceVal)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
-            return new LevensteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
             return new LevensteinDistance();
-        } else if ("jarowinkler".equals(distanceVal)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
-            return new JaroWinklerDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

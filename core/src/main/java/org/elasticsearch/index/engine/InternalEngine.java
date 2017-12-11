@@ -716,11 +716,6 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private boolean assertSequenceNumberBeforeIndexing(final Engine.Operation.Origin origin, final long seqNo) {
-        assert seqNo >= 0 : "ops should have an assigned seq no.; origin: " + origin;
-        return true;
-    }
-
     private long generateSeqNoForOperation(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         return doGenerateSeqNoForOperation(operation);
@@ -896,7 +891,7 @@ public class InternalEngine extends Engine {
 
     private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
         throws IOException {
-        assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
+        assert plan.seqNoForIndexing >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
         assert plan.indexIntoLucene;
         /* Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence

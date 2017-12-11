@@ -80,7 +80,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id").build(new Date()), false);
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
-                Collections.singletonList("*")));
+                Collections.singletonList("*")), null);
         final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", null, JobState.OPENED, startDataFeedTaskBuilder);
         addTask("datafeed_id", 0L, null, DatafeedState.STARTED, startDataFeedTaskBuilder);
@@ -147,7 +147,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         request.setForce(true);
         CloseJobAction.resolveAndValidateJobId(request, cs1, openJobs, closingJobs);
         assertEquals(Arrays.asList("job_id_1", "job_id_2", "job_id_3"), openJobs);
-        assertEquals(Arrays.asList("job_id_4"), closingJobs);
+        assertEquals(Collections.singletonList("job_id_4"), closingJobs);
 
         request.setForce(false);
         expectThrows(ElasticsearchStatusException.class,
@@ -171,7 +171,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         CloseJobAction.Request request = new CloseJobAction.Request("job_id_1");
         CloseJobAction.resolveAndValidateJobId(request, cs1, openJobs, closingJobs);
-        assertEquals(Arrays.asList("job_id_1"), openJobs);
+        assertEquals(Collections.singletonList("job_id_1"), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
 
         // Job without task is closed
@@ -219,7 +219,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         request.setForce(true);
 
         CloseJobAction.resolveAndValidateJobId(request, cs1, openJobs, closingJobs);
-        assertEquals(Arrays.asList("job_id_failed"), openJobs);
+        assertEquals(Collections.singletonList("job_id_failed"), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
 
         openJobs.clear();
@@ -252,7 +252,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         CloseJobAction.resolveAndValidateJobId(new CloseJobAction.Request("_all"), cs1, openJobs, closingJobs);
         assertEquals(Arrays.asList("job_id_open-1", "job_id_open-2"), openJobs);
-        assertEquals(Arrays.asList("job_id_closing"), closingJobs);
+        assertEquals(Collections.singletonList("job_id_closing"), closingJobs);
         openJobs.clear();
         closingJobs.clear();
 
@@ -264,12 +264,12 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         CloseJobAction.resolveAndValidateJobId(new CloseJobAction.Request("job_id_closing"), cs1, openJobs, closingJobs);
         assertEquals(Collections.emptyList(), openJobs);
-        assertEquals(Arrays.asList("job_id_closing"), closingJobs);
+        assertEquals(Collections.singletonList("job_id_closing"), closingJobs);
         openJobs.clear();
         closingJobs.clear();
 
         CloseJobAction.resolveAndValidateJobId(new CloseJobAction.Request("job_id_open-1"), cs1, openJobs, closingJobs);
-        assertEquals(Arrays.asList("job_id_open-1"), openJobs);
+        assertEquals(Collections.singletonList("job_id_open-1"), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
         openJobs.clear();
         closingJobs.clear();
@@ -316,8 +316,8 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     }
 
     public void testBuildWaitForCloseRequest() {
-        List<String> openJobIds = Arrays.asList(new String[] {"openjob1", "openjob2"});
-        List<String> closingJobIds = Arrays.asList(new String[] {"closingjob1"});
+        List<String> openJobIds = Arrays.asList("openjob1", "openjob2");
+        List<String> closingJobIds = Collections.singletonList("closingjob1");
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("openjob1", null, JobState.OPENED, tasksBuilder);

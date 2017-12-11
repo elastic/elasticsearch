@@ -20,6 +20,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.MlClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
@@ -98,7 +99,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return searchRequestBuilder.get();
+        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
@@ -182,7 +183,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     private InputStream continueScroll() throws IOException {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        SearchResponse searchResponse = null;
+        SearchResponse searchResponse;
         try {
              searchResponse = executeSearchScrollRequest(scrollId);
         } catch (SearchPhaseExecutionException searchExecutionException) {
@@ -208,10 +209,10 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return SearchScrollAction.INSTANCE.newRequestBuilder(client)
+        return MlClientHelper.execute(context.headers, client, () -> SearchScrollAction.INSTANCE.newRequestBuilder(client)
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
-                .get();
+                .get());
     }
 
     private void resetScroll() {
@@ -223,7 +224,7 @@ class ScrollDataExtractor implements DataExtractor {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
-            client.execute(ClearScrollAction.INSTANCE, request).actionGet();
+            MlClientHelper.execute(context.headers, client, () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet());
         }
     }
 }

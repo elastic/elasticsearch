@@ -143,8 +143,7 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<PutDatafeedAction.Response> listener)
-                throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<PutDatafeedAction.Response> listener) {
             clusterService.submitStateUpdateTask("update-datafeed-" + request.getUpdate().getId(),
                     new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {
                         private volatile DatafeedConfig updatedDatafeed;
@@ -164,7 +163,7 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
                             PersistentTasksCustomMetaData persistentTasks =
                                     currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                             MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
-                                    .updateDatafeed(update, persistentTasks).build();
+                                    .updateDatafeed(update, persistentTasks, threadPool.getThreadContext()).build();
                             updatedDatafeed = newMetadata.getDatafeed(update.getId());
                             return ClusterState.builder(currentState).metaData(
                                     MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build()).build();

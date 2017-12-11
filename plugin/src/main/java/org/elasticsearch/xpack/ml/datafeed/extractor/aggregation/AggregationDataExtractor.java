@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.xpack.ml.MlClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 
@@ -111,7 +112,7 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return searchRequestBuilder.get();
+        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
     }
 
     private SearchRequestBuilder buildSearchRequest() {

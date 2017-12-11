@@ -49,7 +49,9 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutDatafeedAction.Response, PutDatafeedAction.RequestBuilder> {
 
@@ -218,8 +220,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state,
-                                       ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
             // If security is enabled only create the datafeed if the user requesting creation has
             // permission to read the indices the datafeed is going to read from
             if (securityEnabled) {
@@ -266,6 +267,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
         }
 
         private void putDatafeed(Request request, ActionListener<Response> listener) {
+
             clusterService.submitStateUpdateTask(
                     "put-datafeed-" + request.getDatafeed().getId(),
                     new AckedClusterStateUpdateTask<Response>(request, listener) {
@@ -275,13 +277,11 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
                             if (acknowledged) {
                                 logger.info("Created datafeed [{}]", request.getDatafeed().getId());
                             }
-                            return new Response(acknowledged,
-                                    request.getDatafeed());
+                            return new Response(acknowledged, request.getDatafeed());
                         }
 
                         @Override
-                        public ClusterState execute(ClusterState currentState)
-                                throws Exception {
+                        public ClusterState execute(ClusterState currentState) {
                             return putDatafeed(request, currentState);
                         }
                     });
@@ -290,7 +290,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
         private ClusterState putDatafeed(Request request, ClusterState clusterState) {
             MlMetadata currentMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
             MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
-                    .putDatafeed(request.getDatafeed()).build();
+                    .putDatafeed(request.getDatafeed(), threadPool.getThreadContext()).build();
             return ClusterState.builder(clusterState).metaData(
                     MetaData.builder(clusterState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                     .build();

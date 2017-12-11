@@ -72,9 +72,6 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
-
 public class StartDatafeedAction
         extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
 
@@ -437,7 +434,7 @@ public class StartDatafeedAction
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
-            this.client = clientWithOrigin(client, ML_ORIGIN);
+            this.client = client;
         }
 
         @Override
@@ -453,7 +450,7 @@ public class StartDatafeedAction
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
             DatafeedParams params = request.params;
             if (licenseState.isMachineLearningAllowed()) {
                 ActionListener<PersistentTask<DatafeedParams>> finalListener = new ActionListener<PersistentTask<DatafeedParams>>() {

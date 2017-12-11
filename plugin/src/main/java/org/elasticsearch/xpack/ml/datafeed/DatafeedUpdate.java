@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.MlClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -29,7 +31,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A datafeed update contains partial properties to update a {@link DatafeedConfig}.
@@ -260,7 +264,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -296,6 +300,15 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (chunkingConfig != null) {
             builder.setChunkingConfig(chunkingConfig);
         }
+
+        if (threadContext != null) {
+            // Adjust the request, adding security headers from the current thread context
+            Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
+                    .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            builder.setHeaders(headers);
+        }
+
         return builder.build();
     }
 

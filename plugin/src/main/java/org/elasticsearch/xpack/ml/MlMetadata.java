@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +49,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class MlMetadata implements MetaData.Custom {
 
@@ -101,7 +103,7 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     public Set<String> expandDatafeedIds(String expression, boolean allowNoDatafeeds) {
-        return NameResolver.newUnaliased(datafeeds.keySet(), datafeedId -> ExceptionsHelper.missingDatafeedException(datafeedId))
+        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
                 .expand(expression, allowNoDatafeeds);
     }
 
@@ -285,7 +287,7 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
@@ -293,6 +295,17 @@ public class MlMetadata implements MetaData.Custom {
             checkJobIsAvailableForDatafeed(jobId);
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job);
+
+            if (threadContext != null) {
+                // Adjust the request, adding security headers from the current thread context
+                DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
+                Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
+                        .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                builder.setHeaders(headers);
+                datafeedConfig = builder.build();
+            }
+
             datafeeds.put(datafeedConfig.getId(), datafeedConfig);
             return this;
         }
@@ -309,7 +322,7 @@ public class MlMetadata implements MetaData.Custom {
             }
         }
 
-        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks) {
+        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, ThreadContext threadContext) {
             String datafeedId = update.getId();
             DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
             if (oldDatafeedConfig == null) {
@@ -317,7 +330,7 @@ public class MlMetadata implements MetaData.Custom {
             }
             checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
                     DatafeedState.STARTED), datafeedId, persistentTasks);
-            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig);
+            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, threadContext);
             if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
                 checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
             }
@@ -393,14 +406,13 @@ public class MlMetadata implements MetaData.Custom {
             putJob(jobBuilder.build(), true);
         }
 
-        public void checkJobHasNoDatafeed(String jobId) {
+        void checkJobHasNoDatafeed(String jobId) {
             Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
             if (datafeed.isPresent()) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
                         + datafeed.get().getId() + "] refers to it");
             }
         }
-
     }
 
     /**

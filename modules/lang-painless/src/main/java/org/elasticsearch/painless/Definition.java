@@ -583,8 +583,9 @@ public final class Definition {
 
         // goes through each Painless struct and determines the inheritance list,
         // and then adds all inherited types to the Painless struct's whitelist
-        for (String painlessStructName : structsMap.keySet()) {
-            Struct painlessStruct = structsMap.get(painlessStructName);
+        for (Map.Entry<String, Struct> painlessNameStructEntry : structsMap.entrySet()) {
+            String painlessStructName = painlessNameStructEntry.getKey();
+            Struct painlessStruct = painlessNameStructEntry.getValue();
 
             if (painlessStruct.name.equals(painlessStructName) == false) {
                 continue;

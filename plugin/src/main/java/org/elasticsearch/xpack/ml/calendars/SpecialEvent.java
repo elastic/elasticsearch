@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Operator;
@@ -171,7 +172,9 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         builder.dateField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toInstant().toEpochMilli());
         builder.dateField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
         builder.field(JOB_IDS.getPreferredName(), jobIds);
-        builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
+        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+            builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
+        }
         builder.endObject();
         return builder;
     }

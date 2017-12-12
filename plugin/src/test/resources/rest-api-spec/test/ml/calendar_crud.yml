@@ -1,0 +1,108 @@
+---
+"Test calendar CRUD":
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "advent"
+        body:  >
+          {
+            "job_ids": ["abc", "xyz"]
+          }
+  - match: { calendar_id: advent }
+  - match: { job_ids.0: abc }
+  - match: { job_ids.1: xyz }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "advent"
+  - match: { count:   1 }
+  - match:
+      calendars.0:
+        calendar_id: "advent"
+        job_ids: ["abc", "xyz"]
+  - is_false: type
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Dogs of the Year"
+        body:  >
+          {
+            "job_ids": ["abc2"]
+          }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Cats of the Year"
+
+  - do:
+      xpack.ml.get_calendars: {}
+  - match: { count: 3 }
+
+  - do:
+      xpack.ml.delete_calendar:
+        calendar_id: "Dogs of the Year"
+
+  - do:
+      xpack.ml.get_calendars: {}
+  - match: { count: 2 }
+
+  - do:
+      catch: missing
+      xpack.ml.get_calendars:
+        calendar_id: "Dogs of the Year"
+
+---
+"Test PageParams":
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Calendar1"
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Calendar2"
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Calendar3"
+
+  - do:
+      xpack.ml.get_calendars:
+        from: 2
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: Calendar3 }
+
+  - do:
+      xpack.ml.get_calendars:
+        from: 1
+        size: 1
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: Calendar2 }
+
+---
+"Test PageParams with ID is invalid":
+  - do:
+      catch: bad_request
+      xpack.ml.get_calendars:
+        calendar_id: Tides
+        size: 10
+
+---
+"Test cannot overwrite an exisiting calendar":
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Mayan"
+        body:  >
+          {
+            "job_ids": ["apocalypse"]
+          }
+
+  - do:
+      catch: /version_conflict_engine_exception/
+      xpack.ml.put_calendar:
+        calendar_id: "Mayan"
+
+---
+"Test cannot create calendar with name _all":
+  - do:
+      catch: bad_request
+      xpack.ml.put_calendar:
+        calendar_id: "_all"

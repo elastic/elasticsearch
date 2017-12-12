@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +26,6 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public static final String DOCUMENT_ID_PREFIX = "filter_";
 
-    public static final String INCLUDE_TYPE_KEY = "include_type";
     public static final String FILTER_TYPE = "filter";
 
     public static final ParseField TYPE = new ParseField("type");
@@ -67,7 +67,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(ITEMS.getPreferredName(), items);
-        if (params.paramAsBoolean(INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
         }
         builder.endObject();

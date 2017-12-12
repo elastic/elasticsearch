@@ -119,7 +119,7 @@ if (project.hasProperty('bwcVersion')) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     dir = checkoutDir
     tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
-    startParameter.systemPropertiesArgs = ['build.snapshot': 'true']
+    startParameter.systemPropertiesArgs = ['build.snapshot': System.getProperty("build.snapshot") ?: "true"]
     doLast {
       List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
         false == file.exists() }

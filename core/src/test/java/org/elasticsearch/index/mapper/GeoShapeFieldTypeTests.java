@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
 import org.junit.Before;
+
+import java.io.IOException;
 
 public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -67,5 +69,18 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
                 ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
             }
         });
+    }
+
+    /**
+     * Test for {@link GeoShapeFieldType#setStrategyName(String)} that checks that {@link GeoShapeFieldType#pointsOnly()}
+     * gets set as a side effect when using SpatialStrategy.TERM
+     */
+    public void testSetStrategyName() throws IOException {
+        GeoShapeFieldType fieldType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        assertFalse(fieldType.pointsOnly());
+        fieldType.setStrategyName(SpatialStrategy.RECURSIVE.getStrategyName());
+        assertFalse(fieldType.pointsOnly());
+        fieldType.setStrategyName(SpatialStrategy.TERM.getStrategyName());
+        assertTrue(fieldType.pointsOnly());
     }
 }

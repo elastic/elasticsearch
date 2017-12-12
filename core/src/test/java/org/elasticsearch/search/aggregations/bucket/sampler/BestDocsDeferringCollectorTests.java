@@ -33,6 +33,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -63,8 +64,8 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        BestDocsDeferringCollector collector =
-                new BestDocsDeferringCollector(numDocs, new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()));
+        BestDocsDeferringCollector collector = new BestDocsDeferringCollector(numDocs,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();

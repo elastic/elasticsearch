@@ -94,7 +94,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
         if (useFiltering) {
-            Set<String> filters = Strings.splitStringByCommaToSet(filterPath);
+            Set<String> filters = Strings.tokenizeByCommaToSet(filterPath);
             includes = filters.stream().filter(INCLUDE_FILTER).collect(toSet());
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }

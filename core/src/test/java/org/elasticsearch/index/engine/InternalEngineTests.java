@@ -1386,24 +1386,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnReplica(ops, replicaEngine, true);
     }
 
-    public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
-        IndexSettings oldSettings = IndexSettingsModule.newIndexSettings("testOld", Settings.builder()
-            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_4_0)
-            .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, true)
-            .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
-                between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
-            .build());
-
-        try (Store oldReplicaStore = createStore();
-             InternalEngine replicaEngine =
-                 createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20);
-            assertOpsOnReplica(ops, replicaEngine, true);
-        }
-    }
-
     private void assertOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine, boolean shuffleOps) throws IOException {
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
@@ -3033,6 +3015,50 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
             assertEquals(1, topDocs.totalHits);
+        }
+    }
+
+    public void testDoubleDeliveryReplicaAppendingAndDeleteOnly() throws IOException {
+        final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index operation = appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        Engine.Index retry = appendOnlyReplica(doc, true, 1, randomIntBetween(0, 5));
+        Engine.Delete delete = new Engine.Delete(operation.type(), operation.id(), operation.uid(),
+            Math.max(retry.seqNo(), operation.seqNo())+1, operation.primaryTerm(), operation.version()+1, operation.versionType(),
+            REPLICA, operation.startTime()+1);
+        // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
+        // and the version lookup is skipped
+        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
+        if (randomBoolean()) {
+            Engine.IndexResult indexResult = engine.index(operation);
+            assertFalse(engine.indexWriterHasDeletions());
+            assertEquals(0, engine.getNumVersionLookups());
+            assertNotNull(indexResult.getTranslogLocation());
+            engine.delete(delete);
+            assertEquals(1, engine.getNumVersionLookups());
+            assertTrue(engine.indexWriterHasDeletions());
+            Engine.IndexResult retryResult = engine.index(retry);
+            assertEquals(belowLckp ? 1 : 2, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
+        } else {
+            Engine.IndexResult retryResult = engine.index(retry);
+            assertFalse(engine.indexWriterHasDeletions());
+            assertEquals(1, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            engine.delete(delete);
+            assertTrue(engine.indexWriterHasDeletions());
+            assertEquals(2, engine.getNumVersionLookups());
+            Engine.IndexResult indexResult = engine.index(operation);
+            assertEquals(belowLckp ? 2 : 3, engine.getNumVersionLookups());
+            assertNotNull(retryResult.getTranslogLocation());
+            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
+        }
+
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+            assertEquals(0, topDocs.totalHits);
         }
     }
 

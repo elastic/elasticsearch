@@ -119,10 +119,12 @@ Alternatively, `idea.no.launcher=true` can be set in the
 [`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
 file which can be accessed under Help > Edit Custom Properties (this will require a
 restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations...` and change the value for the `Shorten command line` setting from
+`Run->Edit Configurations->...->Defaults->JUnit` and change the value for the `Shorten command line` setting from
 `user-local default: none` to `classpath file`. You may also need to [remove `ant-javafx.jar` from your
 classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
 reported as a source of jar hell.
+
+To run an instance of elasticsearch from the source code run `gradle run`
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This

@@ -29,7 +29,9 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -135,6 +137,32 @@ public final class Request {
         parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(createIndexRequest.timeout());
+        parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
+
+        HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     static Request info() {
@@ -532,6 +560,13 @@ public final class Request {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
+        }
+
+        Params withUpdateAllTypes(boolean updateAllTypes) {
+            if (updateAllTypes) {
+                return putParam("update_all_types", Boolean.TRUE.toString());
+            }
+            return this;
         }
 
         Params withVersion(long version) {

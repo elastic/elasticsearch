@@ -9,7 +9,7 @@ licenseHeaders.enabled = false
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-core:${version}"
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
     // security deps
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'

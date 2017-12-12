@@ -44,13 +44,13 @@ a special syntax:
 8-:-Xmx2g
 -------------------------------------
 
-* lines beginning with a number followed by a `-` followed by a `:` followed by
-  a `-` followed by a number are treated as a JVM option that applies only if
-  the version of the JVM falls in the range of the two numbers
+* lines beginning with a number followed by a `-` followed by a number followed
+  by a `:` are treated as a JVM option that applies only if the version of the
+  JVM falls in the range of the two numbers
 +
 [source,text]
 -------------------------------------
-8-:-9-Xmx2g
+8-9:-Xmx2g
 -------------------------------------
 
 * all other lines are rejected

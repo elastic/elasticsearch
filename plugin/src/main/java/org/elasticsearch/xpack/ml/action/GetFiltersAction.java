@@ -11,14 +11,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -51,6 +51,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 
 public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFiltersAction.Response, GetFiltersAction.RequestBuilder> {
@@ -81,10 +83,6 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         public void setFilterId(String filterId) {
-            if (pageParams != null) {
-                throw new IllegalArgumentException("Param [" + MlFilter.ID.getPreferredName() + "] is incompatible with ["
-                        + PageParams.FROM.getPreferredName()+ ", " + PageParams.SIZE.getPreferredName() + "].");
-            }
             this.filterId = filterId;
         }
 
@@ -97,21 +95,16 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         public void setPageParams(PageParams pageParams) {
-            if (filterId != null) {
-                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
-                        + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with ["
-                        + MlFilter.ID.getPreferredName() + "].");
-            }
             this.pageParams = pageParams;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (pageParams == null && filterId == null) {
-                validationException = addValidationError("Both [" + MlFilter.ID.getPreferredName() + "] and ["
-                        + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "] "
-                        + "cannot be null" , validationException);
+            if (pageParams != null && filterId != null) {
+                validationException = addValidationError("Params [" + PageParams.FROM.getPreferredName() +
+                        ", " + PageParams.SIZE.getPreferredName() + "] are incompatible with ["
+                        + MlFilter.ID.getPreferredName() + "]", validationException);
             }
             return validationException;
         }
@@ -218,18 +211,16 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final TransportGetAction transportGetAction;
-        private final TransportSearchAction transportSearchAction;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportGetAction transportGetAction, TransportSearchAction transportSearchAction) {
+                Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.transportGetAction = transportGetAction;
-            this.transportSearchAction = transportSearchAction;
+            this.client = client;
         }
 
         @Override
@@ -237,16 +228,18 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
             final String filterId = request.getFilterId();
             if (!Strings.isNullOrEmpty(filterId)) {
                 getFilter(filterId, listener);
-            } else if (request.getPageParams() != null) {
-                getFilters(request.getPageParams(), listener);
-            } else {
-                throw new IllegalStateException("Both filterId and pageParams are null");
+            } else  {
+                PageParams pageParams = request.getPageParams();
+                if (pageParams == null) {
+                    pageParams = PageParams.defaultParams();
+                }
+                getFilters(pageParams, listener);
             }
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {
             GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
-            transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {
 
@@ -287,7 +280,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                     .indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .source(sourceBuilder);
 
-            transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
                     List<MlFilter> docs = new ArrayList<>();
@@ -310,7 +303,8 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            });
+            },
+            client::search);
         }
     }
 }

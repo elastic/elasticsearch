@@ -265,7 +265,11 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape);
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
+        if (getCurrentTypes().length == 0) {
+            assertThat(e.getMessage(), containsString("failed to find geo_shape field [" + STRING_FIELD_NAME + "]"));
+        } else {
+            assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
+        }
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

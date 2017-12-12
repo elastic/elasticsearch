@@ -60,10 +60,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ActionModuleTests extends ESTestCase {
 
-
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(ActionModule.registerActions(emptyList()),
-            hasEntry(MainAction.INSTANCE.name(), new ActionPlugin.ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class)));
+                hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class)));
     }
 
     public void testPluginCantOverwriteBuiltinAction() {
@@ -79,7 +78,6 @@ public class ActionModuleTests extends ESTestCase {
         };
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.registerClientActions(singletonList(dupsMainAction)));
-
         assertEquals("clientAction for name [" + MainAction.NAME + "] already registered", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> ActionModule.registerActions(singletonList(dupsMainAction)));

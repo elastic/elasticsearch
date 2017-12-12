@@ -395,7 +395,7 @@ public class ActionModule extends AbstractModule {
         clientActions = registerClientActions(clientActionPlugins);
     }
 
-    public Collection<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
         return clientActions;
     }
 

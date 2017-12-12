@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -68,8 +69,10 @@ public abstract class Collector extends AbstractComponent {
 
     /**
      * Indicates if the current collector is allowed to collect data
+     *
+     * @param isElectedMaster true if the current local node is the elected master node
      */
-    protected boolean shouldCollect() {
+    protected boolean shouldCollect(final boolean isElectedMaster) {
         if (licenseState.isMonitoringAllowed() == false) {
             logger.trace("collector [{}] can not collect data due to invalid license", name());
             return false;
@@ -77,15 +80,12 @@ public abstract class Collector extends AbstractComponent {
         return true;
     }
 
-    protected boolean isLocalNodeMaster() {
-        return clusterService.state().nodes().isLocalNodeElectedMaster();
-    }
-
-    public Collection<MonitoringDoc> collect(final long timestamp, final long interval) {
+    public Collection<MonitoringDoc> collect(final long timestamp, final long interval, final ClusterState clusterState) {
         try {
-            if (shouldCollect()) {
+            final boolean isElectedMaster = clusterState.getNodes().isLocalNodeElectedMaster();
+            if (shouldCollect(isElectedMaster)) {
                 logger.trace("collector [{}] - collecting data...", name());
-                return doCollect(convertNode(timestamp, clusterService.localNode()), interval);
+                return doCollect(convertNode(timestamp, clusterService.localNode()), interval, clusterState);
             }
         } catch (ElasticsearchTimeoutException e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
@@ -95,11 +95,9 @@ public abstract class Collector extends AbstractComponent {
         return null;
     }
 
-    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node sourceNode, long interval) throws Exception;
-
-    protected String clusterUUID() {
-        return clusterService.state().metaData().clusterUUID();
-    }
+    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node node,
+                                                           long interval,
+                                                           ClusterState clusterState) throws Exception;
 
     /**
      * Returns a timestamp to use in {@link MonitoringDoc}
@@ -108,6 +106,16 @@ public abstract class Collector extends AbstractComponent {
      */
     protected static long timestamp() {
         return System.currentTimeMillis();
+    }
+
+    /**
+     * Extracts the current cluster's UUID from a {@link ClusterState}
+     *
+     * @param clusterState the {@link ClusterState}
+     * @return the cluster's UUID
+     */
+    protected static String clusterUuid(final ClusterState clusterState) {
+        return clusterState.metaData().clusterUUID();
     }
 
     /**

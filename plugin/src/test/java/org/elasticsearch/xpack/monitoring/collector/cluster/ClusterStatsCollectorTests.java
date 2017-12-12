@@ -66,24 +66,17 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        // this controls the blockage
-        whenLocalNodeElectedMaster(false);
-
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(nodes).isLocalNodeElectedMaster();
+        assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        whenLocalNodeElectedMaster(true);
-
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
 
-        assertThat(collector.shouldCollect(), is(true));
-        verify(nodes).isLocalNodeElectedMaster();
+        assertThat(collector.shouldCollect(true), is(true));
     }
 
     public void testDoAPMIndicesExistReturnsBasedOnIndices() {
@@ -219,7 +212,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         assertEquals(1, results.size());
 
         final MonitoringDoc monitoringDoc = results.iterator().next();
@@ -254,7 +247,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getClusterState().stateUUID(), equalTo(clusterState.stateUUID()));
 
         verify(clusterService, times(1)).getClusterName();
-        verify(clusterService, times(2)).state();
+        verify(clusterState, times(1)).metaData();
+        verify(metaData, times(1)).clusterUUID();
         verify(licenseService, times(1)).getLicense();
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));

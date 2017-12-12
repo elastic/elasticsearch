@@ -40,21 +40,24 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        whenLocalNodeElectedMaster(randomBoolean());
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
 
         final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(licenseState).isMonitoringAllowed();
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+        if (isElectedMaster) {
+            verify(licenseState).isMonitoringAllowed();
+        }
     }
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        whenLocalNodeElectedMaster(true);
+        final boolean isElectedMaster = true;
 
         final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
-        assertThat(collector.shouldCollect(), is(true));
+        assertThat(collector.shouldCollect(isElectedMaster), is(true));
         verify(licenseState).isMonitoringAllowed();
     }
 
@@ -77,7 +80,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
-                collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong()));
+                collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState));
         assertEquals(exception, e);
     }
 
@@ -112,7 +115,10 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
+        verify(clusterState).metaData();
+        verify(metaData).clusterUUID();
+
         assertEquals(1, results.size());
 
         final MonitoringDoc monitoringDoc = results.iterator().next();

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -57,15 +58,18 @@ public class JobStatsCollector extends Collector {
     }
 
     @Override
-    protected boolean shouldCollect() {
+    protected boolean shouldCollect(final boolean isElectedMaster) {
         // This can only run when monitoring is allowed + ML is enabled/allowed, but also only on the elected master node
-        return super.shouldCollect() &&
-               XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && licenseState.isMachineLearningAllowed() &&
-               isLocalNodeMaster();
+        return isElectedMaster
+                && super.shouldCollect(isElectedMaster)
+                && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
+                && licenseState.isMachineLearningAllowed();
     }
 
     @Override
-    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                            final long interval,
+                                            final ClusterState clusterState) throws Exception {
         // fetch details about all jobs
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
             final GetJobsStatsAction.Response jobs =
@@ -73,7 +77,7 @@ public class JobStatsCollector extends Collector {
                             .actionGet(getCollectionTimeout());
 
             final long timestamp = timestamp();
-            final String clusterUuid = clusterUUID();
+            final String clusterUuid = clusterUuid(clusterState);
 
             return jobs.getResponse().results().stream()
                     .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))

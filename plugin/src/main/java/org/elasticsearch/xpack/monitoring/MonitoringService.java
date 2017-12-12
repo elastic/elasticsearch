@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.monitoring;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -61,6 +63,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     /** Task in charge of collecting and exporting monitoring data **/
     private final MonitoringExecution monitor = new MonitoringExecution();
 
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Set<Collector> collectors;
     private final Exporters exporters;
@@ -68,14 +71,15 @@ public class MonitoringService extends AbstractLifecycleComponent {
     private volatile TimeValue interval;
     private volatile ThreadPool.Cancellable scheduler;
 
-    MonitoringService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+    MonitoringService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                       Set<Collector> collectors, Exporters exporters) {
         super(settings);
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
         this.interval = INTERVAL.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(INTERVAL, this::setInterval);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
     }
 
     void setInterval(TimeValue interval) {
@@ -191,6 +195,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 @Override
                 protected void doRun() throws Exception {
                     final long timestamp = System.currentTimeMillis();
+                    final long intervalInMillis = interval.getMillis();
+                    final ClusterState clusterState = clusterService.state();
 
                     final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
@@ -201,7 +207,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                         }
 
                         try {
-                            Collection<MonitoringDoc> result = collector.collect(timestamp, interval.getMillis());
+                            Collection<MonitoringDoc> result = collector.collect(timestamp, intervalInMillis, clusterState);
                             if (result != null) {
                                 results.addAll(result);
                             }

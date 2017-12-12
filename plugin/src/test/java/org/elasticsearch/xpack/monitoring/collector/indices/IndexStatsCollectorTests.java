@@ -36,6 +36,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,35 +45,30 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        whenLocalNodeElectedMaster(randomBoolean());
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
 
         final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(licenseState).isMonitoringAllowed();
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+        if (isElectedMaster) {
+            verify(licenseState).isMonitoringAllowed();
+        }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        // this controls the blockage
-        whenLocalNodeElectedMaster(false);
-
         final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(licenseState).isMonitoringAllowed();
-        verify(nodes).isLocalNodeElectedMaster();
+        assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        whenLocalNodeElectedMaster(true);
-
         final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
 
-        assertThat(collector.shouldCollect(), is(true));
+        assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
-        verify(nodes).isLocalNodeElectedMaster();
     }
 
     public void testDoCollect() throws Exception {
@@ -133,8 +129,11 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         verify(indicesAdminClient).prepareStats();
+        verify(clusterState, times(1 + indices)).metaData();
+        verify(clusterState, times(indices)).routingTable();
+        verify(metaData).clusterUUID();
 
         assertEquals(1 + indices, results.size());
 

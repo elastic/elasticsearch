@@ -19,6 +19,10 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.main.MainAction;
+import org.elasticsearch.action.main.TransportMainAction;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,26 +32,98 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ActionModuleTests extends ESTestCase {
+
+
+    public void testSetupActionsContainsKnownBuiltin() {
+        assertThat(ActionModule.registerActions(emptyList()),
+            hasEntry(MainAction.INSTANCE.name(), new ActionPlugin.ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class)));
+    }
+
+    public void testPluginCantOverwriteBuiltinAction() {
+        ActionPlugin dupsMainAction = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
+            }
+            @Override
+            public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+                return singletonList(MainAction.INSTANCE);
+            }
+        };
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.registerClientActions(singletonList(dupsMainAction)));
+
+        assertEquals("clientAction for name [" + MainAction.NAME + "] already registered", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> ActionModule.registerActions(singletonList(dupsMainAction)));
+        assertEquals("action for name [" + MainAction.NAME + "] already registered", e.getMessage());
+    }
+
+    public void testPluginCanRegisterAction() {
+        class FakeRequest extends ActionRequest {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        }
+        class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
+            protected FakeTransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager);
+            }
+
+            @Override
+            protected void doExecute(FakeRequest request, ActionListener<ActionResponse> listener) {
+            }
+        }
+        class FakeAction extends GenericAction<FakeRequest, ActionResponse> {
+            protected FakeAction() {
+                super("fake");
+            }
+
+            @Override
+            public ActionResponse newResponse() {
+                return null;
+            }
+        }
+        FakeAction action = new FakeAction();
+        ActionPlugin registersFakeAction = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
+            }
+        };
+
+        assertThat(ActionModule.registerActions(singletonList(registersFakeAction)),
+            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class)));
+    }
 
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
@@ -118,5 +194,81 @@ public class ActionModuleTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    /**
+     * This test ensures that no Actions are added to core without also adding an associated Client Action. If you find this
+     * test failing, it is likely because the {@link ActionPlugin#getActions()} and {@link ClientActionPlugin#getClientActions()}
+     * are not returning the same list of {@link GenericAction}. Consult your {@link ActionPlugin} to ensure both methods
+     * are overridden and contain the same {@link GenericAction}'s.
+     */
+    public void testDefaultActionsAndClientActionsContainTheSameKeys() {
+        // Do not add any extra actions to assert they are the same
+        List<GenericAction> genericActionsFromActions = ActionModule.registerActions(emptyList()).values()
+            .stream()
+            .map(a->a.getAction())
+            .collect(Collectors.toList());
+        // we aren't checking 2 empty lists
+        assertNotEquals(genericActionsFromActions.size(), 0);
+        // the client action list is the same as the generic action list
+        assertThat(genericActionsFromActions,
+            containsInAnyOrder(ActionModule.registerClientActions(emptyList()).toArray(new GenericAction[0])));
+    }
+
+    /**
+     * This test ensures that the generation of additional actions and client actions above the base set included in core
+     * will always contain the same set of items. This ensures that the client can bind to {@link ActionModule#getClientActions()}
+     * and know that the same associated actions are registered for routing on the server.
+     */
+    public void testAddedActionsAndClientActionsContainTheSameKeys() {
+
+        class FakeAction extends GenericAction<ActionRequest, ActionResponse> {
+            private FakeAction() {
+                super("fake");
+            }
+
+            @Override
+            public ActionResponse newResponse() {
+                return null;
+            }
+        }
+
+        class FakeTransportAction extends TransportAction<ActionRequest, ActionResponse> {
+            protected FakeTransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager);
+            }
+
+            @Override
+            protected void doExecute(ActionRequest request, ActionListener<ActionResponse> listener) {
+            }
+        }
+        FakeAction genericAction = new FakeAction();
+        ActionPlugin fakeActionPlugin = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(genericAction, FakeTransportAction.class));
+            }
+        };
+
+        ClientActionPlugin fakeClientActionPlugin = new ClientActionPlugin() {
+            @Override
+            public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+                return Collections.singletonList(genericAction);
+            }
+        };
+
+        // Add the actions in to make sure they are the same coming out
+        List<GenericAction> genericActionsFromActions = ActionModule.registerActions(singletonList(fakeActionPlugin)).values()
+            .stream()
+            .map(a->a.getAction())
+            .collect(Collectors.toList());
+        // we aren't checking 2 empty lists
+        assertNotEquals(genericActionsFromActions.size(), 0);
+        // the actions size is not the same as a default action list, which should have 1 less
+        assertEquals(genericActionsFromActions.size(), ActionModule.registerActions(emptyList()).size() + 1);
+        // the client action list is the same as the generic action list
+        assertThat(genericActionsFromActions,
+            containsInAnyOrder(ActionModule.registerClientActions(singletonList(fakeClientActionPlugin)).toArray(new GenericAction[0])));
     }
 }

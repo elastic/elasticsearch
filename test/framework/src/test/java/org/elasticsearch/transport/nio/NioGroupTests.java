@@ -53,10 +53,18 @@ public class NioGroupTests extends ESTestCase {
         IllegalStateException ise = expectThrows(IllegalStateException.class,
             () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
         assertEquals("NioGroup is not running.", ise.getMessage());
+        ise = expectThrows(IllegalStateException.class,
+            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
+        assertEquals("NioGroup is not running.", ise.getMessage());
+
         nioGroup.start();
         nioGroup.close();
+
         ise = expectThrows(IllegalStateException.class,
             () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
+        assertEquals("NioGroup is not running.", ise.getMessage());
+        ise = expectThrows(IllegalStateException.class,
+            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
         assertEquals("NioGroup is not running.", ise.getMessage());
     }
 

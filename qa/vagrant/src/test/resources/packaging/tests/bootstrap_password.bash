@@ -13,7 +13,7 @@ setup() {
         clean_before_test
         install
 
-        install_and_check_plugin x pack x-pack-*.jar
+        install_xpack
         verify_xpack_installation
     fi
 }

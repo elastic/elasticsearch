@@ -8,57 +8,50 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
+public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, DeleteCalendarAction.Response,
+        DeleteCalendarAction.RequestBuilder> {
 
-public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
+    public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
+    public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
 
-    public static final PutFilterAction INSTANCE = new PutFilterAction();
-    public static final String NAME = "cluster:admin/xpack/ml/filters/put";
-
-    private PutFilterAction() {
+    private DeleteCalendarAction() {
         super(NAME);
     }
 
     @Override
     public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
+        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -66,32 +59,21 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String filterId, XContentParser parser) {
-            MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);
-            if (filter.getId() == null) {
-                filter.setId(filterId);
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {
-                // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        filter.getId(), filterId));
-            }
-            return new Request(filter.build());
-        }
 
-        private MlFilter filter;
+        private String calendarId;
 
         Request() {
 
         }
 
-        public Request(MlFilter filter) {
-            this.filter = ExceptionsHelper.requireNonNull(filter, "filter");
+        public Request(String calendarId) {
+            this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
         }
 
-        public MlFilter getFilter() {
-            return this.filter;
+        public String getCalendarId() {
+            return calendarId;
         }
 
         @Override
@@ -102,51 +84,46 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            filter = new MlFilter(in);
+            calendarId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            filter.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            filter.toXContent(builder, params);
-            return builder;
+            out.writeString(calendarId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(filter);
+            return Objects.hash(calendarId);
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null) {
+            if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
+
             Request other = (Request) obj;
-            return Objects.equals(filter, other.filter);
+            return Objects.equals(calendarId, other.calendarId);
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response,
+                RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
+        public RequestBuilder(ElasticsearchClient client, DeleteCalendarAction action) {
+            super(client, action, new Request());
         }
     }
 
     public static class Response extends AcknowledgedResponse {
 
-        public Response() {
-            super(true);
+        public Response(boolean acknowledged) {
+            super(acknowledged);
         }
+
+        private Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
@@ -159,10 +136,9 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             super.writeTo(out);
             writeAcknowledged(out);
         }
-
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<DeleteCalendarAction.Request, DeleteCalendarAction.Response> {
 
         private final Client client;
 
@@ -177,33 +153,32 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
-            MlFilter filter = request.getFilter();
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
-                indexRequest.source(filter.toXContent(builder, params));
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
-            }
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            bulkRequestBuilder.add(indexRequest);
-            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        protected void doExecute(DeleteCalendarAction.Request request, ActionListener<DeleteCalendarAction.Response> listener) {
 
+            final String calendarId = request.getCalendarId();
+
+            DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, Calendar.documentId(calendarId));
+
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            bulkRequestBuilder.add(deleteRequest);
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
                     new ActionListener<BulkResponse>() {
                         @Override
-                        public void onResponse(BulkResponse indexResponse) {
-                            listener.onResponse(new Response());
+                        public void onResponse(BulkResponse bulkResponse) {
+                            if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
+                                listener.onFailure(new ResourceNotFoundException("Could not delete calendar with ID [" + calendarId
+                                        + "] because it does not exist"));
+                            } else {
+                                listener.onResponse(new Response(true));
+                            }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(
-                                    new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
+                            listener.onFailure(ExceptionsHelper.serverError("Could not delete calendar with ID [" + calendarId + "]", e));
                         }
                     });
         }
     }
 }
-

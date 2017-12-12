@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -43,16 +42,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
+public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCalendarAction.Response, PutCalendarAction.RequestBuilder>  {
+    public static final PutCalendarAction INSTANCE = new PutCalendarAction();
+    public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 
-public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
-
-    public static final PutFilterAction INSTANCE = new PutFilterAction();
-    public static final String NAME = "cluster:admin/xpack/ml/filters/put";
-
-    private PutFilterAction() {
+    private PutCalendarAction() {
         super(NAME);
     }
 
@@ -68,58 +66,64 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
-        public static Request parseRequest(String filterId, XContentParser parser) {
-            MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);
-            if (filter.getId() == null) {
-                filter.setId(filterId);
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {
+        public static Request parseRequest(String calendarId, XContentParser parser) {
+            Calendar.Builder builder = Calendar.PARSER.apply(parser, null);
+            if (builder.getId() == null) {
+                builder.setId(calendarId);
+            } else if (!Strings.isNullOrEmpty(calendarId) && !calendarId.equals(builder.getId())) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        filter.getId(), filterId));
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(),
+                        builder.getId(), calendarId));
             }
-            return new Request(filter.build());
+            return new Request(builder.build());
         }
 
-        private MlFilter filter;
+        private Calendar calendar;
 
         Request() {
 
         }
 
-        public Request(MlFilter filter) {
-            this.filter = ExceptionsHelper.requireNonNull(filter, "filter");
+        public Request(Calendar calendar) {
+            this.calendar = ExceptionsHelper.requireNonNull(calendar, "calendar");
         }
 
-        public MlFilter getFilter() {
-            return this.filter;
+        public Calendar getCalendar() {
+            return calendar;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if ("_all".equals(calendar.getId())) {
+                validationException =
+                        addValidationError("Cannot create a Calendar with the reserved name [_all]",
+                                validationException);
+            }
+            return validationException;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            filter = new MlFilter(in);
+            calendar = new Calendar(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            filter.writeTo(out);
+            calendar.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            filter.toXContent(builder, params);
+            calendar.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(filter);
+            return Objects.hash(calendar);
         }
 
         @Override
@@ -131,7 +135,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(filter, other.filter);
+            return Objects.equals(calendar, other.calendar);
         }
     }
 
@@ -142,10 +146,16 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() {
+        private Calendar calendar;
+
+        Response() {
+        }
+
+        public Response(Calendar calendar) {
             super(true);
+            this.calendar = calendar;
         }
 
         @Override
@@ -160,6 +170,10 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             writeAcknowledged(out);
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return calendar.toXContent(builder, params);
+        }
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
@@ -169,8 +183,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                                TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver,
-                               Client client) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.client = client;
@@ -178,32 +191,31 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            MlFilter filter = request.getFilter();
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+            final Calendar calendar = request.getCalendar();
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
-                indexRequest.source(filter.toXContent(builder, params));
+                indexRequest.source(calendar.toXContent(builder,
+                        new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"))));
             } catch (IOException e) {
-                throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
+                throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
             }
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            bulkRequestBuilder.add(indexRequest);
-            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
-                    new ActionListener<BulkResponse>() {
+            // Make it an error to overwrite an existing calendar
+            indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest,
+                    new ActionListener<IndexResponse>() {
                         @Override
-                        public void onResponse(BulkResponse indexResponse) {
-                            listener.onResponse(new Response());
+                        public void onResponse(IndexResponse indexResponse) {
+                            listener.onResponse(new Response(calendar));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(
-                                    new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
+                            listener.onFailure(e);
                         }
                     });
         }
-    }
+    }    
 }
-

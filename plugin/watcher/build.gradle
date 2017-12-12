@@ -14,7 +14,7 @@ dependencyLicenses {
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-core:${version}"
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'

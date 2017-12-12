@@ -21,7 +21,7 @@ configurations {
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-core:${version}"
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
 
     // ml deps
     compile 'net.sf.supercsv:super-csv:2.4.0'

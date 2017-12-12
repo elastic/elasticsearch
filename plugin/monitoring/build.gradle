@@ -12,7 +12,7 @@ licenseHeaders.enabled = false
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch:x-pack-core:${version}"
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
 
     // monitoring deps
     compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"

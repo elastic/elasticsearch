@@ -89,6 +89,12 @@ public class DatafeedNodeSelector {
     private AssignmentFailure verifyIndicesActive(DatafeedConfig datafeed) {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
+
+            if (isRemoteIndex(index)) {
+                // We cannot verify remote indices
+                continue;
+            }
+
             String[] concreteIndices;
             String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
                     + index + "] does not exist, is closed, or is still initializing.";
@@ -113,6 +119,10 @@ public class DatafeedNodeSelector {
             }
         }
         return null;
+    }
+
+    private boolean isRemoteIndex(String index) {
+        return index.indexOf(':') != -1;
     }
 
     private static class AssignmentFailure {

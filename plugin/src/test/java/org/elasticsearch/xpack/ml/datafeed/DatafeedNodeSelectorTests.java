@@ -226,6 +226,23 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id] because index [not_foo] does not exist, is closed, or is still initializing.]"));
     }
 
+    public void testRemoteIndex() {
+        MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
+        Job job = createScheduledJob("job_id").build(new Date());
+        mlMetadataBuilder.putJob(job, false);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo")), null);
+        mlMetadata = mlMetadataBuilder.build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetaData.Assignment result = new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").selectNode();
+        assertNotNull(result.getExecutorNode());
+    }
+
     public void testSelectNode_jobTaskStale() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());

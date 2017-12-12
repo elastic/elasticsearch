@@ -178,7 +178,7 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 ["source","yaml",subs="attributes"]
 --------------------------------------------
-version: 2.2
+version: '2.2'
 services:
   elasticsearch:
     image: {docker-image}

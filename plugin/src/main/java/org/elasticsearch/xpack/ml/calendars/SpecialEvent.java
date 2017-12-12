@@ -9,16 +9,19 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -124,10 +127,27 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         return documentId(id);
     }
 
-    public DetectionRule toDetectionRule() {
+    /**
+     * Convert the special event to a detection rule.
+     * The rule will have 2 time based conditions for the start and
+     * end of the event.
+     *
+     * The rule's start and end times are aligned with the bucket span
+     * so the start time is rounded down to a bucket interval and the
+     * end time rounded up.
+     *
+     * @param bucketSpan Bucket span to align to
+     * @return The event as a detection rule.
+     */
+    public DetectionRule toDetectionRule(TimeValue bucketSpan) {
         List<RuleCondition> conditions = new ArrayList<>();
-        conditions.add(RuleCondition.createTime(Operator.GTE, this.getStartTime().toEpochSecond()));
-        conditions.add(RuleCondition.createTime(Operator.LT, this.getEndTime().toEpochSecond()));
+
+        long bucketSpanSecs = bucketSpan.getSeconds();
+
+        long bucketStartTime = Intervals.alignToFloor(getStartTime().toEpochSecond(), bucketSpanSecs);
+        conditions.add(RuleCondition.createTime(Operator.GTE, bucketStartTime));
+        long bucketEndTime = Intervals.alignToCeil(getEndTime().toEpochSecond(), bucketSpanSecs);
+        conditions.add(RuleCondition.createTime(Operator.LT, bucketEndTime));
 
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
         builder.setRuleAction(RuleAction.SKIP_SAMPLING_AND_FILTER_RESULTS);
@@ -152,7 +172,9 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         builder.dateField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toInstant().toEpochMilli());
         builder.dateField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
         builder.field(JOB_IDS.getPreferredName(), jobIds);
-        builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
+        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+            builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
+        }
         builder.endObject();
         return builder;
     }

@@ -20,6 +20,8 @@ public final class MlMetaIndex {
      */
     public static final String INDEX_NAME = ".ml-meta";
 
+    public static final String INCLUDE_TYPE_KEY = "include_type";
+
     public static final String TYPE = "doc";
 
     private MlMetaIndex() {}

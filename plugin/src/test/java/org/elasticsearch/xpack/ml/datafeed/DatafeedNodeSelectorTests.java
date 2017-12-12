@@ -63,11 +63,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 .build();
     }
 
-    public void testSelectNode_GivenJobIsOpened() throws Exception {
+    public void testSelectNode_GivenJobIsOpened() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -81,11 +81,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated();
     }
 
-    public void testSelectNode_GivenJobIsOpening() throws Exception {
+    public void testSelectNode_GivenJobIsOpening() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -99,13 +99,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated();
     }
 
-    public void testNoJobTask() throws Exception {
+    public void testNoJobTask() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         tasks = PersistentTasksCustomMetaData.builder().build();
@@ -123,11 +123,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id], because job's [job_id] state is [closed] while state [opened] is required]"));
     }
 
-    public void testSelectNode_GivenJobFailedOrClosed() throws Exception {
+    public void testSelectNode_GivenJobFailedOrClosed() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -149,13 +149,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "] while state [opened] is required]"));
     }
 
-    public void testShardUnassigned() throws Exception {
+    public void testShardUnassigned() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -175,13 +175,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated();
     }
 
-    public void testShardNotAllActive() throws Exception {
+    public void testShardNotAllActive() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -202,11 +202,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated();
     }
 
-    public void testIndexDoesntExist() throws Exception {
+    public void testIndexDoesntExist() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -226,11 +226,28 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id] because index [not_foo] does not exist, is closed, or is still initializing.]"));
     }
 
+    public void testRemoteIndex() {
+        MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
+        Job job = createScheduledJob("job_id").build(new Date());
+        mlMetadataBuilder.putJob(job, false);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo")), null);
+        mlMetadata = mlMetadataBuilder.build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetaData.Assignment result = new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").selectNode();
+        assertNotNull(result.getExecutorNode());
+    }
+
     public void testSelectNode_jobTaskStale() {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         String nodeId = randomBoolean() ? "node_id2" : null;
@@ -261,14 +278,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated();
     }
 
-    public void testSelectNode_GivenJobOpeningAndIndexDoesNotExist() throws Exception {
+    public void testSelectNode_GivenJobOpeningAndIndexDoesNotExist() {
         // Here we test that when there are 2 problems, the most critical gets reported first.
         // In this case job is Opening (non-critical) and the index does not exist (critical)
 
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")));
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")), null);
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();

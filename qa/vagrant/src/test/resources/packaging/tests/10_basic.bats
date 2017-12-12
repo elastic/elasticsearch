@@ -33,7 +33,7 @@ setup() {
     count=$(find . -type f -name 'x-pack*.zip' | wc -l)
     [ "$count" -eq 1 ]
 
-    install_and_check_plugin x pack x-pack-*.jar
+    install_xpack
 }
 
 @test "[X-PACK] verify x-pack installation" {

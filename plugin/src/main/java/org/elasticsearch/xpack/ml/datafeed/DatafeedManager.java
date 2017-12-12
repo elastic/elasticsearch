@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -463,7 +464,16 @@ public class DatafeedManager extends AbstractComponent {
         }
 
         private void runTask(StartDatafeedAction.DatafeedTask task) {
-            innerRun(runningDatafeedsOnThisNode.get(task.getAllocationId()), task.getDatafeedStartTime(), task.getEndTime());
+            // This clearing of the thread context is not strictly necessary.  Every action performed by the
+            // datafeed _should_ be done using the MlClientHelper, which will set the appropriate thread
+            // context.  However, by clearing the thread context here if anyone forgets to use MlClientHelper
+            // somewhere else in the datafeed code then it should cause a failure in the same way in single
+            // and multi node clusters.  If we didn't clear the thread context here then there's a risk that
+            // a context with sufficient permissions would coincidentally be in force in some single node
+            // tests, leading to bugs not caught in CI due to many tests running in single node test clusters.
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                innerRun(runningDatafeedsOnThisNode.get(task.getAllocationId()), task.getDatafeedStartTime(), task.getEndTime());
+            }
         }
 
         @Override

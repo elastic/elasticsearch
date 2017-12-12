@@ -45,6 +45,6 @@ fi
 }
 
 @test "[$GROUP] keystore exists after install" {
-    install_and_check_plugin x pack x-pack-*.jar
+    install_xpack
     verify_xpack_installation
 }

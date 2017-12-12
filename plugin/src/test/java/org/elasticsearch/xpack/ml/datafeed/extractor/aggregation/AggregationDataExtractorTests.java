@@ -186,7 +186,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
-    public void testExtractionGivenResponseHasMultipleTopLevelAggs() throws IOException {
+    public void testExtractionGivenResponseHasMultipleTopLevelAggs() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         Histogram histogram1 = mock(Histogram.class);
@@ -203,7 +203,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Multiple top level aggregations not supported; found: [hist_1, hist_2]"));
     }
 
-    public void testExtractionGivenCancelBeforeNext() throws IOException {
+    public void testExtractionGivenCancelBeforeNext() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
         SearchResponse response = createSearchResponse("time", Collections.emptyList());
         extractor.setNextResponse(response);
@@ -249,7 +249,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         expectThrows(IOException.class, extractor::next);
     }
 
-    public void testExtractionGivenSearchResponseHasShardFailures() throws IOException {
+    public void testExtractionGivenSearchResponseHasShardFailures() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
         extractor.setNextResponse(createResponseWithShardFailures());
 
@@ -257,7 +257,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         IOException e = expectThrows(IOException.class, extractor::next);
     }
 
-    public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
+    public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
         extractor.setNextResponse(createResponseWithUnavailableShards(2));
 
@@ -267,7 +267,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, types, query, aggs, start, end, true);
+        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, types, query, aggs, start, end, true,
+                Collections.emptyMap());
     }
 
     @SuppressWarnings("unchecked")

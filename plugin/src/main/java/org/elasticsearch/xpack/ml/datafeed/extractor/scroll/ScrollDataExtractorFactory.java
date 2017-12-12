@@ -11,8 +11,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.ml.MlClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -46,7 +46,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getScriptFields(),
                 datafeedConfig.getScrollSize(),
                 start,
-                end);
+                end,
+                datafeedConfig.getHeaders());
         return new ScrollDataExtractor(client, dataExtractorContext);
     }
 
@@ -74,6 +75,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         // multi-fields that are not in source.
         String[] requestFields = job.allFields().stream().map(f -> MlStrings.getParentField(f) + "*").toArray(size -> new String[size]);
         fieldCapabilitiesRequest.fields(requestFields);
-        client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
+        MlClientHelper.<FieldCapabilitiesResponse>execute(datafeed, client, () -> {
+            client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
+            // This response gets discarded - the listener handles the real response
+            return null;
+        });
     }
 }

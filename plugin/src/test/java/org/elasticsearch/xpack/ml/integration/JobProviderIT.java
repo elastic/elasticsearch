@@ -278,7 +278,8 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         for (SpecialEvent event : events) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, event.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                indexRequest.source(event.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                indexRequest.source(event.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
         }

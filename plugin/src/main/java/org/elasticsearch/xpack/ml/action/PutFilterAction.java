@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -181,7 +180,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             MlFilter filter = request.getFilter();
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlFilter.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -199,8 +198,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(
-                                    new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
+                            listener.onFailure(ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e));
                         }
                     });
         }

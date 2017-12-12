@@ -59,7 +59,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
 
     protected void whenLocalNodeElectedMaster(final boolean electedMaster) {
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.nodes()).thenReturn(nodes);
+        when(clusterState.getNodes()).thenReturn(nodes);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(electedMaster);
     }
 

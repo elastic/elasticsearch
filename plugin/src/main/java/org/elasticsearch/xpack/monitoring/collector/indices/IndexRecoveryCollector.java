@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,12 +60,14 @@ public class IndexRecoveryCollector extends Collector {
     }
 
     @Override
-    protected boolean shouldCollect() {
-        return super.shouldCollect() && isLocalNodeMaster();
+    protected boolean shouldCollect(final boolean isElectedMaster) {
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                                  final long interval,
+                                                  final ClusterState clusterState) throws Exception {
         List<MonitoringDoc> results = new ArrayList<>(1);
         RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
                 .setIndices(getCollectionIndices())
@@ -73,7 +76,8 @@ public class IndexRecoveryCollector extends Collector {
                 .get(getCollectionTimeout());
 
         if (recoveryResponse.hasRecoveries()) {
-            results.add(new IndexRecoveryMonitoringDoc(clusterUUID(), timestamp(), interval, node, recoveryResponse));
+            final String clusterUuid = clusterUuid(clusterState);
+            results.add(new IndexRecoveryMonitoringDoc(clusterUuid, timestamp(), interval, node, recoveryResponse));
         }
         return Collections.unmodifiableCollection(results);
     }

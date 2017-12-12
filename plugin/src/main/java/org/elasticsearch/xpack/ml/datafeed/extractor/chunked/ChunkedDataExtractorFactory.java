@@ -41,7 +41,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 timeAligner.alignToCeil(start),
                 timeAligner.alignToFloor(end),
                 datafeedConfig.getChunkingConfig().getTimeSpan(),
-                timeAligner);
+                timeAligner,
+                datafeedConfig.getHeaders());
         return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext);
     }
 

@@ -25,7 +25,6 @@ public class PageParams implements ToXContentObject, Writeable {
     public static final int DEFAULT_FROM = 0;
     public static final int DEFAULT_SIZE = 100;
 
-
     public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(PAGE.getPreferredName(),
             a -> new PageParams(a[0] == null ? DEFAULT_FROM : (int) a[0], a[1] == null ? DEFAULT_SIZE : (int) a[1]));
 
@@ -38,6 +37,10 @@ public class PageParams implements ToXContentObject, Writeable {
 
     private final int from;
     private final int size;
+
+    public static PageParams defaultParams() {
+        return new PageParams(DEFAULT_FROM, DEFAULT_SIZE);
+    }
 
     public PageParams(StreamInput in) throws IOException {
         this(in.readVInt(), in.readVInt());

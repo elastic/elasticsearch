@@ -38,7 +38,7 @@ if [[ "$BATS_TEST_FILENAME" =~ 60_tar_certgen.bats$ ]]; then
     DATA_USER=$DEFAULT_PACKAGE_USER
     DATA_HOME=$DEFAULT_PACKAGE_ESHOME
     DATA_UTILS=$DEFAULT_PACKAGE_UTILS
-    
+
     install_master_node() {
 	    install_node_using_archive
     }
@@ -65,7 +65,7 @@ else
     DATA_USER=$DEFAULT_ARCHIVE_USER
     DATA_HOME=$DEFAULT_ARCHIVE_ESHOME
     DATA_UTILS=$DEFAULT_ARCHIVE_UTILS
-    
+
     install_master_node() {
 	    install_node_using_package
     }
@@ -85,12 +85,12 @@ install_node_using_archive() {
     load $BATS_UTILS/tar.bash
     export ESHOME="$DEFAULT_ARCHIVE_ESHOME"
     export_elasticsearch_paths
-    
+
     install_archive
     verify_archive_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
-    install_and_check_plugin x pack x-pack-*.jar
+    install_xpack
     verify_xpack_installation
 }
 
@@ -99,7 +99,7 @@ start_node_using_archive() {
     load $BATS_UTILS/tar.bash
     export ESHOME="$DEFAULT_ARCHIVE_ESHOME"
     export_elasticsearch_paths
-    
+
     run sudo -u $DEFAULT_ARCHIVE_USER "$ESHOME/bin/elasticsearch" -d -p $ESHOME/elasticsearch.pid
     [ "$status" -eq "0" ] || {
 	echo "Failed to start node using archive: $output"
@@ -112,12 +112,12 @@ install_node_using_package() {
     load $BATS_UTILS/packages.bash
     export ESHOME="$DEFAULT_PACKAGE_ESHOME"
     export_elasticsearch_paths
-    
+
     install_package
     verify_package_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER
-    install_and_check_plugin x pack x-pack-*.jar
+    install_xpack
     verify_xpack_installation
 }
 
@@ -126,7 +126,7 @@ start_node_using_package() {
     if is_systemd; then
 	run systemctl daemon-reload
         [ "$status" -eq 0 ]
-	
+
         run sudo systemctl start elasticsearch.service
         [ "$status" -eq "0" ]
 
@@ -168,7 +168,7 @@ instances:
     ip:
       - "127.0.0.1"
   - name: "node-data"
-    ip: 
+    ip:
       - "127.0.0.1"
 EOF
 CREATE_INSTANCES_FILE
@@ -199,12 +199,12 @@ CREATE_INSTANCES_FILE
     load $MASTER_UTILS
     export ESHOME="$MASTER_HOME"
     export_elasticsearch_paths
-    
+
     certs="$ESCONFIG/x-pack/certs"
     if [[ -d "$certs" ]]; then
 	    sudo rm -rf "$certs"
     fi
-    
+
     run sudo -E -u $MASTER_USER "unzip" $certificates -d $certs
     [ "$status" -eq 0 ] || {
 	    echo "Failed to unzip certificates in $certs: $output"
@@ -213,11 +213,11 @@ CREATE_INSTANCES_FILE
 
     assert_file "$certs/ca/ca.key" f $MASTER_USER $MASTER_USER 644
     assert_file "$certs/ca/ca.crt" f $MASTER_USER $MASTER_USER 644
-    
+
     assert_file "$certs/node-master" d $MASTER_USER $MASTER_USER 755
     assert_file "$certs/node-master/node-master.key" f $MASTER_USER $MASTER_USER 644
     assert_file "$certs/node-master/node-master.crt" f $MASTER_USER $MASTER_USER 644
-        
+
     assert_file "$certs/node-data" d $MASTER_USER $MASTER_USER 755
     assert_file "$certs/node-data/node-data.key" f $MASTER_USER $MASTER_USER 644
     assert_file "$certs/node-data/node-data.crt" f $MASTER_USER $MASTER_USER 644
@@ -235,8 +235,8 @@ node.master: true
 node.data: false
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
 
-xpack.ssl.key: $ESCONFIG/x-pack/certs/node-master/node-master.key 
-xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-master/node-master.crt 
+xpack.ssl.key: $ESCONFIG/x-pack/certs/node-master/node-master.key
+xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-master/node-master.crt
 xpack.ssl.certificate_authorities: ["$ESCONFIG/x-pack/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
@@ -274,7 +274,7 @@ MASTER_SETTINGS
     load $DATA_UTILS
     export ESHOME="$DATA_HOME"
     export_elasticsearch_paths
-    
+
     sudo chown $DATA_USER:$DATA_USER "$certificates"
     [ -f "$certificates" ] || {
 	    echo "Could not find certificates: $certificates"
@@ -285,7 +285,7 @@ MASTER_SETTINGS
     if [[ -d "$certs" ]]; then
 	    sudo rm -rf "$certs"
     fi
-    
+
     run sudo -E -u $DATA_USER "unzip" $certificates -d $certs
     [ "$status" -eq 0 ] || {
 	    echo "Failed to unzip certificates in $certs: $output"
@@ -295,11 +295,11 @@ MASTER_SETTINGS
     assert_file "$certs/ca" d $DATA_USER $DATA_USER
     assert_file "$certs/ca/ca.key" f $DATA_USER $DATA_USER 644
     assert_file "$certs/ca/ca.crt" f $DATA_USER $DATA_USER 644
-    
+
     assert_file "$certs/node-master" d $DATA_USER $DATA_USER
     assert_file "$certs/node-master/node-master.key" f $DATA_USER $DATA_USER 644
     assert_file "$certs/node-master/node-master.crt" f $DATA_USER $DATA_USER 644
-        
+
     assert_file "$certs/node-data" d $DATA_USER $DATA_USER
     assert_file "$certs/node-data/node-data.key" f $DATA_USER $DATA_USER 644
     assert_file "$certs/node-data/node-data.crt" f $DATA_USER $DATA_USER 644
@@ -317,8 +317,8 @@ node.master: false
 node.data: true
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9300"]
 
-xpack.ssl.key: $ESCONFIG/x-pack/certs/node-data/node-data.key 
-xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-data/node-data.crt 
+xpack.ssl.key: $ESCONFIG/x-pack/certs/node-data/node-data.key
+xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-data/node-data.crt
 xpack.ssl.certificate_authorities: ["$ESCONFIG/x-pack/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
@@ -370,11 +370,11 @@ DATA_SETTINGS
     echo "$masterSettings" | grep '"http":{"type":"security4"}'
     echo "$masterSettings" | grep '"transport":{"ssl":{"enabled":"true"}'
     echo "$masterSettings" | grep '"transport":{"type":"security4"}'
-    
+
     load $DATA_UTILS
     export ESHOME="$DATA_HOME"
     export_elasticsearch_paths
-    
+
     dataSettings=$(curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
         --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
@@ -384,14 +384,12 @@ DATA_SETTINGS
     echo "$dataSettings" | grep '"http":{"type":"security4"}'
     echo "$dataSettings" | grep '"transport":{"ssl":{"enabled":"true"}'
     echo "$dataSettings" | grep '"transport":{"type":"security4"}'
-    
+
     testSearch=$(curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
         --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
         -XGET "https://127.0.0.1:9200/_search?q=title:guide")
-    
+
     echo "$testSearch" | grep '"_index":"books"'
     echo "$testSearch" | grep '"_id":"0"'
 }
-
-

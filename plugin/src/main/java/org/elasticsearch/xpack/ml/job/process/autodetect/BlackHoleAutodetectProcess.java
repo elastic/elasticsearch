@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
@@ -70,10 +69,6 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
-    }
-
-    @Override
-    public void writeUpdateSpecialEventsMessage(int numberOfDetectors, List<SpecialEvent> specialEvents) throws IOException {
     }
 
     /**

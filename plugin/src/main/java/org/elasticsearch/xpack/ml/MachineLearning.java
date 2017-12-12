@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
@@ -76,6 +78,7 @@ import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
+import org.elasticsearch.xpack.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -114,6 +117,9 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactor
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -458,7 +464,10 @@ public class MachineLearning implements ActionPlugin {
             new RestStopDatafeedAction(settings, restController),
             new RestDeleteModelSnapshotAction(settings, restController),
             new RestDeleteExpiredDataAction(settings, restController), 
-            new RestForecastJobAction(settings, restController)
+            new RestForecastJobAction(settings, restController),
+            new RestGetCalendarsAction(settings, restController),
+            new RestPutCalendarAction(settings, restController),
+            new RestDeleteCalendarAction(settings, restController)
         );
     }
 
@@ -504,7 +513,10 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class),
                 new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class),
-                new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class)
+                new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class),
+                new ActionHandler<>(GetCalendarsAction.INSTANCE, GetCalendarsAction.TransportAction.class),
+                new ActionHandler<>(PutCalendarAction.INSTANCE, PutCalendarAction.TransportAction.class),
+                new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class)
         );
     }
 

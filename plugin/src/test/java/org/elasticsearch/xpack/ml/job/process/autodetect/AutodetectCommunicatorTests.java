@@ -10,11 +10,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.SpecialEventTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -23,13 +27,17 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -48,6 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AutodetectCommunicatorTests extends ESTestCase {
@@ -65,8 +74,50 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
             communicator.writeToJob(new ByteArrayInputStream(new byte[0]),
                     randomFrom(XContentType.values()), params, (dataCounts, e) -> {});
-            Mockito.verify(process).writeResetBucketsControlMessage(params);
+            verify(process).writeResetBucketsControlMessage(params);
         }
+    }
+
+    public void testWriteUpdateProcessMessage() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        when(process.isReady()).thenReturn(true);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
+
+        List<RuleCondition> conditions = Collections.singletonList(
+                RuleCondition.createCategorical("foo", "bar"));
+
+        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
+                new JobUpdate.DetectorUpdate(0, "updated description",
+                        Collections.singletonList(new DetectionRule.Builder(conditions).build())));
+
+        UpdateParams updateParams = new UpdateParams(null, detectorUpdates, true);
+        List<SpecialEvent> events = Collections.singletonList(SpecialEventTests.createSpecialEvent());
+
+        communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
+
+        // There are 2 detectors both will be updated with the rule for the special event.
+        // The first has an additional update rule
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        InOrder inOrder = Mockito.inOrder(process);
+        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(0), captor.capture());
+        assertEquals(2, captor.getValue().size());
+        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(1), captor.capture());
+        assertEquals(1, captor.getValue().size());
+        verify(process).isProcessAlive();
+        verifyNoMoreInteractions(process);
+
+
+        // This time there is a single detector update and no special events
+        detectorUpdates = Collections.singletonList(
+                new JobUpdate.DetectorUpdate(1, "updated description",
+                        Collections.singletonList(new DetectionRule.Builder(conditions).build())));
+        updateParams = new UpdateParams(null, detectorUpdates, true);
+        communicator.writeUpdateProcessMessage(updateParams, Collections.emptyList(), ((aVoid, e) -> {}));
+
+        inOrder = Mockito.inOrder(process);
+        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(1), captor.capture());
+        assertEquals(1, captor.getValue().size());
+        verify(process, times(2)).isProcessAlive();
     }
 
     public void testFlushJob() throws IOException {
@@ -175,9 +226,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataDescription.Builder dd = new DataDescription.Builder();
         dd.setTimeField("time_field");
 
-        Detector.Builder detector = new Detector.Builder("metric", "value");
-        detector.setByFieldName("host-metric");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        Detector.Builder metric = new Detector.Builder("metric", "value");
+        metric.setByFieldName("host-metric");
+        Detector.Builder count = new Detector.Builder("count", null);
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(metric.build(), count.build()));
 
         builder.setDataDescription(dd);
         builder.setAnalysisConfig(ac);

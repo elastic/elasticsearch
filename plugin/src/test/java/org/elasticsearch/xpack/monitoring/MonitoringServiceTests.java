@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,7 @@ public class MonitoringServiceTests extends ESTestCase {
         final Monitoring monitoring = new Monitoring(Settings.EMPTY, licenseState);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(monitoring.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(mock(ClusterState.class));
     }
 
     @After
@@ -59,7 +61,7 @@ public class MonitoringServiceTests extends ESTestCase {
     }
 
     public void testIsMonitoringActive() throws Exception {
-        monitoringService = new MonitoringService(Settings.EMPTY, clusterSettings, threadPool, emptySet(), new CountingExporter());
+        monitoringService = new MonitoringService(Settings.EMPTY, clusterService, threadPool, emptySet(), new CountingExporter());
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
@@ -82,7 +84,7 @@ public class MonitoringServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), TimeValue.MINUS_ONE).build();
 
         CountingExporter exporter = new CountingExporter();
-        monitoringService = new MonitoringService(settings, clusterSettings, threadPool, emptySet(), exporter);
+        monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
@@ -105,7 +107,7 @@ public class MonitoringServiceTests extends ESTestCase {
         final BlockingExporter exporter = new BlockingExporter(latch);
 
         Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL).build();
-        monitoringService = new MonitoringService(settings, clusterSettings, threadPool, emptySet(), exporter);
+        monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));

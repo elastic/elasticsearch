@@ -220,12 +220,9 @@ public class HttpInputTests extends ESTestCase {
                 .endObject();
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        try {
-            httpParser.parseInput("_id", parser);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("unsupported http method [_METHOD]"));
-        }
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> httpParser.parseInput("_id", parser));
+        assertThat(e.getMessage(), is("unsupported http method [_METHOD]"));
     }
 
     public void testThatHeadersAreIncludedInPayload() throws Exception {

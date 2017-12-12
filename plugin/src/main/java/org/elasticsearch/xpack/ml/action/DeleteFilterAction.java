@@ -202,8 +202,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("Could not delete filter with ID [" + filterId + "]", e);
-                            listener.onFailure(new IllegalStateException("Could not delete filter with ID [" + filterId + "]", e));
+                            listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
                         }
             });
         }

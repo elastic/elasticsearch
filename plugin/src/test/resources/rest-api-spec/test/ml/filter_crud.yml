@@ -202,3 +202,19 @@ setup:
       catch: missing
       xpack.ml.get_filters:
         filter_id: "filter-foo"
+
+---
+"Test get all filter given no filter exists":
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo"
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo2"
+
+  - do:
+      xpack.ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }

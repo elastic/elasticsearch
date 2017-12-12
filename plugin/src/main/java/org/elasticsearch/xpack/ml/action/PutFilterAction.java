@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -199,8 +198,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(
-                                    new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
+                            listener.onFailure(ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e));
                         }
                     });
         }

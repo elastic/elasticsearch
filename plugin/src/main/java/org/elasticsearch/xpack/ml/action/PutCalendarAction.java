@@ -213,7 +213,8 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            listener.onFailure(
+                                    ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
                         }
                     });
         }

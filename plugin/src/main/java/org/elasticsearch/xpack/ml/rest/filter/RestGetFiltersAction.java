@@ -40,10 +40,9 @@ public class RestGetFiltersAction extends BaseRestHandler {
         if (!Strings.isNullOrEmpty(filterId)) {
             getListRequest.setFilterId(filterId);
         }
-        if (restRequest.hasParam(PageParams.FROM.getPreferredName())
-                || restRequest.hasParam(PageParams.SIZE.getPreferredName())
-                || Strings.isNullOrEmpty(filterId)) {
-            getListRequest.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+        if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
+            getListRequest.setPageParams(
+                    new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
         return channel -> client.execute(GetFiltersAction.INSTANCE, getListRequest, new RestStatusToXContentListener<>(channel));

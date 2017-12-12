@@ -48,12 +48,4 @@ public interface ClientActionPlugin {
     default List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
         return Collections.emptyList();
     }
-
-    /**
-     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
-     * @see NamedWriteableRegistry
-     */
-    default List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.emptyList();
-    }
 }

@@ -373,7 +373,7 @@ public class Node implements Closeable {
                 NetworkModule.getNamedWriteables().stream(),
                 indicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
-                pluginsService.filterPlugins(ClientActionPlugin.class).stream()
+                pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedWriteables().stream()),
                 ClusterModule.getNamedWriteables().stream())
                 .flatMap(Function.identity()).collect(Collectors.toList());

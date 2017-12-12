@@ -147,7 +147,7 @@ public abstract class TransportClient extends AbstractClient {
             entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(ClusterModule.getNamedWriteables());
-            entries.addAll(pluginsService.filterPlugins(ClientActionPlugin.class).stream()
+            entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
                                          .collect(Collectors.toList()));
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);

@@ -44,7 +44,7 @@ public class DebugTests extends ScriptTestCase {
         assertSame(dummy, e.getObjectToExplain());
         assertThat(e.getHeaders(definition), hasEntry("es.to_string", singletonList(dummy.toString())));
         assertThat(e.getHeaders(definition), hasEntry("es.java_class", singletonList("java.lang.Object")));
-        assertThat(e.getHeaders(definition), hasEntry("es.painless_class", singletonList("Object")));
+        assertThat(e.getHeaders(definition), hasEntry("es.painless_class", singletonList("java.lang.Object")));
 
         // Null should be ok
         e = expectScriptThrows(PainlessExplainError.class, () -> exec("Debug.explain(null)"));
@@ -71,7 +71,7 @@ public class DebugTests extends ScriptTestCase {
         ScriptException e = expectThrows(ScriptException.class, () -> exec("Debug.explain(params.a)", params, true));
         assertEquals(singletonList("jumped over the moon"), e.getMetadata("es.to_string"));
         assertEquals(singletonList("java.lang.String"), e.getMetadata("es.java_class"));
-        assertEquals(singletonList("String"), e.getMetadata("es.painless_class"));
+        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.painless_class"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
@@ -79,7 +79,7 @@ public class DebugTests extends ScriptTestCase {
                 ElasticsearchException read = (ScriptException) in.readException();
                 assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
                 assertEquals(singletonList("java.lang.String"), read.getMetadata("es.java_class"));
-                assertEquals(singletonList("String"), read.getMetadata("es.painless_class"));
+                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.painless_class"));
             }
         }
     }

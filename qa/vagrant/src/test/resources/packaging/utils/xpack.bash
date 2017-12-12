@@ -4,6 +4,12 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
+install_xpack() {
+    install_and_check_plugin x pack x-pack-core-*.jar x-pack-graph-*.jar x-pack-ml-*.jar \
+            x-pack-monitoring-*.jar x-pack-security-*.jar x-pack-watcher-*.jar
+}
+
+# Checks that X-Pack files are correctly installed
 verify_xpack_installation() {
     local user="$ESPLUGIN_COMMAND_USER"
     local group="$ESPLUGIN_COMMAND_USER"

@@ -190,7 +190,8 @@ public class InternalEngine extends Engine {
                 assert engineConfig.getForceNewHistoryUUID() == false
                     || openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG
                     || openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                    : "OpenMode must be either CREATE_INDEX_AND_TRANSLOG or OPEN_INDEX_CREATE_TRANSLOG if forceNewHistoryUUID is true";
+                    : "OpenMode must be either CREATE_INDEX_AND_TRANSLOG or OPEN_INDEX_CREATE_TRANSLOG if forceNewHistoryUUID; " +
+                    "openMode [" + openMode + "], forceNewHistoryUUID [" + engineConfig.getForceNewHistoryUUID() + "]";
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;

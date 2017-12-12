@@ -45,7 +45,7 @@ import java.util.stream.Stream;
  * The logic specific to a particular channel is provided by the {@link ChannelFactory} passed to the method
  * when the channel is created. This is what allows an NioGroup to support different channel types.
  */
-public class NioGroup {
+public class NioGroup implements AutoCloseable {
 
     private static final int CREATED = 0;
     private static final int RUNNING = 1;
@@ -84,7 +84,12 @@ public class NioGroup {
 
     public synchronized void start() throws IOException {
         if (state != CREATED) {
-            throw new IllegalStateException("Cannot start NioGroup. It has already been started.");
+            if (state == RUNNING) {
+                throw new IllegalStateException("NioGroup already started.");
+            } else {
+                throw new IllegalStateException("NioGroup is closed.");
+
+            }
         }
         try {
             for (int i = 0; i < socketSelectorCount; ++i) {
@@ -102,9 +107,7 @@ public class NioGroup {
             startSelectors(acceptors, acceptorThreadFactory);
         } catch (Exception e) {
             try {
-                // We call internalStop() because we want to bypass the check that NioGroup is RUNNING.
-                internalStop();
-                state = STOPPED;
+                close();
             } catch (Exception e1) {
                 e.addSuppressed(e1);
             }
@@ -118,7 +121,7 @@ public class NioGroup {
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
         throws IOException {
-        ensureStarted();
+        ensureRunning();
         if (acceptorCount == 0) {
             throw new IllegalArgumentException("There are no acceptors configured. Without acceptors, server channels are not supported.");
         }
@@ -126,20 +129,14 @@ public class NioGroup {
     }
 
     public <S extends NioSocketChannel> S openChannel(InetSocketAddress address, ChannelFactory<?, S> factory) throws IOException {
-        ensureStarted();
+        ensureRunning();
         return factory.openNioChannel(address, socketSelectorSupplier.get());
     }
 
-    public synchronized void stop() throws IOException {
-        if (state != RUNNING) {
-            throw new IllegalStateException("Cannot stop NioGroup. It is not running.");
-        }
-        internalStop();
-        state = STOPPED;
-    }
-
-    private void internalStop() throws IOException {
+    @Override
+    public synchronized void close() throws IOException {
         IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
+        state = STOPPED;
     }
 
     private static <S extends ESSelector> void startSelectors(Iterable<S> selectors, ThreadFactory threadFactory) {
@@ -151,7 +148,7 @@ public class NioGroup {
         }
     }
 
-    private void ensureStarted() {
+    private void ensureRunning() {
         if (state != RUNNING) {
             throw new IllegalStateException("NioGroup is not running.");
         }

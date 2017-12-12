@@ -237,7 +237,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             String serialised = original.getStringRep();
             ByteSizeValue copy = ByteSizeValue.parseBytesSizeValue(serialised, "test");
             assertEquals(original, copy);
-            // assertEquals(serialised, copy.getStringRep());
+            assertEquals(serialised, copy.getStringRep());
         }
     }
 

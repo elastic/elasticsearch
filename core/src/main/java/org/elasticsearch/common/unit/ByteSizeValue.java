@@ -175,56 +175,55 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
         if (sValue == null) {
             return defaultValue;
         }
-        long bytes;
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
-            bytes = (long) (parse(sValue, lowerSValue, "k", settingName) * ByteSizeUnit.C1);
+            return parse(sValue, lowerSValue, "k", ByteSizeUnit.KB, settingName);
         } else if (lowerSValue.endsWith("kb")) {
-            bytes = (long) (parse(sValue, lowerSValue, "kb", settingName) * ByteSizeUnit.C1);
+            return parse(sValue, lowerSValue, "kb", ByteSizeUnit.KB, settingName);
         } else if (lowerSValue.endsWith("m")) {
-            bytes = (long) (parse(sValue, lowerSValue, "m", settingName) * ByteSizeUnit.C2);
+            return parse(sValue, lowerSValue, "m", ByteSizeUnit.MB, settingName);
         } else if (lowerSValue.endsWith("mb")) {
-            bytes = (long) (parse(sValue, lowerSValue, "mb", settingName) * ByteSizeUnit.C2);
+            return parse(sValue, lowerSValue, "mb", ByteSizeUnit.MB, settingName);
         } else if (lowerSValue.endsWith("g")) {
-            bytes = (long) (parse(sValue, lowerSValue, "g", settingName) * ByteSizeUnit.C3);
+            return parse(sValue, lowerSValue, "g", ByteSizeUnit.GB, settingName);
         } else if (lowerSValue.endsWith("gb")) {
-            bytes = (long) (parse(sValue, lowerSValue, "gb", settingName) * ByteSizeUnit.C3);
+            return parse(sValue, lowerSValue, "gb", ByteSizeUnit.GB, settingName);
         } else if (lowerSValue.endsWith("t")) {
-            bytes = (long) (parse(sValue, lowerSValue, "t", settingName) * ByteSizeUnit.C4);
+            return parse(sValue, lowerSValue, "t", ByteSizeUnit.TB, settingName);
         } else if (lowerSValue.endsWith("tb")) {
-            bytes = (long) (parse(sValue, lowerSValue, "tb", settingName) * ByteSizeUnit.C4);
+            return parse(sValue, lowerSValue, "tb", ByteSizeUnit.TB, settingName);
         } else if (lowerSValue.endsWith("p")) {
-            bytes = (long) (parse(sValue, lowerSValue, "p", settingName) * ByteSizeUnit.C5);
+            return parse(sValue, lowerSValue, "p", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("pb")) {
-            bytes = (long) (parse(sValue, lowerSValue, "pb", settingName) * ByteSizeUnit.C5);
+            return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
-            bytes = Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim());
+            return new ByteSizeValue(Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim()), ByteSizeUnit.BYTES);
         } else if (lowerSValue.equals("-1")) {
             // Allow this special value to be unit-less:
-            bytes = -1;
+            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
         } else if (lowerSValue.equals("0")) {
             // Allow this special value to be unit-less:
-            bytes = 0;
+            return new ByteSizeValue(0, ByteSizeUnit.BYTES);
         } else {
             // Missing units:
             throw new ElasticsearchParseException(
                     "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName,
                     sValue);
         }
-        return new ByteSizeValue(bytes, ByteSizeUnit.BYTES);
     }
 
-    private static double parse(final String initialInput, final String normalized, final String suffix, final String settingName) {
+    private static ByteSizeValue parse(final String initialInput, final String normalized, final String suffix, ByteSizeUnit unit,
+            final String settingName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
-            return Long.parseLong(s);
+            return new ByteSizeValue(Long.parseLong(s), unit);
         } catch (final NumberFormatException e) {
             try {
                 final double doubleValue = Double.parseDouble(s);
                 DEPRECATION_LOGGER.deprecated(
                         "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
                         initialInput, settingName);
-                return doubleValue;
+                return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
             } catch (final NumberFormatException ignored) {
                 throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
             }

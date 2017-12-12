@@ -187,6 +187,10 @@ public class InternalEngine extends Engine {
                 );
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
+                assert engineConfig.getForceNewHistoryUUID() == false
+                    || openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG
+                    || openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                    : "OpenMode must be either CREATE_INDEX_AND_TRANSLOG or OPEN_INDEX_CREATE_TRANSLOG if forceNewHistoryUUID is true";
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;

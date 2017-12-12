@@ -84,7 +84,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -159,7 +158,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.index.translog.SnapshotMatchers.containsSeqNoRange;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -167,6 +165,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -4139,9 +4138,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testKeepTranslogAfterGlobalCheckpoint() throws Exception {
+    public void testKeepOnlyOneSafeCommit() throws Exception {
         IOUtils.close(engine, store);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final AtomicLong globalCheckpoint = new AtomicLong(0);
         final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
             new SequenceNumbersService(
                 config.getShardId(),
@@ -4156,28 +4155,14 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
 
-        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
-            defaultSettings.getScopedSettings());
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
-        builder.settings(Settings.builder().put(indexSettings.getSettings())
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(),
-                randomBoolean() ? "-1" : TimeValue.timeValueMillis(randomNonNegativeLong()).getStringRep())
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
-                randomBoolean() ? "-1" : new ByteSizeValue(randomNonNegativeLong()).toString())
-        );
-        indexSettings.updateIndexMetaData(builder.build());
-
-        final Path translogPath = createTempDir();
         store = createStore();
         try (InternalEngine engine
-                 = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+                 = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, seqNoServiceSupplier)) {
             int numDocs = scaledRandomIntBetween(10, 100);
-            int uncommittedOps = 0;
             for (int i = 0; i < numDocs; i++) {
                 ParseContext.Document document = testDocumentWithTextField();
                 document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
                 engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, document, B_1, null)));
-                uncommittedOps++;
                 if (frequently()) {
                     globalCheckpoint.set(randomIntBetween(
                         Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
@@ -4185,25 +4170,15 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 if (frequently()) {
                     engine.flush(randomBoolean(), true);
-                    uncommittedOps = 0;
+                    List<IndexCommit> safeCommits = new ArrayList<>();
+                    final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+                    for (IndexCommit commit : existingCommits) {
+                        if (Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) <= globalCheckpoint.get()) {
+                            safeCommits.add(commit);
+                        }
+                    }
+                    assertThat("Should keep only one safe commit", safeCommits, hasSize(1));
                 }
-                if (rarely()) {
-                    engine.rollTranslogGeneration();
-                }
-                assertThat(engine.getTranslog().uncommittedOperations(), equalTo(uncommittedOps));
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    assertThat(snapshot,
-                        containsSeqNoRange(Math.max(0, globalCheckpoint.get() + 1), engine.seqNoService().getLocalCheckpoint()));
-                }
-            }
-            engine.flush(randomBoolean(), true);
-        }
-        // Reopen engine to test onInit with existing index commits.
-        try (InternalEngine engine
-                 = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
-            try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                assertThat(snapshot,
-                    containsSeqNoRange(Math.max(0, globalCheckpoint.get() + 1), engine.seqNoService().getLocalCheckpoint()));
             }
         }
     }

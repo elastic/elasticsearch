@@ -216,6 +216,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
             request.masterNodeTimeout("1m"); // <2>
             // end::open-index-request-masterTimeout
+            // tag::open-index-request-waitForActiveShards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+            // end::open-index-request-waitForActiveShards
+
 
             // tag::open-index-request-indicesOptions
             request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
@@ -227,8 +232,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::open-index-response
             boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
             // end::open-index-response
             assertTrue(acknowledged);
+            assertTrue(shardsAcked);
 
             // tag::open-index-execute-async
             client.indices().openIndexAsync(request, new ActionListener<OpenIndexResponse>() {

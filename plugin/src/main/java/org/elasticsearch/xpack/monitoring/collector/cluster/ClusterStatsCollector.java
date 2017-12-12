@@ -81,13 +81,15 @@ public class ClusterStatsCollector extends Collector {
     }
 
     @Override
-    protected boolean shouldCollect() {
+    protected boolean shouldCollect(final boolean isElectedMaster) {
         // This collector can always collect data on the master node
-        return isLocalNodeMaster();
+        return isElectedMaster;
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                                  final long interval,
+                                                  final ClusterState clusterState) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
                 () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
@@ -96,8 +98,8 @@ public class ClusterStatsCollector extends Collector {
         final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
 
         final String clusterName = clusterService.getClusterName().value();
+        final String clusterUuid = clusterUuid(clusterState);
         final String version = Version.CURRENT.toString();
-        final ClusterState clusterState = clusterService.state();
         final License license = licenseService.getLicense();
         final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
@@ -108,7 +110,7 @@ public class ClusterStatsCollector extends Collector {
 
         // Adds a cluster stats document
         return Collections.singleton(
-                new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
+                new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
                                               license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterNeedsTLSEnabled));
     }
 

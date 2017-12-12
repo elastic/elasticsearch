@@ -38,21 +38,21 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected boolean shouldCollect() {
-        return super.shouldCollect() && isLocalNodeMaster();
+    protected boolean shouldCollect(final boolean isElectedMaster) {
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                                  final long interval,
+                                                  final ClusterState clusterState) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
-
-        final ClusterState clusterState = clusterService.state();
         if (clusterState != null) {
             RoutingTable routingTable = clusterState.routingTable();
             if (routingTable != null) {
                 List<ShardRouting> shards = routingTable.allShards();
                 if (shards != null) {
-                    final String clusterUUID = clusterUUID();
+                    final String clusterUuid = clusterUuid(clusterState);
                     final String stateUUID = clusterState.stateUUID();
                     final long timestamp = timestamp();
 
@@ -66,7 +66,7 @@ public class ShardsCollector extends Collector {
                                 // If the shard is assigned to a node, the shard monitoring document refers to this node
                                 shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
                             }
-                            results.add(new ShardMonitoringDoc(clusterUUID, timestamp, interval, shardNode, shard, stateUUID));
+                            results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, shardNode, shard, stateUUID));
                         }
                     }
                 }

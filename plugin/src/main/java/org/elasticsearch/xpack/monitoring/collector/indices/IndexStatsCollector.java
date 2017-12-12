@@ -49,12 +49,14 @@ public class IndexStatsCollector extends Collector {
     }
 
     @Override
-    protected boolean shouldCollect() {
-        return super.shouldCollect() && isLocalNodeMaster();
+    protected boolean shouldCollect(final boolean isElectedMaster) {
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                                  final long interval,
+                                                  final ClusterState clusterState) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>();
         final IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setIndices(getCollectionIndices())
@@ -73,8 +75,7 @@ public class IndexStatsCollector extends Collector {
                 .get(getCollectionTimeout());
 
         final long timestamp = timestamp();
-        final String clusterUuid = clusterUUID();
-        final ClusterState clusterState = clusterService.state();
+        final String clusterUuid = clusterUuid(clusterState);
 
         // add the indices stats that we use to collect the index stats
         results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));

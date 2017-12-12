@@ -161,7 +161,7 @@ public class Monitoring implements ActionPlugin {
         collectors.add(new IndexRecoveryCollector(settings, clusterService, licenseState, client));
         collectors.add(new JobStatsCollector(settings, clusterService, licenseState, client));
 
-        final MonitoringService monitoringService = new MonitoringService(settings, clusterSettings, threadPool, collectors, exporters);
+        final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         return Arrays.asList(monitoringService, exporters, cleanerService);
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,12 +60,14 @@ public class NodeStatsCollector extends Collector {
 
     // For testing purpose
     @Override
-    protected boolean shouldCollect() {
-        return super.shouldCollect();
+    protected boolean shouldCollect(final boolean isElectedMaster) {
+        return super.shouldCollect(isElectedMaster);
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
+                                                  final long interval,
+                                                  final ClusterState clusterState) throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.os(true);
@@ -81,10 +84,11 @@ public class NodeStatsCollector extends Collector {
             throw response.failures().get(0);
         }
 
+        final String clusterUuid = clusterUuid(clusterState);
         final NodeStats nodeStats = response.getNodes().get(0);
 
-        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUUID(), nodeStats.getTimestamp(), interval, node,
-                node.getUUID(), isLocalNodeMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
+        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUuid, nodeStats.getTimestamp(), interval, node,
+                node.getUUID(), clusterState.getNodes().isLocalNodeElectedMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
     }
 
 }

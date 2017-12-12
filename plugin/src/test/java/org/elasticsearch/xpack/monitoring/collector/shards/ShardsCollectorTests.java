@@ -45,12 +45,15 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
         when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        whenLocalNodeElectedMaster(randomBoolean());
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
 
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(licenseState).isMonitoringAllowed();
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+        if (isElectedMaster) {
+            verify(licenseState).isMonitoringAllowed();
+        }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
@@ -60,9 +63,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
-        assertThat(collector.shouldCollect(), is(false));
-        verify(licenseState).isMonitoringAllowed();
-        verify(nodes).isLocalNodeElectedMaster();
+        assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
@@ -71,20 +72,16 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
-        assertThat(collector.shouldCollect(), is(true));
+        assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
-        verify(nodes).isLocalNodeElectedMaster();
     }
 
     public void testDoCollectWhenNoClusterState() throws Exception {
-        when(clusterService.state()).thenReturn(null);
-
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
-        final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong());
+        final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), null);
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(0));
-        verify(clusterService).state();
     }
 
     public void testDoCollect() throws Exception {
@@ -114,7 +111,10 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
 
-        final Collection<MonitoringDoc> results = collector.doCollect(node, interval);
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
+        verify(clusterState).metaData();
+        verify(metaData).clusterUUID();
+
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
 

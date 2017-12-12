@@ -111,11 +111,11 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
      *      on whether it increases, decreases, or keeps the existing replica count. If number-of-replicas is
      *      kept the same, or reduced, then {@link ReplicasAction} is executed first, otherwise, it is last.
      *      So the ordering looks something like this:
-     *          - {@link ReplicasAction} (if action.number_of_replicas <= idxMeta.number_of_replicas)
+     *          - {@link ReplicasAction} (if action.number_of_replicas lte idxMeta.number_of_replicas)
      *          - {@link AllocateAction}
      *          - {@link ShrinkAction}
      *          - {@link ForceMergeAction}
-     *          - {@link ReplicasAction} (if action.number_of_replicas > idxMeta.number_of_replicas)
+     *          - {@link ReplicasAction} (if action.number_of_replicas gt idxMeta.number_of_replicas)
      *
      *      NOCOMMIT: there may exist further optimizations to this when {@link ShrinkAction} is specified.
      *

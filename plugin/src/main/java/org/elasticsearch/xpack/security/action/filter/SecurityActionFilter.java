@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -56,7 +55,6 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
-    @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
                                 XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
@@ -166,13 +164,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                         authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
                         final User user = authentication.getUser();
 
-                            /*
-                             * We use a separate concept for code that needs to be run after authentication and authorization that could
-                             * affect the running of the action. This is done to make it more clear of the state of the request.
-                             */
+                        /*
+                         * We use a separate concept for code that needs to be run after authentication and authorization that could
+                         * affect the running of the action. This is done to make it more clear of the state of the request.
+                         */
                         for (RequestInterceptor interceptor : requestInterceptors) {
                             if (interceptor.supports(request)) {
-                                interceptor.intercept(request, user);
+                                interceptor.intercept(request, user, runAsRoles != null ? runAsRoles : userRoles, securityAction);
                             }
                         }
                         listener.onResponse(null);

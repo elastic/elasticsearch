@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.interceptor;
 
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -17,7 +18,7 @@ public interface RequestInterceptor<Request> {
      * If {@link #supports(TransportRequest)} returns <code>true</code> this interceptor will introspect the request
      * and potentially modify it.
      */
-    void intercept(Request request, User user);
+    void intercept(Request request, User user, Role userPermissions, String action);
 
     /**
      * Returns whether this request interceptor should intercept the specified request.

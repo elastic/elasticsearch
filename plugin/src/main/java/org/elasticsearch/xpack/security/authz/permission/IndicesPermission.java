@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -88,6 +89,16 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             }
         }
         return false;
+    }
+
+    public Automaton allowedActionsMatcher(String index) {
+        List<Automaton> automatonList = new ArrayList<>();
+        for (Group group : groups) {
+            if (group.indexNameMatcher.test(index)) {
+                automatonList.add(group.privilege.getAutomaton());
+            }
+        }
+        return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndMinimize(automatonList);
     }
 
     /**

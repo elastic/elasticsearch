@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.User;
 
 /**
@@ -31,7 +32,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
         this.licenseState = licenseState;
     }
 
-    public void intercept(Request request, User user) {
+    public void intercept(Request request, User user, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }

@@ -15,7 +15,7 @@ a special syntax:
 +
 [source,text]
 -------------------------------------
-# This is a comment
+# this is a comment
 -------------------------------------
 
 * lines beginning with a `-` are treated as a JVM option that applies

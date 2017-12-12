@@ -222,8 +222,6 @@ public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> 
      * <p>
      * Concrete {@link LifecyclePolicy} classes will implement this to help determine their specific
      * ordering of actions for the phases they allow.
-     * <pre><code>
-     * </code></pre>
      */
     @FunctionalInterface
     interface NextActionProvider {

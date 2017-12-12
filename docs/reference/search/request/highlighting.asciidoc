@@ -137,7 +137,7 @@ boundary_scanner_locale:: Controls which locale is used to search for sentence
 and word boundaries.
 
 encoder:: Indicates if the highlighted text should be HTML encoded:
-`default` (no encoding) or `html` (escapes HTML highlighting tags).
+`default` (no encoding) or `html` (encodes the content as HTML, but not the highlighting tags).
 
 fields:: Specifies the fields to retrieve highlights for. You can use wildcards
 to specify fields. For example, you could specify `comment_*` to

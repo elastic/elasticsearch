@@ -46,7 +46,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class CombinedDeletionPolicyTests extends ESTestCase {
@@ -174,23 +173,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         for (int i = 0; i < invalidCommits - 1; i++) {
             verify(commitList.get(i), times(1)).delete();
         }
-    }
-
-    public void testDeleteAllCommitExceptLastWhenTruncateTranslog() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        TranslogDeletionPolicy translogPolicy = mock(TranslogDeletionPolicy.class);
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_CREATE_TRANSLOG, translogPolicy, globalCheckpoint::get);
-        final int numCommits = between(1, 10);
-        final List<IndexCommit> commitList = new ArrayList<>(numCommits);
-        for (int i = 0; i < numCommits; i++) {
-            commitList.add(mockIndexCommit(randomNonNegativeLong(), UUID.randomUUID(), randomNonNegativeLong()));
-        }
-        indexPolicy.onInit(commitList);
-        verifyZeroInteractions(translogPolicy);
-        for (int i = 0; i < numCommits - 1; i++) {
-            verify(commitList.get(i), times(1)).delete();
-        }
-        verifyZeroInteractions(commitList.get(numCommits - 1));
     }
 
     IndexCommit mockIndexCommit(long maxSeqNo, UUID translogUUID, long translogGen) throws IOException {

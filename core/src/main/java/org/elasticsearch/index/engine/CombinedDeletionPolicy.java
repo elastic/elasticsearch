@@ -57,11 +57,8 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, we can delete all commits except the last commit,
-                // without updating the translog policy because these commits do not belong this engine.
-                for (int i = 0; i < commits.size() - 1; i++) {
-                    commits.get(i).delete();
-                }
+                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, a new fresh index commit will be created immediately.
+                // We therefore can simply skip processing here as `onCommit` will be called right after with a new commit.
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
@@ -95,6 +92,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * Find the highest index position of a safe index commit whose max sequence number is not greater than the global checkpoint.
+     * Index commits with different translog UUID will be filtered out as they don't belong to this engine.
      */
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
         final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
@@ -103,7 +101,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         // Commits are sorted by age (the 0th one is the oldest commit).
         for (int i = commits.size() - 1; i >= 0; i--) {
             final Map<String, String> commitUserData = commits.get(i).getUserData();
-            // Index commit with a different TRANSLOG_UUID_KEY don't belong to this engine, skip it.
+            // Ignore index commits with different translog uuid.
             if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
                 return i + 1;
             }

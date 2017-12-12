@@ -1,0 +1,27 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-sql'
+
+// TODO: enable this once we have tests
+test.enabled=false
+licenseHeaders.enabled = false
+
+dependencyLicenses {
+    mapping from: /server.*/, to: 'elasticsearch'
+    mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
+    ignoreSha 'x-pack-core'
+}
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+
+    // sql's server components and its transitive dependencies
+    // TODO: what to do about this dependency, is it still needed?
+    // compile project(':x-pack-elasticsearch:sql:server')
+}
+
+parent.bundlePlugin {
+    from jar
+}

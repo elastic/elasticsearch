@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -185,6 +186,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             EnableAllocationDecider.class,
             NodeVersionAllocationDecider.class,
             SnapshotInProgressAllocationDecider.class,
+            RestoreInProgressAllocationDecider.class,
             FilterAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,

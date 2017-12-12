@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -46,7 +48,10 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -312,6 +317,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         DiscoveryNode node1 = newNode("node1");
         MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
+        Set<String> snapshotIndices = new HashSet<>();
         for (ObjectCursor<IndexMetaData> cursor: metaData.indices().values()) {
             Index index = cursor.value.getIndex();
             IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(cursor.value);
@@ -332,14 +339,14 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                     routingTableBuilder.addAsFromDangling(indexMetaData);
                     break;
                 case 3:
+                    snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsNewRestore(indexMetaData,
-                        new SnapshotRecoverySource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
-                            indexMetaData.getIndex().getName()), new IntHashSet());
+                        new SnapshotRecoverySource(snapshot, Version.CURRENT, indexMetaData.getIndex().getName()), new IntHashSet());
                     break;
                 case 4:
+                    snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsRestore(indexMetaData,
-                        new SnapshotRecoverySource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
-                            indexMetaData.getIndex().getName()));
+                        new SnapshotRecoverySource(snapshot, Version.CURRENT, indexMetaData.getIndex().getName()));
                     break;
                 case 5:
                     routingTableBuilder.addAsNew(indexMetaData);
@@ -348,10 +355,31 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                     throw new IndexOutOfBoundsException();
             }
         }
+
+        final RoutingTable routingTable = routingTableBuilder.build();
+
+        final ImmutableOpenMap.Builder<String, ClusterState.Custom> restores = ImmutableOpenMap.builder();
+        if (snapshotIndices.isEmpty() == false) {
+            // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
+            ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = ImmutableOpenMap.builder();
+            for (ShardRouting shard : routingTable.allShards()) {
+                if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                    ShardId shardId = shard.shardId();
+                    restoreShards.put(shardId, new RestoreInProgress.ShardRestoreStatus(node1.getId(), RestoreInProgress.State.INIT));
+                }
+            }
+
+            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(snapshot, RestoreInProgress.State.INIT,
+                new ArrayList<>(snapshotIndices), restoreShards.build());
+            restores.put(RestoreInProgress.TYPE, new RestoreInProgress(restore));
+        }
+
         return ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(node1))
             .metaData(metaDataBuilder.build())
-            .routingTable(routingTableBuilder.build()).build();
+            .routingTable(routingTable)
+            .customs(restores.build())
+            .build();
     }
 
     private void addInSyncAllocationIds(Index index, IndexMetaData.Builder indexMetaData,

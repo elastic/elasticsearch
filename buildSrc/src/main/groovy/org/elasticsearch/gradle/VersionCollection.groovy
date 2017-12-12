@@ -29,6 +29,7 @@ import java.util.regex.Matcher
 class VersionCollection {
 
     private final List<Version> versions
+    private final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
 
     /**
      * Construct a VersionCollection from the lines of the Version.java file.
@@ -85,7 +86,7 @@ class VersionCollection {
 
                 versions[versionIndex] = new Version(
                         currConsideredVersion.major, currConsideredVersion.minor,
-                        currConsideredVersion.revision, currConsideredVersion.suffix, true, branch)
+                        currConsideredVersion.revision, currConsideredVersion.suffix, buildSnapshot, branch)
             }
 
             if (currConsideredVersion.onOrBefore("5.6.0")) {
@@ -93,12 +94,6 @@ class VersionCollection {
             }
 
             prevConsideredVersion = currConsideredVersion
-        }
-
-        // If we're making a release build then the current should not be a snapshot after all.
-        final boolean currentIsSnapshot = "true" == System.getProperty("build.snapshot", "true")
-        if (false == currentIsSnapshot) {
-            versions[-1] = new Version(versions[-1].major, versions[-1].minor, versions[-1].revision, versions[-1].suffix, false, null)
         }
 
         this.versions = Collections.unmodifiableList(versions)
@@ -137,7 +132,7 @@ class VersionCollection {
     private Version getLastSnapshotWithMajor(int targetMajor) {
         final String currentVersion = currentVersion.toString()
         final int snapshotIndex = versions.findLastIndexOf {
-            it.major == targetMajor && it.before(currentVersion) && it.snapshot
+            it.major == targetMajor && it.before(currentVersion) && it.snapshot == buildSnapshot
         }
         return snapshotIndex == -1 ? null : versions[snapshotIndex]
     }

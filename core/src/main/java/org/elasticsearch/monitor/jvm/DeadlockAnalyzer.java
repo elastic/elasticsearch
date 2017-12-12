@@ -137,7 +137,7 @@ public class DeadlockAnalyzer {
             for (int x = 0; x < members.length; x++) {
                 ThreadInfo ti = members[x];
                 sb.append(ti.getThreadName());
-                if (x < members.length) {
+                if (x < members.length - 1) {
                     sb.append(" > ");
                 }
                 if (x == members.length - 1) {

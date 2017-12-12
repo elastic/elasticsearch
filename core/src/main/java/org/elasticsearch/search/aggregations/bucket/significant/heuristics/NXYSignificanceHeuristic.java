@@ -68,8 +68,19 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public boolean equals(Object other) {
-        return ((NXYSignificanceHeuristic) other).includeNegatives == includeNegatives && ((NXYSignificanceHeuristic) other).backgroundIsSuperset == backgroundIsSuperset;
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        NXYSignificanceHeuristic other = (NXYSignificanceHeuristic) obj;
+        if (backgroundIsSuperset != other.backgroundIsSuperset)
+            return false;
+        if (includeNegatives != other.includeNegatives)
+            return false;
+        return true;
     }
 
     @Override

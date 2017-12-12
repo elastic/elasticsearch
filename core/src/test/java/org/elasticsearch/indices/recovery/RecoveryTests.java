@@ -100,7 +100,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
     public void testRecoveryWithOutOfOrderDelete() throws Exception {
         /*
-         * Flow of this test:
+         * The flow of this test:
          * - delete #1
          * - roll generation (to create gen 2)
          * - index #0
@@ -108,8 +108,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
          * - flush (commit point has max_seqno 3, and local checkpoint 1 -> points at gen 2, previous commit point is maintained)
          * - index #2
          * - index #5
-         * - update the global checkpoint to #3
-         * - If flush and the translog retention disabled, the delete #1 will be removed while index #0 is still retained.
+         * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
@@ -126,7 +125,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // index #3
             orgReplica.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON), u -> {});
-            // Flushing a new commit with local checkpoint=1 allows to delete the 1st translog file.
+            // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
             orgReplica.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -146,12 +145,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                         .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1"));
                     orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
-                    translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed)
+                    translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed but index #0 will be replayed).
                 } else {
                     logger.info("--> flushing shard (translog will be retained)");
                     translogOps = 6; // 5 ops + seqno gaps
                 }
-                orgReplica.updateGlobalCheckpointOnReplica(1L, "test");
                 flushShard(orgReplica);
             } else {
                 translogOps = 6; // 5 ops + seqno gaps

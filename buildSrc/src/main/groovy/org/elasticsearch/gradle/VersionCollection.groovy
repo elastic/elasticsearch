@@ -64,7 +64,10 @@ class VersionCollection {
             throw new GradleException("Unexpectedly found no version constants in Versions.java");
         }
 
-        // The tip of each minor series (>= 5.6) is unreleased, so set their 'snapshot' flags
+        /*
+         * The tip of each minor series (>= 5.6) is unreleased, so they must be built from source (we set branch to non-null), and we set
+         * the snapshot flag if and only if build.snapshot is true.
+         */
         Version prevConsideredVersion = null
         boolean found6xSnapshot = false
         for (final int versionIndex = versions.size() - 1; versionIndex >= 0; versionIndex--) {

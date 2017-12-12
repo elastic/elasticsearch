@@ -47,6 +47,10 @@ import java.util.stream.Stream;
  */
 public class NioGroup {
 
+    private static final int CREATED = 0;
+    private static final int RUNNING = 1;
+    private static final int STOPPED = 2;
+
     private final Logger logger;
 
     private final int acceptorCount;
@@ -60,6 +64,8 @@ public class NioGroup {
     private final ArrayList<SocketSelector> socketSelectors;
     private final Function<Logger, SocketEventHandler> socketEventHandlerFunction;
     private RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
+
+    private volatile int state = CREATED;
 
     public NioGroup(Logger logger, ThreadFactory acceptorThreadFactory, int acceptorCount,
                     BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
@@ -76,7 +82,10 @@ public class NioGroup {
         socketSelectors = new ArrayList<>(this.socketSelectorCount);
     }
 
-    public void start() throws IOException {
+    public synchronized void start() throws IOException {
+        if (state != CREATED) {
+            throw new IllegalStateException("Cannot start NioGroup. It has already been started.");
+        }
         try {
             for (int i = 0; i < socketSelectorCount; ++i) {
                 SocketSelector selector = new SocketSelector(socketEventHandlerFunction.apply(logger));
@@ -93,7 +102,9 @@ public class NioGroup {
             startSelectors(acceptors, acceptorThreadFactory);
         } catch (Exception e) {
             try {
-                stop();
+                // We call internalStop() because we want to bypass the check that NioGroup is RUNNING.
+                internalStop();
+                state = STOPPED;
             } catch (Exception e1) {
                 e.addSuppressed(e1);
             }
@@ -102,10 +113,12 @@ public class NioGroup {
 
         socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new SocketSelector[socketSelectors.size()]));
         acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new AcceptingSelector[acceptors.size()]));
+        state = RUNNING;
     }
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
         throws IOException {
+        ensureStarted();
         if (acceptorCount == 0) {
             throw new IllegalArgumentException("There are no acceptors configured. Without acceptors, server channels are not supported.");
         }
@@ -113,10 +126,19 @@ public class NioGroup {
     }
 
     public <S extends NioSocketChannel> S openChannel(InetSocketAddress address, ChannelFactory<?, S> factory) throws IOException {
+        ensureStarted();
         return factory.openNioChannel(address, socketSelectorSupplier.get());
     }
 
-    public void stop() throws IOException {
+    public synchronized void stop() throws IOException {
+        if (state != RUNNING) {
+            throw new IllegalStateException("Cannot stop NioGroup. It is not running.");
+        }
+        internalStop();
+        state = STOPPED;
+    }
+
+    private void internalStop() throws IOException {
         IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
     }
 
@@ -126,6 +148,12 @@ public class NioGroup {
                 threadFactory.newThread(acceptor::runLoop).start();
                 acceptor.isRunningFuture().actionGet();
             }
+        }
+    }
+
+    private void ensureStarted() {
+        if (state != RUNNING) {
+            throw new IllegalStateException("NioGroup is not running.");
         }
     }
 }

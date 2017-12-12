@@ -141,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -1930,31 +1929,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else {
             // full checkindex
-            try (CheckIndex checkIndex = store.createCheckIndex()) {
-                checkIndex.setInfoStream(out);
-                CheckIndex.Status status = checkIndex.checkIndex();
-                out.flush();
+            store.runUnderMetadataLock(() -> {
+                try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+                    checkIndex.setInfoStream(out);
+                    CheckIndex.Status status = checkIndex.checkIndex();
+                    out.flush();
 
-                if (!status.clean) {
-                    if (state == IndexShardState.CLOSED) {
-                        // ignore if closed....
-                        return;
-                    }
-                    logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                    if ("fix".equals(checkIndexOnStartup)) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("fixing index, writing new segments file ...");
+                    if (!status.clean) {
+                        if (state == IndexShardState.CLOSED) {
+                            // ignore if closed....
+                            return;
                         }
-                        checkIndex.exorciseIndex(status);
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                        logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                        if ("fix".equals(checkIndexOnStartup)) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("fixing index, writing new segments file ...");
+                            }
+                            checkIndex.exorciseIndex(status);
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
+                            }
+                        } else {
+                            // only throw a failure if we are not going to fix the index
+                            throw new IllegalStateException("index check failure but can't fix it");
                         }
-                    } else {
-                        // only throw a failure if we are not going to fix the index
-                        throw new IllegalStateException("index check failure but can't fix it");
                     }
                 }
-            }
+            });
         }
 
         if (logger.isDebugEnabled()) {

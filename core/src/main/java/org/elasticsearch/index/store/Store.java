@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -51,6 +50,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -345,39 +345,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    /**
-     * Create a {@link CheckIndex} under the metadata lock.
-     * Closing this {@link CheckIndex} will also unlock the acquired the metadata lock.
-     */
-    public CheckIndex createCheckIndex() throws IOException {
-        metadataLock.writeLock().lock();
-        final Lock indexWriterLock;
-        try {
-            indexWriterLock = directory().obtainLock(IndexWriter.WRITE_LOCK_NAME);
-        } catch (IOException ex) {
-            metadataLock.writeLock().unlock();
-            throw ex;
-        }
-        return new CheckIndex(directory(), new Lock() {
-            @Override
-            public void close() throws IOException {
-                try {
-                    indexWriterLock.close();
-                } finally {
-                    metadataLock.writeLock().unlock();
-                }
-            }
-
-            @Override
-            public void ensureValid() throws IOException {
-                indexWriterLock.ensureValid();
-            }
-        });
-    }
-
     public StoreStats stats() throws IOException {
         ensureOpen();
         return statsCache.getOrRefresh();
+    }
+
+    /**
+     * Executes a given {@link CheckedRunnable} within the metadataLock.
+     */
+    public <E extends Exception> void runUnderMetadataLock(CheckedRunnable<E> runnable) throws E {
+        metadataLock.writeLock().lock();
+        try {
+            runnable.run();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
     }
 
     /**

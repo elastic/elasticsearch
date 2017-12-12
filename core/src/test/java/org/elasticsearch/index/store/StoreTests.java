@@ -1075,7 +1075,7 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testCheckIndexLock() throws Exception {
+    public void testRunUnderMetadataLock() throws Exception {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Store store = new Store(shardId, INDEX_SETTINGS, new LuceneManagedDirectoryService(random()), new DummyShardLock(shardId));
         final long numDocs = between(1, 100);
@@ -1111,9 +1111,11 @@ public class StoreTests extends ESTestCase {
         int iters = iterations(10, 100);
         latch.await(5, TimeUnit.SECONDS);
         for (int i = 0; i < iters; i++) {
-            try (CheckIndex checkIndex = store.createCheckIndex()) {
-                assertThat(checkIndex.checkIndex().clean, equalTo(true));
-            }
+            store.runUnderMetadataLock(() -> {
+                try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+                    assertThat(checkIndex.checkIndex().clean, equalTo(true));
+                }
+            });
         }
         assertTrue(stop.compareAndSet(false, true));
         thread.join(5_000);

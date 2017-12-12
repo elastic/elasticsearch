@@ -10,7 +10,6 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -19,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.User;
 
 /**
@@ -29,14 +29,13 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    @Inject
     public BulkShardRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState) {
         super(settings);
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
     }
 
-    public void intercept(BulkShardRequest request, User user) {
+    public void intercept(BulkShardRequest request, User user, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }

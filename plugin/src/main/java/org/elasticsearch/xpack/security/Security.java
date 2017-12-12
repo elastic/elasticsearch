@@ -82,7 +82,9 @@ import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
@@ -433,10 +435,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors = Sets.newHashSet(
+            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
                     new SearchRequestInterceptor(settings, threadPool, licenseState),
                     new UpdateRequestInterceptor(settings, threadPool, licenseState),
-                    new BulkShardRequestInterceptor(settings, threadPool, licenseState));
+                    new BulkShardRequestInterceptor(settings, threadPool, licenseState),
+                    new ResizeRequestInterceptor(settings, threadPool, licenseState, auditTrailService),
+                    new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), licenseState, auditTrailService)));
         } else {
             requestInterceptors = Collections.emptySet();
         }

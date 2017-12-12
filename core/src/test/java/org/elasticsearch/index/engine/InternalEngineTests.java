@@ -114,6 +114,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -4142,7 +4143,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testKeepOnlyOneSafeCommit() throws Exception {
+    public void testKeepTranslogAfterGlobalCheckpoint() throws Exception {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(0);
         final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
@@ -4159,14 +4160,22 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
 
+        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+            defaultSettings.getScopedSettings());
+        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "100micros", "30m"))
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb")));
+        indexSettings.updateIndexMetaData(builder.build());
+
         store = createStore();
         try (InternalEngine engine
-                 = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, seqNoServiceSupplier)) {
+                 = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, seqNoServiceSupplier)) {
             int numDocs = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < numDocs; i++) {
+            for (int docId = 0; docId < numDocs; docId++) {
                 ParseContext.Document document = testDocumentWithTextField();
                 document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, document, B_1, null)));
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
                 if (frequently()) {
                     globalCheckpoint.set(randomIntBetween(
                         Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
@@ -4174,14 +4183,20 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 if (frequently()) {
                     engine.flush(randomBoolean(), true);
-                    List<IndexCommit> safeCommits = new ArrayList<>();
-                    final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-                    for (IndexCommit commit : existingCommits) {
-                        if (Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) <= globalCheckpoint.get()) {
-                            safeCommits.add(commit);
-                        }
+                    final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+                    // Keep only one safe commit as the oldest commit.
+                    final IndexCommit safeCommit = commits.get(0);
+                    assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                        lessThanOrEqualTo(globalCheckpoint.get()));
+                    for (int i = 1; i < commits.size(); i++) {
+                        assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                            greaterThan(globalCheckpoint.get()));
                     }
-                    assertThat("Should keep only one safe commit", safeCommits, hasSize(1));
+                    // Make sure we keep all translog operations after the local checkpoint of the safe commit.
+                    long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                        assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
+                    }
                 }
             }
         }

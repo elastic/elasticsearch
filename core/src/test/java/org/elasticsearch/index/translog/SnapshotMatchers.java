@@ -63,6 +63,13 @@ public final class SnapshotMatchers {
         return new ContainingInAnyOrderMatcher(expectedOperations);
     }
 
+    /**
+     * Consumes a snapshot and makes sure that its operations have all seqno between minSeqNo(inclusive) and maxSeqNo(inclusive).
+     */
+    public static Matcher<Translog.Snapshot> containsSeqNoRange(long minSeqNo, long maxSeqNo) {
+        return new ContainingSeqNoRangeMatcher(minSeqNo, maxSeqNo);
+    }
+
     public static class SizeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
 
         private final int size;
@@ -190,6 +197,47 @@ public final class SnapshotMatchers {
             description.appendText("snapshot contains ")
                 .appendValueList("[", ", ", "]", expectedOps)
                 .appendText(" in any order.");
+        }
+    }
+
+    static class ContainingSeqNoRangeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
+        private final long minSeqNo;
+        private final long maxSeqNo;
+        private final List<Long> notFoundSeqNo = new ArrayList<>();
+
+        ContainingSeqNoRangeMatcher(long minSeqNo, long maxSeqNo) {
+            this.minSeqNo = minSeqNo;
+            this.maxSeqNo = maxSeqNo;
+        }
+
+        @Override
+        protected boolean matchesSafely(Translog.Snapshot snapshot) {
+            try {
+                final LongSet seqNoList = new LongHashSet();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    seqNoList.add(op.seqNo());
+                }
+                for (long i = minSeqNo; i <= maxSeqNo; i++) {
+                    if (seqNoList.contains(i) == false) {
+                        notFoundSeqNo.add(i);
+                    }
+                }
+                return notFoundSeqNo.isEmpty();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to read snapshot content", ex);
+            }
+        }
+
+        @Override
+        protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+            mismatchDescription
+                .appendText("not found seqno ").appendValueList("[", ", ", "]", notFoundSeqNo);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("snapshot contains all seqno from [" + minSeqNo + " to " + maxSeqNo + "]");
         }
     }
 }

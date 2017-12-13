@@ -28,10 +28,8 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
-import sun.nio.cs.StandardCharsets;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;

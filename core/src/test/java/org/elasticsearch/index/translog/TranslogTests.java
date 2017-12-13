@@ -153,17 +153,20 @@ public class TranslogTests extends ESTestCase {
     }
 
     private void markCurrentGenAsCommitted(Translog translog) throws IOException {
-        commit(translog, translog.currentFileGeneration());
+        long genToCommit = translog.currentFileGeneration();
+        long genToRetain = randomLongBetween(translog.getDeletionPolicy().getMinTranslogGenerationForRecovery(), genToCommit);
+        commit(translog, genToRetain, genToCommit);
     }
 
     private void rollAndCommit(Translog translog) throws IOException {
         translog.rollGeneration();
-        commit(translog, translog.currentFileGeneration());
+        markCurrentGenAsCommitted(translog);
     }
 
-    private void commit(Translog translog, long genToCommit) throws IOException {
+    private void commit(Translog translog, long genToRetain, long genToCommit) throws IOException {
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
-        deletionPolicy.setMinTranslogGenerationForRecovery(genToCommit);
+        deletionPolicy.setTranslogGenerationOfLastCommit(genToCommit);
+        deletionPolicy.setMinTranslogGenerationForRecovery(genToRetain);
         long minGenRequired = deletionPolicy.minTranslogGenRequired(translog.getReaders(), translog.getCurrent());
         translog.trimUnreferencedReaders();
         assertThat(minGenRequired, equalTo(translog.getMinFileGeneration()));
@@ -437,6 +440,31 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
+        }
+    }
+
+    public void testUncommittedOperations() throws Exception {
+        final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
+        deletionPolicy.setRetentionAgeInMillis(randomLong());
+        deletionPolicy.setRetentionSizeInBytes(randomLong());
+
+        final int operations = scaledRandomIntBetween(10, 100);
+        int uncommittedOps = 0;
+        int operationsInLastGen = 0;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.Index("test", Integer.toString(i), i, new byte[]{1}));
+            uncommittedOps++;
+            operationsInLastGen++;
+            if (rarely()) {
+                translog.rollGeneration();
+                operationsInLastGen = 0;
+            }
+            assertThat(translog.uncommittedOperations(), equalTo(uncommittedOps));
+            if (frequently()) {
+                markCurrentGenAsCommitted(translog);
+                assertThat(translog.uncommittedOperations(), equalTo(operationsInLastGen));
+                uncommittedOps = operationsInLastGen;
+            }
         }
     }
 
@@ -824,6 +852,7 @@ public class TranslogTests extends ESTestCase {
                                 translog.rollGeneration();
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
+                                deletionPolicy.setTranslogGenerationOfLastCommit(translog.currentFileGeneration());
                                 deletionPolicy.setMinTranslogGenerationForRecovery(
                                     translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
                                 translog.trimUnreferencedReaders();
@@ -1822,6 +1851,7 @@ public class TranslogTests extends ESTestCase {
         translog.close();
         TranslogConfig config = translog.getConfig();
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy, () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
@@ -1867,6 +1897,7 @@ public class TranslogTests extends ESTestCase {
                     translog.rollGeneration();
                 }
             }
+            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, translog.currentFileGeneration()));
             deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
             fail.failRandomly();
             try {
@@ -1876,6 +1907,7 @@ public class TranslogTests extends ESTestCase {
             }
         }
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             // we don't know when things broke exactly
@@ -2413,8 +2445,9 @@ public class TranslogTests extends ESTestCase {
         for (int i = 0; i <= rolls; i++) {
             assertFileIsPresent(translog, generation + i);
         }
-        commit(translog, generation + rolls);
-        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls ));
+        long minGenForRecovery = randomLongBetween(generation, generation + rolls);
+        commit(translog, minGenForRecovery, generation + rolls);
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
         assertThat(translog.uncommittedOperations(), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
@@ -2423,17 +2456,19 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy.setRetentionAgeInMillis(randomBoolean() ? 100 : -1);
             assertBusy(() -> {
                 translog.trimUnreferencedReaders();
-                for (int i = 0; i < rolls; i++) {
-                    assertFileDeleted(translog, generation + i);
+                for (long i = 0; i < minGenForRecovery; i++) {
+                    assertFileDeleted(translog, i);
                 }
             });
         } else {
             // immediate cleanup
-            for (int i = 0; i < rolls; i++) {
-                assertFileDeleted(translog, generation + i);
+            for (long i = 0; i < minGenForRecovery; i++) {
+                assertFileDeleted(translog, i);
             }
         }
-        assertFileIsPresent(translog, generation + rolls);
+        for (long i = minGenForRecovery; i < generation + rolls; i++) {
+            assertFileIsPresent(translog, i);
+        }
     }
 
     public void testMinSeqNoBasedAPI() throws IOException {
@@ -2516,10 +2551,8 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
             }
         }
-
-        final long generation =
-                randomIntBetween(1, Math.toIntExact(translog.currentFileGeneration()));
-        commit(translog, generation);
+        long lastGen = randomLongBetween(1, translog.currentFileGeneration());
+        commit(translog, randomLongBetween(1, lastGen), lastGen);
     }
 
     public void testAcquiredLockIsPassedToDeletionPolicy() throws IOException {
@@ -2531,7 +2564,9 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
             }
             if (rarely()) {
-                commit(translog, randomLongBetween(deletionPolicy.getMinTranslogGenerationForRecovery(), translog.currentFileGeneration()));
+                long lastGen = randomLongBetween(deletionPolicy.getTranslogGenerationOfLastCommit(), translog.currentFileGeneration());
+                long minGen = randomLongBetween(deletionPolicy.getMinTranslogGenerationForRecovery(), lastGen);
+                commit(translog, minGen, lastGen);
             }
             if (frequently()) {
                 long minGen;

@@ -1,0 +1,34 @@
+[role="xpack"]
+[[xpack-sql]]
+= SQL Access
+
+:sql-tests: {docdir}/../../qa/sql
+:sql-specs: {sql-tests}/src/main/resources
+:jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/qa/sql/jdbc
+:security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/qa/sql/security
+
+[partintro]
+--
+X-Pack includes a SQL feature to execute SQL against Elasticsearch
+indices and return tabular results. There are four main components:
+
+<<sql-rest,REST API>>::
+    Accepts SQL in a JSON document, executes it, and returns the
+    results.
+<<sql-translate,Translate API>>::
+    Accepts SQL in a JSON document and translates it into a native
+    Elasticsearch query and returns that.
+<<sql-cli,CLI>>::
+    Command line application that connects to Elasticsearch to excute
+    SQL and print tabular results.
+<<sql-jdbc,JDBC>>::
+    A JDBC driver for Elasticsearch.
+--
+
+include::sql-overview.asciidoc[]
+include::sql-getting-started.asciidoc[]
+include::endpoints/sql-endpoints.asciidoc[]
+include::functions/sql-functions.asciidoc[]
+include::language/sql-language.asciidoc[]
+
+:jdbc-tests!:

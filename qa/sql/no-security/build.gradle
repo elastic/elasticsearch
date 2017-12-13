@@ -1,0 +1,7 @@
+integTestCluster {
+  setting 'xpack.security.enabled', 'false'
+}
+
+run {
+  setting 'xpack.security.enabled', 'false'
+}

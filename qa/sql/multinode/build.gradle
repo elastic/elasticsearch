@@ -1,0 +1,4 @@
+integTestCluster {
+  numNodes = 2
+  setting 'xpack.security.enabled', 'false'
+}

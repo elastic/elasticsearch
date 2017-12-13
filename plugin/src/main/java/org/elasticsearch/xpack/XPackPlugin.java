@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -85,6 +86,8 @@ import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
@@ -141,6 +144,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     /** Name constant for the upgrade feature. */
     public static final String UPGRADE = "upgrade";
 
+    /** Name constant for the sql feature. */
+    public static final String SQL = "sql";
+
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
 
@@ -191,6 +197,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     protected Deprecation deprecation;
     protected Upgrade upgrade;
+    protected SqlPlugin sql;
 
     public XPackPlugin(
             final Settings settings,
@@ -210,6 +217,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.logstash = new Logstash(settings);
         this.deprecation = new Deprecation();
         this.upgrade = new Upgrade(settings);
+        // sql projects don't depend on x-pack and as a result we cannot pass XPackLicenseState object to SqlPlugin directly here
+        this.sql = new SqlPlugin(XPackSettings.SQL_ENABLED.get(settings), new SqlLicenseChecker(
+                () -> {
+                    if (!licenseState.isSqlAllowed()) {
+                        throw LicenseUtils.newComplianceException(XPackPlugin.SQL);
+                    }
+                },
+                () -> {
+                    if (!licenseState.isJdbcAllowed()) {
+                        throw LicenseUtils.newComplianceException("jdbc");
+                    }
+                })
+        );
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -278,6 +298,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         components.addAll(upgrade.createComponents(client, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
+
+        /* Note that we need *client*, not *internalClient* because client preserves the
+         * authenticated user while internalClient throws that user away and acts as the
+         * x-pack user. */
+        components.addAll(sql.createComponents(client));
 
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
         PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);
@@ -377,6 +402,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         actions.addAll(machineLearning.getActions());
         actions.addAll(deprecation.getActions());
         actions.addAll(upgrade.getActions());
+        actions.addAll(sql.getActions());
         return actions;
     }
 
@@ -415,6 +441,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
             indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(upgrade.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(sql.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 
@@ -431,6 +459,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
         entries.addAll(Security.getNamedWriteables());
+        entries.addAll(SqlPlugin.getNamedWriteables());
         entries.addAll(Monitoring.getNamedWriteables());
         entries.addAll(Graph.getNamedWriteables());
         return entries;

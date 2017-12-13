@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption
 group 'org.elasticsearch.plugin'
 
 apply plugin: 'elasticsearch.esplugin'
+
 esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
@@ -30,11 +31,22 @@ dependencyLicenses {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
   mapping from: /transport-netty.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
+  mapping from: /server.*/, to: 'elasticsearch'
+  mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   ignoreSha 'elasticsearch-rest-client'
   ignoreSha 'transport-netty4'
+  ignoreSha 'tribe'
+  ignoreSha 'server'
+  ignoreSha 'jdbc-proto'
+  ignoreSha 'cli-proto'
+  ignoreSha 'shared-proto'
   ignoreSha 'elasticsearch-rest-client-sniffer'
+  ignoreSha 'aggs-matrix-stats'
 }
 
 licenseHeaders {
@@ -85,6 +97,9 @@ dependencies {
   compile 'net.sf.supercsv:super-csv:2.4.0'
   nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
   testCompile 'org.ini4j:ini4j:0.5.2'
+
+  // sql's server components and its transitive dependencies
+  compile project(':x-pack-elasticsearch:sql:server')
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'

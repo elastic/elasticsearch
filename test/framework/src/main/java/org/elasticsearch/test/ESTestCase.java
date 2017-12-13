@@ -462,6 +462,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A random long number between min (inclusive) and max (inclusive).
+     */
+    public static long randomLongBetween(long min, long max) {
+        return RandomNumbers.randomLongBetween(random(), min, max);
+    }
+
+    /**
      * Returns a "scaled" number of iterations for loops which can have a variable
      * iteration count. This method is effectively
      * an alias to {@link #scaledRandomIntBetween(int, int)}.

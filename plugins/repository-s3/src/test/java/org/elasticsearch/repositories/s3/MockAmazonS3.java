@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
@@ -36,14 +37,12 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.util.Base64;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.security.DigestInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +85,12 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public boolean doesBucketExist(String bucket) {
         return true;
+    }
+
+    @Override
+    public boolean doesObjectExist(String bucketName, String objectName) throws AmazonServiceException, SdkClientException {
+        simulateS3SocketConnection();
+        return blobs.containsKey(objectName);
     }
 
     @Override

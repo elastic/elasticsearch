@@ -139,6 +139,11 @@ skip_not_zip() {
 
 assert_file_exist() {
     local file="$1"
+    local count=$(echo "$file" | wc -l)
+    [[ "$count" == "1" ]] || {
+      echo "assert_file_exist must be run on a single file at a time but was called on [$count] files: $file"
+      false
+    }
     if [ ! -e "$file" ]; then
         echo "Should exist: ${file} but does not"
     fi

@@ -1745,11 +1745,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void initiateTracking(final String allocationId) {
         verifyPrimary();
         getEngine().seqNoService().initiateTracking(allocationId);
-        /*
-         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
-         * the replica; mark our self as active to force a future background sync.
-         */
-        active.compareAndSet(false, true);
     }
 
     /**

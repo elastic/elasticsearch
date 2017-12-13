@@ -28,8 +28,10 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
+import sun.nio.cs.StandardCharsets;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -216,5 +218,58 @@ public class LiveVersionMapTests extends ESTestCase {
             assertEquals(e.getValue(), versionValue);
             assertTrue(versionValue instanceof DeleteVersionValue);
         });
+    }
+
+    public void testCarryOnSafeAccess() throws IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        assertFalse(map.isUnsafe());
+        assertFalse(map.isSafeAccessRequired());
+        map.enforceSafeAccess();
+        assertTrue(map.isSafeAccessRequired());
+        assertFalse(map.isUnsafe());
+        int numIters = randomIntBetween(1, 5);
+        for (int i = 0; i < numIters; i++) { // if we don't do anything ie. no adds etc we will stay with the safe access required
+            map.beforeRefresh();
+            map.afterRefresh(randomBoolean());
+            assertTrue("failed in iter: " + i, map.isSafeAccessRequired());
+        }
+
+        map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        assertFalse(map.isUnsafe());
+        assertEquals(1, map.getAllCurrent().size());
+
+        map.beforeRefresh();
+        map.afterRefresh(randomBoolean());
+        assertFalse(map.isUnsafe());
+        assertFalse(map.isSafeAccessRequired());
+
+        map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        assertTrue(map.isUnsafe());
+        assertFalse(map.isSafeAccessRequired());
+        assertEquals(0, map.getAllCurrent().size());
+    }
+
+    public void testRefreshTransition() throws IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+        assertTrue(map.isUnsafe());
+        assertNull(map.getUnderLock(uid("1")));
+        map.beforeRefresh();
+        assertTrue(map.isUnsafe());
+        assertNull(map.getUnderLock(uid("1")));
+        map.afterRefresh(randomBoolean());
+        assertNull(map.getUnderLock(uid("1")));
+        assertFalse(map.isUnsafe());
+
+        map.enforceSafeAccess();
+        map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+        assertFalse(map.isUnsafe());
+        assertNotNull(map.getUnderLock(uid("1")));
+        map.beforeRefresh();
+        assertFalse(map.isUnsafe());
+        assertNotNull(map.getUnderLock(uid("1")));
+        map.afterRefresh(randomBoolean());
+        assertNull(map.getUnderLock(uid("1")));
+        assertFalse(map.isUnsafe());
     }
 }

@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
@@ -46,13 +47,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         maps = new Maps();
     }
 
-    private static class Maps {
+    private static final class VersionLookup {
 
-        // All writes (adds and deletes) go into here:
-        final Map<BytesRef,VersionValue> current;
-
-        // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
-        final Map<BytesRef,VersionValue> old;
+        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
+        private final Map<BytesRef,VersionValue> map;
 
         // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
         // where we know that documents can't have any duplicates so we can skip the version map entirely. This reduces
@@ -64,20 +62,68 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // NOTE: these values can both be non-volatile since it's ok to read a stale value per doc ID. We serialize changes in the engine
         // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
         // map reference itself.
+        private boolean unsafe;
         boolean safeAccessRequested = false;
-        boolean unsafe = false;
-        // the previous map needed safe access ie. a delete or a non-autoID or unsafe(retry) update was indexed
-        // in this case we try to carry-on the de-optimized case and enforce safe access
-        final boolean needsSafeAccess;
 
-        Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old, boolean neededSafeAccess) {
-           this.current = current;
-           this.old = old;
-           this.needsSafeAccess = neededSafeAccess;
+        private VersionLookup(Map<BytesRef, VersionValue> map) {
+            this.map = map;
+        }
+
+        VersionValue get(BytesRef key) {
+            return map.get(key);
+        }
+
+        VersionValue put(BytesRef key, VersionValue value) {
+            return map.put(key, value);
+        }
+
+        boolean isEmpty() {
+            return map.isEmpty();
+        }
+
+
+        int size() {
+            return map.size();
+        }
+
+        boolean isUnsafe() {
+            return unsafe;
+        }
+
+        void markAsUnsafe() {
+            unsafe = true;
+        }
+    }
+
+    private static class Maps {
+
+        // All writes (adds and deletes) go into here:
+        final VersionLookup current;
+
+        // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
+        final VersionLookup old;
+
+        boolean needsSafeAccess;
+        final boolean previousMapsNeededSafeAccess;
+
+        Maps(VersionLookup current, VersionLookup old, boolean previousMapsNeededSafeAccess) {
+            this.current = current;
+            this.old = old;
+            this.previousMapsNeededSafeAccess = previousMapsNeededSafeAccess;
         }
 
         Maps() {
-            this(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(), Collections.emptyMap(), false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+        }
+
+        boolean isSafeAccessMode() {
+            return needsSafeAccess || previousMapsNeededSafeAccess;
+        }
+
+        boolean shouldInheritSafeAccess() {
+            return needsSafeAccess
+                // previous map was empty and not unsafe but the map before needed it so we maintain it
+                || (current.size() == 0 && current.isUnsafe() == false && previousMapsNeededSafeAccess);
         }
     }
 
@@ -129,11 +175,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        final int mapSize = maps.current.size();
-        boolean carryOnSafeAccess = maps.safeAccessRequested// previous map was forced to use safe access so we carry it over
-            || (mapSize == 0 && maps.needsSafeAccess); // previous map was empty but the map before needed it so we maintain it
-        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(mapSize), maps.current, carryOnSafeAccess);
-
+        maps = new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size())),
+            maps.current, maps.shouldInheritSafeAccess());
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
         ramBytesUsedCurrent.set(0);
@@ -147,7 +190,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        maps = new Maps(maps.current, Collections.emptyMap(), maps.needsSafeAccess || maps.safeAccessRequested);
+
+        maps = new Maps(maps.current, VersionLookup.EMPTY, maps.previousMapsNeededSafeAccess);
     }
 
     /** Returns the live version (add or delete) for this uid. */
@@ -168,25 +212,24 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     boolean isUnsafe() {
-        return maps.unsafe;
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
     }
 
     void enforceSafeAccess() {
-        maps.safeAccessRequested = true;
+        maps.needsSafeAccess = true;
     }
 
     boolean isSafeAccessRequired() {
-        Maps maps = this.maps;
-        return maps.needsSafeAccess || maps.safeAccessRequested;
+        return maps.isSafeAccessMode();
     }
 
     /** Adds this uid/version to the pending adds map iff the map needs safe access.  */
     void maybePutUnderLock(BytesRef uid, VersionValue version) {
         Maps maps = this.maps;
-        if (maps.needsSafeAccess || maps.safeAccessRequested) {
+        if (maps.isSafeAccessMode()) {
             putUnderLock(uid, version, maps);
         } else {
-            maps.unsafe = true;
+            maps.current.markAsUnsafe();
         }
     }
 
@@ -310,5 +353,5 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     /** Returns the current internal versions as a point in time snapshot*/
     Map<BytesRef, VersionValue> getAllCurrent() {
-        return maps.current;
+        return maps.current.map;
     }}

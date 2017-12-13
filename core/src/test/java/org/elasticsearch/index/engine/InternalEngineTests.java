@@ -106,6 +106,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -4286,6 +4287,57 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testConcurrentAppendUpdateAndRefresh() throws InterruptedException, IOException {
+        int numDocsPerThread = scaledRandomIntBetween(100, 1000);
+        CountDownLatch latch = new CountDownLatch(2);
+        AtomicInteger threadsRunning = new AtomicInteger();
+        AtomicInteger numDeletes = new AtomicInteger();
+        Thread thread = new Thread(() -> {
+           try {
+               threadsRunning.incrementAndGet();
+               latch.countDown();
+               latch.await();
+               for (int j = 0; j < numDocsPerThread; j++) {
+                   String docID = Integer.toString(j);
+                   ParsedDocument doc = testParsedDocument(docID, null, testDocumentWithTextField(),
+                       new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                   Engine.Index operation = appendOnlyPrimary(doc, false, 1);
+                   engine.index(operation);
+                   if (rarely()) {
+                       engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid()));
+                       numDeletes.incrementAndGet();
+                   } else {
+                       doc = testParsedDocument(docID, null, testDocumentWithTextField("updated"),
+                           new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                       Engine.Index update = indexForDoc(doc);
+                       engine.index(update);
+                   }
+               }
+           } catch (Exception e) {
+               throw new AssertionError(e);
+           } finally {
+               threadsRunning.decrementAndGet();
+           }
+        });
+        thread.start();
+        latch.countDown();
+        latch.await();
+        while (threadsRunning.get() != 0) {
+            engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        }
+        thread.join();
+        engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), searcher.reader().numDocs());
+            for (int i = 0; i < search.scoreDocs.length; i++) {
+                org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[i].doc);
+                assertEquals("updated", luceneDoc.get("value"));
+            }
+            int totalNumDocs = numDocsPerThread - numDeletes.get();
+            assertEquals(totalNumDocs, searcher.reader().numDocs());
         }
     }
 }

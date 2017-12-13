@@ -77,7 +77,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         }
         final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
-        indexScopedSettings.validate(templateSettingsBuilder);
+        indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .patterns(request.patterns())
                 .order(request.order())

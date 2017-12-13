@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -36,7 +35,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -79,10 +78,12 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,6 +92,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 public abstract class Engine implements Closeable {
 
@@ -144,33 +146,18 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
-     */
-    protected static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
-        }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
-    }
-
-    /**
      * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
      */
     protected static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
+        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
                 IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
         return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) {
         return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
@@ -531,7 +518,7 @@ public abstract class Engine implements Closeable {
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(source, scope); // can never be null
+            final ReferenceManager<IndexSearcher> manager = getSearcherManager(source, scope); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -585,7 +572,7 @@ public abstract class Engine implements Closeable {
     /**
      * Read the last segments info from the commit pointed to by the searcher manager
      */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final SearcherManager sm, final Store store) throws IOException {
+    protected static SegmentInfos readLastCommittedSegmentInfos(final ReferenceManager<IndexSearcher> sm, final Store store) throws IOException {
         IndexSearcher searcher = sm.acquire();
         try {
             IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
@@ -608,25 +595,40 @@ public abstract class Engine implements Closeable {
      */
     public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
-        try (Searcher searcher = acquireSearcher("segments_stats")) {
-            SegmentsStats stats = new SegmentsStats();
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
-                stats.add(1, segmentReader.ramBytesUsed());
-                stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-                stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-                stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-                stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-                stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
-                stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+        Set<String> segmentName = new HashSet<>();
+        SegmentsStats stats = new SegmentsStats();
+        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
+            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                segmentName.add(segmentReader.getSegmentName());
+            }
+        }
 
-                if (includeSegmentFileSizes) {
-                    // TODO: consider moving this to StoreStats
-                    stats.addFileSizes(getSegmentFileSizes(segmentReader));
+        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
+            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                if (segmentName.contains(segmentReader.getSegmentName()) == false) {
+                    fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
                 }
             }
-            writerSegmentStats(stats);
-            return stats;
+        }
+        writerSegmentStats(stats);
+        return stats;
+    }
+
+    private void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+        stats.add(1, segmentReader.ramBytesUsed());
+        stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
+        stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
+        stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
+        stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+        stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
+        stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+
+        if (includeSegmentFileSizes) {
+            // TODO: consider moving this to StoreStats
+            stats.addFileSizes(getSegmentFileSizes(segmentReader));
         }
     }
 
@@ -716,30 +718,18 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
-        try (Searcher searcher = acquireSearcher("segments")){
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
-                SegmentCommitInfo info = segmentReader.getSegmentInfo();
-                assert !segments.containsKey(info.info.name);
-                Segment segment = new Segment(info.info.name);
-                segment.search = true;
-                segment.docCount = reader.reader().numDocs();
-                segment.delDocCount = reader.reader().numDeletedDocs();
-                segment.version = info.info.getVersion();
-                segment.compound = info.info.getUseCompoundFile();
-                try {
-                    segment.sizeInBytes = info.sizeInBytes();
-                } catch (IOException e) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+        try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)){
+            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), verbose, true, segments);
+            }
+        }
+
+        try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL)){
+            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                if (segments.containsKey(segmentReader.getSegmentName()) == false) {
+                    fillSegmentInfo(segmentReader, verbose, false, segments);
                 }
-                segment.memoryInBytes = segmentReader.ramBytesUsed();
-                segment.segmentSort = info.info.getIndexSort();
-                if (verbose) {
-                    segment.ramTree = Accountables.namedAccountable("root", segmentReader);
-                }
-                segment.attributes = info.info.getAttributes();
-                // TODO: add more fine grained mem stats values to per segment info here
-                segments.put(info.info.name, segment);
             }
         }
 
@@ -769,14 +759,32 @@ public abstract class Engine implements Closeable {
         }
 
         Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
-        Arrays.sort(segmentsArr, new Comparator<Segment>() {
-            @Override
-            public int compare(Segment o1, Segment o2) {
-                return (int) (o1.getGeneration() - o2.getGeneration());
-            }
-        });
-
+        Arrays.sort(segmentsArr, Comparator.comparingLong(Segment::getGeneration));
         return segmentsArr;
+    }
+
+    private void fillSegmentInfo(SegmentReader segmentReader, boolean verbose, boolean search, Map<String, Segment> segments) {
+        SegmentCommitInfo info = segmentReader.getSegmentInfo();
+        assert segments.containsKey(info.info.name) == false;
+        Segment segment = new Segment(info.info.name);
+        segment.search = search;
+        segment.docCount = segmentReader.numDocs();
+        segment.delDocCount = segmentReader.numDeletedDocs();
+        segment.version = info.info.getVersion();
+        segment.compound = info.info.getUseCompoundFile();
+        try {
+            segment.sizeInBytes = info.sizeInBytes();
+        } catch (IOException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+        }
+        segment.memoryInBytes = segmentReader.ramBytesUsed();
+        segment.segmentSort = info.info.getIndexSort();
+        if (verbose) {
+            segment.ramTree = Accountables.namedAccountable("root", segmentReader);
+        }
+        segment.attributes = info.info.getAttributes();
+        // TODO: add more fine grained mem stats values to per segment info here
+        segments.put(info.info.name, segment);
     }
 
     /**
@@ -787,13 +795,19 @@ public abstract class Engine implements Closeable {
     public final boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
+              we need to inc the store here since we acquire a searcher and that might keep a file open on the
               store. this violates the assumption that all files are closed when
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return getSearcherManager("refresh_needed", SearcherScope.EXTERNAL).isSearcherCurrent() == false;
+                ReferenceManager<IndexSearcher> manager = getSearcherManager("refresh_needed", SearcherScope.EXTERNAL);
+                final IndexSearcher searcher =  manager.acquire();
+                try {
+                    final IndexReader r = searcher.getIndexReader();
+                    return ((DirectoryReader) r).isCurrent() == false;
+                } finally {
+                    manager.release(searcher);
+                }
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -1331,7 +1345,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract SearcherManager getSearcherManager(String source, SearcherScope scope);
+    protected abstract ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope);
 
     /**
      * Method to close the engine while the write lock is held.

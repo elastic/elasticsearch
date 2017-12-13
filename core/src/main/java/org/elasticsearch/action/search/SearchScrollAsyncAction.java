@@ -249,7 +249,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                0, buildTookInMillis(), buildShardFailures()));
+                0, buildTookInMillis(), buildShardFailures(), SearchResponse.Clusters.EMPTY));
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }

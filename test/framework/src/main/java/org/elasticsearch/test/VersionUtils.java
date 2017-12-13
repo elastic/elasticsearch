@@ -23,10 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -49,72 +46,64 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        Field[] fields = versionClass.getFields();
-        List<Version> versions = new ArrayList<>(fields.length);
-        for (final Field field : fields) {
-            final int mod = field.getModifiers();
-            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                continue;
-            }
-            if (field.getType() != Version.class) {
-                continue;
-            }
-            if ("CURRENT".equals(field.getName())) {
-                continue;
-            }
-            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
-            try {
-                versions.add(((Version) field.get(null)));
-            } catch (final IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        Collections.sort(versions);
+        List<Version> versions = Version.getDeclaredVersions(versionClass);
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
-            + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
+            + "but was [" + last + "] and current was [" + current + "]";
 
-        if (current.revision != 0) {
-            /* If we are in a stable branch there should be no unreleased version constants
-             * because we don't expect to release any new versions in older branches. If there
-             * are extra constants then gradle will yell about it. */
+        /* In the 5.x series prior to 5.6, unreleased version constants had an
+         * `_UNRELEASED` suffix, and when making the first release on a minor release
+         * branch the last, unreleased, version constant from the previous minor branch
+         * was dropped. After 5.6, there is no `_UNRELEASED` suffix on version constants'
+         * names and, additionally, they are not dropped when a new minor release branch
+         * starts.
+         *
+         * This means that in 6.x and later series the last release _in each
+         * minor branch_ is unreleased, whereas in 5.x it's more complicated: There were
+         * (sometimes, and sometimes multiple) minor branches containing no releases, each
+         * of which contains a single version constant of the form 5.n.0, and these
+         * branches always followed a branch that _did_ contain a version of the
+         * form 5.m.p (p>0). All versions strictly before the last 5.m version are released,
+         * and all other 5.* versions are unreleased.
+         */
+
+        if (current.major == 5 && current.revision != 0) {
+            /* The current (i.e. latest) version is 5.a.b, b nonzero, which
+             * means that all other versions are released. */
             return new Tuple<>(unmodifiableList(versions), singletonList(current));
         }
 
-        /* If we are on a patch release then we know that at least the version before the
-         * current one is unreleased. If it is released then gradle would be complaining. */
-        int unreleasedIndex = versions.size() - 1;
-        while (true) {
-            if (unreleasedIndex < 0) {
-                throw new IllegalArgumentException("Couldn't find first non-alpha release");
+        final List<Version> unreleased = new ArrayList<>();
+        unreleased.add(current);
+        Version prevConsideredVersion = current;
+
+        for (int i = versions.size() - 1; i >= 0; i--) {
+            Version currConsideredVersion = versions.get(i);
+            if (currConsideredVersion.major == 5) {
+                unreleased.add(currConsideredVersion);
+                versions.remove(i);
+                if (currConsideredVersion.revision != 0) {
+                    /* Currently considering the latest version in the 5.x series,
+                     * which is (a) unreleased and (b) the only such. So we're done. */
+                    break;
+                }
+                /* ... else we're on a version of the form 5.n.0, and have not yet
+                 * considered a version of the form 5.n.m (m>0), so this entire branch
+                 * is unreleased, so carry on looking for a branch containing releases.
+                 */
+            } else if (currConsideredVersion.major != prevConsideredVersion.major
+                || currConsideredVersion.minor != prevConsideredVersion.minor) {
+                /* Have moved to the end of a new minor branch, so this is
+                 * an unreleased version. */
+                unreleased.add(currConsideredVersion);
+                versions.remove(i);
             }
-            /* We don't support backwards compatibility for alphas, betas, and rcs. But
-             * they were released so we add them to the released list. Usually this doesn't
-             * matter to consumers, but consumers that do care should filter non-release
-             * versions. */
-            if (versions.get(unreleasedIndex).isRelease()) {
-                break;
-            }
-            unreleasedIndex--;
+            prevConsideredVersion = currConsideredVersion;
+
         }
 
-        Version unreleased = versions.remove(unreleasedIndex);
-        if (unreleased.revision == 0) {
-            /*
-             * If the last unreleased version is itself a patch release then Gradle enforces that there is yet another unreleased version
-             * before that. However, we have to skip alpha/betas/RCs too (e.g., consider when the version constants are ..., 5.6.3, 5.6.4,
-             * 6.0.0-alpha1, ..., 6.0.0-rc1, 6.0.0-rc2, 6.0.0, 6.1.0 on the 6.x branch. In this case, we will have pruned 6.0.0 and 6.1.0 as
-             * unreleased versions, but we also need to prune 5.6.4. At this point though, unreleasedIndex will be pointing to 6.0.0-rc2, so
-             * we have to skip backwards until we find a non-alpha/beta/RC again. Then we can prune that version as an unreleased version
-             * too.
-             */
-            do {
-                unreleasedIndex--;
-            } while (versions.get(unreleasedIndex).isRelease() == false);
-            Version earlierUnreleased = versions.remove(unreleasedIndex);
-            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
-        }
-        return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
+        Collections.reverse(unreleased);
+        return new Tuple<>(unmodifiableList(versions), unmodifiableList(unreleased));
     }
 
     private static final List<Version> RELEASED_VERSIONS;

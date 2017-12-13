@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class java.time.temporal.Temporal import {
+class java.time.temporal.Temporal {
   Temporal minus(long,TemporalUnit)
   Temporal minus(TemporalAmount)
   Temporal plus(long,TemporalUnit)
@@ -34,7 +34,7 @@ class java.time.temporal.Temporal import {
   Temporal with(TemporalField,long)
 }
 
-class java.time.temporal.TemporalAccessor import {
+class java.time.temporal.TemporalAccessor {
   int get(TemporalField)
   long getLong(TemporalField)
   boolean isSupported(TemporalField)
@@ -42,18 +42,18 @@ class java.time.temporal.TemporalAccessor import {
   ValueRange range(TemporalField)
 }
 
-class java.time.temporal.TemporalAdjuster import {
+class java.time.temporal.TemporalAdjuster {
   Temporal adjustInto(Temporal)
 }
 
-class java.time.temporal.TemporalAmount import {
+class java.time.temporal.TemporalAmount {
   Temporal addTo(Temporal)
   long get(TemporalUnit)
   List getUnits()
   Temporal subtractFrom(Temporal)
 }
 
-class java.time.temporal.TemporalField import {
+class java.time.temporal.TemporalField {
   Temporal adjustInto(Temporal,long)
   TemporalUnit getBaseUnit()
   String getDisplayName(Locale)
@@ -68,11 +68,11 @@ class java.time.temporal.TemporalField import {
   String toString()
 }
 
-class java.time.temporal.TemporalQuery import {
+class java.time.temporal.TemporalQuery {
   def queryFrom(TemporalAccessor)
 }
 
-class java.time.temporal.TemporalUnit import {
+class java.time.temporal.TemporalUnit {
   Temporal addTo(Temporal,long)
   long between(Temporal,Temporal)
   Duration getDuration()
@@ -85,7 +85,7 @@ class java.time.temporal.TemporalUnit import {
 
 #### Classes
 
-class java.time.temporal.IsoFields import {
+class java.time.temporal.IsoFields {
   TemporalField DAY_OF_QUARTER
   TemporalField QUARTER_OF_YEAR
   TemporalUnit QUARTER_YEARS
@@ -94,13 +94,13 @@ class java.time.temporal.IsoFields import {
   TemporalField WEEK_OF_WEEK_BASED_YEAR
 }
 
-class java.time.temporal.JulianFields import {
+class java.time.temporal.JulianFields {
   TemporalField JULIAN_DAY
   TemporalField MODIFIED_JULIAN_DAY
   TemporalField RATA_DIE
 }
 
-class java.time.temporal.TemporalAdjusters import {
+class java.time.temporal.TemporalAdjusters {
   TemporalAdjuster dayOfWeekInMonth(int,DayOfWeek)
   TemporalAdjuster firstDayOfMonth()
   TemporalAdjuster firstDayOfNextMonth()
@@ -117,7 +117,7 @@ class java.time.temporal.TemporalAdjusters import {
   TemporalAdjuster previousOrSame(DayOfWeek)
 }
 
-class java.time.temporal.TemporalQueries import {
+class java.time.temporal.TemporalQueries {
   TemporalQuery chronology()
   TemporalQuery localDate()
   TemporalQuery localTime()
@@ -127,7 +127,7 @@ class java.time.temporal.TemporalQueries import {
   TemporalQuery zoneId()
 }
 
-class java.time.temporal.ValueRange import {
+class java.time.temporal.ValueRange {
   int checkValidIntValue(long,TemporalField)
   long checkValidValue(long,TemporalField)
   long getLargestMinimum()
@@ -143,7 +143,7 @@ class java.time.temporal.ValueRange import {
   ValueRange of(long,long,long,long)
 }
 
-class java.time.temporal.WeekFields import {
+class java.time.temporal.WeekFields {
   WeekFields ISO
   WeekFields SUNDAY_START
   TemporalUnit WEEK_BASED_YEARS
@@ -160,7 +160,7 @@ class java.time.temporal.WeekFields import {
 
 #### Enums
 
-class java.time.temporal.ChronoField import {
+class java.time.temporal.ChronoField {
   ChronoField ALIGNED_DAY_OF_WEEK_IN_MONTH
   ChronoField ALIGNED_DAY_OF_WEEK_IN_YEAR
   ChronoField ALIGNED_WEEK_OF_MONTH
@@ -197,7 +197,7 @@ class java.time.temporal.ChronoField import {
   ChronoField[] values()
 }
 
-class java.time.temporal.ChronoUnit import {
+class java.time.temporal.ChronoUnit {
   ChronoUnit CENTURIES
   ChronoUnit DAYS
   ChronoUnit DECADES
@@ -220,6 +220,6 @@ class java.time.temporal.ChronoUnit import {
 
 #### Exceptions
 
-class java.time.temporal.UnsupportedTemporalTypeException import {
+class java.time.temporal.UnsupportedTemporalTypeException {
   (String)
 }

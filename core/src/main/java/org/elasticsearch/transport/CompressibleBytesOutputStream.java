@@ -43,7 +43,7 @@ import java.util.zip.DeflaterOutputStream;
  * {@link CompressibleBytesOutputStream#close()} should be called when the bytes are no longer needed and
  * can be safely released.
  */
-final class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
+final class CompressibleBytesOutputStream extends StreamOutput {
 
     private final StreamOutput stream;
     private final BytesStream bytesStreamOutput;
@@ -92,18 +92,18 @@ final class CompressibleBytesOutputStream extends StreamOutput implements Releas
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (stream == bytesStreamOutput) {
             assert shouldCompress == false : "If the streams are the same we should not be compressing";
-            IOUtils.closeWhileHandlingException(stream);
+            IOUtils.close(stream);
         } else {
             assert shouldCompress : "If the streams are different we should be compressing";
-            IOUtils.closeWhileHandlingException(stream, bytesStreamOutput);
+            IOUtils.close(stream, bytesStreamOutput);
         }
     }
 
     @Override
     public void reset() throws IOException {
-        stream.reset();
+        throw new UnsupportedOperationException();
     }
 }

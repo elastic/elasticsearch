@@ -56,7 +56,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -635,6 +634,18 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
                 equalTo("fox ate rabbit x y z"));
+
+        // Source filter on a field that does not exist inside the nested document and just check that we do not fail and
+        // return an empty _source:
+        response = client().prepareSearch()
+            .setQuery(nestedQuery("comments", matchQuery("comments.message", "away"), ScoreMode.None)
+                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true,
+                    new String[]{"comments.missing_field"}, null))))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
     }
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {

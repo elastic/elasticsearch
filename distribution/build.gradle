@@ -164,7 +164,7 @@ configure(distributions) {
       from project(':core').jar
       from project(':core').configurations.runtime
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':distribution:tools:java-version-checker').jar }
+      from { project(':distribution:tools:launchers').jar }
       from { project(':distribution:tools:plugin-cli').jar }
     }
 
@@ -224,6 +224,11 @@ configure(distributions) {
 configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
   // parent to copy to the root of the distribution
+  File logs = new File(buildDir, 'logs-hack/logs')
+  task createLogDir(type: EmptyDirTask) {
+    dir "${logs}"
+    dirMode 0755
+  }
   File plugins = new File(buildDir, 'plugins-hack/plugins')
   task createPluginsDir(type: EmptyDirTask) {
     dir "${plugins}"
@@ -245,6 +250,12 @@ configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.n
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
           MavenFilteringHack.filter(it, expansions)
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          logs.getParent()
         }
       }
       into('') {
@@ -381,6 +392,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
     } else if (project.name == 'deb') {
       requires('bash')
     }
+    requires('coreutils')
 
     into '/usr/share/elasticsearch'
     fileMode 0644
@@ -497,7 +509,9 @@ task run(type: RunTask) {
 Map<String, String> expansionsForDistribution(distributionType) {
   final String defaultHeapSize = "1g"
   final String packagingPathData = "path.data: /var/lib/elasticsearch"
-  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
+  final String pathLogs = "/var/log/elasticsearch"
+  final String packagingPathLogs = "path.logs: ${pathLogs}"
+  final String packagingLoggc = "${pathLogs}/gc.log"
 
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
@@ -524,14 +538,19 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
     ],
     'source.path.env': [
-       'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
-       'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
+       'deb': 'source /etc/default/elasticsearch',
+       'rpm': 'source /etc/sysconfig/elasticsearch',
        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
     ],
     'path.logs': [
       'deb': packagingPathLogs,
       'rpm': packagingPathLogs,
       'def': '#path.logs: /path/to/logs'
+    ],
+    'loggc': [
+      'deb': packagingLoggc,
+      'rpm': packagingLoggc,
+      'def': 'logs/gc.log'
     ],
 
     'heap.min': defaultHeapSize,

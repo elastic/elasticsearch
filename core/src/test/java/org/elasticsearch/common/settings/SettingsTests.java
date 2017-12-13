@@ -87,16 +87,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
-    public void testReplacePropertiesPlaceholderIgnoresPrompt() {
-        Settings settings = Settings.builder()
-                .put("setting1", "${prompt.text}")
-                .put("setting2", "${prompt.secret}")
-                .replacePropertyPlaceholders()
-                .build();
-        assertThat(settings.get("setting1"), is("${prompt.text}"));
-        assertThat(settings.get("setting2"), is("${prompt.secret}"));
-    }
-
     public void testGetAsSettings() {
         Settings settings = Settings.builder()
                 .put("bar", "hello world")
@@ -494,6 +484,15 @@ public class SettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    }
+
+    public void testSecureSettingIllegalName() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureString("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+        e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureFile("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

@@ -372,9 +372,9 @@ public class BigArrays implements Releasable {
     final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
 
-    public BigArrays(Settings settings, @Nullable final CircuitBreakerService breakerService) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
-        this(new PageCacheRecycler(settings), breakerService, false);
+        this(recycler, breakerService, false);
     }
 
     // public for tests
@@ -749,7 +749,6 @@ public class BigArrays implements Releasable {
      * @param size          the initial length of the array
      */
     public <T> ObjectArray<T> newObjectArray(long size) {
-        final ObjectArray<T> array;
         if (size > OBJECT_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate

@@ -71,12 +71,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Override
     protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
         final long relativeStartTime = relativeTimeProvider.getAsLong();
-        
+
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         int maxConcurrentSearches = request.maxConcurrentSearchRequests();
-        if (maxConcurrentSearches == 0) {
+        if (maxConcurrentSearches == MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             maxConcurrentSearches = defaultMaxConcurrentSearches(availableProcessors, clusterState);
         }
 
@@ -130,7 +130,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
              * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
              * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
              * earlier requests that have already completed will poll from the queue too and they could complete before later polls are
-             * invoked here. Thus, it can be the case that we poll here and and the queue was empty.
+             * invoked here. Thus, it can be the case that we poll here and the queue was empty.
              */
             return;
         }

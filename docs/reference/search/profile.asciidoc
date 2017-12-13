@@ -401,7 +401,7 @@ Looking at the previous example:
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
 `Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The
 `time_in_nanos` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
-all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by elasticsearch to detect if the current
+all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by Elasticsearch to detect if the current
 search was cancelled and stop collecting documents as soon as it occurs.
 
 It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined

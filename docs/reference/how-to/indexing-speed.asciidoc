@@ -64,13 +64,13 @@ process by <<setup-configuration-memory,disabling swapping>>.
 === Give memory to the filesystem cache
 
 The filesystem cache will be used in order to buffer I/O operations. You should
-make sure to give at least half the memory of the machine running elasticsearch
+make sure to give at least half the memory of the machine running Elasticsearch
 to the filesystem cache.
 
 [float]
 === Use auto-generated ids
 
-When indexing a document that has an explicit id, elasticsearch needs to check
+When indexing a document that has an explicit id, Elasticsearch needs to check
 whether a document with the same id already exists within the same shard, which
 is a costly operation and gets even more costly as the index grows. By using
 auto-generated ids, Elasticsearch can skip this check, which makes indexing

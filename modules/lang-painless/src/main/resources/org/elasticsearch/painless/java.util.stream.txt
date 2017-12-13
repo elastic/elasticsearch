@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class java.util.stream.BaseStream import {
+class java.util.stream.BaseStream {
   void close()
   boolean isParallel()
   Iterator iterator()
@@ -33,7 +33,7 @@ class java.util.stream.BaseStream import {
   BaseStream unordered()
 }
 
-class java.util.stream.Collector import {
+class java.util.stream.Collector {
   BiConsumer accumulator()
   Set characteristics()
   BinaryOperator combiner()
@@ -43,7 +43,7 @@ class java.util.stream.Collector import {
   Supplier supplier()
 }
 
-class java.util.stream.DoubleStream import {
+class java.util.stream.DoubleStream {
   boolean allMatch(DoublePredicate)
   boolean anyMatch(DoublePredicate)
   OptionalDouble average()
@@ -82,12 +82,12 @@ class java.util.stream.DoubleStream import {
   double[] toArray()
 }
 
-class java.util.stream.DoubleStream$Builder import {
+class java.util.stream.DoubleStream$Builder {
   DoubleStream.Builder add(double)
   DoubleStream build()
 }
 
-class java.util.stream.IntStream import {
+class java.util.stream.IntStream {
   boolean allMatch(IntPredicate)
   boolean anyMatch(IntPredicate)
   DoubleStream asDoubleStream()
@@ -130,12 +130,12 @@ class java.util.stream.IntStream import {
   int[] toArray()
 }
 
-class java.util.stream.IntStream$Builder import {
+class java.util.stream.IntStream$Builder {
   IntStream.Builder add(int)
   IntStream build()
 }
 
-class java.util.stream.LongStream import {
+class java.util.stream.LongStream {
   boolean allMatch(LongPredicate)
   boolean anyMatch(LongPredicate)
   DoubleStream asDoubleStream()
@@ -177,12 +177,12 @@ class java.util.stream.LongStream import {
   long[] toArray()
 }
 
-class java.util.stream.LongStream$Builder import {
+class java.util.stream.LongStream$Builder {
   LongStream.Builder add(long)
   LongStream build()
 }
 
-class java.util.stream.Stream import {
+class java.util.stream.Stream {
   boolean allMatch(Predicate)
   boolean anyMatch(Predicate)
   Stream.Builder builder()
@@ -221,14 +221,14 @@ class java.util.stream.Stream import {
   def[] toArray(IntFunction)
 }
 
-class java.util.stream.Stream$Builder import {
+class java.util.stream.Stream$Builder {
   Stream.Builder add(def)
   Stream build()
 }
 
 #### Classes
 
-class java.util.stream.Collectors import {
+class java.util.stream.Collectors {
   Collector averagingDouble(ToDoubleFunction)
   Collector averagingInt(ToIntFunction)
   Collector averagingLong(ToLongFunction)
@@ -264,7 +264,7 @@ class java.util.stream.Collectors import {
 
 #### Enums
 
-class java.util.stream.Collector$Characteristics import {
+class java.util.stream.Collector$Characteristics {
   Collector.Characteristics CONCURRENT
   Collector.Characteristics IDENTITY_FINISH
   Collector.Characteristics UNORDERED

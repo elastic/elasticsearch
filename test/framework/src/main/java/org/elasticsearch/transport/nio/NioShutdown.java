@@ -34,22 +34,11 @@ public class NioShutdown {
         this.logger = logger;
     }
 
-    void orderlyShutdown(OpenChannels openChannels, NioClient client, ArrayList<AcceptingSelector> acceptors,
-                         ArrayList<SocketSelector> socketSelectors) {
-        // Close the client. This ensures that no new send connections will be opened. Client could be null if exception was
-        // throw on start up
-        if (client != null) {
-            client.close();
-        }
-
-        // Start by closing the server channels. Once these are closed, we are guaranteed to no accept new connections
-        openChannels.closeServerChannels();
+    void orderlyShutdown(ArrayList<AcceptingSelector> acceptors, ArrayList<SocketSelector> socketSelectors) {
 
         for (AcceptingSelector acceptor : acceptors) {
             shutdownSelector(acceptor);
         }
-
-        openChannels.close();
 
         for (SocketSelector selector : socketSelectors) {
             shutdownSelector(selector);

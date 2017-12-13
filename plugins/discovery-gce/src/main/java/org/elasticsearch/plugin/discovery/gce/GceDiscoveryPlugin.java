@@ -29,7 +29,6 @@ import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -53,7 +52,6 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     public static final String GCE = "gce";
     private final Settings settings;
     private static final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     // stashed when created in order to properly close
     private final SetOnce<GceInstancesServiceImpl> gceInstancesService = new SetOnce<>();
 

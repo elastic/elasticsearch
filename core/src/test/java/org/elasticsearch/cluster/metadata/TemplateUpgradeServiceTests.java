@@ -54,6 +54,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -61,9 +63,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -83,16 +83,17 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         boolean shouldChange = randomBoolean();
 
         MetaData metaData = randomMetaData(
-            IndexTemplateMetaData.builder("user_template").build(),
-            IndexTemplateMetaData.builder("removed_test_template").build(),
-            IndexTemplateMetaData.builder("changed_test_template").build()
+            IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
         TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
             Arrays.asList(
                 templates -> {
                     if (shouldAdd) {
-                        assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template").build()));
+                        assertNull(templates.put("added_test_template",
+                            IndexTemplateMetaData.builder("added_test_template").patterns(randomIndexPatterns()).build()));
                     }
                     return templates;
                 },
@@ -105,7 +106,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 templates -> {
                     if (shouldChange) {
                         assertNotNull(templates.put("changed_test_template",
-                            IndexTemplateMetaData.builder("changed_test_template").order(10).build()));
+                            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).order(10).build()));
                     }
                     return templates;
                 }
@@ -234,9 +235,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         AtomicInteger updateInvocation = new AtomicInteger();
 
         MetaData metaData = randomMetaData(
-            IndexTemplateMetaData.builder("user_template").build(),
-            IndexTemplateMetaData.builder("removed_test_template").build(),
-            IndexTemplateMetaData.builder("changed_test_template").build()
+            IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -341,51 +342,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
     private static final int NODE_TEST_ITERS = 100;
 
-    public void testOnlyOneNodeRunsTemplateUpdates() {
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null, Collections.emptyList());
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(0, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            int updaterNode = -1;
-            for (int j = 0; j < nodesCount; j++) {
-                DiscoveryNodes localNodes = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("node_" + j).getId()).build();
-                if (service.shouldLocalNodeUpdateTemplates(localNodes)) {
-                    assertThat("Expected only one node to update template, found " + updaterNode + " and " + j, updaterNode, lessThan(0));
-                    updaterNode = j;
-                }
-            }
-            assertThat("Expected one node to update template", updaterNode, greaterThanOrEqualTo(0));
-        }
-    }
-
-    public void testIfMasterHasTheHighestVersionItShouldRunsTemplateUpdates() {
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(0, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("_master").getId());
-            nodes = builder.build();
-            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
-                Collections.emptyList());
-            assertThat(service.shouldLocalNodeUpdateTemplates(nodes),
-                equalTo(nodes.getLargestNonClientNodeVersion().equals(nodes.getMasterNode().getVersion())));
-        }
-    }
-
-    public void testClientNodeDontRunTemplateUpdates() {
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(1, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            int testClient = randomIntBetween(0, clientNodesCount - 1);
-            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("client_" + testClient).getId());
-            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
-                Collections.emptyList());
-            assertThat(service.shouldLocalNodeUpdateTemplates(builder.build()), equalTo(false));
-        }
-    }
-
     private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         String masterNodeId = null;
@@ -434,5 +390,11 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             );
         }
         return builder.build();
+    }
+
+    List<String> randomIndexPatterns() {
+        return IntStream.range(0, between(1, 10))
+            .mapToObj(n -> randomUnicodeOfCodepointLengthBetween(1, 100))
+            .collect(Collectors.toList());
     }
 }

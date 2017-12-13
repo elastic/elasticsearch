@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.locationtech.spatial4j.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -99,12 +102,43 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         return polygons;
     }
 
+    private static String polygonCoordinatesToWKT(PolygonBuilder polygon) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(GeoWKTParser.LPAREN);
+        sb.append(ShapeBuilder.coordinateListToWKT(polygon.shell().coordinates));
+        for (LineStringBuilder hole : polygon.holes()) {
+            sb.append(GeoWKTParser.COMMA);
+            sb.append(ShapeBuilder.coordinateListToWKT(hole.coordinates));
+        }
+        sb.append(GeoWKTParser.RPAREN);
+        return sb.toString();
+    }
+
+    @Override
+    protected StringBuilder contentToWKT() {
+        final StringBuilder sb = new StringBuilder();
+        if (polygons.isEmpty()) {
+            sb.append(GeoWKTParser.EMPTY);
+        } else {
+            sb.append(GeoWKTParser.LPAREN);
+            if (polygons.size() > 0) {
+                sb.append(polygonCoordinatesToWKT(polygons.get(0)));
+            }
+            for (int i = 1; i < polygons.size(); ++i) {
+                sb.append(GeoWKTParser.COMMA);
+                sb.append(polygonCoordinatesToWKT(polygons.get(i)));
+            }
+            sb.append(GeoWKTParser.RPAREN);
+        }
+        return sb;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
-        builder.startArray(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_ORIENTATION.getPreferredName(), orientation.name().toLowerCase(Locale.ROOT));
+        builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
         for(PolygonBuilder polygon : polygons) {
             builder.startArray();
             polygon.coordinatesArray(builder, params);

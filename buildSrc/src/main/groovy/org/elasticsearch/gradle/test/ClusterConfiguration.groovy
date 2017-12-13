@@ -64,10 +64,10 @@ class ClusterConfiguration {
 
     /**
      * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
-     * In case of more than one node, this defaults to (number of nodes / 2) + 1
+     * In case of more than one node, this defaults to the number of nodes
      */
     @Input
-    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes().intdiv(2) + 1 : -1 }
+    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +

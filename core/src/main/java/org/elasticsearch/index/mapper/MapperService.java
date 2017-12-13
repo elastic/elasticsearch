@@ -92,6 +92,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final String DEFAULT_MAPPING = "_default_";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
+    // maximum allowed number of nested json objects across all fields in a single document
+    public static final Setting<Long> INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.nested_objects.limit", 10000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
@@ -102,6 +105,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
                 Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
+    //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
+    //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"

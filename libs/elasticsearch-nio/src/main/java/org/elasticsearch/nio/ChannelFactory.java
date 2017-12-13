@@ -19,6 +19,8 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -154,7 +156,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             SocketChannel socketChannel = SocketChannel.open();
             try {
                 configureSocketChannel(socketChannel);
-                connect(socketChannel, remoteAddress);
+                PrivilegedSocketAccess.connect(socketChannel, remoteAddress);
             } catch (IOException e) {
                 closeRawChannel(socketChannel, e);
                 throw e;
@@ -164,7 +166,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
         SocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
             ServerSocketChannel serverSocketChannel = serverChannel.getRawChannel();
-            SocketChannel socketChannel = accept(serverSocketChannel);
+            SocketChannel socketChannel = PrivilegedSocketAccess.accept(serverSocketChannel);
             try {
                 configureSocketChannel(socketChannel);
             } catch (IOException e) {
@@ -199,22 +201,6 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             }
             if (tcpReceiveBufferSize > 0) {
                 socket.setSendBufferSize(tcpReceiveBufferSize);
-            }
-        }
-
-        private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
-            try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
-        }
-
-        private static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
-            try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
             }
         }
     }

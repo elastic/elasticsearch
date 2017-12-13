@@ -60,7 +60,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
         AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
+        NioChannel channel = new DoNotCloseServerChannel(mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
 
         channel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
             @Override
@@ -94,8 +94,8 @@ public class NioServerSocketChannelTests extends ESTestCase {
 
     private class DoNotCloseServerChannel extends DoNotRegisterServerChannel {
 
-        private DoNotCloseServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory,
-                                        AcceptingSelector selector) throws IOException {
+        private DoNotCloseServerChannel(ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
+            throws IOException {
             super(channel, channelFactory, selector);
         }
 

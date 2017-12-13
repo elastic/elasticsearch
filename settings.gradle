@@ -9,7 +9,6 @@ List projects = [
   'docs',
   'client:rest',
   'client:rest-high-level',
-  'client:elasticsearch-nio',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -29,6 +28,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage',
+  'libs:elasticsearch-nio',
   'modules:aggs-matrix-stats',
   'modules:analysis-common',
   'modules:ingest-common',
@@ -170,3 +170,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir, projects, branches)
   }
 }
+include 'libs'
+

@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 
 public class ChannelFactoryTests extends ESTestCase {
 
-    private ChannelFactory channelFactory;
+    private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private ChannelFactory.RawChannelFactory rawChannelFactory;
     private SocketChannel rawChannel;
     private ServerSocketChannel rawServerChannel;

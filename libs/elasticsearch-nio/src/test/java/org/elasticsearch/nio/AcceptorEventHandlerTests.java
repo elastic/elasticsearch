@@ -39,9 +39,9 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     private AcceptorEventHandler handler;
     private SocketSelector socketSelector;
-    private ChannelFactory channelFactory;
+    private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private NioServerSocketChannel channel;
-    private Consumer acceptedChannelCallback;
+    private Consumer<NioSocketChannel> acceptedChannelCallback;
 
     @Before
     @SuppressWarnings("unchecked")

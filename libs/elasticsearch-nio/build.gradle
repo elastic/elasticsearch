@@ -26,7 +26,7 @@ apply plugin: 'nebula.maven-scm'
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
 
-group = 'org.elasticsearch.client'
+group = 'org.elasticsearch'
 archivesBaseName = 'elasticsearch-nio'
 
 publishing {
@@ -37,39 +37,38 @@ publishing {
   }
 }
 
+// TODO: Currently disable licenses check as we rely on mocksocket
+dependencyLicenses.enabled = false
+
 dependencies {
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
-  testCompile "org.elasticsearch.test:framework:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-//  testCompile "org.elasticsearch:securemock:${versions.securemock}"
-//  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testCompile("org.elasticsearch.test:framework:${version}") {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
+  }
 }
 
 forbiddenApisMain {
-  //client does not depend on core, so only jdk and http signatures should be checked
+  //elasticsearch-nio does not depend on core, so only jdk and es-all signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
-}
-
-forbiddenApisTest {
-  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-  //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
+                    PrecommitTasks.getResource('/forbidden/es-all-signatures.txt')]
 }
 
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
 
-namingConventions {
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
-
 thirdPartyAudit.excludes = [
+        'org/osgi/framework/AdaptPermission',
+        'org/osgi/framework/AdminPermission',
+        'org/osgi/framework/Bundle',
+        'org/osgi/framework/BundleActivator',
+        'org/osgi/framework/BundleContext',
+        'org/osgi/framework/BundleEvent',
+        'org/osgi/framework/SynchronousBundleListener',
+        'org/osgi/framework/wiring/BundleWire',
+        'org/osgi/framework/wiring/BundleWiring'
 ]

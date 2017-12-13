@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -260,7 +260,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         tracker.resetCheckpoint(localCheckpoint);
         assertThat(tracker.getCheckpoint(), equalTo((long) localCheckpoint));
         assertThat(tracker.getMaxSeqNo(), equalTo((long) maxSeqNo));
-        assertThat(tracker.processedSeqNo, new BaseMatcher<LongObjectHashMap<FixedBitSet>>() {
+        assertThat(tracker.processedSeqNo, new BaseMatcher<LongObjectHashMap<BitSet>>() {
             @Override
             public boolean matches(Object item) {
                 return (item instanceof LongObjectHashMap && ((LongObjectHashMap) item).isEmpty());

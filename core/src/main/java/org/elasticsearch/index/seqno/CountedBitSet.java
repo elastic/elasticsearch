@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
@@ -25,15 +25,15 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * A {@link CountedBitSet} wraps a {@link FixedBitSet} but automatically releases the internal bitset
- * when all bits are set to reduce memory usage. This structure can work well for sequence numbers
- * from translog as these numbers are likely to form contiguous ranges (eg. filling all bits).
+ * when all bits are set to reduce memory usage. This structure can work well for sequence numbers as
+ * these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
-final class CountedBitSet extends BitSet {
+public final class CountedBitSet extends BitSet {
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 
-    CountedBitSet(short numBits) {
+    public CountedBitSet(short numBits) {
         if (numBits <= 0) {
             throw new IllegalArgumentException("Number of bits must be positive. Given [" + numBits + "]");
         }

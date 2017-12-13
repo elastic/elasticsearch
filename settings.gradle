@@ -9,6 +9,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:elasticsearch-nio',
   'client:sniffer',
   'client:transport',
   'client:test',

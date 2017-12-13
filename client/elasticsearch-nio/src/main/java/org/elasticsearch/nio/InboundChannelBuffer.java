@@ -17,11 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
-
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
+package org.elasticsearch.nio;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -37,9 +33,9 @@ import java.util.function.Supplier;
  * the pages internally. If more space is needed at the end of the buffer {@link #ensureCapacity(long)} can
  * be called and the buffer will expand using the supplier provided.
  */
-public final class InboundChannelBuffer implements Releasable {
+public final class InboundChannelBuffer implements AutoCloseable {
 
-    private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
+    private static final int PAGE_SIZE = 1 << 14;
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
@@ -65,15 +61,22 @@ public final class InboundChannelBuffer implements Releasable {
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
             Page page;
-            List<RuntimeException> closingExceptions = new ArrayList<>();
+            RuntimeException closingException = null;
             while ((page = pages.pollFirst()) != null) {
                 try {
                     page.close();
                 } catch (RuntimeException e) {
-                    closingExceptions.add(e);
+                    if (closingException == null) {
+                        closingException = e;
+                    } else {
+                        closingException.addSuppressed(e);
+                    }
                 }
             }
-            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
+
+            if (closingException != null) {
+                throw closingException;
+            }
         }
     }
 
@@ -226,19 +229,19 @@ public final class InboundChannelBuffer implements Releasable {
         return (int) (index & PAGE_MASK);
     }
 
-    public static class Page implements Releasable {
+    public static class Page implements AutoCloseable {
 
         private final ByteBuffer byteBuffer;
-        private final Releasable releasable;
+        private final Runnable closeable;
 
-        public Page(ByteBuffer byteBuffer, Releasable releasable) {
+        public Page(ByteBuffer byteBuffer, Runnable closeable) {
             this.byteBuffer = byteBuffer;
-            this.releasable = releasable;
+            this.closeable = closeable;
         }
 
         @Override
         public void close() {
-            releasable.close();
+            closeable.run();
         }
 
     }

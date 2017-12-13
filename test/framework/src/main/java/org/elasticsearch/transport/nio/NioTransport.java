@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
@@ -181,7 +182,7 @@ public class NioTransport extends TcpTransport {
         return (c) -> {
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes);
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), new InboundChannelBuffer(pageSupplier)),
                 new TcpWriteContext(c), this::exceptionCaught);

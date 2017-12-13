@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.elasticsearch.nio;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;

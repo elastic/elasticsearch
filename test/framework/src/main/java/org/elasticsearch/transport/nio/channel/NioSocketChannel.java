@@ -20,7 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;

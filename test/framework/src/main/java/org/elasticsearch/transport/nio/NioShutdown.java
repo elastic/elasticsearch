@@ -21,10 +21,12 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.ESSelector;
+import org.elasticsearch.nio.SocketSelector;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.concurrent.CountDownLatch;
 
 public class NioShutdown {
 

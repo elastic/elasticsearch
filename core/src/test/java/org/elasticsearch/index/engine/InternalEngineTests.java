@@ -4169,7 +4169,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-<<<<<<< HEAD
     public void testWriteIndexingBuffer() throws IOException {
         try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
              Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){

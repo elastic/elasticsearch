@@ -21,18 +21,59 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response of a refresh action.
  */
-public class RefreshResponse extends BroadcastResponse {
+public class RefreshResponse extends BroadcastResponse implements ToXContentFragment {
+
+    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh",
+        true, arg -> (RefreshResponse) arg[0]);
+
+    static {
+        ConstructingObjectParser<RefreshResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
+            arg -> new RefreshResponse((int) arg[0], (int) arg[1], (int) arg[2], null));
+        shardsParser.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
+        shardsParser.declareInt(constructorArg(), new ParseField(Fields.SUCCESSFUL));
+        shardsParser.declareInt(constructorArg(), new ParseField(Fields.FAILED));
+        PARSER.declareObject(constructorArg(), shardsParser, new ParseField(Fields._SHARDS));
+    }
 
     RefreshResponse() {
     }
 
     RefreshResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, getTotalShards());
+        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
+        builder.field(Fields.FAILED, getFailedShards());
+        builder.endObject();
+        return builder;
+    }
+
+    public static RefreshResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    static final class Fields {
+        static final String _SHARDS = "_shards";
+        static final String TOTAL = "total";
+        static final String SUCCESSFUL = "successful";
+        static final String FAILED = "failed";
     }
 }

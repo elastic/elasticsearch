@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -111,4 +113,25 @@ public final class IndicesClient {
                 listener, Collections.emptySet(), headers);
     }
 
+    /**
+     * Refresh one or more index using the Refresh API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html">
+     * Refresh API on elastic.co</a>
+     */
+    public final RefreshResponse refresh(RefreshRequest refreshRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(refreshRequest, Request::refresh, RefreshResponse::fromXContent,
+            Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously refresh one or more index using the Refresh API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html">
+     * Refresh API on elastic.co</a>
+     */
+    public final void refreshAsync(RefreshRequest refreshRequest, ActionListener<RefreshResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(refreshRequest, Request::refresh, RefreshResponse::fromXContent,
+            listener, Collections.emptySet(), headers);
+    }
 }

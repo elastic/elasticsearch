@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -150,6 +151,11 @@ public final class Request {
         parameters.withIndicesOptions(openIndexRequest.indicesOptions());
 
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request refresh(RefreshRequest refreshRequest) {
+        String endpoint = endpoint(refreshRequest.indices(), Strings.EMPTY_ARRAY, "_refresh");
+        return new Request(HttpPost.METHOD_NAME, endpoint, Collections.emptyMap(), null);
     }
 
     static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {

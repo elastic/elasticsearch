@@ -27,22 +27,22 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.equalTo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -178,6 +178,32 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
                 () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
+    }
+
+    public void testRefresh() throws IOException {
+        {
+            String[] indices = randomIndices(1, 5);
+            for (String index : indices) {
+                createIndex(index);
+            }
+            RefreshRequest refreshRequest = new RefreshRequest(indices);
+            RefreshResponse refreshResponse =
+                execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync);
+            // 10 shards per index by default
+            assertThat(refreshResponse.getTotalShards(), equalTo(indices.length * 10));
+        }
+        {
+            String[] nonExistentIndices = randomIndices(1, 5);
+            for (String nonExistentIndex : nonExistentIndices) {
+                if (indexExists(nonExistentIndex)) {
+                    return;
+                }
+            }
+            RefreshRequest refreshRequest = new RefreshRequest(nonExistentIndices);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
     }
 
     private static String[] randomIndices(int minIndicesNum, int maxIndicesNum) {

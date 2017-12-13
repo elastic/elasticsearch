@@ -141,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -415,7 +414,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
                     getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                 }
 

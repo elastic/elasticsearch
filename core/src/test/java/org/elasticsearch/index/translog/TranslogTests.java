@@ -109,7 +109,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -2225,6 +2224,7 @@ public class TranslogTests extends ESTestCase {
                             unsynced.clear();
                             failableTLog.rollGeneration();
                             committing = true;
+                            failableTLog.getDeletionPolicy().setTranslogGenerationOfLastCommit(failableTLog.currentFileGeneration());
                             failableTLog.getDeletionPolicy().setMinTranslogGenerationForRecovery(failableTLog.currentFileGeneration());
                             failableTLog.trimUnreferencedReaders();
                             committing = false;
@@ -2267,6 +2267,7 @@ public class TranslogTests extends ESTestCase {
             if (randomBoolean()) {
                 try {
                     TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
+                    deletionPolicy.setTranslogGenerationOfLastCommit(minGenForRecovery);
                     deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
@@ -2278,6 +2279,7 @@ public class TranslogTests extends ESTestCase {
 
             fail.failNever(); // we don't wanna fail here but we might since we write a new checkpoint and create a new tlog file
             TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
+            deletionPolicy.setTranslogGenerationOfLastCommit(minGenForRecovery);
             deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
             try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
                  Translog.Snapshot snapshot = translog.newSnapshotFromGen(minGenForRecovery)) {

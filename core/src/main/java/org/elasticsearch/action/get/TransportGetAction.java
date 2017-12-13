@@ -24,7 +24,6 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -69,7 +68,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.

@@ -632,7 +632,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // if the activeReplica was relocating before this call to failShard, its relocation was cancelled earlier when we
         // failed initializing replica shards (and moved replica relocation source back to started)
         assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
-        ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
+        promoteActiveReplicaShardToPrimary(activeReplica);
         routingChangesObserver.replicaPromoted(activeReplica);
     }
 

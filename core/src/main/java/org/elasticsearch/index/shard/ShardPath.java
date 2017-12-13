@@ -33,9 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -198,13 +196,6 @@ public final class ShardPath {
             NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
 
             if (paths.length != 1) {
-                int shardCount = indexSettings.getNumberOfShards();
-                // Maximum number of shards that a path should have for a particular index assuming
-                // all the shards were assigned to this node. For example, with a node with 4 data
-                // paths and an index with 9 primary shards, the maximum number of shards per path
-                // would be 3.
-                int maxShardsPerPath = Math.floorDiv(shardCount, paths.length) + ((shardCount % paths.length) == 0 ? 0 : 1);
-
                 Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
 
                 // Compute how much space there is on each path

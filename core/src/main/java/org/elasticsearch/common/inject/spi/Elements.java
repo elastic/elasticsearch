@@ -19,7 +19,6 @@ package org.elasticsearch.common.inject.spi;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.MembersInjector;
 import org.elasticsearch.common.inject.Module;
@@ -60,18 +59,6 @@ import java.util.Set;
  * @since 2.0
  */
 public final class Elements {
-    private static final BindingTargetVisitor<Object, Object> GET_INSTANCE_VISITOR
-            = new DefaultBindingTargetVisitor<Object, Object>() {
-        @Override
-        public Object visit(InstanceBinding<?> binding) {
-            return binding.getInstance();
-        }
-
-        @Override
-        protected Object visitOther(Binding<?> binding) {
-            throw new IllegalArgumentException();
-        }
-    };
 
     /**
      * Records the elements executed by {@code modules}.

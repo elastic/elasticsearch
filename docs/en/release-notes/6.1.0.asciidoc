@@ -18,7 +18,7 @@ messages. For more information, see <<certgen>>.
 
 [[xes-feature-6.1.0]]
 [float]
-=== Breaking changes
+=== New features
 
 Machine Learning::
 

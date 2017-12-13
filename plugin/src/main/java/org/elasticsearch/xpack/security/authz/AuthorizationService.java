@@ -5,6 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -64,23 +73,12 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class AuthorizationService extends AbstractComponent {
+
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
@@ -228,7 +226,7 @@ public class AuthorizationService extends AbstractComponent {
                 grant(authentication, action, request, permission.names());
                 return;
             } else {
-                // we do this here in addition to the denial below since we might run into an assertion on scroll request below if we
+                // we do this here in addition to the denial below since we might run into an assertion on scroll requrest below if we
                 // don't have permission to read cross cluster but wrap a scroll request.
                 throw denial(authentication, action, request, permission.names());
             }
@@ -275,8 +273,7 @@ public class AuthorizationService extends AbstractComponent {
 
         final MetaData metaData = clusterService.state().metaData();
         final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
-        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request,
-                metaData, authorizedIndices, permission);
+        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, metaData, authorizedIndices, permission);
         assert !resolvedIndices.isEmpty()
                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
@@ -419,8 +416,8 @@ public class AuthorizationService extends AbstractComponent {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request,
-                                              MetaData metaData, AuthorizedIndices authorizedIndices, Role permission) {
+    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
+                                              AuthorizedIndices authorizedIndices, Role permission) {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {
@@ -481,9 +478,7 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/mpercolate") ||
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
-                action.equals("indices:data/write/reindex") ||
-                action.equals(SqlAction.NAME) ||
-                action.equals(SqlTranslateAction.NAME);
+                action.equals("indices:data/write/reindex");
     }
 
     private static boolean isTranslatedToBulkAction(String action) {
@@ -502,7 +497,6 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
                 action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
-                action.equals(SqlClearCursorAction.NAME) ||
                 action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 

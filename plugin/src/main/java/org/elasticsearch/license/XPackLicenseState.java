@@ -57,9 +57,6 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.UPGRADE, new String[] {
             "Upgrade API is disabled"
         });
-        messages.put(XPackPlugin.SQL, new String[] {
-            "SQL support is disabled"
-        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -76,7 +73,6 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         messages.put(XPackPlugin.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackPlugin.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
-        messages.put(XPackPlugin.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -207,21 +203,6 @@ public class XPackLicenseState {
                     case PLATINUM:
                         return new String[] { "Logstash specific APIs will be disabled, but you can continue to manage " +
                             "and poll stored configurations" };
-                }
-                break;
-        }
-        return Strings.EMPTY_ARRAY;
-    }
-
-    private static String[] sqlAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
-        switch (newMode) {
-            case BASIC:
-            case STANDARD:
-            case GOLD:
-                switch (currentMode) {
-                    case TRIAL:
-                    case PLATINUM:
-                        return new String[] { "JDBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
                 }
                 break;
         }
@@ -510,29 +491,4 @@ public class XPackLicenseState {
         // Should work on all active licenses
         return localStatus.active;
     }
-
-    /**
-     * Determine if SQL support should be enabled.
-     * <p>
-     *  SQL is available for all license types except {@link OperationMode#MISSING}
-     */
-    public boolean isSqlAllowed() {
-        return status.active;
-    }
-
-    /**
-     * Determine if JDBC support should be enabled.
-     * <p>
-     *  JDBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
-     */
-    public boolean isJdbcAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        OperationMode operationMode = localStatus.mode;
-
-        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
-
-        return licensed && localStatus.active;
-    }
-
 }

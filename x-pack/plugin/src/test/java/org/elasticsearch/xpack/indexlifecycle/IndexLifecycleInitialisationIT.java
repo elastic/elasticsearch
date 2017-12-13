@@ -112,7 +112,6 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "THIS NEEDS FIXING") // NOCOMMIT Fix this integration test
     public void testMasterDedicatedDataDedicated() throws Exception {
         // start master node
         logger.info("Starting sever1");
@@ -123,6 +122,10 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String server_2 = internalCluster().startDataOnlyNode();
         final String node2 = getLocalNodeId(server_2);
 
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
                 .actionGet();
@@ -137,12 +140,16 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "THIS NEEDS FIXING") // NOCOMMIT Fix this integration test
     public void testMasterFailover() throws Exception {
         // start one server
         logger.info("Starting sever1");
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
+
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))

@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterHelper;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -131,7 +130,7 @@ public class InternalEngine extends Engine {
 
     private final String uidField;
 
-    private final CombinedDeletionPolicy deletionPolicy;
+    private final SnapshotDeletionPolicy snapshotDeletionPolicy;
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -170,8 +169,6 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                 engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
         );
-        this.deletionPolicy = new CombinedDeletionPolicy(
-                new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
@@ -185,30 +182,19 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                final SeqNoStats seqNoStats;
-                switch (openMode) {
-                    case OPEN_INDEX_AND_TRANSLOG:
-                        writer = createWriter(false);
-                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
-                        seqNoStats = store.loadSeqNoStats(globalCheckpoint);
-                        break;
-                    case OPEN_INDEX_CREATE_TRANSLOG:
-                        writer = createWriter(false);
-                        seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
-                        break;
-                    case CREATE_INDEX_AND_TRANSLOG:
-                        writer = createWriter(true);
-                        seqNoStats = new SeqNoStats(
-                                SequenceNumbers.NO_OPS_PERFORMED,
-                                SequenceNumbers.NO_OPS_PERFORMED,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO);
-                        break;
-                    default:
-                        throw new IllegalArgumentException(openMode.toString());
-                }
+                final SeqNoStats seqNoStats = loadSeqNoStats(openMode);
                 logger.trace("recovered [{}]", seqNoStats);
-                seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
+                this.seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
+                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
+                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, seqNoService::getGlobalCheckpoint)
+                );
+                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
+                assert engineConfig.getForceNewHistoryUUID() == false
+                    || openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG
+                    || openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                    : "OpenMode must be either CREATE_INDEX_AND_TRANSLOG or OPEN_INDEX_CREATE_TRANSLOG if forceNewHistoryUUID; " +
+                    "openMode [" + openMode + "], forceNewHistoryUUID [" + engineConfig.getForceNewHistoryUUID() + "]";
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
@@ -381,6 +367,23 @@ public class InternalEngine extends Engine {
             seqNoStats.getMaxSeqNo(),
             seqNoStats.getLocalCheckpoint(),
             seqNoStats.getGlobalCheckpoint());
+    }
+
+    private SeqNoStats loadSeqNoStats(EngineConfig.OpenMode openMode) throws IOException {
+        switch (openMode) {
+            case OPEN_INDEX_AND_TRANSLOG:
+                final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+                return store.loadSeqNoStats(globalCheckpoint);
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
+            case CREATE_INDEX_AND_TRANSLOG:
+                return new SeqNoStats(
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO);
+            default:
+                throw new IllegalArgumentException(openMode.toString());
+        }
     }
 
     @Override
@@ -651,19 +654,6 @@ public class InternalEngine extends Engine {
         return versionValue;
     }
 
-    private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
-        throws IOException {
-        assert op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
-        assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
-        final VersionValue versionValue = resolveDocVersion(op);
-        if (versionValue == null) {
-            return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
-        } else {
-            return op.versionType().isVersionConflictForWrites(versionValue.version, op.version(), versionValue.isDelete()) ?
-                OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
-        }
-    }
-
     private boolean canOptimizeAddDocument(Index index) {
         if (index.getAutoGeneratedIdTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
             assert index.getAutoGeneratedIdTimestamp() >= 0 : "autoGeneratedIdTimestamp must be positive but was: "
@@ -703,13 +693,9 @@ public class InternalEngine extends Engine {
     }
 
     private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-            // legacy support
-            assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
-                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
-        } else if (origin == Operation.Origin.PRIMARY) {
+        if (origin == Operation.Origin.PRIMARY) {
             assert assertOriginPrimarySequenceNumber(seqNo);
-        } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+        } else {
             // sequence number should be set when operation origin is not primary
             assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + origin;
         }
@@ -720,15 +706,6 @@ public class InternalEngine extends Engine {
         // sequence number should not be set when operation origin is primary
         assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
                 : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
-        return true;
-    }
-
-    private boolean assertSequenceNumberBeforeIndexing(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1) ||
-            origin == Operation.Origin.PRIMARY) {
-            // sequence number should be set when operation origin is primary or when all shards are on new nodes
-            assert seqNo >= 0 : "ops should have an assigned seq no.; origin: " + origin;
-        }
         return true;
     }
 
@@ -845,13 +822,7 @@ public class InternalEngine extends Engine {
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
             final OpVsLuceneDocStatus opVsLucene;
-            if (index.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
-                // created by an old version.
-                assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                    "index is newly created but op has no sequence numbers. op: " + index;
-                opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
-            } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
+            if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
                 // this can happen during recovery where older operations are sent from the translog that are already
                 // part of the lucene commit (either from a peer recovery or a local translog)
@@ -913,7 +884,7 @@ public class InternalEngine extends Engine {
 
     private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
         throws IOException {
-        assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
+        assert plan.seqNoForIndexing >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
         assert plan.indexIntoLucene;
         /* Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
@@ -1138,11 +1109,7 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
         final OpVsLuceneDocStatus opVsLucene;
-        if (delete.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                "index is newly created but op has no sequence numbers. op: " + delete;
-            opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
-        } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
+        if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
@@ -1677,7 +1644,7 @@ public class InternalEngine extends Engine {
         }
         try (ReleasableLock lock = readLock.acquire()) {
             logger.trace("pulling snapshot");
-            return new IndexCommitRef(deletionPolicy.getIndexDeletionPolicy());
+            return new IndexCommitRef(snapshotDeletionPolicy);
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
         }
@@ -1858,7 +1825,7 @@ public class InternalEngine extends Engine {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
-        iwc.setIndexDeletionPolicy(deletionPolicy);
+        iwc.setIndexDeletionPolicy(snapshotDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
         try {

@@ -48,6 +48,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 
@@ -135,13 +137,14 @@ public class AllocationService extends AbstractComponent {
         return newState;
     }
 
+    // Used for testing
     public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, Collections.singletonList(new FailedShard(failedShard, null, null)),
-            Collections.emptyList());
+        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null)), emptyList());
     }
 
+    // Used for testing
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        return applyFailedShards(clusterState, failedShards, Collections.emptyList());
+        return applyFailedShards(clusterState, failedShards, emptyList());
     }
 
     /**

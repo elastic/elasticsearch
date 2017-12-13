@@ -263,7 +263,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 null);
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
-                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, "a snapshot is already running");
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
             }
@@ -363,6 +363,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             repository.initializeSnapshot(snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaData);
             snapshotCreated = true;
+
+            logger.info("snapshot [{}] started", snapshot.snapshot());
             if (snapshot.indices().isEmpty()) {
                 // No indices in this snapshot - we are done
                 userCreateSnapshotListener.onResponse();
@@ -947,35 +949,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param failure failure reason or null if snapshot was successful
      */
     private void endSnapshot(final SnapshotsInProgress.Entry entry, final String failure) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
-            @Override
-            public void run() {
-                final Snapshot snapshot = entry.snapshot();
-                try {
-                    final Repository repository = repositoriesService.repository(snapshot.getRepository());
-                    logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-                    ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
-                    for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
-                        ShardId shardId = shardStatus.key;
-                        ShardSnapshotStatus status = shardStatus.value;
-                        if (status.state().failed()) {
-                            shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
-                        }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            final Snapshot snapshot = entry.snapshot();
+            try {
+                final Repository repository = repositoriesService.repository(snapshot.getRepository());
+                logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
+                ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
+                    ShardId shardId = shardStatus.key;
+                    ShardSnapshotStatus status = shardStatus.value;
+                    if (status.state().failed()) {
+                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     }
-                    SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
-                        snapshot.getSnapshotId(),
-                        entry.indices(),
-                        entry.startTime(),
-                        failure,
-                        entry.shards().size(),
-                        Collections.unmodifiableList(shardFailures),
-                        entry.getRepositoryStateId(),
-                        entry.includeGlobalState());
-                    removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
-                    removeSnapshotFromClusterState(snapshot, null, e);
                 }
+                SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
+                    snapshot.getSnapshotId(),
+                    entry.indices(),
+                    entry.startTime(),
+                    failure,
+                    entry.shards().size(),
+                    Collections.unmodifiableList(shardFailures),
+                    entry.getRepositoryStateId(),
+                    entry.includeGlobalState());
+                removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
+                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+            } catch (Exception e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
+                removeSnapshotFromClusterState(snapshot, null, e);
             }
         });
     }

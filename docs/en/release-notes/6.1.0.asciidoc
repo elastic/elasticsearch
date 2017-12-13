@@ -5,9 +5,465 @@
 <titleabbrev>6.1.0 Release Notes</titleabbrev>
 ++++
 
-
-[[xes-breaking-6.1.0]]
+[[breaking-6.1.0]]
 [float]
 === Breaking changes
 
-No breaking changes have been made (yet).
+Security::
+* The `certgen` command now returns validation errors when it encounters problems
+reading from an input file (with the `-in` command option). Previously these
+errors might have been ignored or caused the command to abort with unclear
+messages. For more information, see <<certgen>>.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2711[#2711]
+////
+[[feature-6.1.0]]
+[float]
+=== Breaking changes
+
+Machine Learning::
+* [ML] Add overall buckets api
+// https://github.com/elastic/x-pack-elasticsearch/pull/2713[#2713] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2693[#2693])
+////
+
+[[enhancement-6.1.0]]
+[float]
+=== Enhancements
+
+////
+Machine Learning::
+* Improve decay rate control when predictions are very accurate
+// https://github.com/elastic/machine-learning-cpp/pull/420[#420]
+* Detect non-negative quantities
+// https://github.com/elastic/machine-learning-cpp/pull/415[#415] (issue: https://github.com/elastic/machine-learning-cpp/issues/414[#414])
+* [ML-FC] Pay more attention to recent changes when ageing the model for forecasting
+// https://github.com/elastic/machine-learning-cpp/pull/356[#356] (issues: https://github.com/elastic/machine-learning-cpp/issues/282[#282], https://github.com/elastic/machine-learning-cpp/issues/298[#298])
+* [ML] Improvements to periodic trough/spike detection
+// https://github.com/elastic/machine-learning-cpp/pull/326[#326] (issue: https://github.com/elastic/machine-learning-cpp/issues/303[#303])
+* Lift the restriction that all regression models be initialised to refine
+// https://github.com/elastic/machine-learning-cpp/pull/324[#324] (issues: https://github.com/elastic/machine-learning-cpp/issues/303[#303], https://github.com/elastic/machine-learning-cpp/issues/309[#309])
+* [ML] Speed up result aggregation
+// https://github.com/elastic/machine-learning-cpp/pull/318[#318] (issue: https://github.com/elastic/machine-learning-cpp/issues/267[#267])
+* A cache for the univariate probability calculation
+// https://github.com/elastic/machine-learning-cpp/pull/315[#315]
+* Fuzzy de-duplication of almost equal samples for large population models
+// https://github.com/elastic/machine-learning-cpp/pull/313[#313] (issue: https://github.com/elastic/machine-learning-cpp/issues/268[#268])
+* Model periodic components with periodically missing values
+// https://github.com/elastic/machine-learning-cpp/pull/309[#309] (issues: https://github.com/elastic/machine-learning-cpp/issues/303[#303], https://github.com/elastic/machine-learning-cpp/issues/305[#305])
+* Improve diurnal periodicity test
+// https://github.com/elastic/machine-learning-cpp/pull/305[#305] (issue: https://github.com/elastic/machine-learning-cpp/issues/299[#299])
+* Add slow ageing of calendar components
+// https://github.com/elastic/machine-learning-cpp/pull/275[#275] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+* [ML-FC] Forecasting should preserve known bounds on the data
+// https://github.com/elastic/machine-learning-cpp/pull/399[#399] (issue: https://github.com/elastic/machine-learning-cpp/issues/397[#397])
+* [ML-FC] Estimate process describing regression parameter evolution
+// https://github.com/elastic/machine-learning-cpp/pull/384[#384] (issue: https://github.com/elastic/machine-learning-cpp/issues/340[#340])
+* [ML] Increase default limit on ML jobs per node from 10 to 20
+// https://github.com/elastic/x-pack-elasticsearch/pull/3141[#3141] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2975[#2975])
+* Prune gatherers that are redundant
+// https://github.com/elastic/machine-learning-cpp/pull/391[#391] (issue: https://github.com/elastic/machine-learning-cpp/issues/297[#297])
+* Improve accuracy of memory usage calculation
+// https://github.com/elastic/machine-learning-cpp/pull/220[#220] (issue: https://github.com/elastic/machine-learning-cpp/issues/546[#546])
+* [ML] Improve the way ML jobs are allocated to nodes
+// https://github.com/elastic/x-pack-elasticsearch/pull/2975[#2975] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/546[#546])
+* [ML] add detectorIndex to modelplot and forecast
+// https://github.com/elastic/x-pack-elasticsearch/pull/2796[#2796] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2547[#2547])
+* [ML] Enable overall buckets aggregation at a custom bucket span
+// https://github.com/elastic/x-pack-elasticsearch/pull/2782[#2782]
+* [ML] Prevent ML node attributes being set directly
+// https://github.com/elastic/x-pack-elasticsearch/pull/2725[#2725] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2649[#2649])
+* [ML] Allow dynamic updates to the xpack.ml.max_model_memory_limit setting
+// https://github.com/elastic/x-pack-elasticsearch/pull/2503[#2503] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2462[#2462])
+* [ML] Add random offset to the maintenance task execution time
+// https://github.com/elastic/x-pack-elasticsearch/pull/2483[#2483] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2273[#2273])
+* [ML] Randomize default datafeed query delay
+// https://github.com/elastic/x-pack-elasticsearch/pull/2475[#2475] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2472[#2472])
+* [ML] Add setting for job max model memory limit
+// https://github.com/elastic/x-pack-elasticsearch/pull/2460[#2460]
+* [ML] Default model memory limit to 1GB for newly created jobs
+// https://github.com/elastic/x-pack-elasticsearch/pull/2300[#2300] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/546[#546])
+* [ML] Add max open jobs per node as a node attribute
+// https://github.com/elastic/x-pack-elasticsearch/pull/2203[#2203] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2185[#2185])
+* [ML] Add ability to assign groups to jobs
+// https://github.com/elastic/x-pack-elasticsearch/pull/2155[#2155] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2097[#2097])
+* [ML] Add support for mutli-job/multi-datafeed APIs
+// https://github.com/elastic/x-pack-elasticsearch/pull/2079[#2079] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1876[#1876])
+////
+////
+Monitoring::
+* [Monitoring] Cleaner Service should be able to cleanup .watcher-history*
+// https://github.com/elastic/x-pack-elasticsearch/pull/2696[#2696] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
+* [Monitoring] Add interval_ms to Monitoring documents
+// https://github.com/elastic/x-pack-elasticsearch/pull/2650[#2650]
+* [Monitoring] Shorten names for cluster alert watches
+// https://github.com/elastic/x-pack-elasticsearch/pull/2558[#2558]
+////
+
+Security::
+* Added the `manage_index_templates` cluster privilege to the built-in role
+`kibana_system`. For more information, see
+{xpack-ref}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
+and {xpack-ref}/built-in-roles.html[Built-in Roles].
+// https://github.com/elastic/x-pack-elasticsearch/pull/3009[#3009] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2937[#2937])
+//* Newly created or updated watches execute with the privileges of the user that
+//last modified the watch.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2808[#2808] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2201[#2201])
+* Added log messages when a PEM key is found when a PEM certificate was
+expected (or vice versa) in the `xpack.ssl.key` or `xpack.ssl.certificate` settings.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2670[#2670] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2657[#2657])
+* Added the new `certutil` command to simplify the creation of certificates for
+use with the Elastic stack.
+//For more information, see <<certutil>>.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2561[#2561] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/12[#12], https://github.com/elastic/x-pack-elasticsearch/issues/2165[#2165])
+* Added automatic detection of support for AES 256 bit TLS ciphers and enabled
+their use when the JVM supports them.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2137[#2137]
+////
+Watcher::
+* Watcher: Return useful error message when no accounts are found
+// https://github.com/elastic/x-pack-elasticsearch/pull/2897[#2897] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2666[#2666])
+* Watcher: Add thread pool rejection to execution state
+// https://github.com/elastic/x-pack-elasticsearch/pull/2805[#2805]
+* Watcher: Ensure all templates exist before starting watcher
+// https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
+* Watcher: Add execution state to watch status
+// https://github.com/elastic/x-pack-elasticsearch/pull/2699[#2699] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2385[#2385])
+* Watcher: Allow JIRA path to be custom chosen
+// https://github.com/elastic/x-pack-elasticsearch/pull/2682[#2682]
+* Watcher: Stop swallowing exceptions, always return them instead of message
+// https://github.com/elastic/x-pack-elasticsearch/pull/1933[#1933] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1816[#1816])
+////
+
+[[bug-6.1.0]]
+[float]
+=== Bug fixes
+
+////
+Machine Learning::
+* Don't mask test failures when Makefile.first/Makefile.last is used
+// https://github.com/elastic/machine-learning-cpp/pull/296[#296] (issue: https://github.com/elastic/machine-learning-cpp/issues/293[#293])
+* Fix underflow on CResourceMonitor.m_AllocationLimit
+// https://github.com/elastic/machine-learning-cpp/pull/247[#247] (issue: https://github.com/elastic/machine-learning-cpp/issues/245[#245])
+* Fix deadlock in concurrent queue
+// https://github.com/elastic/machine-learning-cpp/pull/230[#230] (issue: https://github.com/elastic/machine-learning-cpp/issues/229[#229])
+* Handle the case there are insufficient values to interpolate trend components
+// https://github.com/elastic/machine-learning-cpp/pull/462[#462] (issue: https://github.com/elastic/machine-learning-cpp/issues/459[#459])
+* Fix failure case for multimodal prior confidence interval calculation
+// https://github.com/elastic/machine-learning-cpp/pull/452[#452] (issue: https://github.com/elastic/machine-learning-cpp/issues/439[#439])
+* Trap case of zero variance in regression parameters when forecasting
+// https://github.com/elastic/machine-learning-cpp/pull/429[#429] (issue: https://github.com/elastic/machine-learning-cpp/issues/423[#423])
+* Avoid 0/0 issue in update of anomaly model
+// https://github.com/elastic/machine-learning-cpp/pull/377[#377] (issue: https://github.com/elastic/machine-learning-cpp/issues/366[#366])
+* Handle case where range stats are not initialised if the buckets are empty
+// https://github.com/elastic/machine-learning-cpp/pull/351[#351]
+* Correction to degrees of freedom in variance at a confidence level
+// https://github.com/elastic/machine-learning-cpp/pull/350[#350] (issue: https://github.com/elastic/machine-learning-cpp/issues/335[#335])
+* Account for the case the mean is negative testing for almost constant signals
+// https://github.com/elastic/machine-learning-cpp/pull/343[#343] (issue: https://github.com/elastic/machine-learning-cpp/issues/335[#335])
+* [ML-FC] Fix a bug in the handling of singular covariance matrices
+// https://github.com/elastic/machine-learning-cpp/pull/339[#339] (issue: https://github.com/elastic/machine-learning-cpp/issues/328[#328])
+* [ML] Fix a bug getting the 'biggest' value from an order statistic
+// https://github.com/elastic/machine-learning-cpp/pull/325[#325]
+* Avoid out of bounds reads with sparse metrics and model plot
+// https://github.com/elastic/machine-learning-cpp/pull/310[#310] (issue: https://github.com/elastic/machine-learning-cpp/issues/307[#307])
+* Fix a bias in the variance scale when a long term trend is present
+// https://github.com/elastic/machine-learning-cpp/pull/292[#292] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+* Improve trend modelling with long bucket lengths
+// https://github.com/elastic/machine-learning-cpp/pull/277[#277] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+* Fix a bug in calculation of mean values for seasonal components
+// https://github.com/elastic/machine-learning-cpp/pull/273[#273] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+* Resize buckets per period before writing to it
+// https://github.com/elastic/machine-learning-cpp/pull/243[#243] (issue: https://github.com/elastic/machine-learning-cpp/issues/242[#242])
+* Fix potential out of bounds reads in multimodal priors addSamples
+// https://github.com/elastic/machine-learning-cpp/pull/235[#235] (issue: https://github.com/elastic/machine-learning-cpp/issues/234[#234])
+* Register callbacks with both memory and debug memory visitors
+// https://github.com/elastic/machine-learning-cpp/pull/228[#228] (issue: https://github.com/elastic/machine-learning-cpp/issues/227[#227])
+* Fix a bug hurting performance of periodicity testing at long bucket lengths
+// https://github.com/elastic/machine-learning-cpp/pull/226[#226] (issue: https://github.com/elastic/machine-learning-cpp/issues/225[#225])
+* [ML-FC] Parameter process covariance updates need to be weighted by their time interval
+// https://github.com/elastic/machine-learning-cpp/pull/473[#473] (issue: https://github.com/elastic/machine-learning-cpp/issues/455[#455])
+* Fix bug in estimation of regression parameter drift
+// https://github.com/elastic/machine-learning-cpp/pull/436[#436] (issue: https://github.com/elastic/machine-learning-cpp/issues/430[#430])
+* [ML-FC] Mapping for forecast_memory_bytes is missing [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/425[#425]
+* [ML-FC] Not copying model count when copying CForecastRunner::SForecast
+// https://github.com/elastic/machine-learning-cpp/pull/404[#404]
+* [ML-FC] Fix crash #332
+// https://github.com/elastic/machine-learning-cpp/pull/338[#338] (issues: https://github.com/elastic/machine-learning-cpp/issues/287[#287], https://github.com/elastic/machine-learning-cpp/issues/320[#320], https://github.com/elastic/machine-learning-cpp/issues/332[#332])
+* [ML-FC] Investigate crash feeding Unemployment [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/286[#286]
+* [ML] Errors in logs for ec2_disk_write_bytes_c0d644 job [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/461[#461]
+* [ML] Fix old state format restoring in CMetricBucketGatherer
+// https://github.com/elastic/machine-learning-cpp/pull/449[#449] (issue: https://github.com/elastic/machine-learning-cpp/issues/418[#418])
+* `Normalization failed` error on jobs running on non-master nodes [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/438[#438]
+* Cluster block on ANY index prevents job deletion [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/428[#428]
+* Only write model size stats after we output a bucket
+// https://github.com/elastic/machine-learning-cpp/pull/411[#411] (issue: https://github.com/elastic/machine-learning-cpp/issues/398[#398])
+* Include string store memory in overall memory
+// https://github.com/elastic/machine-learning-cpp/pull/409[#409] (issue: https://github.com/elastic/machine-learning-cpp/issues/383[#383])
+* Check if feature data map is empty in CMetricBucketGatherer
+// https://github.com/elastic/machine-learning-cpp/pull/408[#408] (issues: https://github.com/elastic/machine-learning-cpp/issues/375[#375], https://github.com/elastic/machine-learning-cpp/issues/400[#400])
+* Fix time tracking issues during state persists
+// https://github.com/elastic/machine-learning-cpp/pull/390[#390] (issue: https://github.com/elastic/machine-learning-cpp/issues/389[#389])
+* Fix unsafe background persistence
+// https://github.com/elastic/machine-learning-cpp/pull/373[#373] (issue: https://github.com/elastic/machine-learning-cpp/issues/371[#371])
+* [ML] combine logging into 1 message for summarization (x-pack-side).
+// https://github.com/elastic/machine-learning-cpp/pull/369[#369] (issue: https://github.com/elastic/machine-learning-cpp/issues/366[#366])
+* [ML-FC] Fix windows forecast async
+// https://github.com/elastic/machine-learning-cpp/pull/355[#355] (issue: https://github.com/elastic/machine-learning-cpp/issues/319[#319])
+* Fix a potential memory access issue
+// https://github.com/elastic/machine-learning-cpp/pull/347[#347] (issue: https://github.com/elastic/machine-learning-cpp/issues/344[#344])
+* Prevent models for different partition field values being combined
+// https://github.com/elastic/machine-learning-cpp/pull/323[#323]
+* Fix startup on non-English Windows systems when invoked from Java
+// https://github.com/elastic/machine-learning-cpp/pull/312[#312] (issue: https://github.com/elastic/machine-learning-cpp/issues/2348[#2348])
+* Improve memory limit adherence
+// https://github.com/elastic/machine-learning-cpp/pull/255[#255] (issue: https://github.com/elastic/machine-learning-cpp/issues/245[#245])
+* [ML] Frequency in datafeeds with aggs must be multiple of hist interval
+// https://github.com/elastic/x-pack-elasticsearch/pull/3205[#3205] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3204[#3204])
+* [ML] Avoid spurious logging when deleting lookback job from the UI
+// https://github.com/elastic/x-pack-elasticsearch/pull/3193[#3193] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3149[#3149])
+* [ML] Don't mention unrelated indices when deleting job index aliases
+// https://github.com/elastic/x-pack-elasticsearch/pull/3160[#3160] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/428[#428])
+* [ML] Only clear scroll whan a scroll id exists
+// https://github.com/elastic/x-pack-elasticsearch/pull/3148[#3148] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3146[#3146])
+* [ML] Increase autodetect thread pool queue size
+// https://github.com/elastic/x-pack-elasticsearch/pull/3142[#3142] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2981[#2981])
+* [ML] Validate duration and expires_in params in forecast API
+// https://github.com/elastic/x-pack-elasticsearch/pull/3139[#3139] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/443[#443])
+* [ML] Remove forecast end param
+// https://github.com/elastic/x-pack-elasticsearch/pull/3121[#3121] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/443[#443])
+* [ML] Stop datafeed when job fails
+// https://github.com/elastic/x-pack-elasticsearch/pull/3107[#3107] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2773[#2773])
+* [ML] Account for the possibility of C++ log messages being UTF-16
+// https://github.com/elastic/x-pack-elasticsearch/pull/2952[#2952] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/385[#385])
+* [ML] Fix streaming the process update request
+// https://github.com/elastic/x-pack-elasticsearch/pull/2928[#2928]
+* [ML] Fix a race condition simultaneous close requests are made for a job
+// https://github.com/elastic/x-pack-elasticsearch/pull/2913[#2913] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2912[#2912])
+* [ML] snapshot_id is required when reverting a model snapshot
+// https://github.com/elastic/x-pack-elasticsearch/pull/2641[#2641]
+* [ML] Tolerate a body without timestamp for get_buckets with a timestamp
+// https://github.com/elastic/x-pack-elasticsearch/pull/2640[#2640] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2515[#2515])
+* [ML] Fix close job when the process has not launched yet
+// https://github.com/elastic/x-pack-elasticsearch/pull/2616[#2616] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/1270[#1270], https://github.com/elastic/x-pack-elasticsearch/issues/2360[#2360])
+* [ML] Align aggregated data extraction to histogram interval
+// https://github.com/elastic/x-pack-elasticsearch/pull/2553[#2553] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2519[#2519])
+* [ML] Correctly ignore extra aggregation buckets
+// https://github.com/elastic/x-pack-elasticsearch/pull/2530[#2530] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2519[#2519])
+* [ML] Ensure datafeed runs on time
+// https://github.com/elastic/x-pack-elasticsearch/pull/2471[#2471] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2426[#2426])
+* [ML] Don’t count incomplete buckets in data stream diagnostics
+// https://github.com/elastic/x-pack-elasticsearch/pull/2351[#2351] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2366[#2366])
+* [ML] Fix setting bucket count
+// https://github.com/elastic/x-pack-elasticsearch/pull/2339[#2339]
+* Make AllocatedPersistentTask members volatile
+// https://github.com/elastic/x-pack-elasticsearch/pull/2297[#2297] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2291[#2291])
+* [ML] Preserve _meta on results index mapping update
+// https://github.com/elastic/x-pack-elasticsearch/pull/2274[#2274] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2265[#2265])
+* [ML] Handle simultaneous force delete datafeed and stop datafeed
+// https://github.com/elastic/x-pack-elasticsearch/pull/2243[#2243] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2083[#2083])
+* [ML] Disallow creating a job against a closed results or state index
+// https://github.com/elastic/x-pack-elasticsearch/pull/2186[#2186] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2170[#2170])
+* [ML] Use try-with-resources for InputStream
+// https://github.com/elastic/x-pack-elasticsearch/pull/2182[#2182] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2175[#2175])
+* [ML] Better handling of errors if native controller dies
+// https://github.com/elastic/x-pack-elasticsearch/pull/2141[#2141] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2140[#2140])
+* [ML] Missing validations in analysis config
+// https://github.com/elastic/x-pack-elasticsearch/pull/2103[#2103] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2082[#2082], https://github.com/elastic/x-pack-elasticsearch/issues/2083[#2083])
+* [ML] model_memory_limit is not honoured when many entities are created in the same bucket [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2098[#2098]
+* [ML] Check influencer names are valid
+// https://github.com/elastic/x-pack-elasticsearch/pull/2073[#2073] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2071[#2071])
+* Update the way licenses not listed on SPDX are specified
+// https://github.com/elastic/machine-learning-cpp/pull/457[#457]
+* Remove forecast end time param
+// https://github.com/elastic/machine-learning-cpp/pull/451[#451] (issue: https://github.com/elastic/machine-learning-cpp/issues/443[#443])
+* [ML-FC] Change forecast_id to string, add create_time and start_time
+// https://github.com/elastic/machine-learning-cpp/pull/431[#431]
+* Refactor gatherers to store data in maps
+// https://github.com/elastic/machine-learning-cpp/pull/375[#375]
+* Log process exit codes and termination signals
+// https://github.com/elastic/machine-learning-cpp/pull/372[#372]
+* [ML-FC] Fix windows build issues on 6.x
+// https://github.com/elastic/machine-learning-cpp/pull/365[#365]
+* Increase Windows stack size
+// https://github.com/elastic/machine-learning-cpp/pull/364[#364]
+* Fix ND-JSON input/output
+// https://github.com/elastic/machine-learning-cpp/pull/359[#359]
+* Use lstat() rather than stat() when checking for pre-existing named pipes
+// https://github.com/elastic/machine-learning-cpp/pull/358[#358] (issue: https://github.com/elastic/machine-learning-cpp/issues/346[#346])
+* Harden some compiler options
+// https://github.com/elastic/machine-learning-cpp/pull/348[#348] (issue: https://github.com/elastic/machine-learning-cpp/issues/345[#345])
+* Enable SSE 4.2 instructions
+// https://github.com/elastic/machine-learning-cpp/pull/334[#334] (issue: https://github.com/elastic/machine-learning-cpp/issues/262[#262])
+* Fix problem with nth_element usage
+// https://github.com/elastic/machine-learning-cpp/pull/316[#316]
+* Account for platform-dependent differences in Boost Thread dependencies
+// https://github.com/elastic/machine-learning-cpp/pull/306[#306]
+* [ML] Rework logging of model memory limit
+// https://github.com/elastic/machine-learning-cpp/pull/302[#302] (issue: https://github.com/elastic/machine-learning-cpp/issues/256[#256])
+* [ML] skip over zerobytes when searching for documents in a stream
+// https://github.com/elastic/machine-learning-cpp/pull/291[#291] (issue: https://github.com/elastic/machine-learning-cpp/issues/279[#279])
+* Compile out LOG_TRACE macros by default when building optimised
+// https://github.com/elastic/machine-learning-cpp/pull/270[#270] (issue: https://github.com/elastic/machine-learning-cpp/issues/266[#266])
+* Unify logic for new model creation and improve memory limit checking
+// https://github.com/elastic/machine-learning-cpp/pull/246[#246] (issue: https://github.com/elastic/machine-learning-cpp/issues/245[#245])
+* Fix small_vector in-place check
+// https://github.com/elastic/machine-learning-cpp/pull/244[#244]
+* Remove CModelEnsemble
+// https://github.com/elastic/machine-learning-cpp/pull/233[#233] (issue: https://github.com/elastic/machine-learning-cpp/issues/101[#101])
+* [ML] improve documentation of CConcurrent{Queue, Wrapper}
+// https://github.com/elastic/machine-learning-cpp/pull/223[#223] (issue: https://github.com/elastic/machine-learning-cpp/issues/219[#219])
+* [ML] refactor codebase to use std::function instead of boost::function
+// https://github.com/elastic/machine-learning-cpp/pull/221[#221]
+* [ML] implementation of a generic active object pattern, to wrap objects for concurrency
+// https://github.com/elastic/machine-learning-cpp/pull/219[#219]
+* Fix a bug in the upgrade of model state related to forecasting
+// https://github.com/elastic/machine-learning-cpp/pull/487[#487] (issue: https://github.com/elastic/machine-learning-cpp/issues/8[#8])
+* [ML-FC] update message strings
+// https://github.com/elastic/machine-learning-cpp/pull/483[#483]
+* [ML-FC] Limit the forecast based on a maximum growth in the confidence interval
+// https://github.com/elastic/machine-learning-cpp/pull/481[#481] (issue: https://github.com/elastic/machine-learning-cpp/issues/482[#482])
+* Grow the forecast confidence interval for seasonal components smoothly
+// https://github.com/elastic/machine-learning-cpp/pull/477[#477]
+* [ML-FC] only allow certain functions for forecast
+// https://github.com/elastic/machine-learning-cpp/pull/471[#471] (issue: https://github.com/elastic/machine-learning-cpp/issues/453[#453])
+* [ML-FC] fix regression which caused wrong counting of models
+// https://github.com/elastic/machine-learning-cpp/pull/470[#470] (issues: https://github.com/elastic/machine-learning-cpp/issues/447[#447], https://github.com/elastic/machine-learning-cpp/issues/450[#450], https://github.com/elastic/machine-learning-cpp/issues/467[#467])
+* [ML-FC] Forecast harden api more checks
+// https://github.com/elastic/machine-learning-cpp/pull/465[#465]
+* [ML-FC] do not send to many stats updates
+// https://github.com/elastic/machine-learning-cpp/pull/458[#458]
+* [ML-FC] Don't try to forecast a model if population or insufficient data
+// https://github.com/elastic/machine-learning-cpp/pull/450[#450] (issues: https://github.com/elastic/machine-learning-cpp/issues/424[#424], https://github.com/elastic/machine-learning-cpp/issues/454[#454])
+* [ML-FC] in an error case important fields where not written to the stats record.
+// https://github.com/elastic/machine-learning-cpp/pull/448[#448]
+* [ML-FC] Forecast memory limits
+// https://github.com/elastic/machine-learning-cpp/pull/447[#447] (issues: https://github.com/elastic/machine-learning-cpp/issues/402[#402], https://github.com/elastic/machine-learning-cpp/issues/413[#413])
+* [ML-FC] fix forecast duration limit and add some unit tests.
+// https://github.com/elastic/machine-learning-cpp/pull/441[#441] (issue: https://github.com/elastic/machine-learning-cpp/issues/432[#432])
+* [ML-FC] add expiry time to forecast stats and change forecast_start_timestamp
+// https://github.com/elastic/machine-learning-cpp/pull/421[#421] (issues: https://github.com/elastic/machine-learning-cpp/issues/322[#322], https://github.com/elastic/machine-learning-cpp/issues/396[#396])
+* [ML-FC] add flexible messages and the ability for every model to send messages
+// https://github.com/elastic/machine-learning-cpp/pull/419[#419] (issues: https://github.com/elastic/machine-learning-cpp/issues/280[#280], https://github.com/elastic/machine-learning-cpp/issues/387[#387])
+* [ML-FC] implement a duration parameter
+// https://github.com/elastic/machine-learning-cpp/pull/407[#407] (issue: https://github.com/elastic/machine-learning-cpp/issues/329[#329])
+* [ML-FC] add memory usage stats
+// https://github.com/elastic/machine-learning-cpp/pull/406[#406] (issues: https://github.com/elastic/machine-learning-cpp/issues/395[#395], https://github.com/elastic/machine-learning-cpp/issues/404[#404])
+* [ML-FC] implement forecast stats feedback document
+// https://github.com/elastic/machine-learning-cpp/pull/382[#382] (issue: https://github.com/elastic/machine-learning-cpp/issues/320[#320])
+* [ML-FC] Revert partionfieldname removal
+// https://github.com/elastic/machine-learning-cpp/pull/363[#363] (issues: https://github.com/elastic/machine-learning-cpp/issues/319[#319], https://github.com/elastic/machine-learning-cpp/issues/361[#361])
+* [ML-FC] add detector index to forecast and model plot #281
+// https://github.com/elastic/machine-learning-cpp/pull/361[#361] (issue: https://github.com/elastic/machine-learning-cpp/issues/281[#281])
+* [ML-FC] fix a nullpointer issue and add a some integration test
+// https://github.com/elastic/machine-learning-cpp/pull/304[#304] (issue: https://github.com/elastic/machine-learning-cpp/issues/285[#285])
+* [ML-FC] Requesting a forecast is limited to manage_ml role [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/300[#300]
+* [ML-FC] Throttle forecast requests [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/290[#290]
+* [ML-FC] What shall be configurable? [duplicate] [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/289[#289]
+* [ML-FC] Branch landing feature/forecast
+// https://github.com/elastic/machine-learning-cpp/pull/276[#276]
+* [ML] remove volatile
+// https://github.com/elastic/machine-learning-cpp/pull/264[#264]
+* [ML-FC] Merge Master and fix forecasting after refactorings
+// https://github.com/elastic/machine-learning-cpp/pull/261[#261]
+* [ML-FC] 3/4 Upgrade rapidjson new rapidjson
+// https://github.com/elastic/machine-learning-cpp/pull/259[#259] (issue: https://github.com/elastic/machine-learning-cpp/issues/256[#256])
+* [ML-FC] 2/4 delete old rapidjson fork
+// https://github.com/elastic/machine-learning-cpp/pull/258[#258] (issue: https://github.com/elastic/machine-learning-cpp/issues/256[#256])
+* [ML-FC] 4/4 adapt build files for rapidjson upgrade
+// https://github.com/elastic/machine-learning-cpp/pull/257[#257] (issue: https://github.com/elastic/machine-learning-cpp/issues/256[#256])
+* [ML-FC] 1/4 migrate code for newer rapidjson
+// https://github.com/elastic/machine-learning-cpp/pull/256[#256] (issue: https://github.com/elastic/machine-learning-cpp/issues/172[#172])
+* [ML-FC] Revisit configuration of model plot bounds and forecasting bounds [duplicate] [ISSUE]
+// https://github.com/elastic/machine-learning-cpp/pull/211[#211]
+* Don't allow gamma prior shape to get too small for (log) normal distributions
+// https://github.com/elastic/machine-learning-cpp/pull/446[#446] (issue: https://github.com/elastic/machine-learning-cpp/issues/442[#442])
+* Fix error persisting long term trend
+// https://github.com/elastic/machine-learning-cpp/pull/426[#426] (issue: https://github.com/elastic/machine-learning-cpp/issues/423[#423])
+* Reduce the model's sensitivity to large outliers
+// https://github.com/elastic/machine-learning-cpp/pull/378[#378] (issues: https://github.com/elastic/machine-learning-cpp/issues/298[#298], https://github.com/elastic/machine-learning-cpp/issues/376[#376])
+* Avoid self assignment in random shuffle
+// https://github.com/elastic/machine-learning-cpp/pull/352[#352]
+* [ML-FC] Custom ageing for priors when forecasting
+// https://github.com/elastic/machine-learning-cpp/pull/336[#336] (issue: https://github.com/elastic/machine-learning-cpp/issues/328[#328])
+* [ML] Simplify result aggregation
+// https://github.com/elastic/machine-learning-cpp/pull/331[#331] (issue: https://github.com/elastic/machine-learning-cpp/issues/318[#318])
+* Assorted improvements to modelling long periodic components
+// https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+* Switch core::CSmallVector to use boost::container::small_vector
+// https://github.com/elastic/machine-learning-cpp/pull/232[#232] (issue: https://github.com/elastic/machine-learning-cpp/issues/37[#37])
+* [ML] Change forecast_id to UUid, add create_time and start_time
+// https://github.com/elastic/x-pack-elasticsearch/pull/3095[#3095] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3093[#3093])
+* [ML] Remove expired forecasts
+// https://github.com/elastic/x-pack-elasticsearch/pull/3077[#3077] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/322[#322])
+* [ML-FC] add expires_in parameter and change forecast_start_timestamp to timestamp
+// https://github.com/elastic/x-pack-elasticsearch/pull/3073[#3073]
+* [ML-FC] Forecast change message into a message array
+// https://github.com/elastic/x-pack-elasticsearch/pull/3070[#3070]
+* [ML-FC] implement endpoint parameter that takes a duration
+// https://github.com/elastic/x-pack-elasticsearch/pull/3027[#3027]
+* [ML-FC] add memoryUsage stats
+// https://github.com/elastic/x-pack-elasticsearch/pull/3025[#3025]
+* [ML-FC] Forecast status message rebase
+// https://github.com/elastic/x-pack-elasticsearch/pull/2936[#2936]
+* [ML-FC] Branch landing feature/ml
+// https://github.com/elastic/x-pack-elasticsearch/pull/2500[#2500] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1838[#1838])
+* [ML] Remove trailing slashes from ML rest spec
+// https://github.com/elastic/x-pack-elasticsearch/pull/2350[#2350] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2349[#2349])
+* [ML] Switch from max_running_jobs to xpack.ml.max_open_jobs
+// https://github.com/elastic/x-pack-elasticsearch/pull/2232[#2232] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2185[#2185])
+* [ML] Don’t allocate jobs on nodes with a lower version [NOT MERGED]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2219[#2219]
+* [ML] Get Jobs/Datafeed Actions can run on local node
+// https://github.com/elastic/x-pack-elasticsearch/pull/2095[#2095]
+* [ML] Extra lookback for Derivative aggregations
+// https://github.com/elastic/x-pack-elasticsearch/pull/2084[#2084] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/1965[#1965], https://github.com/elastic/x-pack-elasticsearch/issues/808[#808])
+* [ML] Accept more varied Datafeed Aggregations
+// https://github.com/elastic/x-pack-elasticsearch/pull/2038[#2038] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1965[#1965])
+////
+////
+Monitoring::
+* [Monitoring/Cluster Alerts] Fix the email message when cluster license expiration is resolved
+// https://github.com/elastic/x-pack-elasticsearch/pull/2557[#2557]
+* [Monitoring] Remove Legacy Monitoring Indices
+// https://github.com/elastic/x-pack-elasticsearch/pull/2513[#2513]
+* [Monitoring] Remove Dedicated IndicesStatsCollector
+// https://github.com/elastic/x-pack-elasticsearch/pull/2192[#2192]
+* [Monitoring] Remove monitoring resolvers
+// https://github.com/elastic/x-pack-elasticsearch/pull/2566[#2566] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2226[#2226])
+* [Security] Add 'read_cross_cluster' privilege for .monitoring indices
+// https://github.com/elastic/x-pack-elasticsearch/pull/2111[#2111] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2110[#2110])
+////
+
+Security::
+* Fixed REST requests that required a body but did not validate it, resulting in
+null pointer exceptions.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2610[#2610]
+////
+Watcher::
+* "password" misspelled in action webhook docs [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/3094[#3094]
+* Watcher: Create templates on nodes newer than the master
+// https://github.com/elastic/x-pack-elasticsearch/pull/2950[#2950] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2944[#2944])
+* Watcher: Properly url encode room names
+// https://github.com/elastic/x-pack-elasticsearch/pull/2896[#2896] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2371[#2371], https://github.com/elastic/x-pack-elasticsearch/issues/2429[#2429])
+* Watcher: Only load active watches on load
+// https://github.com/elastic/x-pack-elasticsearch/pull/2408[#2408]
+* Watcher: Ensure emit_stacktraces parameter works
+// https://github.com/elastic/x-pack-elasticsearch/pull/2399[#2399] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2396[#2396])
+* Watcher: Fix restart logic watcher after upgrade
+// https://github.com/elastic/x-pack-elasticsearch/pull/2336[#2336] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2331[#2331])
+* Watcher: Do not update active state during execution
+// https://github.com/elastic/x-pack-elasticsearch/pull/2204[#2204]
+* Watcher: Ignore if template is missing when upgrade is running
+// https://github.com/elastic/x-pack-elasticsearch/pull/2199[#2199]
+* Watcher: Load for watch for execution as late as possible
+// https://github.com/elastic/x-pack-elasticsearch/pull/2151[#2151] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/395[#395])
+////

@@ -749,7 +749,6 @@ public class BigArrays implements Releasable {
      * @param size          the initial length of the array
      */
     public <T> ObjectArray<T> newObjectArray(long size) {
-        final ObjectArray<T> array;
         if (size > OBJECT_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate

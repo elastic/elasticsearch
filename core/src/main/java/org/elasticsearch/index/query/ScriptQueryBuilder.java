@@ -44,8 +44,6 @@ import java.util.Objects;
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
-    private static final ParseField PARAMS_FIELD = new ParseField("params");
-
     private final Script script;
 
     public ScriptQueryBuilder(Script script) {

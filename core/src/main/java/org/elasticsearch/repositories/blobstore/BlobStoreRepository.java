@@ -1499,7 +1499,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                 }
-                final RecoveryState.Index index = recoveryState.getIndex();
+
                 if (filesToRecover.isEmpty()) {
                     logger.trace("no files to recover, all exists within the local store");
                 }

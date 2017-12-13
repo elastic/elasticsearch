@@ -22,8 +22,8 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
@@ -45,6 +45,7 @@ import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 
@@ -69,7 +70,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testCreateIndex() throws IOException {
         RestClient restClient = client();
         {
-            //tag::migration-create-inded
+            //tag::migration-create-index
             Settings indexSettings = Settings.builder() // <1>
                     .put(SETTING_NUMBER_OF_SHARDS, 1)
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -97,7 +98,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 // <7>
             }
-            //end::migration-create-inded
+            //end::migration-create-index
             assertEquals(200, response.getStatusLine().getStatusCode());
         }
     }
@@ -106,7 +107,8 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         RestClient restClient = client();
         {
             //tag::migration-cluster-health
-            Response response = restClient.performRequest("GET", "/_cluster/health"); // <1>
+            Map<String, String> parameters = singletonMap("wait_for_status", "green");
+            Response response = restClient.performRequest("GET", "/_cluster/health", parameters); // <1>
 
             ClusterHealthStatus healthStatus;
             try (InputStream is = response.getEntity().getContent()) { // <2>
@@ -122,7 +124,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testRequests() throws IOException {
+    public void testRequests() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-request-ctor
@@ -134,13 +136,6 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexResponse response = client.index(request);
             //end::migration-request-ctor-execution
             assertEquals(RestStatus.CREATED, response.status());
-        }
-        {
-            //tag::migration-request-sync-execution
-            DeleteRequest request = new DeleteRequest("index", "doc", "id");
-            DeleteResponse response = client.delete(request); // <1>
-            //end::migration-request-sync-execution
-            assertEquals(RestStatus.OK, response.status());
         }
         {
             //tag::migration-request-async-execution
@@ -157,6 +152,14 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             //end::migration-request-async-execution
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "doc", "id"))));
+        }
+        {
+            //tag::migration-request-sync-execution
+            DeleteRequest request = new DeleteRequest("index", "doc", "id");
+            DeleteResponse response = client.delete(request); // <1>
+            //end::migration-request-sync-execution
+            assertEquals(RestStatus.NOT_FOUND, response.status());
         }
     }
 }

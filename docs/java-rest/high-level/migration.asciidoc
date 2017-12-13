@@ -299,7 +299,7 @@ The same operation executed with the low-level client could be:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-create-inded]
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-create-index]
 --------------------------------------------------
 <1> Define the settings of the index
 <2> Define the body of the HTTP request using a `XContentBuilder` with JSON format
@@ -338,8 +338,8 @@ With the low-level client, the code can be changed to:
 --------------------------------------------------
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-health]
 --------------------------------------------------
-<1> Call the cluster's health REST endpoint using the default paramaters
-and gets back a `Response` object
+<1> Call the cluster's health REST endpoint and wait for the cluster health to become green,
+then get back a `Response` object.
 <2> Retrieve an `InputStream` object in order to read the response's content
 <3> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
  helper requires the content type of the response to be passed as an argument and returns

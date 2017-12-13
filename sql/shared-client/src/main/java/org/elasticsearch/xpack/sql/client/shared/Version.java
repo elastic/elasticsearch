@@ -76,7 +76,7 @@ public abstract class Version {
         String ver = "Unknown";
         String hash = ver;
 
-        if (urlStr.startsWith("file:/") && urlStr.endsWith("-SNAPSHOT.jar")) {
+        if (urlStr.startsWith("file:/") && urlStr.endsWith(".jar")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");

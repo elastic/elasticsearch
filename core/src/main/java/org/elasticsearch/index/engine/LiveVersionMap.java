@@ -184,7 +184,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     void maybePutUnderLock(BytesRef uid, VersionValue version) {
         Maps maps = this.maps;
         if (maps.needsSafeAccess || maps.safeAccessRequested) {
-            putUnderLock(uid, version);
+            putUnderLock(uid, version, maps);
         } else {
             maps.unsafe = true;
         }

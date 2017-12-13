@@ -227,17 +227,22 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
             final String settingName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
-            return new ByteSizeValue(Long.parseLong(s), unit);
-        } catch (final NumberFormatException e) {
             try {
-                final double doubleValue = Double.parseDouble(s);
-                DEPRECATION_LOGGER.deprecated(
-                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                        initialInput, settingName);
-                return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
-            } catch (final NumberFormatException ignored) {
-                throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                return new ByteSizeValue(Long.parseLong(s), unit);
+            } catch (final NumberFormatException e) {
+                try {
+                    final double doubleValue = Double.parseDouble(s);
+                    DEPRECATION_LOGGER.deprecated(
+                            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                            initialInput, settingName);
+                    return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
+                } catch (final NumberFormatException ignored) {
+                    throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                }
             }
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
+                    initialInput);
         }
     }
 

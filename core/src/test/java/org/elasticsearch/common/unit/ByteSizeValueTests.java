@@ -254,6 +254,14 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         }
     }
 
+    public void testParseInvalidValue() {
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+                () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting"));
+        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
+        assertNotNull(exception.getCause());
+        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
+    }
+
     public void testParseDefaultValue() {
         ByteSizeValue defaultValue = createTestInstance();
         assertEquals(defaultValue, ByteSizeValue.parseBytesSizeValue(null, defaultValue, "test"));

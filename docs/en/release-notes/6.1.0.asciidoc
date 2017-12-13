@@ -5,7 +5,7 @@
 <titleabbrev>6.1.0 Release Notes</titleabbrev>
 ++++
 
-[[breaking-6.1.0]]
+[[xes-breaking-6.1.0]]
 [float]
 === Breaking changes
 
@@ -16,7 +16,7 @@ errors might have been ignored or caused the command to abort with unclear
 messages. For more information, see <<certgen>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2711[#2711]
 ////
-[[feature-6.1.0]]
+[[xes-feature-6.1.0]]
 [float]
 === Breaking changes
 
@@ -25,7 +25,7 @@ Machine Learning::
 // https://github.com/elastic/x-pack-elasticsearch/pull/2713[#2713] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2693[#2693])
 ////
 
-[[enhancement-6.1.0]]
+[[xes-enhancement-6.1.0]]
 [float]
 === Enhancements
 
@@ -133,7 +133,7 @@ Watcher::
 // https://github.com/elastic/x-pack-elasticsearch/pull/1933[#1933] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1816[#1816])
 ////
 
-[[bug-6.1.0]]
+[[xes-bug-6.1.0]]
 [float]
 === Bug fixes
 

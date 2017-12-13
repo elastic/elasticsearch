@@ -177,11 +177,24 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testOutOfRange() {
+        // Make sure a value of > Long.MAX_VALUE bytes throws an exception
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         long size = (long) randomDouble() * unit.toBytes(1) + (Long.MAX_VALUE - unit.toBytes(1));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size, unit));
         assertEquals("Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
                 exception.getMessage());
+
+        // Make sure for units other than BYTES a size of -1 throws an exception
+        ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+        long size2 = -1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size2, unit2));
+        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+
+        // Make sure for any unit a size < -1 throws an exception
+        ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
+        long size3 = -1L * randomNonNegativeLong() - 1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size3, unit3));
+        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
     }
 
     public void testConversionHashCode() {

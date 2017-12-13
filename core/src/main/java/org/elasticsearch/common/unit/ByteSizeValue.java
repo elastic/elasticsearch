@@ -63,12 +63,15 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
     }
 
     public ByteSizeValue(long size, ByteSizeUnit unit) {
-        this.size = size;
-        this.unit = unit;
+        if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
+        }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
             throw new IllegalArgumentException(
                     "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix());
         }
+        this.size = size;
+        this.unit = unit;
     }
 
     // For testing
@@ -134,6 +137,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
         return ((double) getBytes()) / ByteSizeUnit.C5;
     }
 
+    /**
+     * @return a string representation of this value which is guaranteed to be
+     *         able to be parsed using
+     *         {@link #parseBytesSizeValue(String, ByteSizeValue, String)}.
+     *         Unlike {@link #toString()} this method will not output fractional
+     *         or rounded values so this method should be preferred when
+     *         serialising the value to JSON.
+     */
     public String getStringRep() {
         if (size <= 0) {
             return String.valueOf(size);

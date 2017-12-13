@@ -2354,6 +2354,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexSettings.getTranslogDurability();
     }
 
+    public TranslogConfig getTranslogConfig() {
+        return translogConfig;
+    }
+
     // we can not protect with a lock since we "release" on a different thread
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 

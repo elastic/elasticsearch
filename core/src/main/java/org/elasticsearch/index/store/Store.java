@@ -50,6 +50,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -347,6 +348,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public StoreStats stats() throws IOException {
         ensureOpen();
         return statsCache.getOrRefresh();
+    }
+
+    /**
+     * Executes a given {@link CheckedRunnable} within the metadataLock.
+     */
+    public <E extends Exception> void runUnderMetadataLock(CheckedRunnable<E> runnable) throws E {
+        metadataLock.writeLock().lock();
+        try {
+            runnable.run();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
     }
 
     /**

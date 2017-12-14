@@ -14,7 +14,7 @@ following document:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "group" : "fans",
   "user" : [ <1>
@@ -78,7 +78,7 @@ queried independently of the others, with the <<query-dsl-nested-query,`nested` 
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "user": {
           "type": "nested" <1>
@@ -88,7 +88,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "group" : "fans",
   "user" : [

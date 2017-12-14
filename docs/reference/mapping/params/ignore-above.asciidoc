@@ -8,7 +8,7 @@ Strings longer than the `ignore_above` setting will not be indexed or stored.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "message": {
           "type": "keyword",
@@ -19,12 +19,12 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1 <2>
+PUT my_index/_doc/1 <2>
 {
   "message": "Syntax error"
 }
 
-PUT my_index/my_type/2 <3>
+PUT my_index/_doc/2 <3>
 {
   "message": "Syntax error with some long stacktrace"
 }

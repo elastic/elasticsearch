@@ -178,7 +178,7 @@ public abstract class ESSelector implements Closeable {
                     exitedLoop.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new IllegalStateException("CountDownLatch got interrupted", e);
+                    throw new IllegalStateException("Thread was interrupted while waiting for selector to close", e);
                 }
             } else if (selector.isOpen()) {
                 selector.close();

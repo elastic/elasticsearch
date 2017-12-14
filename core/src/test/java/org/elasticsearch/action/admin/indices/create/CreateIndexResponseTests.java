@@ -44,7 +44,7 @@ public class CreateIndexResponseTests extends ESTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 CreateIndexResponse serialized = new CreateIndexResponse();
                 serialized.readFrom(in);
-                assertEquals(response.isShardsAcked(), serialized.isShardsAcked());
+                assertEquals(response.isShardsAcknowledged(), serialized.isShardsAcknowledged());
                 assertEquals(response.isAcknowledged(), serialized.isAcknowledged());
                 assertEquals(response.index(), serialized.index());
             }
@@ -63,7 +63,7 @@ public class CreateIndexResponseTests extends ESTestCase {
                 in.setVersion(oldVersion);
                 CreateIndexResponse serialized = new CreateIndexResponse();
                 serialized.readFrom(in);
-                assertEquals(response.isShardsAcked(), serialized.isShardsAcked());
+                assertEquals(response.isShardsAcknowledged(), serialized.isShardsAcknowledged());
                 assertEquals(response.isAcknowledged(), serialized.isAcknowledged());
                 assertNull(serialized.index());
             }
@@ -110,7 +110,7 @@ public class CreateIndexResponseTests extends ESTestCase {
         }
 
         assertEquals(createIndexResponse.index(), parsedCreateIndexResponse.index());
-        assertEquals(createIndexResponse.isShardsAcked(), parsedCreateIndexResponse.isShardsAcked());
+        assertEquals(createIndexResponse.isShardsAcknowledged(), parsedCreateIndexResponse.isShardsAcknowledged());
         assertEquals(createIndexResponse.isAcknowledged(), parsedCreateIndexResponse.isAcknowledged());
     }
 
@@ -119,9 +119,9 @@ public class CreateIndexResponseTests extends ESTestCase {
      */
     private static CreateIndexResponse createTestItem() throws IOException {
         boolean acknowledged = randomBoolean();
-        boolean shardsAcked = acknowledged && randomBoolean();
+        boolean shardsAcknowledged = acknowledged && randomBoolean();
         String index = randomAlphaOfLength(5);
 
-        return new CreateIndexResponse(acknowledged, shardsAcked, index);
+        return new CreateIndexResponse(acknowledged, shardsAcknowledged, index);
     }
 }

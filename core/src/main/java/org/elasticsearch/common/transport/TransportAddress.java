@@ -22,9 +22,11 @@ package org.elasticsearch.common.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -49,12 +51,17 @@ public final class TransportAddress implements Writeable {
     }
 
     private final InetSocketAddress address;
+    private final String verbatimAddress;
 
     public TransportAddress(InetAddress address, int port) {
         this(new InetSocketAddress(address, port));
     }
 
     public TransportAddress(InetSocketAddress address) {
+        this(address, null);
+    }
+
+    public TransportAddress(InetSocketAddress address, String verbatimAddress) {
         if (address == null) {
             throw new IllegalArgumentException("InetSocketAddress must not be null");
         }
@@ -62,6 +69,7 @@ public final class TransportAddress implements Writeable {
             throw new IllegalArgumentException("Address must be resolved but wasn't - InetSocketAddress#getAddress() returned null");
         }
         this.address = address;
+        this.verbatimAddress = verbatimAddress;
     }
 
     /**
@@ -75,6 +83,7 @@ public final class TransportAddress implements Writeable {
         final InetAddress inetAddress = InetAddress.getByAddress(host, a);
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
+        this.verbatimAddress = in.readOptionalString();
     }
 
     @Override
@@ -87,6 +96,7 @@ public final class TransportAddress implements Writeable {
         // these only make sense with respect to the local machine, and will only formulate
         // the address incorrectly remotely.
         out.writeInt(address.getPort());
+        out.writeOptionalString(this.verbatimAddress);
     }
 
     /**
@@ -126,6 +136,6 @@ public final class TransportAddress implements Writeable {
 
     @Override
     public String toString() {
-        return NetworkAddress.format(address);
+        return NetworkAddress.format(address, this.verbatimAddress);
     }
 }

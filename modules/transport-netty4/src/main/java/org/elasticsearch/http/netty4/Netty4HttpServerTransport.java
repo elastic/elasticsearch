@@ -80,6 +80,7 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -315,10 +316,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
-
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
+        List<String> publishHosts = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        final String verbatimPublishAdress = publishHosts.isEmpty() ? null : publishHosts.get(0);
+
+        final TransportAddress publishTransportAdress = new TransportAddress(publishAddress, verbatimPublishAdress);
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishTransportAdress);
     }
 
     // package private for tests

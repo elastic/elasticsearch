@@ -1,5 +1,10 @@
 ---
 "Template request":
+
+  - skip:
+      version: " - 6.1.99"
+      reason: the ranking evaluation feature is introduced in 6.2
+
   - do:
      indices.create:
          index: foo

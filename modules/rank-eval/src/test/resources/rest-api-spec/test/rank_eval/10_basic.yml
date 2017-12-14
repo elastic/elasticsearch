@@ -1,5 +1,10 @@
 ---
 "Response format":
+
+  - skip:
+      version: " - 6.1.99"
+      reason: the ranking evaluation feature is introduced in 6.2
+
   - do:
      indices.create:
          index: foo
@@ -40,7 +45,7 @@
 
   - do:
       rank_eval:
-        body: {  
+        body: {
           "requests" : [
             {
                 "id": "amsterdam_query",
@@ -83,6 +88,10 @@
 
 ---
 "Mean Reciprocal Rank":
+
+  - skip:
+      version: " - 6.1.99"
+      reason: the ranking evaluation feature is introduced in 6.2
 
   - do:
      indices.create:

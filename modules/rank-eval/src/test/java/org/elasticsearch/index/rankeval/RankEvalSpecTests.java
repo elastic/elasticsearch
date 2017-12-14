@@ -114,7 +114,7 @@ public class RankEvalSpecTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
 
             RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
-            // indices, come from URL parameters, so they don't survive xContent roundtrip
+            // indices come from URL parameters, so they don't survive xContent roundtrip
             // for the sake of being able to use equals() next, we add it to the parsed object
             parsedItem.addIndices(testItem.getIndices());
             assertNotSame(testItem, parsedItem);

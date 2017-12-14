@@ -167,7 +167,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -4195,34 +4194,44 @@ public class InternalEngineTests extends EngineTestCase {
         indexSettings.updateIndexMetaData(builder.build());
 
         store = createStore();
-        try (InternalEngine engine
-                 = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, seqNoServiceSupplier)) {
-            int numDocs = scaledRandomIntBetween(10, 100);
-            for (int docId = 0; docId < numDocs; docId++) {
-                ParseContext.Document document = testDocumentWithTextField();
-                document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-                engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
-                if (frequently()) {
-                    globalCheckpoint.set(randomIntBetween(
-                        Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
-                        Math.toIntExact(engine.seqNoService().getLocalCheckpoint())));
+        engine = new InternalEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null), seqNoServiceSupplier) {
+            @Override
+            protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+                // The global checkpoint is advanced but not fsynced yet.
+                final long lagging = seqNoService().getLocalCheckpoint() - seqNoService().getGlobalCheckpoint();
+                if (lagging > 0 && rarely()) {
+                    globalCheckpoint.addAndGet(randomLongBetween(1, lagging));
                 }
-                if (frequently()) {
-                    engine.flush(randomBoolean(), true);
-                    final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-                    // Keep only one safe commit as the oldest commit.
-                    final IndexCommit safeCommit = commits.get(0);
-                    assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                        lessThanOrEqualTo(globalCheckpoint.get()));
-                    for (int i = 1; i < commits.size(); i++) {
-                        assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            greaterThan(globalCheckpoint.get()));
-                    }
-                    // Make sure we keep all translog operations after the local checkpoint of the safe commit.
-                    long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                        assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
-                    }
+                super.commitIndexWriter(writer, translog, syncId);
+            }
+        };
+        int numDocs = scaledRandomIntBetween(10, 100);
+        for (int docId = 0; docId < numDocs; docId++) {
+            ParseContext.Document document = testDocumentWithTextField();
+            document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+            engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
+            if (frequently()) {
+                globalCheckpoint.set(randomIntBetween(
+                    Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
+                    Math.toIntExact(engine.seqNoService().getLocalCheckpoint())));
+                engine.getTranslog().sync();
+            }
+            if (frequently()) {
+                final long lastSyncedGlobalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+                engine.flush(false, true);
+                final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+                // Keep only one safe commit as the oldest commit.
+                final IndexCommit safeCommit = commits.get(0);
+                assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                for (int i = 1; i < commits.size(); i++) {
+                    assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                        greaterThan(lastSyncedGlobalCheckpoint));
+                }
+                // Make sure we keep all translog operations after the local checkpoint of the safe commit.
+                long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                    assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
                 }
             }
         }

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -50,7 +51,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -351,12 +351,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Executes a given {@link CheckedRunnable} within the metadataLock.
+     * Removes all existing files in this store that are not referenced the given commit point.
      */
-    public <E extends Exception> void runUnderMetadataLock(CheckedRunnable<E> runnable) throws E {
+    public void pruneUnreferencedFiles(IndexCommit commit) throws IOException {
         metadataLock.writeLock().lock();
         try {
-            runnable.run();
+            Lucene.pruneUnreferencedFiles(commit.getSegmentsFileName(), directory);
+            assert DirectoryReader.listCommits(directory).size() == 1
+                : "Should have one commit after pruning, found [" + DirectoryReader.listCommits(directory) + "]";
         } finally {
             metadataLock.writeLock().unlock();
         }

@@ -436,13 +436,7 @@ final class StoreRecovery {
         } catch (IOException ex) {
             logger.warn(new ParameterizedMessage("Failed to find a safe commit for shard [{}]; pick the last commit", shardId), ex);
         }
-
-        final IndexCommit startingCommitPoint = commits.get(startingIndex);
-        store.runUnderMetadataLock(() -> {
-            Lucene.pruneUnreferencedFiles(startingCommitPoint.getSegmentsFileName(), store.directory());
-            assert DirectoryReader.listCommits(indexShard.store().directory()).size() == 1
-                : "Should keep only a starting commit, but found [" + DirectoryReader.listCommits(store.directory()) + "]";
-        });
+        store.pruneUnreferencedFiles(commits.get(startingIndex));
     }
 
     private int indexOfStartingCommit(List<IndexCommit> commits, long globalCheckpoint, long minReferencedTranslogGen) throws IOException {

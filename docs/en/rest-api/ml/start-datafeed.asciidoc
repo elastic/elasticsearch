@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-start-datafeed]]
-=== Start {dfeeds-cap}
+=== Start {dfeeds-cap} API
+++++
+<titleabbrev>Start {dfeeds-cap}</titleabbrev>
+++++
 
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.

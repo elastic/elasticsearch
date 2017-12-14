@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-stop-datafeed]]
-=== Stop {dfeeds-cap}
+=== Stop {dfeeds-cap} API
+++++
+<titleabbrev>Stop {dfeeds-cap}</titleabbrev>
+++++
 
 The stop {dfeeds} API enables you to stop one or more {dfeeds}.
 

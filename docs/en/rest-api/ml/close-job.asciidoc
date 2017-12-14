@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-close-job]]
-=== Close Jobs
+=== Close Jobs API
+++++
+<titleabbrev>Close Jobs</titleabbrev>
+++++
 
 The close job API enables you to close one or more jobs.
 A job can be opened and closed multiple times throughout its lifecycle.

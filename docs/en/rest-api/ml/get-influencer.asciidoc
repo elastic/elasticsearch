@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-influencer]]
-=== Get Influencers
+=== Get Influencers API
+++++
+<titleabbrev>Get Influencers</titleabbrev>
+++++
 
 The get influencers API enables you to retrieve job results for one or more
 influencers.

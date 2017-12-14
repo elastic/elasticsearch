@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-valid-job]]
-=== Validate Jobs
+=== Validate Jobs API
+++++
+<titleabbrev>Validate Jobs</titleabbrev>
+++++
 
 The validate jobs API validates job configuration information.
 

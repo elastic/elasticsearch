@@ -45,6 +45,7 @@ forbiddenApisMain {
 
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.excludes = [
   // classes are missing

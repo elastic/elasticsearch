@@ -52,9 +52,7 @@ Collection distributions = project.subprojects.findAll {
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
-  files = fileTree(dir: project.rootDir,
-          excludes: ['qa/**/dependencies.csv', 'benchmark/**/dependencies.csv', 'test/**/dependencies.csv'],
-          include: '**/dependencies.csv' )
+  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
   headerLine = "name,version,url,license"
 
   def outputFile = System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv"

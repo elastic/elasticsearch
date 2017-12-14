@@ -34,10 +34,8 @@ public class OsStatsTests extends ESTestCase {
             loadAverages[i] = randomDouble();
         }
         OsStats.Cpu cpu = new OsStats.Cpu(randomShort(), loadAverages);
-        long memTotal = randomNonNegativeLong();
-        OsStats.Mem mem = new OsStats.Mem(memTotal, randomLongBetween(0, memTotal));
-        long swapTotal = randomNonNegativeLong();
-        OsStats.Swap swap = new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal));
+        OsStats.Mem mem = new OsStats.Mem(randomLong(), randomLong());
+        OsStats.Swap swap = new OsStats.Swap(randomLong(), randomLong());
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
             randomAlphaOfLength(8),
             randomNonNegativeLong(),

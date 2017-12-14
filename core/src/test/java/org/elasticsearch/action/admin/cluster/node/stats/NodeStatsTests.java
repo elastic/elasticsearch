@@ -311,11 +311,9 @@ public class NodeStatsTests extends ESTestCase {
             for (int i = 0; i < 3; i++) {
                 loadAverages[i] = randomBoolean() ? randomDouble() : -1;
             }
-            long memTotal = randomNonNegativeLong();
-            long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(System.currentTimeMillis(), new OsStats.Cpu(randomShort(), loadAverages),
-                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                    new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
+                    new OsStats.Mem(randomLong(), randomLong()),
+                    new OsStats.Swap(randomLong(), randomLong()),
                     new OsStats.Cgroup(
                         randomAlphaOfLength(8),
                         randomNonNegativeLong(),

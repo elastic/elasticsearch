@@ -61,7 +61,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(table);
+        return Objects.hash(location(), table, alias, unresolvedMsg);
     }
 
     @Override
@@ -69,12 +69,15 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         UnresolvedRelation other = (UnresolvedRelation) obj;
-        return Objects.equals(table, other.table);
+        return location().equals(other.location())
+            && table.equals(other.table)
+            && Objects.equals(alias, other.alias)
+            && unresolvedMsg.equals(other.unresolvedMsg);
     }
 }

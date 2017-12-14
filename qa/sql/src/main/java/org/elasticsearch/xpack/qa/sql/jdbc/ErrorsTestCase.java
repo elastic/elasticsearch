@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * Tests for exceptions and their messages.
@@ -25,6 +29,17 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
             assertEquals("Found 1 problem(s)\nline 1:15: Unknown index [test]", e.getMessage());
+        }
+    }
+
+    @Override
+    public void testSelectFromIndexWithoutTypes() throws Exception {
+        // Create an index without any types
+        client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
+
+        try (Connection c = esJdbc()) {
+            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
+            assertEquals("Found 1 problem(s)\nline 1:15: [test] doesn't have any types so it is incompatible with sql", e.getMessage());
         }
     }
 

@@ -13,6 +13,7 @@ package org.elasticsearch.xpack.qa.sql;
 public interface ErrorsTestCase {
     void testSelectInvalidSql() throws Exception;
     void testSelectFromMissingIndex() throws Exception;
+    void testSelectFromIndexWithoutTypes() throws Exception;
     void testSelectMissingField() throws Exception;
     void testSelectMissingFunction() throws Exception;
 }

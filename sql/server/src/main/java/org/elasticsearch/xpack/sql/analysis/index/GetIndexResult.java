@@ -20,7 +20,7 @@ public final class GetIndexResult {
     }
     public static GetIndexResult notFound(String name) {
         Objects.requireNonNull(name, "name must not be null");
-        return invalid("Index '" + name + "' does not exist");
+        return invalid("Unknown index [" + name + "]");
     }
 
     private final EsIndex index;

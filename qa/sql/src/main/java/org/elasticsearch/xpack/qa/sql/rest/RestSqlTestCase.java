@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -135,6 +136,15 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     @Override
     public void testSelectFromMissingIndex() {
         expectBadRequest(() -> runSql("SELECT * FROM missing"), containsString("1:15: Unknown index [missing]"));
+    }
+
+    @Override
+    public void testSelectFromIndexWithoutTypes() throws Exception {
+        // Create an index without any types
+        client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql("SELECT * FROM test"),
+            containsString("1:15: [test] doesn't have any types so it is incompatible with sql"));
     }
 
     @Override

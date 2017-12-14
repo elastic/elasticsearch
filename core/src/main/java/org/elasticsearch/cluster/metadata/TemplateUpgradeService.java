@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -32,8 +31,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -121,6 +118,10 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
 
         lastTemplateMetaData = templates;
+        checkForChangesAndExecute(templates);
+    }
+
+    private void checkForChangesAndExecute(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
             if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
@@ -128,9 +129,14 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                     Version.CURRENT,
                     changes.get().v1().size(),
                     changes.get().v2().size());
-                threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
+                execute(changes.get().v1(), changes.get().v2());
             }
         }
+    }
+
+    // pkg private for testing
+    void execute(Map<String, BytesReference> changes, Set<String> deletions) {
+        threadPool.generic().execute(() -> updateTemplates(changes, deletions));
     }
 
     void updateTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
@@ -142,19 +148,25 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
                     if(updatesInProgress.decrementAndGet() == 0) {
+                        if (response.isAcknowledged() == false) {
+                            logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
+                        }
                         logger.info("Finished upgrading templates to version {}", Version.CURRENT);
-                    }
-                    if (response.isAcknowledged() == false) {
+                        checkForChangesAndExecute(clusterService.state().getMetaData().getTemplates());
+                    } else if (response.isAcknowledged() == false) {
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if(updatesInProgress.decrementAndGet() == 0) {
+                    if (updatesInProgress.decrementAndGet() == 0) {
+                        logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                         logger.info("Templates were upgraded to version {}", Version.CURRENT);
+                        checkForChangesAndExecute(clusterService.state().getMetaData().getTemplates());
+                    } else {
+                        logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                     }
-                    logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                 }
             });
         }

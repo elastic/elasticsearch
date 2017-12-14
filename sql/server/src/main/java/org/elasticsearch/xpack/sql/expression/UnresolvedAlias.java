@@ -35,17 +35,13 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), child);
+    }
+
+    @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnresolvedAlias other = (UnresolvedAlias) obj;
-        return Objects.equals(child, other.child);
+        return super.equals(obj) && Objects.equals(child, ((UnresolvedAlias) obj).child);
     }
 
     @Override

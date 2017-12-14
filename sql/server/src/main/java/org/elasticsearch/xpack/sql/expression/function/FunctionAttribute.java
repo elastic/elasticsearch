@@ -27,6 +27,11 @@ public abstract class FunctionAttribute extends TypedAttribute {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), functionId);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         return super.equals(obj) && Objects.equals(functionId, ((FunctionAttribute) obj).functionId());
     }

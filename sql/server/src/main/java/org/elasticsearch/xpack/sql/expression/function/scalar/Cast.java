@@ -58,8 +58,8 @@ public class Cast extends UnaryScalarFunction {
     @Override
     protected TypeResolution resolveType() {
         return DataTypeConversion.canConvert(from(), to()) ?
-            TypeResolution.TYPE_RESOLVED : 
-            new TypeResolution("Cannot cast %s to %s", from(), to());
+                TypeResolution.TYPE_RESOLVED :
+                    new TypeResolution("Cannot cast %s to %s", from(), to());
     }
 
     @Override
@@ -75,6 +75,11 @@ public class Cast extends UnaryScalarFunction {
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), dataType);
     }
 
     @Override

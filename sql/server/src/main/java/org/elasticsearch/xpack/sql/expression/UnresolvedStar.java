@@ -32,17 +32,18 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), qualifier);
+    }
+
+    @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
+        if (super.equals(obj)) {
+            UnresolvedStar other = (UnresolvedStar) obj;
+            return Objects.equals(qualifier, other.qualifier);
         }
 
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnresolvedStar other = (UnresolvedStar) obj;
-        return Objects.equals(qualifier, other.qualifier);
+        return false;
     }
 
     private String message() {

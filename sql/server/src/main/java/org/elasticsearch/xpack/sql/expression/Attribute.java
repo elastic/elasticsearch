@@ -28,7 +28,7 @@ public abstract class Attribute extends NamedExpression {
     public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id) {
         this(location, name, qualifier, nullable, id, false);
     }
-    
+
     public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         super(location, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
@@ -43,6 +43,7 @@ public abstract class Attribute extends NamedExpression {
         return qualifier == null ? name() : qualifier + "." + name();
     }
 
+    @Override
     public boolean nullable() {
         return nullable;
     }
@@ -67,7 +68,7 @@ public abstract class Attribute extends NamedExpression {
     public Attribute withNullability(boolean nullable) {
         return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), dataType(), qualifier(), nullable, id(), synthetic());
     }
-    
+
     public Attribute withId(ExpressionId id) {
         return Objects.equals(id(), id) ? this : clone(location(), name(), dataType(), qualifier(), nullable(), id, synthetic());
     }
@@ -87,6 +88,22 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public boolean semanticEquals(Expression other) {
         return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), qualifier, nullable);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            Attribute other = (Attribute) obj;
+            return Objects.equals(qualifier, other.qualifier) 
+                    && Objects.equals(nullable, other.nullable);
+        }
+
+        return false;
     }
 
     @Override

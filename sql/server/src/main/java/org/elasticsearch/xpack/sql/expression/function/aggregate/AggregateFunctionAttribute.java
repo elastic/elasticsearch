@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.util.Objects;
 
 public class AggregateFunctionAttribute extends FunctionAttribute {
-    
+
     private final String propertyPath;
 
     AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId, String propertyPath) {
@@ -26,11 +26,11 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
     }
-    
+
     public String propertyPath() {
         return propertyPath;
     }
-    
+
     @Override
     protected Expression canonicalize() {
         return new AggregateFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>", null);
@@ -46,7 +46,12 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
         return new AggregateFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId, propertyPath);
     }
-    
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), propertyPath);
+    }
+
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj) && Objects.equals(propertyPath(), ((AggregateFunctionAttribute) obj).propertyPath());

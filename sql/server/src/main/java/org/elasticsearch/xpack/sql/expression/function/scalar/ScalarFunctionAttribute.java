@@ -38,11 +38,11 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     public ScriptTemplate script() {
         return script;
     }
-    
+
     public Expression orderBy() {
         return orderBy;
     }
-    
+
     public ProcessorDefinition processorDef() {
         return processorDef;
     }
@@ -57,6 +57,11 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return new ScalarFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId(), script, orderBy,
                 processorDef);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), orderBy);
     }
 
     @Override

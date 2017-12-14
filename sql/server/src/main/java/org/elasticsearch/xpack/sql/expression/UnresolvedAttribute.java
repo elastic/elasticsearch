@@ -49,7 +49,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     public boolean resolved() {
         return false;
     }
-    
+
     @Override
     protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return this;
@@ -83,13 +83,18 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     public String unresolvedMessage() {
         return unresolvedMsg;
     }
-    
+
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
         if (!CollectionUtils.isEmpty(potentialMatches)) {
             msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]": "any of " + potentialMatches.toString()) + "?";
         }
         return msg;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
     @Override

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.Objects;
 
 public abstract class TypedAttribute extends Attribute {
 
@@ -27,23 +27,19 @@ public abstract class TypedAttribute extends Attribute {
     public DataType dataType() {
         return dataType;
     }
-    
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), dataType);
+    }
+
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
+        if (super.equals(obj)) {
+            TypedAttribute other = (TypedAttribute) obj;
+            return Objects.equals(dataType, other.dataType);
         }
-        
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        
-        TypedAttribute other = (TypedAttribute) obj;
-        return Objects.equals(name(), other.name())
-                && Objects.equals(id(), other.id())
-                && Objects.equals(nullable(), other.nullable())
-                && Objects.equals(dataType(), other.dataType())
-                && Objects.equals(qualifier(), other.qualifier())
-                && Objects.equals(synthetic(), other.synthetic());
+
+        return false;
     }
 }

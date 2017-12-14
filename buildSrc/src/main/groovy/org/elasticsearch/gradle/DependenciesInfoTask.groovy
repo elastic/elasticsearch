@@ -29,9 +29,9 @@ import org.gradle.api.tasks.TaskAction
 
 
 /**
- * A task to gather information about the dependencies and export them into csv file.
+ * A task to gather information about the dependencies and export them into a csv file.
  *
- * The following information are gathered:
+ * The following information is gathered:
  * <ul>
  *     <li>name: name that identifies the library (groupId:artifactId)</li>
  *     <li>version</li>
@@ -89,13 +89,13 @@ public class DependenciesInfoTask extends DefaultTask {
      * <u>
      *     <li><em>UNKNOWN</em> if LICENSE file is not present for this dependency.</li>
      *     <li><em>one SPDX identifier</em> if the LICENSE content matches with an SPDX license.</li>
-     *     <li><em>Custom:URL</em> if it' not an SPDX license,
+     *     <li><em>Custom:URL</em> if it's not an SPDX license,
      *          URL is the Github URL to the LICENSE file in elasticsearch repository.</li>
      * </ul>
      *
      * @param group dependency group
      * @param name dependency name
-     * @return SPDX identifiers, UNKNOWN or a Custom license
+     * @return SPDX identifier, UNKNOWN or a Custom license
      */
     protected String getLicenseType(final String group, final String name) {
         File license

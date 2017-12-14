@@ -11,11 +11,12 @@ call "%~dp0..\elasticsearch-env.bat" || exit /b 1
 
 call "%~dp0x-pack-env.bat" || exit /b 1
 
-set CLI_JAR=!ES_CLASSPATH!;!ES_HOME!/plugins/x-pack/bin/sql-cli-*.jar
+set CLI_JAR=%ES_HOME%/plugins/x-pack/bin/*
 
 %JAVA% ^
-  -jar "%CLI_JAR%" ^
+  -cp "%CLI_JAR%" ^
+  org.elasticsearch.xpack.sql.cli.Cli ^
   %*
-
+  
 endlocal
 endlocal

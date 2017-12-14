@@ -162,3 +162,5 @@ include::search/explain.asciidoc[]
 include::search/profile.asciidoc[]
 
 include::search/field-caps.asciidoc[]
+
+include::search/rank-eval.asciidoc[]

@@ -11,7 +11,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -40,6 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class UsersToolTests extends CommandTestCase {
 
@@ -487,5 +488,57 @@ public class UsersToolTests extends CommandTestCase {
 
         // output should not contain '*' which indicates unknown role
         assertFalse(output, output.contains("*"));
+    }
+
+    public void testUserAddNoConfig() throws Exception {
+        Path homeDir = jimfs.getPath("eshome");
+        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        IOUtils.rm(confDir);
+        pathHomeParameter = "-Epath.home=" + homeDir;
+        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSource.TEST_PASSWORD);
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+    }
+
+    public void testUserListNoConfig() throws Exception {
+        Path homeDir = jimfs.getPath("eshome");
+        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        IOUtils.rm(confDir);
+        pathHomeParameter = "-Epath.home=" + homeDir;
+        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("list", pathHomeParameter, fileTypeParameter);
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+    }
+
+    public void testUserDelNoConfig() throws Exception {
+        Path homeDir = jimfs.getPath("eshome");
+        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        IOUtils.rm(confDir);
+        pathHomeParameter = "-Epath.home=" + homeDir;
+        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("userdel", pathHomeParameter, fileTypeParameter, "username");
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+    }
+
+    public void testListUserRolesNoConfig() throws Exception {
+        Path homeDir = jimfs.getPath("eshome");
+        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        IOUtils.rm(confDir);
+        pathHomeParameter = "-Epath.home=" + homeDir;
+        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("roles", pathHomeParameter, fileTypeParameter, "username");
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
     }
 }

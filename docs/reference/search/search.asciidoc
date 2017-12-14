@@ -36,7 +36,7 @@ We can also search all tweets with a certain tag across several indices
 
 [source,js]
 --------------------------------------------------
-GET /kimchy,elasticsearch/tweet/_search?q=tag:wow
+GET /kimchy,elasticsearch/_search?q=tag:wow
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
@@ -46,7 +46,7 @@ placeholder:
 
 [source,js]
 --------------------------------------------------
-GET /_all/tweet/_search?q=tag:wow
+GET /_all/_search?q=tag:wow
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

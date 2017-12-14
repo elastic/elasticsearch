@@ -76,7 +76,7 @@ will only delete `tweet` documents from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet/_delete_by_query?conflicts=proceed
+POST twitter/_doc/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}

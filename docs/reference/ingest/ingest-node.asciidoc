@@ -250,7 +250,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "bar"
@@ -258,7 +258,7 @@ POST _ingest/pipeline/_simulate
     },
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -279,7 +279,7 @@ Response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "type",
+            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "bar"
@@ -293,7 +293,7 @@ Response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "type",
+            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "rab"
@@ -343,7 +343,7 @@ POST _ingest/pipeline/_simulate?verbose
   "docs": [
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "bar"
@@ -351,7 +351,7 @@ POST _ingest/pipeline/_simulate?verbose
     },
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -374,7 +374,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "bar"
@@ -388,7 +388,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
@@ -407,7 +407,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "rab"
@@ -421,7 +421,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
@@ -917,7 +917,7 @@ Using that pipeline for an index request:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/type/1?pipeline=monthlyindex
+PUT /myindex/_doc/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
@@ -929,7 +929,7 @@ PUT /myindex/type/1?pipeline=monthlyindex
 --------------------------------------------------
 {
   "_index" : "myindex-2016-04-01",
-  "_type" : "type",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -1824,11 +1824,11 @@ was provided in the original index request:
 --------------------------------------------------
 PUT _ingest/pipeline/my_index
 {
-    "description": "use index:my_index and type:my_type",
+    "description": "use index:my_index and type:_doc",
     "processors": [
       {
         "script": {
-          "source": " ctx._index = 'my_index'; ctx._type = 'my_type' "
+          "source": " ctx._index = 'my_index'; ctx._type = '_doc' "
         }
       }
     ]
@@ -1840,7 +1840,7 @@ Using the above pipeline, we can attempt to index a document into the `any_index
 
 [source,js]
 --------------------------------------------------
-PUT any_index/any_type/1?pipeline=my_index
+PUT any_index/_doc/1?pipeline=my_index
 {
   "message": "text"
 }
@@ -1854,7 +1854,7 @@ The response from the above index request:
 --------------------------------------------------
 {
   "_index": "my_index",
-  "_type": "my_type",
+  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "result": "created",

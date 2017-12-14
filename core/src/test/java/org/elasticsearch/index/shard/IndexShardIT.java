@@ -537,13 +537,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
 
         // Generate a couple of segments
-        client().prepareIndex("test", "doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
         // Use routing so 2 documents are guarenteed to be on the same shard
         String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test", "doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-        client().prepareIndex("test", "doc", "3").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "3").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
 
         checkAccountingBreaker();

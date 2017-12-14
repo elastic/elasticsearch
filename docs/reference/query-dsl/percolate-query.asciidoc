@@ -16,7 +16,7 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "message": {
                     "type": "text"
@@ -44,7 +44,7 @@ Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/1?refresh
+PUT /my-index/_doc/1?refresh
 {
     "query" : {
         "match" : {
@@ -94,7 +94,7 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {
@@ -238,7 +238,7 @@ GET /my-index/_search
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -277,7 +277,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/2
+PUT /my-index/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -290,7 +290,7 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "doc",
+  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -315,7 +315,7 @@ GET /my-index/_search
         "percolate" : {
             "field": "query",
             "index" : "my-index",
-            "type" : "doc",
+            "type" : "_doc",
             "id" : "2",
             "version" : 1 <1>
         }
@@ -347,7 +347,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/3?refresh
+PUT /my-index/_doc/3?refresh
 {
     "query" : {
         "match" : {
@@ -363,7 +363,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/4?refresh
+PUT /my-index/_doc/4?refresh
 {
     "query" : {
         "match" : {
@@ -418,7 +418,7 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "3",
         "_score": 0.5753642,
         "_source": {
@@ -439,7 +439,7 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "4",
         "_score": 0.5753642,
         "_source": {
@@ -523,7 +523,7 @@ The slightly different response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -619,7 +619,7 @@ The above search request returns a response similar to this:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

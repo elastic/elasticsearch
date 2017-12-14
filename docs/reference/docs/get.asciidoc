@@ -7,7 +7,7 @@ twitter, under a type called tweet, with id valued 0:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0
+GET twitter/_doc/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -18,7 +18,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
     "_index" : "twitter",
-    "_type" : "tweet",
+    "_type" : "_doc",
     "_id" : "0",
     "_version" : 1,
     "found": true,
@@ -42,7 +42,7 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/tweet/0
+HEAD twitter/_doc/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -68,7 +68,7 @@ You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source=false
+GET twitter/_doc/0?_source=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -80,7 +80,7 @@ of fields or wildcard expressions. Example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source_include=*.id&_source_exclude=entities
+GET twitter/_doc/0?_source_include=*.id&_source_exclude=entities
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -89,7 +89,7 @@ If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source=*.id,retweeted
+GET twitter/_doc/0?_source=*.id,retweeted
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -108,7 +108,7 @@ Consider for instance the following mapping:
 PUT twitter
 {
    "mappings": {
-      "tweet": {
+      "_doc": {
          "properties": {
             "counter": {
                "type": "integer",
@@ -129,7 +129,7 @@ Now we can add a document:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/tweet/1
+PUT twitter/_doc/1
 {
     "counter" : 1,
     "tags" : ["red"]
@@ -142,7 +142,7 @@ PUT twitter/tweet/1
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1?stored_fields=tags,counter
+GET twitter/_doc/1?stored_fields=tags,counter
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -153,7 +153,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "1",
    "_version": 1,
    "found": true,
@@ -174,7 +174,7 @@ It is also possible to retrieve metadata fields like the `_routing` field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/tweet/2?routing=user1
+PUT twitter/_doc/2?routing=user1
 {
     "counter" : 1,
     "tags" : ["white"]
@@ -185,7 +185,7 @@ PUT twitter/tweet/2?routing=user1
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/2?routing=user1&stored_fields=tags,counter
+GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -196,7 +196,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "2",
    "_version": 1,
    "_routing": "user1",
@@ -223,7 +223,7 @@ without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1/_source
+GET twitter/_doc/1/_source
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -232,7 +232,7 @@ You can also use the same source filtering parameters to control which parts of 
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
+GET twitter/_doc/1/_source?_source_include=*.id&_source_exclude=entities'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -242,7 +242,7 @@ An existing document will not have a _source if it is disabled in the <<mapping-
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/tweet/1/_source
+HEAD twitter/_doc/1/_source
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -256,7 +256,7 @@ a document, the routing value should also be provided. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/2?routing=user1
+GET twitter/_doc/2?routing=user1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

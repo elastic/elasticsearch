@@ -54,6 +54,11 @@ public class TranslogDeletionPolicy {
      */
     private long minTranslogGenerationForRecovery = 1;
 
+    /**
+     * This translog generation is used to calculate the number of uncommitted operations since the last index commit.
+     */
+    private long translogGenerationOfLastCommit = 1;
+
     private long retentionSizeInBytes;
 
     private long retentionAgeInMillis;
@@ -69,11 +74,22 @@ public class TranslogDeletionPolicy {
     }
 
     public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
-        if (newGen < minTranslogGenerationForRecovery) {
-            throw new IllegalArgumentException("minTranslogGenerationForRecovery can't go backwards. new [" + newGen + "] current [" +
-                minTranslogGenerationForRecovery + "]");
+        if (newGen < minTranslogGenerationForRecovery || newGen > translogGenerationOfLastCommit) {
+            throw new IllegalArgumentException("Invalid minTranslogGenerationForRecovery can't go backwards; new [" + newGen + "]," +
+                "current [" + minTranslogGenerationForRecovery + "], lastGen [" + translogGenerationOfLastCommit + "]");
         }
         minTranslogGenerationForRecovery = newGen;
+    }
+
+    /**
+     * Sets the translog generation of the last index commit.
+     */
+    public synchronized void setTranslogGenerationOfLastCommit(long lastGen) {
+        if (lastGen < translogGenerationOfLastCommit || lastGen < minTranslogGenerationForRecovery) {
+            throw new IllegalArgumentException("Invalid translogGenerationOfLastCommit; new [" + lastGen + "]," +
+                "current [" + translogGenerationOfLastCommit + "], minRequiredGen [" + minTranslogGenerationForRecovery + "]");
+        }
+        translogGenerationOfLastCommit = lastGen;
     }
 
     public synchronized void setRetentionSizeInBytes(long bytes) {
@@ -191,6 +207,14 @@ public class TranslogDeletionPolicy {
     /** returns the translog generation that will be used as a basis of a future store/peer recovery */
     public synchronized long getMinTranslogGenerationForRecovery() {
         return minTranslogGenerationForRecovery;
+    }
+
+    /**
+     * Returns a translog generation that will be used to calculate the number of uncommitted operations since the last index commit.
+     * See {@link Translog#uncommittedOperations()} and {@link Translog#uncommittedSizeInBytes()}
+     */
+    public synchronized long getTranslogGenerationOfLastCommit() {
+        return translogGenerationOfLastCommit;
     }
 
     synchronized long getTranslogRefCount(long gen) {

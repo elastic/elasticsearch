@@ -372,14 +372,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the number of operations in the translog files that aren't committed to lucene.
      */
     public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getMinTranslogGenerationForRecovery());
+        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
     }
 
     /**
      * Returns the size in bytes of the translog files that aren't committed to lucene.
      */
     public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getMinTranslogGenerationForRecovery());
+        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
     }
 
     /**

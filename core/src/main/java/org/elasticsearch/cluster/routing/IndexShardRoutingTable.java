@@ -39,7 +39,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -357,8 +356,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         // Retrieve which nodes we can potentially send the query to
         final Set<String> nodeIds = getAllNodeIds(shards);
-        final int nodeCount = nodeIds.size();
-
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(nodeIds, collector);
 
         // Retrieve all the nodes the shards exist on
@@ -422,16 +419,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 }
             }
         }
-    }
-
-    /**
-     * Returns true if no primaries are active or initializing for this shard
-     */
-    private boolean noPrimariesActive() {
-        if (!primaryAsList.isEmpty() && !primaryAsList.get(0).active() && !primaryAsList.get(0).initializing()) {
-            return true;
-        }
-        return false;
     }
 
     /**

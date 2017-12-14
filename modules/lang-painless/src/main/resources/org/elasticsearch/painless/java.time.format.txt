@@ -24,7 +24,7 @@
 
 #### Classes
 
-class DateTimeFormatter -> java.time.format.DateTimeFormatter {
+class java.time.format.DateTimeFormatter {
   DateTimeFormatter BASIC_ISO_DATE
   DateTimeFormatter ISO_DATE
   DateTimeFormatter ISO_DATE_TIME
@@ -70,7 +70,7 @@ class DateTimeFormatter -> java.time.format.DateTimeFormatter {
   DateTimeFormatter withZone(ZoneId)
 }
 
-class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder {
+class java.time.format.DateTimeFormatterBuilder {
   ()
   DateTimeFormatterBuilder append(DateTimeFormatter)
   DateTimeFormatterBuilder appendChronologyId()
@@ -110,7 +110,7 @@ class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder {
   DateTimeFormatter toFormatter(Locale)
 }
 
-class DecimalStyle -> java.time.format.DecimalStyle {
+class java.time.format.DecimalStyle {
   DecimalStyle STANDARD
   Set getAvailableLocales()
   char getDecimalSeparator()
@@ -127,7 +127,7 @@ class DecimalStyle -> java.time.format.DecimalStyle {
 
 #### Enums
 
-class FormatStyle -> java.time.format.FormatStyle {
+class java.time.format.FormatStyle {
   FormatStyle FULL
   FormatStyle LONG
   FormatStyle MEDIUM
@@ -136,7 +136,7 @@ class FormatStyle -> java.time.format.FormatStyle {
   FormatStyle[] values()
 }
 
-class ResolverStyle -> java.time.format.ResolverStyle {
+class java.time.format.ResolverStyle {
   ResolverStyle LENIENT
   ResolverStyle SMART
   ResolverStyle STRICT
@@ -144,7 +144,7 @@ class ResolverStyle -> java.time.format.ResolverStyle {
   ResolverStyle[] values()
 }
 
-class SignStyle -> java.time.format.SignStyle {
+class java.time.format.SignStyle {
   SignStyle ALWAYS
   SignStyle EXCEEDS_PAD
   SignStyle NEVER
@@ -154,7 +154,7 @@ class SignStyle -> java.time.format.SignStyle {
   SignStyle[] values()
 }
 
-class TextStyle -> java.time.format.TextStyle {
+class java.time.format.TextStyle {
   TextStyle FULL
   TextStyle FULL_STANDALONE
   TextStyle NARROW
@@ -170,7 +170,7 @@ class TextStyle -> java.time.format.TextStyle {
 
 #### Exceptions
 
-class DateTimeParseException -> java.time.format.DateTimeParseException {
+class java.time.format.DateTimeParseException {
   (String,CharSequence,int)
   int getErrorIndex()
   String getParsedString()

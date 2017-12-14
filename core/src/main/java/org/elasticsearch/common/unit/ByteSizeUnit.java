@@ -63,6 +63,11 @@ public enum ByteSizeUnit implements Writeable {
         public long toPB(long size) {
             return size / (C5 / C0);
         }
+
+        @Override
+        public String getSuffix() {
+            return "b";
+        }
     },
     KB {
         @Override
@@ -93,6 +98,11 @@ public enum ByteSizeUnit implements Writeable {
         @Override
         public long toPB(long size) {
             return size / (C5 / C1);
+        }
+
+        @Override
+        public String getSuffix() {
+            return "kb";
         }
     },
     MB {
@@ -125,6 +135,11 @@ public enum ByteSizeUnit implements Writeable {
         public long toPB(long size) {
             return size / (C5 / C2);
         }
+
+        @Override
+        public String getSuffix() {
+            return "mb";
+        }
     },
     GB {
         @Override
@@ -155,6 +170,11 @@ public enum ByteSizeUnit implements Writeable {
         @Override
         public long toPB(long size) {
             return size / (C5 / C3);
+        }
+
+        @Override
+        public String getSuffix() {
+            return "gb";
         }
     },
     TB {
@@ -187,6 +207,11 @@ public enum ByteSizeUnit implements Writeable {
         public long toPB(long size) {
             return size / (C5 / C4);
         }
+
+        @Override
+        public String getSuffix() {
+            return "tb";
+        }
     },
     PB {
         @Override
@@ -217,6 +242,11 @@ public enum ByteSizeUnit implements Writeable {
         @Override
         public long toPB(long size) {
             return size;
+        }
+
+        @Override
+        public String getSuffix() {
+            return "pb";
         }
     };
 
@@ -257,6 +287,8 @@ public enum ByteSizeUnit implements Writeable {
     public abstract long toTB(long size);
 
     public abstract long toPB(long size);
+
+    public abstract String getSuffix();
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

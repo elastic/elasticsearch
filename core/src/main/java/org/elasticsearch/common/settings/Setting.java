@@ -52,7 +52,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1020,7 +1019,7 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue defaultValue, ByteSizeValue minValue,
                                                          ByteSizeValue maxValue, Property... properties) {
-        return byteSizeSetting(key, (s) -> defaultValue.toString(), minValue, maxValue, properties);
+        return byteSizeSetting(key, (s) -> defaultValue.getStringRep(), minValue, maxValue, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,

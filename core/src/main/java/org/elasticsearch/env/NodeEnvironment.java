@@ -249,7 +249,9 @@ public final class NodeEnvironment  implements Closeable {
             this.nodeLockId = nodeLockId;
             this.locks = locks;
             this.nodePaths = nodePaths;
-
+            if(!DiscoveryNode.isDataNode(settings)  && !availableIndexFolders().isEmpty()) {
+                throw new IllegalStateException("Non Data node cannot have dangling indices");
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
             }

@@ -30,6 +30,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -450,6 +451,32 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testIfNodeEnvironmentInitiationFails() throws IOException {
+        // simulate some previous left over temp files
+        Settings settings = buildEnvSettings(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+
+           List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+
+
+            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(dataPaths.get(0)), 0);
+            final Path indicesPath = nodePath.resolve(NodeEnvironment.INDICES_FOLDER);
+
+            Files.createDirectories(indicesPath.resolve("index-uuid"));
+        try {
+
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            Path  nodepatt = env.nodePaths()[0].indicesPath;
+            env.close();
+            fail("Node environment instantiation should have failed for non data node" + nodepatt +  " " +  indicesPath +
+                env.availableIndexFolders());
+        } catch (IllegalStateException e) {
+            // that's OK :)
+        }
+
+        for (String path: dataPaths) {
+            Files.deleteIfExists(indicesPath.resolve("index-uuid"));
+        }
+    }
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */
     private Path[] stringsToPaths(String[] strings, String additional) {
         Path[] locations = new Path[strings.length];

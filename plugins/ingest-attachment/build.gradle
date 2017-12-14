@@ -23,8 +23,8 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.16',
-  'pdfbox': '2.0.6',
+  'tika': '1.17',
+  'pdfbox': '2.0.8',
   'bouncycastle': '1.55',
   'poi': '3.17',
   'mime4j': '0.8.1'
@@ -554,7 +554,6 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
   'org.apache.pdfbox.tools.imageio.ImageIOUtil',
-  'org.apache.poi.hwmf.record.HwmfFont$WmfCharset',
   'org.apache.sis.internal.util.CheckedArrayList',
   'org.apache.sis.internal.util.CheckedHashSet',
   'org.apache.sis.metadata.iso.DefaultMetadata',

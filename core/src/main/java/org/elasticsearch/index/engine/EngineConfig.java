@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -78,6 +79,7 @@ public final class EngineConfig {
     private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
+    private final GlobalCheckpointTracker globalCheckpointTracker;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -124,7 +126,8 @@ public final class EngineConfig {
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
+                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
+                        GlobalCheckpointTracker globalCheckpointTracker) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -155,6 +158,7 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
+        this.globalCheckpointTracker = globalCheckpointTracker;
     }
 
     /**
@@ -225,6 +229,13 @@ public final class EngineConfig {
      */
     public Store getStore() {
         return store;
+    }
+
+    /**
+     * Returns the global checkpoint tracker
+     */
+    public GlobalCheckpointTracker getGlobalCheckpointTracker() {
+        return globalCheckpointTracker;
     }
 
     /**

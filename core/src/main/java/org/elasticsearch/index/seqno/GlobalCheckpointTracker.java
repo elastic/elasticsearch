@@ -214,7 +214,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
         final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
@@ -329,7 +329,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
-    GlobalCheckpointTracker(
+    public GlobalCheckpointTracker(
             final ShardId shardId,
             final String allocationId,
             final IndexSettings indexSettings,

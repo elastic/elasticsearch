@@ -577,17 +577,17 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsMetaDataWithRouting() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("doc", "field1", "type=keyword,store=true")
+            .addMapping("_doc", "field1", "type=keyword,store=true")
             .addAlias(new Alias("alias"))
             .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
             // multi types in 5.6
 
-        client().prepareIndex("test", "doc", "1")
+        client().prepareIndex("test", "_doc", "1")
             .setRouting("1")
             .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
             .get();
 
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "doc", "1")
+        GetResponse getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
             .setRouting("1")
             .setStoredFields("field1")
             .get();
@@ -599,7 +599,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         flush();
 
-        getResponse = client().prepareGet(indexOrAlias(), "doc", "1")
+        getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
             .setStoredFields("field1")
             .setRouting("1")
             .get();
@@ -778,7 +778,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
+                "    \"_doc\": {\n" +
                 "      \"properties\": {\n" +
                 "        \"suggest\": {\n" +
                 "          \"type\": \"completion\"\n" +
@@ -798,16 +798,16 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        index("test", "doc", "1", doc);
+        index("test", "_doc", "1", doc);
         String[] fieldsList = {"suggest"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
     }
 
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
@@ -821,17 +821,17 @@ public class GetActionIT extends ESIntegTestCase {
                 .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "_doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "routingValue");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "routingValue");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "routingValue");
     }
 
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
@@ -847,41 +847,41 @@ public class GetActionIT extends ESIntegTestCase {
         String doc = "{\n" +
             "  \"text\": \"some text.\"\n" +
             "}\n";
-        client().prepareIndex("test", "doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        client().prepareIndex("test", "_doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");
     }
 
     public void testGeneratedStringFieldsUnstored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
         String[] fieldsList = {"_field_names"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "_doc", "1", fieldsList);
     }
 
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"text1", "text2"};
         String[] alwaysNotStoredFieldsList = {"_field_names"};
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "_doc", "1", alwaysNotStoredFieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "_doc", "1", alwaysNotStoredFieldsList);
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
@@ -893,7 +893,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
+                "    \"_doc\": {\n" +
                 "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
                 "      \"properties\": {\n" +
                 "        \"text1\": {\n" +
@@ -915,7 +915,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"text1\": \"some text.\"\n," +
                 "  \"text2\": \"more text.\"\n" +
                 "}\n";
-        index("test", "doc", "1", doc);
+        index("test", "_doc", "1", doc);
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {

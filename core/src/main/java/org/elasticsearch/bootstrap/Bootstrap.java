@@ -46,9 +46,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -57,8 +57,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
-import java.util.List;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -239,7 +239,6 @@ final class Bootstrap {
     }
 
     private static Environment createEnvironment(
-            final boolean foreground,
             final Path pidFile,
             final SecureSettings secureSettings,
             final Settings initialSettings,
@@ -283,7 +282,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
-        final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+        final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

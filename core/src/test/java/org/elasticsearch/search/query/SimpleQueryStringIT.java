@@ -292,8 +292,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     // Issue #7967
     public void testLenientFlagBeingTooLenient() throws Exception {
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("num", 1, "body", "foo bar baz"),
-                client().prepareIndex("test", "doc", "2").setSource("num", 2, "body", "eggplant spaghetti lasagna"));
+                client().prepareIndex("test", "_doc", "1").setSource("num", 1, "body", "foo bar baz"),
+                client().prepareIndex("test", "_doc", "2").setSource("num", 2, "body", "eggplant spaghetti lasagna"));
 
         BoolQueryBuilder q = boolQuery().should(simpleQueryStringQuery("bar").field("num").field("body").lenient(true));
         SearchResponse resp = client().prepareSearch("test").setQuery(q).get();
@@ -386,9 +386,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar baz"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f2", "Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f3", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f2", "Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -410,8 +410,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
@@ -437,11 +437,11 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo",
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo",
                         "f_date", "2015/09/02",
                         "f_float", "1.7",
                         "f_ip", "127.0.0.1"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar",
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar",
                         "f_date", "2015/09/01",
                         "f_float", "1.8",
                         "f_ip", "127.0.0.2"));
@@ -471,7 +471,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -516,9 +516,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f2", "Foo Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f1", "foo bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f2", "Foo Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();

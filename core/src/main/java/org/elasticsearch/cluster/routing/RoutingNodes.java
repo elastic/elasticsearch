@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -631,7 +632,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // if the activeReplica was relocating before this call to failShard, its relocation was cancelled earlier when we
         // failed initializing replica shards (and moved replica relocation source back to started)
         assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
-        ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
+        promoteActiveReplicaShardToPrimary(activeReplica);
         routingChangesObserver.replicaPromoted(activeReplica);
     }
 
@@ -1043,26 +1044,27 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 indicesAndShards.put(shard.index(), Math.max(i, shard.id()));
             }
         }
+
         // Assert that the active shard routing are identical.
         Set<Map.Entry<Index, Integer>> entries = indicesAndShards.entrySet();
-        final List<ShardRouting> shards = new ArrayList<>();
-        for (Map.Entry<Index, Integer> e : entries) {
-            Index index = e.getKey();
+
+        final Map<ShardId, HashSet<ShardRouting>> shardsByShardId = new HashMap<>();
+        for (final RoutingNode routingNode: routingNodes) {
+            for (final ShardRouting shardRouting : routingNode) {
+                final HashSet<ShardRouting> shards =
+                        shardsByShardId.computeIfAbsent(new ShardId(shardRouting.index(), shardRouting.id()), k -> new HashSet<>());
+                shards.add(shardRouting);
+            }
+        }
+
+        for (final Map.Entry<Index, Integer> e : entries) {
+            final Index index = e.getKey();
             for (int i = 0; i < e.getValue(); i++) {
-                for (RoutingNode routingNode : routingNodes) {
-                    for (ShardRouting shardRouting : routingNode) {
-                        if (shardRouting.index().equals(index) && shardRouting.id() == i) {
-                            shards.add(shardRouting);
-                        }
-                    }
-                }
-                List<ShardRouting> mutableShardRoutings = routingNodes.assignedShards(new ShardId(index, i));
-                assert mutableShardRoutings.size() == shards.size();
-                for (ShardRouting r : mutableShardRoutings) {
-                    assert shards.contains(r);
-                    shards.remove(r);
-                }
-                assert shards.isEmpty();
+                final ShardId shardId = new ShardId(index, i);
+                final HashSet<ShardRouting> shards = shardsByShardId.get(shardId);
+                final List<ShardRouting> mutableShardRoutings = routingNodes.assignedShards(shardId);
+                assert (shards == null && mutableShardRoutings.size() == 0)
+                        || (shards != null && shards.size() == mutableShardRoutings.size() && shards.containsAll(mutableShardRoutings));
             }
         }
 

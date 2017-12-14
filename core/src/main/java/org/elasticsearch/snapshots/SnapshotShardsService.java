@@ -581,7 +581,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             entries.add(updatedEntry);
                             // Finalize snapshot in the repository
                             snapshotsService.endSnapshot(updatedEntry);
-                            logger.info("snapshot [{}] is done", updatedEntry.snapshot());
                         }
                     } else {
                         entries.add(entry);

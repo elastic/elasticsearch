@@ -57,6 +57,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -78,6 +79,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1082,12 +1085,16 @@ public class StoreTests extends ESTestCase {
         }
         // Check index does not need to lock the store directory
         try (Lock directoryLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            assertThat(store.checkIndex(System.out).clean, equalTo(true));
+            BytesStreamOutput os = new BytesStreamOutput();
+            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+            assertThat(store.checkIndex(out).clean, equalTo(true));
         }
-
         // exorciseIndex requires directory lock
         try (Lock directoryLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            final CheckIndex.Status status = store.checkIndex(System.out);
+            BytesStreamOutput os = new BytesStreamOutput();
+            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+            assertThat(store.checkIndex(out).clean, equalTo(true));
+            final CheckIndex.Status status = store.checkIndex(out);
             try {
                 store.exorciseIndex(status);
                 fail("exorciseIndex should acquire directory lock");

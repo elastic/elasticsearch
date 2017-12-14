@@ -1930,7 +1930,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else {
             // full checkindex
-            CheckIndex.Status status = store.checkIndex(out);
+            final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (!status.clean) {
                 if (state == IndexShardState.CLOSED) {

@@ -70,23 +70,14 @@ public class NioTransport extends TcpTransport {
 
     private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private final NioGroup nioGroup;
-    private TcpChannelFactory clientChannelFactory;
+    private volatile NioGroup nioGroup;
+    private volatile TcpChannelFactory clientChannelFactory;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                         CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
-
-        int acceptorCount = 0;
-        if (NetworkService.NETWORK_SERVER.get(settings)) {
-            acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
-        }
-
-        nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-            AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-            NioTransport.NIO_WORKER_COUNT.get(settings), this::getSocketEventHandler);
     }
 
     @Override
@@ -107,11 +98,19 @@ public class NioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
+            int acceptorCount = 0;
+            boolean useNetworkServer = NetworkService.NETWORK_SERVER.get(settings);
+            if (useNetworkServer) {
+                acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
+            }
+            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+                NioTransport.NIO_WORKER_COUNT.get(settings), this::getSocketEventHandler);
+
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new TcpChannelFactory(clientProfileSettings, getContextSetter("client"), getServerContextSetter());
 
-            nioGroup.start();
-            if (NetworkService.NETWORK_SERVER.get(settings)) {
+            if (useNetworkServer) {
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;

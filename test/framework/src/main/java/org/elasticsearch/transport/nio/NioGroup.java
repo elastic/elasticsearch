@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -41,56 +42,28 @@ import java.util.stream.Stream;
  * Server connections can be bound using the {@link #bindServerChannel(InetSocketAddress, ChannelFactory)}
  * method. Client connections can be opened using the {@link #openChannel(InetSocketAddress, ChannelFactory)}
  * method.
- *
+ * <p>
  * The logic specific to a particular channel is provided by the {@link ChannelFactory} passed to the method
  * when the channel is created. This is what allows an NioGroup to support different channel types.
  */
 public class NioGroup implements AutoCloseable {
 
-    private static final int CREATED = 0;
-    private static final int RUNNING = 1;
-    private static final int STOPPED = 2;
 
-    private final Logger logger;
-
-    private final int acceptorCount;
-    private final ThreadFactory acceptorThreadFactory;
     private final ArrayList<AcceptingSelector> acceptors;
-    private final BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction;
-    private RoundRobinSupplier<AcceptingSelector> acceptorSupplier;
+    private final RoundRobinSupplier<AcceptingSelector> acceptorSupplier;
 
-    private final int socketSelectorCount;
-    private final ThreadFactory socketSelectorThreadFactory;
     private final ArrayList<SocketSelector> socketSelectors;
-    private final Function<Logger, SocketEventHandler> socketEventHandlerFunction;
-    private RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
+    private final RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
 
-    private volatile int state = CREATED;
+    private final AtomicBoolean isOpen = new AtomicBoolean(true);
 
     public NioGroup(Logger logger, ThreadFactory acceptorThreadFactory, int acceptorCount,
                     BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
                     ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
-                    Function<Logger, SocketEventHandler> socketEventHandlerFunction) {
-        this.logger = logger;
-        this.acceptorThreadFactory = acceptorThreadFactory;
-        this.acceptorEventHandlerFunction = acceptorEventHandlerFunction;
-        this.socketSelectorThreadFactory = socketSelectorThreadFactory;
-        this.acceptorCount = acceptorCount;
-        this.socketSelectorCount = socketSelectorCount;
-        this.socketEventHandlerFunction = socketEventHandlerFunction;
-        acceptors = new ArrayList<>(this.acceptorCount);
-        socketSelectors = new ArrayList<>(this.socketSelectorCount);
-    }
+                    Function<Logger, SocketEventHandler> socketEventHandlerFunction) throws IOException {
+        acceptors = new ArrayList<>(acceptorCount);
+        socketSelectors = new ArrayList<>(socketSelectorCount);
 
-    public synchronized void start() throws IOException {
-        if (state != CREATED) {
-            if (state == RUNNING) {
-                throw new IllegalStateException("NioGroup already started.");
-            } else {
-                throw new IllegalStateException("NioGroup is closed.");
-
-            }
-        }
         try {
             for (int i = 0; i < socketSelectorCount; ++i) {
                 SocketSelector selector = new SocketSelector(socketEventHandlerFunction.apply(logger));
@@ -116,27 +89,27 @@ public class NioGroup implements AutoCloseable {
 
         socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new SocketSelector[socketSelectors.size()]));
         acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new AcceptingSelector[acceptors.size()]));
-        state = RUNNING;
     }
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
         throws IOException {
-        ensureRunning();
-        if (acceptorCount == 0) {
+        ensureOpen();
+        if (acceptors.size() == 0) {
             throw new IllegalArgumentException("There are no acceptors configured. Without acceptors, server channels are not supported.");
         }
         return factory.openNioServerSocketChannel(address, acceptorSupplier.get());
     }
 
     public <S extends NioSocketChannel> S openChannel(InetSocketAddress address, ChannelFactory<?, S> factory) throws IOException {
-        ensureRunning();
+        ensureOpen();
         return factory.openNioChannel(address, socketSelectorSupplier.get());
     }
 
     @Override
-    public synchronized void close() throws IOException {
-        IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
-        state = STOPPED;
+    public void close() throws IOException {
+        if (isOpen.compareAndSet(true, false)) {
+            IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
+        }
     }
 
     private static <S extends ESSelector> void startSelectors(Iterable<S> selectors, ThreadFactory threadFactory) {
@@ -148,9 +121,9 @@ public class NioGroup implements AutoCloseable {
         }
     }
 
-    private void ensureRunning() {
-        if (state != RUNNING) {
-            throw new IllegalStateException("NioGroup is not running.");
+    private void ensureOpen() {
+        if (isOpen.get() == false) {
+            throw new IllegalStateException("NioGroup is closed.");
         }
     }
 }

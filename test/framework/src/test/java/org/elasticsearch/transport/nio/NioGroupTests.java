@@ -19,13 +19,13 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.mockito.Mockito.mock;
@@ -41,75 +41,42 @@ public class NioGroupTests extends ESTestCase {
             daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        nioGroup.close();
+        super.tearDown();
+    }
+
     public void testStartAndClose() throws IOException {
-        // start() starts threads. So we are testing that stop() stops the threads. Our thread linger checks
+        // ctor starts threads. So we are testing that close() stops the threads. Our thread linger checks
         // will throw an exception is stop fails
-        nioGroup.start();
         nioGroup.close();
     }
 
     @SuppressWarnings("unchecked")
-    public void testCannotOperateBeforeStartOrAfterClose() throws IOException {
-        IllegalStateException ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
-        assertEquals("NioGroup is not running.", ise.getMessage());
-        ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
-        assertEquals("NioGroup is not running.", ise.getMessage());
-
-        nioGroup.start();
-        nioGroup.close();
-
-        ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
-        assertEquals("NioGroup is not running.", ise.getMessage());
-        ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
-        assertEquals("NioGroup is not running.", ise.getMessage());
-    }
-
-    public void testCanCloseBeforeStartAndThenCannotStart() throws IOException {
+    public void testCannotOperateAfterClose() throws IOException {
         nioGroup.close();
 
         IllegalStateException ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.start());
+            () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
         assertEquals("NioGroup is closed.", ise.getMessage());
-    }
-
-    public void testCannotStartTwiceOrAfterClose() throws IOException {
-        nioGroup.start();
-        IllegalStateException ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.start());
-        assertEquals("NioGroup already started.", ise.getMessage());
-
-        nioGroup.close();
-
         ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.start());
+            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
         assertEquals("NioGroup is closed.", ise.getMessage());
     }
 
     public void testCanCloseTwice() throws IOException {
-        nioGroup.start();
         nioGroup.close();
         nioGroup.close();
     }
 
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
-        AtomicBoolean firstStartAttempt = new AtomicBoolean(true);
-        nioGroup = new NioGroup(logger, r -> {
-            if (firstStartAttempt.compareAndSet(true, false)) {
-                throw ex;
-            } else {
-                throw new AssertionError("Should not be allowed a second start attempt");
-            }
-        }, 1, AcceptorEventHandler::new, daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
-        RuntimeException runtimeException = expectThrows(RuntimeException.class, () -> nioGroup.start());
+        CheckedRunnable<IOException> ctor = () -> new NioGroup(logger, r -> {throw ex;}, 1,
+            AcceptorEventHandler::new, daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
+        RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);
         assertSame(ex, runtimeException);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> nioGroup.start());
-        assertEquals("NioGroup is closed.", ise.getMessage());
-        // start() starts threads. So we are testing that stop() stops the threads. Our thread linger checks
-        // will throw an exception is stop fails
+        // ctor starts threads. So we are testing that a failure to construct will stop threads. Our thread
+        // linger checks will throw an exception is stop fails
     }
 }

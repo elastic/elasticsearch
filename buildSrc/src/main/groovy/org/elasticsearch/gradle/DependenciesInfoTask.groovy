@@ -64,10 +64,9 @@ public class DependenciesInfoTask extends DefaultTask {
         for (Dependency dependency : dependencies) {
             // Only external dependencies are checked
             if (dependency.group != null && dependency.group.contains("elasticsearch") == false) {
-                output.append(dependency.group).append(':').append(dependency.name).append(',')
-                output.append(dependency.version).append(',')
-                output.append(createURL(dependency.group, dependency.name, dependency.version)).append(',')
-                output.append(getLicenseType(dependency.group, dependency.name)).append('\n')
+                final String url = createURL(dependency.group, dependency.name, dependency.version)
+                final String licenseType = getLicenseType(dependency.group, dependency.name)
+                output.append("${dependency.group}:${dependency.name},${dependency.version},${url},${licenseType}\n")
             }
         }
         outputFile.setText(output.toString(), 'UTF-8')

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -50,7 +51,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -87,6 +87,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -345,21 +346,48 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    public StoreStats stats() throws IOException {
-        ensureOpen();
-        return statsCache.getOrRefresh();
+    /**
+     * Checks and returns the status of the existing index in this store.
+     *
+     * @param out where infoStream messages should go. See {@link CheckIndex#setInfoStream(PrintStream)}
+     */
+    public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
+        // We don't need to lock the directory here as we are not changing the index files.
+        final Lock noDirectoryLock = new Lock() {
+            @Override
+            public void close() throws IOException {
+
+            }
+
+            @Override
+            public void ensureValid() throws IOException {
+
+            }
+        };
+        metadataLock.readLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory, noDirectoryLock)) {
+            checkIndex.setInfoStream(out);
+            return checkIndex.checkIndex();
+        } finally {
+            metadataLock.readLock().unlock();
+        }
     }
 
     /**
-     * Executes a given {@link CheckedRunnable} within the metadataLock.
+     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
      */
-    public <E extends Exception> void runUnderMetadataLock(CheckedRunnable<E> runnable) throws E {
+    public void exorciseIndex(CheckIndex.Status status) throws IOException {
         metadataLock.writeLock().lock();
-        try {
-            runnable.run();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            checkIndex.exorciseIndex(status);
         } finally {
             metadataLock.writeLock().unlock();
         }
+    }
+
+    public StoreStats stats() throws IOException {
+        ensureOpen();
+        return statsCache.getOrRefresh();
     }
 
     /**

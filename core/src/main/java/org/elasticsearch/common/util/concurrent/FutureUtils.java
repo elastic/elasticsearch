@@ -39,6 +39,13 @@ public class FutureUtils {
         return false;
     }
 
+    /**
+     * Calls {@link Future#get()} without the checked exceptions.
+     *
+     * @param future to dereference
+     * @param <T> the type returned
+     * @return the value of the future
+     */
     public static <T> T get(Future<T> future) {
         try {
             return future.get();
@@ -50,6 +57,15 @@ public class FutureUtils {
         }
     }
 
+    /**
+     * Calls {@link Future#get(long, TimeUnit)} without the checked exceptions.
+     *
+     * @param future to dereference
+     * @param timeout to wait
+     * @param unit for timeout
+     * @param <T> the type returned
+     * @return the value of the future
+     */
     public static  <T> T get(Future<T> future, long timeout, TimeUnit unit) {
         try {
             return future.get(timeout, unit);

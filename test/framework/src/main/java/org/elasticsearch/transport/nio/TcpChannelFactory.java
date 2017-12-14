@@ -42,8 +42,8 @@ public class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel,
     private final Consumer<NioSocketChannel> contextSetter;
     private final Consumer<NioServerSocketChannel> serverContextSetter;
 
-    public TcpChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter,
-                             Consumer<NioServerSocketChannel> serverContextSetter) {
+    TcpChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter,
+                      Consumer<NioServerSocketChannel> serverContextSetter) {
         super(new RawChannelFactory(profileSettings.tcpNoDelay,
             profileSettings.tcpKeepAlive,
             profileSettings.reuseAddress,

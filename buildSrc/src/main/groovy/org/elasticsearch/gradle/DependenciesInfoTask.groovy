@@ -111,7 +111,7 @@ public class DependenciesInfoTask extends DefaultTask {
         if (license) {
             final String content = license.readLines("UTF-8").toString()
             final String spdx = checkSPDXLicense(content)
-            if (spdx == '') {
+            if (spdx ==  null) {
                 // License has not be identified as SPDX.
                 // As we have the license file, we create a Custom entry with the URL to this license file.
                 final gitBranch = System.getProperty('build.branch', 'master')
@@ -128,10 +128,10 @@ public class DependenciesInfoTask extends DefaultTask {
      * Check the license content to identify an SPDX license type.
      *
      * @param licenseText LICENSE file content.
-     * @return SPDX identifier or empty string.
+     * @return SPDX identifier or null.
      */
     private String checkSPDXLicense(final String licenseText) {
-        String spdx
+        String spdx = null
 
         final String APACHE_2_0 = "Apache.*License.*(v|V)ersion 2.0"
         final String BSD_2 = "BSD 2-clause.*License"
@@ -168,7 +168,6 @@ public class DependenciesInfoTask extends DefaultTask {
                 spdx = 'MPL-1.1'
                 break
             default:
-                spdx = ''
                 break
         }
         return spdx

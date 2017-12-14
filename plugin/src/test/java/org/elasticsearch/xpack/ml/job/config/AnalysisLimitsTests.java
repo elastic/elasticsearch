@@ -69,7 +69,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         String json = "{\"model_memory_limit\":\"-4MB\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
-        assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -4"));
+        assertThat(e.getRootCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
     }
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {

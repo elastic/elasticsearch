@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-put-job]]
-=== Create Jobs
+=== Create Jobs API
+++++
+<titleabbrev>Create Jobs</titleabbrev>
+++++
 
 The create job API enables you to instantiate a job.
 

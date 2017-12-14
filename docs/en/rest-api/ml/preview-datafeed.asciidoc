@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-preview-datafeed]]
-=== Preview {dfeeds-cap}
+=== Preview {dfeeds-cap} API
+++++
+<titleabbrev>Preview {dfeeds-cap}</titleabbrev>
+++++
 
 The preview {dfeed} API enables you to preview a {dfeed}.
 

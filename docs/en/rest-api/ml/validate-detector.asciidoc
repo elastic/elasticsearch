@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-valid-detector]]
-=== Validate Detectors
+=== Validate Detectors API
+++++
+<titleabbrev>Validate Detectors </titleabbrev>
+++++
 
 The validate detectors API validates detector configuration information.
 

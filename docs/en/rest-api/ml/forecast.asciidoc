@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-forecast]]
-=== Forecast Jobs
+=== Forecast Jobs API
+++++
+<titleabbrev>Forecast Jobs</titleabbrev>
+++++
 
 The forecast jobs API uses historical behavior to predict the future behavior of
 a time series.

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-revert-snapshot]]
-=== Revert Model Snapshots
+=== Revert Model Snapshots API
+++++
+<titleabbrev>Revert Model Snapshots</titleabbrev>
+++++
 
 The revert model snapshot API enables you to revert to a specific snapshot.
 

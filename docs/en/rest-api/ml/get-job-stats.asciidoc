@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-job-stats]]
-=== Get Job Statistics
+=== Get Job Statistics API
+++++
+<titleabbrev>Get Job Statistics</titleabbrev>
+++++
 
 The get jobs API enables you to retrieve usage information for jobs.
 

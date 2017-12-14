@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-snapshot]]
-=== Get Model Snapshots
+=== Get Model Snapshots API
+++++
+<titleabbrev>Get Model Snapshots</titleabbrev>
+++++
 
 The get model snapshots API enables you to retrieve information about model snapshots.
 

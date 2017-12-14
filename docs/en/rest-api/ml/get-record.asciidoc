@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-record]]
-=== Get Records
+=== Get Records API
+++++
+<titleabbrev>Get Records</titleabbrev>
+++++
 
 The get records API enables you to retrieve anomaly records for a job.
 

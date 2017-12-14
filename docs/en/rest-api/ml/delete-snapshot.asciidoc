@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-delete-snapshot]]
-=== Delete Model Snapshots
+=== Delete Model Snapshots API
+++++
+<titleabbrev>Delete Model Snapshots</titleabbrev>
+++++
 
 The delete model snapshot API enables you to delete an existing model snapshot.
 

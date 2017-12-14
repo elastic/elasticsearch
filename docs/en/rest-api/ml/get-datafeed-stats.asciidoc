@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-datafeed-stats]]
-=== Get {dfeed-cap} Statistics
+=== Get {dfeed-cap} Statistics API
+++++
+<titleabbrev>Get {dfeed-cap} Statistics</titleabbrev>
+++++
 
 The get {dfeed} statistics API enables you to retrieve usage information for
 {dfeeds}.

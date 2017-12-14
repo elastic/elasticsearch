@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-put-datafeed]]
-=== Create {dfeeds-cap}
+=== Create {dfeeds-cap} API
+++++
+<titleabbrev>Create {dfeeds-cap}</titleabbrev>
+++++
 
 The create {dfeed} API enables you to instantiate a {dfeed}.
 

@@ -87,7 +87,7 @@ The nested `inner_hits` can be used to include nested inner objects as inner hit
 PUT test
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "comments": {
           "type": "nested"
@@ -97,7 +97,7 @@ PUT test
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -141,7 +141,7 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
@@ -153,7 +153,7 @@ An example of a response snippet that could be generated from the above search r
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "doc",
+                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -207,7 +207,7 @@ including the source and solely rely on doc values fields. Like this:
 PUT test
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "comments": {
           "type": "nested"
@@ -217,7 +217,7 @@ PUT test
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -264,7 +264,7 @@ Response not included in text but tested for completeness sake.
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0444683,
         "_source": ...,
@@ -276,7 +276,7 @@ Response not included in text but tested for completeness sake.
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "doc",
+                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -315,7 +315,7 @@ with the root hits then the following path can be defined:
 PUT test
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "comments": {
           "type": "nested",
@@ -330,7 +330,7 @@ PUT test
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -379,7 +379,7 @@ Which would look like:
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.6931472,
         "_source": ...,
@@ -391,7 +391,7 @@ Which would look like:
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "doc",
+                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -431,7 +431,7 @@ The parent/child `inner_hits` can be used to include parent or child:
 PUT test
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": {
           "type": "join",
@@ -444,13 +444,13 @@ PUT test
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "number": 1,
   "my_join_field": "my_parent"
 }
 
-PUT test/doc/2?routing=1&refresh
+PUT test/_doc/2?routing=1&refresh
 {
   "number": 1,
   "my_join_field": {
@@ -490,7 +490,7 @@ An example of a response snippet that could be generated from the above search r
         "hits": [
             {
                 "_index": "test",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -505,7 +505,7 @@ An example of a response snippet that could be generated from the above search r
                             "hits": [
                                 {
                                     "_index": "test",
-                                    "_type": "doc",
+                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

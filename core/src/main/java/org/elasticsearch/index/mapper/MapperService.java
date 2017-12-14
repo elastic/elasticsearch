@@ -90,6 +90,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String DEFAULT_MAPPING = "_default_";
+    public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
     // maximum allowed number of nested json objects across all fields in a single document
@@ -338,6 +339,27 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(defaultMapper, defaultMappingSource, documentMappers, reason, updateAllTypes);
     }
 
+    static void validateTypeName(String type) {
+        if (type.length() == 0) {
+            throw new InvalidTypeNameException("mapping type name is empty");
+        }
+        if (type.length() > 255) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] is too long; limit is length 255 but was [" + type.length() + "]");
+        }
+        if (type.charAt(0) == '_' && SINGLE_MAPPING_NAME.equals(type) == false) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] can't start with '_' unless it is called [" + SINGLE_MAPPING_NAME + "]");
+        }
+        if (type.contains("#")) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] should not include '#' in it");
+        }
+        if (type.contains(",")) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] should not include ',' in it");
+        }
+        if (type.charAt(0) == '.') {
+            throw new IllegalArgumentException("mapping type name [" + type + "] must not start with a '.'");
+        }
+    }
+
     private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
                                                                    List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
         boolean hasNested = this.hasNested;
@@ -361,26 +383,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (DocumentMapper mapper : documentMappers) {
             // check naming
-            if (mapper.type().length() == 0) {
-                throw new InvalidTypeNameException("mapping type name is empty");
-            }
-            if (mapper.type().length() > 255) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-            }
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-            }
-            if (mapper.type().contains("#")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-            }
-            if (mapper.type().contains(",")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-            }
+            validateTypeName(mapper.type());
             if (mapper.type().equals(mapper.parentFieldMapper().type())) {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
-            if (typeNameStartsWithIllegalDot(mapper)) {
-                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
             }
 
             // compute the merged DocumentMapper
@@ -517,10 +522,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return true;
-    }
-
-    private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        return mapper.type().startsWith(".");
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

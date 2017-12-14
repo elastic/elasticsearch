@@ -10,14 +10,14 @@ body. Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT /twitter/tweet/1?refresh
+PUT /twitter/_doc/1?refresh
 {
     "user": "kimchy"
 }
 
-GET /twitter/tweet/_count?q=user:kimchy
+GET /twitter/_doc/_count?q=user:kimchy
 
-GET /twitter/tweet/_count
+GET /twitter/_doc/_count
 {
     "query" : {
         "term" : { "user" : "kimchy" }

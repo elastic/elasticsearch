@@ -111,19 +111,19 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("doc")
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
-                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
+                equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
@@ -135,15 +135,15 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("doc")
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
-                equalTo("{\"doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
+                equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
     public void testUpdateMappingWithConflicts() {
@@ -326,7 +326,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", block);
-                assertAcked(client().admin().indices().preparePutMapping("test").setType("doc")
+                assertAcked(client().admin().indices().preparePutMapping("test").setType("_doc")
                     .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
             } finally {
                 disableIndexBlock("test", block);
@@ -336,7 +336,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", block);
-                assertBlocked(client().admin().indices().preparePutMapping("test").setType("doc")
+                assertBlocked(client().admin().indices().preparePutMapping("test").setType("_doc")
                     .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
             } finally {
                 disableIndexBlock("test", block);

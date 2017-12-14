@@ -7,7 +7,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /ip_addresses/data/_search
+GET /ip_addresses/_search
 {
     "size": 10,
     "aggs" : {
@@ -55,7 +55,7 @@ IP ranges can also be defined as CIDR masks:
 
 [source,js]
 --------------------------------------------------
-GET /ip_addresses/data/_search
+GET /ip_addresses/_search
 {
     "size": 0,
     "aggs" : {
@@ -109,7 +109,7 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
-GET /ip_addresses/data/_search
+GET /ip_addresses/_search
 {
     "size": 0,
     "aggs": {
@@ -158,7 +158,7 @@ It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
-GET /ip_addresses/data/_search
+GET /ip_addresses/_search
 {
     "size": 0,
     "aggs": {

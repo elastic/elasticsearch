@@ -39,7 +39,7 @@ as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "default_field": { <1>
           "type": "text"

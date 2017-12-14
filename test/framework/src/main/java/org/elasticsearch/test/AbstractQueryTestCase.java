@@ -190,7 +190,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             currentTypes = new String[0]; // no types
             break;
         default:
-            currentTypes = new String[] { "doc" };
+            currentTypes = new String[] { "_doc" };
             break;
         }
         randomTypes = getRandomTypes();

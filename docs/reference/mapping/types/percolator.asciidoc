@@ -18,7 +18,7 @@ If the following mapping configures the `percolator` field type for the
 PUT my_index
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "query": {
                     "type": "percolator"
@@ -38,7 +38,7 @@ Then you can index a query:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/match_value
+PUT my_index/_doc/match_value
 {
     "query" : {
         "match" : {
@@ -73,7 +73,7 @@ Lets take a look at the following index with a percolator field type:
 PUT index
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -98,7 +98,7 @@ POST _aliases
   ]
 }
 
-PUT queries/doc/1?refresh
+PUT queries/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -121,7 +121,7 @@ to read your queries you need to reindex your queries into a new index on the cu
 PUT new_index
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -205,7 +205,7 @@ now returns matches from the new index:
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -280,7 +280,7 @@ PUT /test_index
     }
   },
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type": "percolator"
@@ -341,7 +341,7 @@ All the tokens in the returned order need to replace the query text in the perco
 
 [source,js]
 --------------------------------------------------
-PUT /test_index/doc/1?refresh
+PUT /test_index/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -400,7 +400,7 @@ This results in a response like this:
     "hits": [
       {
         "_index": "test_index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

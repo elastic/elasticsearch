@@ -64,6 +64,7 @@ configurations {
       }
     }
   }
+  bundledBin
 }
 
 dependencies {
@@ -100,6 +101,9 @@ dependencies {
 
   // sql's server components and its transitive dependencies
   compile project(':x-pack-elasticsearch:sql:server')
+  bundledBin(project(':x-pack-elasticsearch:sql:cli')) {
+    transitive = false
+  }
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'
@@ -176,6 +180,12 @@ bundlePlugin {
   // We don't ship the individual nativeBundle licenses - instead
   // they get combined into the top level NOTICES file we ship
   exclude 'platform/licenses/**'
+
+  // Include the SQL CLI jar in the bundled plugin
+  dependsOn configurations.bundledBin
+  from(configurations.bundledBin) {
+    into 'bin'
+  }
 }
 
 // add api jar for extension authors to compile against

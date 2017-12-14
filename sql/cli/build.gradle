@@ -34,6 +34,7 @@ forbiddenApisMain {
 }
 
 jar {
+  archivesBaseName = 'sql-cli'
   // Bundle all dependencies into the jar.
   from {
     configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }

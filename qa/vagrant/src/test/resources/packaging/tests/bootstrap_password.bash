@@ -118,6 +118,33 @@ SETUP_OK
         curl -H "Authorization: Basic $basic" -XGET 'http://127.0.0.1:9200' | grep "You Know, for Search"
     done
     set -H
+}
 
+@test "[$GROUP] test sql-cli" {
+    password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
+    curl -s -u "elastic:$password" -H "Content-Type: application/json" -XPUT 'localhost:9200/library/book/1?refresh&pretty' -d'{
+            "name": "Ender'"'"'s Game",
+            "author": "Orson Scott Card",
+            "release_date": "1985-06-01",
+            "page_count": 324
+        }'
+
+    password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
+
+    run $ESHOME/bin/x-pack/sql-cli --debug true "http://elastic@127.0.0.1:9200" <<SQL
+$password
+SELECT * FROM library;
+SQL
+    [ "$status" -eq 0 ] || {
+        echo "SQL cli failed:\n$output"
+        false
+    }
+    [[ "$output" == *"Card"* ]] || {
+        echo "Failed to find author [Card] in library:$output"
+        false
+    }
+}
+
+@test "[$GROUP] stop Elasticsearch" {
     stop_elasticsearch_service
 }

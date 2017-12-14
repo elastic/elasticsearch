@@ -422,6 +422,9 @@ final class StoreRecovery {
      * which are not referenced by this commit to prevent potential problems.
      */
     private void cleanUnsafeCommits(IndexShard indexShard) throws IOException {
+        assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE
+            : "Only call clean unsafe commits when recovering from existing store; recoveryType [" +
+            indexShard.recoveryState().getRecoverySource().getType() + "]";
         final Store store = indexShard.store();
         final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
         int startingIndex = commits.size() - 1;

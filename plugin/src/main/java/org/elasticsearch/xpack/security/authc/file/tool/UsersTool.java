@@ -7,17 +7,17 @@ package org.elasticsearch.xpack.security.authc.file.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
@@ -75,7 +75,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         return new ListCommand();
     }
 
-    static class AddUserCommand extends EnvironmentAwareCommand {
+    static class AddUserCommand extends XPackConfigurationAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> rolesOption;
@@ -83,6 +83,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
         AddUserCommand() {
             super("Adds a native user");
+
             this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
                 "The user password")
                 .withRequiredArg();
@@ -104,7 +105,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
@@ -138,7 +139,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class DeleteUserCommand extends EnvironmentAwareCommand {
+    static class DeleteUserCommand extends XPackConfigurationAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -159,7 +160,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
             String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
             Path rolesFile = FileUserRolesStore.resolveFile(env);
@@ -188,7 +190,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class PasswordCommand extends EnvironmentAwareCommand {
+    static class PasswordCommand extends XPackConfigurationAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> arguments;
@@ -213,7 +215,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
             String username = parseUsername(arguments.values(options), env.settings());
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
@@ -230,7 +233,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class RolesCommand extends EnvironmentAwareCommand {
+    static class RolesCommand extends XPackConfigurationAwareCommand {
 
         private final OptionSpec<String> addOption;
         private final OptionSpec<String> removeOption;
@@ -256,7 +259,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
             String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
             String[] removeRoles = parseRoles(terminal, env, removeOption.value(options));
@@ -299,7 +303,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class ListCommand extends EnvironmentAwareCommand {
+    static class ListCommand extends XPackConfigurationAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -315,7 +319,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
             String username = null;
             if (options.has(arguments)) {
                 username = arguments.value(options);
@@ -474,5 +479,36 @@ public class UsersTool extends LoggingAwareMultiCommand {
         verifyRoles(terminal, env, roles);
 
         return roles;
+    }
+
+    private abstract static class XPackConfigurationAwareCommand extends EnvironmentAwareCommand {
+
+        XPackConfigurationAwareCommand(final String description) {
+            super(description);
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            checkConfigurationDir(env);
+            executeCommand(terminal, options, env);
+        }
+
+        /**
+         * Ensure the X-Pack configuration directory exists as a child of $ES_CONF_DIR or return a helpful error message.
+         */
+        private void checkConfigurationDir(Environment env) throws Exception {
+            Path configDir = env.configFile().resolve(XPackPlugin.NAME);
+            if (Files.exists(configDir) == false) {
+                throw new UserException(ExitCodes.CONFIG, String.format(Locale.ROOT,
+                        "Directory %s does not exist. Please ensure " +
+                                "that %s is the configuration directory for Elasticsearch and create directory %s/x-pack manually",
+                        configDir.toString(),
+                        configDir.getParent().toString(),
+                        configDir.toString()));
+            }
+        }
+
+        protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
+
     }
 }

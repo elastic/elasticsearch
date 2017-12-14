@@ -358,7 +358,7 @@ final class StoreRecovery {
                 store.failIfCorrupted();
                 try {
                     if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
-                        cleanUnsafeCommits(indexShard);
+                        prepareStartingCommitPoint(indexShard);
                     }
                     si = store.readLastCommittedSegmentsInfo();
                 } catch (Exception e) {
@@ -421,7 +421,7 @@ final class StoreRecovery {
      * we may be able to throw away stale operations. Once the starting commit is determined, we delete other files
      * which are not referenced by this commit to prevent potential problems.
      */
-    private void cleanUnsafeCommits(IndexShard indexShard) throws IOException {
+    private void prepareStartingCommitPoint(IndexShard indexShard) throws IOException {
         assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE
             : "Only call clean unsafe commits when recovering from existing store; recoveryType [" +
             indexShard.recoveryState().getRecoverySource().getType() + "]";

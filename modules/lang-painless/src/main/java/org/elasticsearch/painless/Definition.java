@@ -384,6 +384,31 @@ public final class Definition {
     }
 
     public static class Cast {
+        /** Create a standard cast with no boxing/unboxing. */
+        public static Cast standard(Type from, Type to, boolean explicit) {
+            return new Cast(from, to, explicit, null, null, null, null);
+        }
+
+        /** Create a cast where the from type will be unboxed, and then the cast will be performed. */
+        public static Cast unboxFrom(Type from, Type to, boolean explicit, Type unboxFrom) {
+            return new Cast(from, to, explicit, unboxFrom, null, null, null);
+        }
+
+        /** Create a cast where the to type will be unboxed, and then the cast will be performed. */
+        public static Cast unboxTo(Type from, Type to, boolean explicit, Type unboxTo) {
+            return new Cast(from, to, explicit, null, unboxTo, null, null);
+        }
+
+        /** Create a cast where the from type will be boxed, and then the cast will be performed. */
+        public static Cast boxFrom(Type from, Type to, boolean explicit, Type boxFrom) {
+            return new Cast(from, to, explicit, null, null, boxFrom, null);
+        }
+
+        /** Create a cast where the to type will be boxed, and then the cast will be performed. */
+        public static Cast boxTo(Type from, Type to, boolean explicit, Type boxTo) {
+            return new Cast(from, to, explicit, null, null, null, boxTo);
+        }
+
         public final Type from;
         public final Type to;
         public final boolean explicit;
@@ -392,18 +417,7 @@ public final class Definition {
         public final Type boxFrom;
         public final Type boxTo;
 
-        public Cast(final Type from, final Type to, final boolean explicit) {
-            this.from = from;
-            this.to = to;
-            this.explicit = explicit;
-            this.unboxFrom = null;
-            this.unboxTo = null;
-            this.boxFrom = null;
-            this.boxTo = null;
-        }
-
-        public Cast(final Type from, final Type to, final boolean explicit,
-                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
+        private Cast(Type from, Type to, boolean explicit, Type unboxFrom, Type unboxTo, Type boxFrom, Type boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
@@ -412,7 +426,6 @@ public final class Definition {
             this.boxFrom = boxFrom;
             this.boxTo = boxTo;
         }
-
     }
 
     public static final class RuntimeClass {

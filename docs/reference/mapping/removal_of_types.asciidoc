@@ -164,7 +164,7 @@ You could achieve the same thing by adding a custom `type` field as follows:
 PUT twitter
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "type": { "type": "keyword" }, <1>
         "name": { "type": "text" },
@@ -246,7 +246,7 @@ Elasticsearch 6.x::
 * Indices created in 6.x only allow a single-type per index.  Any name
   can be used for the type, but there can be only one. The preferred type name
   is `_doc`, so that index APIs have the same path as they will have in 7.0:
-  `PUT index/_doc/id` and `POST index/_doc`
+  `PUT {index}/_doc/{id}` and `POST {index}/_doc`
 
 * The `_type` name can no longer be combined with the `_id` to form the `_uid`
   field. The `_uid` field has become an alias for the `_id` field.
@@ -260,7 +260,7 @@ Elasticsearch 7.x::
 
 * The `type` parameter in URLs are optional.  For instance, indexing
   a document no longer requires a document `type`.  The new index APIs
-  are `PUT index/_doc/id` in case of explicit ids and `POST index/_doc`
+  are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
   for auto-generated ids.
 
 * The `GET|PUT _mapping` APIs support a query string parameter

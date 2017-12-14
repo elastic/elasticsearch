@@ -8,7 +8,7 @@ by disabling allocation before shutting down the node:
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "persistent": {
+  "transient": {
     "cluster.routing.allocation.enable": "none"
   }
 }

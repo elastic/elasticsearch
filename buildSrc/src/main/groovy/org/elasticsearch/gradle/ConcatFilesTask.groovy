@@ -34,12 +34,12 @@ public class ConcatFilesTask extends DefaultTask {
 
     /** List of files to concatenate */
     @InputFiles
-    public FileTree files
+    FileTree files
 
     /** line to add at the top of the target file */
     @Input
     @Optional
-    public String headerLine
+    String headerLine
 
     @OutputFile
     File target

@@ -164,7 +164,7 @@ configure(distributions) {
       from project(':core').jar
       from project(':core').configurations.runtime
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':distribution:tools:java-version-checker').jar }
+      from { project(':distribution:tools:launchers').jar }
       from { project(':distribution:tools:plugin-cli').jar }
     }
 
@@ -538,8 +538,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
     ],
     'source.path.env': [
-       'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
-       'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
+       'deb': 'source /etc/default/elasticsearch',
+       'rpm': 'source /etc/sysconfig/elasticsearch',
        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
     ],
     'path.logs': [

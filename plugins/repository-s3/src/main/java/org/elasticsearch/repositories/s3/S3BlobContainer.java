@@ -73,14 +73,9 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return SocketAccess.doPrivileged(() -> {
-                blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
-                return true;
-            });
-        } catch (AmazonS3Exception e) {
-            return false;
+            return SocketAccess.doPrivileged(() -> blobStore.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
         } catch (Exception e) {
-            throw new BlobStoreException("failed to check if blob exists", e);
+            throw new BlobStoreException("Failed to check if blob [" + blobName +"] exists", e);
         }
     }
 
@@ -102,7 +97,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
+            throw new FileAlreadyExistsException("Blob [" + blobName + "] already exists, cannot overwrite");
         }
 
         SocketAccess.doPrivilegedIOException(() -> {
@@ -117,7 +112,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
+        if (blobExists(blobName) == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
 

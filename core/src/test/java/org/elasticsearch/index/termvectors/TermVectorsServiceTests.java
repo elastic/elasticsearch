@@ -80,7 +80,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
     public void testDocFreqs() throws IOException {
         XContentBuilder mapping = jsonBuilder()
             .startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "text")
@@ -92,18 +92,18 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
                 .put("number_of_shards", 1)
                 .build();
-        createIndex("test", settings, "doc", mapping);
+        createIndex("test", settings, "_doc", mapping);
         ensureGreen();
 
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(client().prepareIndex("test", "doc", Integer.toString(i))
+            bulk.add(client().prepareIndex("test", "_doc", Integer.toString(i))
                     .setSource("text", "the quick brown fox jumped over the lazy dog"));
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));

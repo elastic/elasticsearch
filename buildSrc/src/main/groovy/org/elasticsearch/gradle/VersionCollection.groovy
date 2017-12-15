@@ -29,6 +29,7 @@ import java.util.regex.Matcher
 class VersionCollection {
 
     private final List<Version> versions
+    private final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
 
     /**
      * Construct a VersionCollection from the lines of the Version.java file.
@@ -63,7 +64,10 @@ class VersionCollection {
             throw new GradleException("Unexpectedly found no version constants in Versions.java");
         }
 
-        // The tip of each minor series (>= 5.6) is unreleased, so set their 'snapshot' flags
+        /*
+         * The tip of each minor series (>= 5.6) is unreleased, so they must be built from source (we set branch to non-null), and we set
+         * the snapshot flag if and only if build.snapshot is true.
+         */
         Version prevConsideredVersion = null
         boolean found6xSnapshot = false
         for (final int versionIndex = versions.size() - 1; versionIndex >= 0; versionIndex--) {
@@ -85,7 +89,7 @@ class VersionCollection {
 
                 versions[versionIndex] = new Version(
                         currConsideredVersion.major, currConsideredVersion.minor,
-                        currConsideredVersion.revision, currConsideredVersion.suffix, true, branch)
+                        currConsideredVersion.revision, currConsideredVersion.suffix, buildSnapshot, branch)
             }
 
             if (currConsideredVersion.onOrBefore("5.6.0")) {
@@ -93,12 +97,6 @@ class VersionCollection {
             }
 
             prevConsideredVersion = currConsideredVersion
-        }
-
-        // If we're making a release build then the current should not be a snapshot after all.
-        final boolean currentIsSnapshot = "true" == System.getProperty("build.snapshot", "true")
-        if (false == currentIsSnapshot) {
-            versions[-1] = new Version(versions[-1].major, versions[-1].minor, versions[-1].revision, versions[-1].suffix, false, null)
         }
 
         this.versions = Collections.unmodifiableList(versions)
@@ -137,7 +135,7 @@ class VersionCollection {
     private Version getLastSnapshotWithMajor(int targetMajor) {
         final String currentVersion = currentVersion.toString()
         final int snapshotIndex = versions.findLastIndexOf {
-            it.major == targetMajor && it.before(currentVersion) && it.snapshot
+            it.major == targetMajor && it.before(currentVersion) && it.snapshot == buildSnapshot
         }
         return snapshotIndex == -1 ? null : versions[snapshotIndex]
     }

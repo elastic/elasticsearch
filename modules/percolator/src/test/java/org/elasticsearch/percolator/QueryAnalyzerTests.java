@@ -594,13 +594,18 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testExtractQueryMetadata_matchAllDocsQuery() {
-        expectThrows(UnsupportedQueryException.class, () -> analyze(new MatchAllDocsQuery(), Version.CURRENT));
+        Result result = analyze(new MatchAllDocsQuery(), Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        Result result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(false));
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "value"));
 
@@ -609,34 +614,78 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         BooleanQuery bq1 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> analyze(bq1, Version.CURRENT));
+        result = analyze(bq1, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> analyze(bq2, Version.CURRENT));
+        result = analyze(bq2, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq3 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> analyze(bq3, Version.CURRENT));
+        result = analyze(bq3, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq4 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> analyze(bq4, Version.CURRENT));
+        result = analyze(bq4, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq5 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> analyze(bq5, Version.CURRENT));
+        result = analyze(bq5, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
+
+        builder = new BooleanQuery.Builder();
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
+        builder.setMinimumNumberShouldMatch(2);
+        BooleanQuery bq6 = builder.build();
+        result = analyze(bq6, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "value"));
+
+        builder = new BooleanQuery.Builder();
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
+        builder.setMinimumNumberShouldMatch(2);
+        BooleanQuery bq7 = builder.build();
+        result = analyze(bq7, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {

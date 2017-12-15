@@ -1051,8 +1051,9 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public void testAcquireIndexCommit() throws IOException {
-        final IndexShard shard = newStartedShard();
+    public void testAcquireIndexCommit() throws Exception {
+        boolean isPrimary = randomBoolean();
+        final IndexShard shard = newStartedShard(isPrimary);
         int numDocs = randomInt(20);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "type", "id_" + i);
@@ -1069,6 +1070,14 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
         }
         commit.close();
+        // Make the global checkpoint in sync with the local checkpoint.
+        if (isPrimary) {
+            final String allocationId = shard.shardRouting.allocationId().getId();
+            shard.updateLocalCheckpointForShard(allocationId, numDocs + moreDocs - 1);
+            shard.updateGlobalCheckpointForShard(allocationId, shard.getLocalCheckpoint());
+        } else {
+            shard.updateGlobalCheckpointOnReplica(numDocs + moreDocs - 1, "test");
+        }
         flushShard(shard, true);
 
         // check it's clean up
@@ -2853,6 +2862,10 @@ public class IndexShardTests extends IndexShardTestCase {
         for (Thread t : threads) {
             t.join();
         }
+
+        // We need to wait for all ongoing merges to complete. The reason is that during a merge the
+        // IndexWriter holds the core cache key open and causes the memory to be registered in the breaker
+        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
 
         // Close remaining searchers
         IOUtils.close(searchers);

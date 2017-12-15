@@ -10,7 +10,7 @@ stored by default and is not searchable:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "name": {
           "type": "text"
@@ -23,7 +23,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "name": "Some binary blob",
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>

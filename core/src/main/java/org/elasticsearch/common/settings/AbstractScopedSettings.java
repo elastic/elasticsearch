@@ -264,17 +264,41 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Validates that all given settings are registered and valid
-     * @param settings the settings to validate
-     * @param validateDependencies if <code>true</code> settings dependencies are validated as well.
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings             the settings to validate
+     * @param validateDependencies true if dependent settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(Settings settings, boolean validateDependencies) {
-        List<RuntimeException> exceptions = new ArrayList<>();
-        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
+    public final void validate(final Settings settings, final boolean validateDependencies) {
+        validate(settings, validateDependencies, false, false);
+    }
+
+    /**
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings               the settings
+     * @param validateDependencies   true if dependent settings should be validated
+     * @param ignorePrivateSettings  true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings true if archived settings should be ignored during validation
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(
+            final Settings settings,
+            final boolean validateDependencies,
+            final boolean ignorePrivateSettings,
+            final boolean ignoreArchivedSettings) {
+        final List<RuntimeException> exceptions = new ArrayList<>();
+        for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
+            if (isPrivateSetting(key) && ignorePrivateSettings) {
+                continue;
+            }
+            if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) && ignoreArchivedSettings) {
+                continue;
+            }
             try {
                 validate(key, settings, validateDependencies);
-            } catch (RuntimeException ex) {
+            } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
         }

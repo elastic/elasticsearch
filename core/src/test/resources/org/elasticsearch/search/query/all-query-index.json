@@ -6,7 +6,7 @@
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "f1": {"type": "text"},
         "f2": {"type": "keyword"},

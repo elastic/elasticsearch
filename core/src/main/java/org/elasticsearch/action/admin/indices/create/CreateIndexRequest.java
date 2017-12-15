@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -65,7 +67,11 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
+
+    private static final ParseField MAPPINGS = new ParseField("mappings");
+    private static final ParseField SETTINGS = new ParseField("settings");
+    private static final ParseField ALIASES = new ParseField("aliases");
 
     private String cause = "";
 
@@ -376,14 +382,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest source(Map<String, ?> source) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("settings")) {
+            if (SETTINGS.match(name)) {
                 settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("mappings")) {
+            } else if (MAPPINGS.match(name)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
-            } else if (name.equals("aliases")) {
+            } else if (ALIASES.match(name)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
@@ -519,5 +525,33 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeBoolean(updateAllTypes);
         waitForActiveShards.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        builder.startObject(SETTINGS.getPreferredName());
+        settings.toXContent(builder, params);
+        builder.endObject();
+
+        builder.startObject(MAPPINGS.getPreferredName());
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
+        }
+        builder.endObject();
+
+        builder.startObject(ALIASES.getPreferredName());
+        for (Alias alias : aliases) {
+            alias.toXContent(builder, params);
+        }
+        builder.endObject();
+
+        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue(), params);
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

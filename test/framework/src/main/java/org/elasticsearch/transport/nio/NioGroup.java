@@ -94,7 +94,7 @@ public class NioGroup implements AutoCloseable {
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
         throws IOException {
         ensureOpen();
-        if (acceptors.size() == 0) {
+        if (acceptors.isEmpty()) {
             throw new IllegalArgumentException("There are no acceptors configured. Without acceptors, server channels are not supported.");
         }
         return factory.openNioServerSocketChannel(address, acceptorSupplier.get());

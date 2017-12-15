@@ -20,13 +20,13 @@
 package org.elasticsearch.nio;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.nio.utils.FutureUtils;
-import org.elasticsearch.nio.utils.IOUtils;
+import org.elasticsearch.nio.utils.ExceptionsHelper;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -45,7 +45,7 @@ import java.util.stream.Stream;
  * The logic specific to a particular channel is provided by the {@link ChannelFactory} passed to the method
  * when the channel is created. This is what allows an NioGroup to support different channel types.
  */
-public class NioGroup implements Closeable {
+public class NioGroup implements AutoCloseable {
 
 
     private final ArrayList<AcceptingSelector> acceptors;
@@ -107,7 +107,16 @@ public class NioGroup implements Closeable {
     @Override
     public void close() throws IOException {
         if (isOpen.compareAndSet(true, false)) {
-            IOUtils.close(Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList()));
+            List<ESSelector> toClose = Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList());
+            List<IOException> closingExceptions = new ArrayList<>();
+            for (ESSelector selector : toClose) {
+                try {
+                    selector.close();
+                } catch (IOException e) {
+                    closingExceptions.add(e);
+                }
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }
 
@@ -115,7 +124,18 @@ public class NioGroup implements Closeable {
         for (ESSelector acceptor : selectors) {
             if (acceptor.isRunning() == false) {
                 threadFactory.newThread(acceptor::runLoop).start();
-                FutureUtils.get(acceptor.isRunningFuture());
+                try {
+                    acceptor.isRunningFuture().get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while waiting for selector to start.", e);
+                } catch (ExecutionException e) {
+                    if (e.getCause() instanceof RuntimeException) {
+                        throw (RuntimeException) e.getCause();
+                    } else {
+                        throw new RuntimeException("Exception during selector start.", e);
+                    }
+                }
             }
         }
     }

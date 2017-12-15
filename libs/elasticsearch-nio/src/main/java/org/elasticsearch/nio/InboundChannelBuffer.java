@@ -19,12 +19,13 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.nio.utils.IOUtils;
+import org.elasticsearch.nio.utils.ExceptionsHelper;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -61,7 +62,16 @@ public final class InboundChannelBuffer implements AutoCloseable {
     @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
-            IOUtils.closeUnchecked(pages);
+            Page page;
+            List<RuntimeException> closingExceptions = new ArrayList<>();
+            while ((page = pages.pollFirst()) != null) {
+                try {
+                    page.close();
+                } catch (RuntimeException e) {
+                    closingExceptions.add(e);
+                }
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }
 
@@ -214,7 +224,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return (int) (index & PAGE_MASK);
     }
 
-    public static class Page implements Closeable {
+    public static class Page implements AutoCloseable {
 
         private final ByteBuffer byteBuffer;
         private final Runnable closeable;

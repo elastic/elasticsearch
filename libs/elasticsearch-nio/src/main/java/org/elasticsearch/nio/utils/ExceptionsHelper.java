@@ -19,37 +19,31 @@
 
 package org.elasticsearch.nio.utils;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.List;
 
-public class IOUtils {
+public class ExceptionsHelper {
 
-    public static void close(Iterable<? extends Closeable> objects) throws IOException {
-        IOException closingException = null;
-        for (Closeable object : objects) {
-            try {
-                object.close();
-            } catch (IOException e) {
-                if (closingException == null) {
-                    closingException = e;
-                } else {
-                    closingException.addSuppressed(e);
-                }
-            }
+    /**
+     * Rethrows the first exception in the list and adds all remaining to the suppressed list.
+     * If the given list is empty no exception is thrown
+     *
+     */
+    public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
+        T main = null;
+        for (T ex : exceptions) {
+            main = useOrSuppress(main, ex);
         }
-
-        if (closingException != null) {
-            throw closingException;
+        if (main != null) {
+            throw main;
         }
     }
 
-    public static void closeUnchecked(Iterable<? extends Closeable> objects) {
-        try {
-            close(objects);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    private static <T extends Throwable> T useOrSuppress(T first, T second) {
+        if (first == null) {
+            return second;
+        } else {
+            first.addSuppressed(second);
         }
+        return first;
     }
-
 }

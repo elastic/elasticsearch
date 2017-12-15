@@ -87,6 +87,13 @@ For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 //<<privileges-list-cluster>>.
 
+
+==== Security Integration
+
+When {security} is enabled, your {dfeed} will remember which roles the user who
+created it had at the time of creation, and run the query using those same roles.
+
+
 ==== Examples
 
 The following example creates the `datafeed-total-requests` {dfeed}:

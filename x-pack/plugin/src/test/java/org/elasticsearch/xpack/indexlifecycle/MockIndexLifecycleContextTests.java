@@ -61,6 +61,21 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         assertEquals(phase, context.getPhase());
     }
 
+    public void testGetReplicas() {
+        int replicas = randomIntBetween(1, 10);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20),
+                randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20), replicas) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
+            }
+        };
+
+        assertEquals(replicas, context.getNumberOfReplicas());
+    }
+
     public void testSetAction() {
         String targetName = randomAlphaOfLengthBetween(1, 20);
         String phase = randomAlphaOfLengthBetween(1, 20);
@@ -160,5 +175,76 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         assertTrue(action.wasCompleted());
         assertEquals(1L, action.getExecutedCount());
         assertEquals(true, listenerCalled.get());
+    }
+
+    public void testFailOnPhaseSetter() {
+
+        String phase = randomAlphaOfLengthBetween(1, 20);
+        String action = randomAlphaOfLengthBetween(1, 20);
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20),
+                phase, action, randomIntBetween(0, 10)) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
+            }
+        };
+        RuntimeException exception = new RuntimeException();
+        context.failOnSetters(exception);
+
+        SetOnce<Exception> listenerCalled = new SetOnce<>();
+
+        context.setPhase(randomAlphaOfLengthBetween(1, 20), new Listener() {
+
+            @Override
+            public void onSuccess() {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listenerCalled.set(e);
+            }
+        });
+
+        assertSame(exception, listenerCalled.get());
+        assertEquals(phase, context.getPhase());
+        assertEquals(action, context.getAction());
+    }
+
+    public void testFailOnActionSetter() {
+
+        String phase = randomAlphaOfLengthBetween(1, 20);
+        String action = randomAlphaOfLengthBetween(1, 20);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(randomAlphaOfLengthBetween(1, 20),
+                phase, action, randomIntBetween(0, 10)) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
+            }
+        };
+        RuntimeException exception = new RuntimeException();
+        context.failOnSetters(exception);
+
+        SetOnce<Exception> listenerCalled = new SetOnce<>();
+
+        context.setAction(randomAlphaOfLengthBetween(1, 20), new Listener() {
+
+            @Override
+            public void onSuccess() {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listenerCalled.set(e);
+            }
+        });
+
+        assertSame(exception, listenerCalled.get());
+        assertEquals(phase, context.getPhase());
+        assertEquals(action, context.getAction());
     }
 }

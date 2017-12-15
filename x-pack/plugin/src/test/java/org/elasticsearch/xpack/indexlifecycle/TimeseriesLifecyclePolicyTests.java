@@ -44,6 +44,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
+    private static final List<String> VALID_PHASE_NAMES = Arrays.asList();
 
     @Before
     public void setup() {
@@ -63,7 +64,33 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     @Override
     protected LifecyclePolicy createTestInstance() {
-        return new TimeseriesLifecyclePolicy(lifecycleName, Collections.emptyMap());
+        Map<String, Phase> phases = TimeseriesLifecyclePolicy.VALID_PHASES.stream()
+                .map(phaseName -> new Phase(phaseName,
+                        TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after"), Collections.emptyMap()))
+                .collect(Collectors.toMap(Phase::getName, Function.identity()));
+        return new TimeseriesLifecyclePolicy(lifecycleName, phases);
+    }
+
+    @Override
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+        String name = instance.getName();
+        Map<String, Phase> phases = instance.getPhases();
+        switch (between(0, 1)) {
+        case 0:
+            name = name + randomAlphaOfLengthBetween(1, 5);
+            break;
+        case 1:
+            phases = randomValueOtherThan(phases,
+                    () -> TimeseriesLifecyclePolicy.VALID_PHASES.stream()
+                            .map(phaseName -> new Phase(phaseName,
+                                    TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after"),
+                                    Collections.emptyMap()))
+                            .collect(Collectors.toMap(Phase::getName, Function.identity())));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TimeseriesLifecyclePolicy(name, phases);
     }
 
     @Override
@@ -229,13 +256,21 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0){};
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(hotPhase, phase);
+                return true;
+            }
+        };
         TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("hot", hotPhase));
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, hotPhase);
         assertThat(provider.next(null), equalTo(TEST_ROLLOVER_ACTION));
         assertNull(provider.next(TEST_ROLLOVER_ACTION));
     }
 
+    @AwaitsFix(bugUrl = "This gets into an infinite loop if there are other actions as well as the replicas action")
     public void testWarmActionProviderReplicasActionSortOrder() {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
@@ -243,17 +278,36 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1){};
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(warmPhase, phase);
+                return true;
+            }
+        };
         TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("warm", warmPhase));
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, warmPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1){};
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(warmPhase, phase);
+                return true;
+            }
+        };
         provider = policy.getActionProvider(context, warmPhase);
         if (actions.size() > 1) {
             LifecycleAction current = provider.next(null);
             assertThat(current, not(equalTo(TEST_REPLICAS_ACTION)));
             while (true) {
+                // NOCOMMIT This loop never exits as there is no break condition
+                // also provider.next(current) never evaluates to null because
+                // when called with the replicas action it always returns a
+                // non-null action. We should avoid using while true here
+                // because it means if there is a bug we will hang the build
                 if (provider.next(current) == null) {
                     assertThat(current, equalTo(TEST_REPLICAS_ACTION));
                 } else {
@@ -272,12 +326,26 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1){};
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(coldPhase, phase);
+                return true;
+            }
+        };
         TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("cold", coldPhase));
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, coldPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1){};
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(coldPhase, phase);
+                return true;
+            }
+        };
         provider = policy.getActionProvider(context, coldPhase);
         if (actions.size() > 1) {
             LifecycleAction current = provider.next(null);
@@ -294,7 +362,14 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase deletePhase = new Phase("delete", TimeValue.ZERO, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0){};
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(deletePhase, phase);
+                return true;
+            }
+        };
         TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("delete", deletePhase));
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, deletePhase);
         assertThat(provider.next(null), equalTo(TEST_DELETE_ACTION));

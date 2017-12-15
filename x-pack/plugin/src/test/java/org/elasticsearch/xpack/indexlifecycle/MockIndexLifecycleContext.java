@@ -66,9 +66,7 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     }
 
     @Override
-    public boolean canExecute(Phase phase) {
-        return true;
-    }
+    public abstract boolean canExecute(Phase phase);
 
     @Override
     public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {

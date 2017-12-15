@@ -65,8 +65,9 @@ public class CliSession {
             throw new ClientException(ex);
         }
         // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
-        if (response.majorVersion != Version.versionMajor() || response.minorVersion != Version.versionMinor()) {
-            throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " + Version.version());
+        if (response.majorVersion != Version.CURRENT.major || response.minorVersion != Version.CURRENT.minor) {
+            throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " +
+                    Version.CURRENT.toString());
         }
     }
 }

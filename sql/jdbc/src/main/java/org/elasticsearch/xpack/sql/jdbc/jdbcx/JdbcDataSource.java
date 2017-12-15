@@ -25,7 +25,7 @@ import javax.sql.DataSource;
 public class JdbcDataSource implements DataSource, Wrapper {
 
     static {
-        Version.version();
+        Version.CURRENT.toString();
     }
 
     private String url;

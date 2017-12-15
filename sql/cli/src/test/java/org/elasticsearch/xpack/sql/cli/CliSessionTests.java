@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
-import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.sql.SQLException;
 
@@ -24,7 +24,7 @@ public class CliSessionTests extends ESTestCase {
     public void testProperConnection() throws Exception {
         CliHttpClient cliHttpClient = mock(CliHttpClient.class);
         when(cliHttpClient.serverInfo()).thenReturn(new InfoResponse(randomAlphaOfLength(5), randomAlphaOfLength(5),
-                (byte) Version.versionMajor(), (byte) Version.versionMinor(),
+                Version.CURRENT.major, Version.CURRENT.minor,
                 randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5)));
         CliSession cliSession = new CliSession(cliHttpClient);
         cliSession.checkConnection();
@@ -46,11 +46,11 @@ public class CliSessionTests extends ESTestCase {
         byte minor;
         byte major;
         if (randomBoolean()) {
-            minor = (byte) Version.versionMinor();
-            major = (byte) (Version.versionMajor() + 1);
+            minor = Version.CURRENT.minor;
+            major = (byte) (Version.CURRENT.major + 1);
         } else {
-            minor = (byte) (Version.versionMinor() + 1);
-            major = (byte) Version.versionMajor();
+            minor = (byte) (Version.CURRENT.minor + 1);
+            major = Version.CURRENT.major;
 
         }
         when(cliHttpClient.serverInfo()).thenReturn(new InfoResponse(randomAlphaOfLength(5), randomAlphaOfLength(5),

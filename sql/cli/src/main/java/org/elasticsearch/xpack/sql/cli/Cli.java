@@ -26,9 +26,6 @@ import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.io.IOException;
 import java.net.ConnectException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
@@ -140,7 +137,7 @@ public class Cli extends Command {
                 // Most likely we connected to an old version of Elasticsearch or not Elasticsearch at all
                 throw new UserException(ExitCodes.DATA_ERROR,
                         "Cannot communicate with the server " + con.connectionString() +
-                                ". This version of CLI only works with Elasticsearch version " + Version.version());
+                                ". This version of CLI only works with Elasticsearch version " + Version.CURRENT.toString());
             }
         }
 

@@ -15,31 +15,46 @@ import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
-public abstract class Version {
-    private static final String VER;
-    private static final String SHORT_HASH;
+public class Version {
 
-    private static final int VER_MAJ, VER_MIN, VER_REV;
+    public static final Version CURRENT;
+    public final String version;
+    public final String hash;
+    public final byte major;
+    public final byte minor;
+    public final byte revision;
 
-    static int[] from(String ver) {
+    private Version(String version, String hash, byte... parts) {
+        this.version = version;
+        this.hash = hash;
+        this.major = parts[0];
+        this.minor = parts[1];
+        this.revision = parts[2];
+    }
+
+    public static Version fromString(String version) {
+        return new Version(version, "Unknown", from(version));
+    }
+
+    static byte[] from(String ver) {
         String[] parts = ver.split("[.-]");
         if (parts.length == 3 || parts.length == 4) {
-            return new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]) };
+            return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
         }
         else {
-            throw new Error("Detected Elasticsearch SQL jar but found invalid version " + ver);
+            throw new IllegalArgumentException("Invalid version " + ver);
         }
     }
 
     static {
         // check classpath
         String target = Version.class.getName().replace(".", "/").concat(".class");
-        Enumeration<URL> res = null;
+        Enumeration<URL> res;
 
         try {
             res = Version.class.getClassLoader().getResources(target);
         } catch (IOException ex) {
-            throw new Error("Cannot detect Elasticsearch SQL jar; it typically indicates a deployment issue...");
+            throw new IllegalArgumentException("Cannot detect Elasticsearch SQL jar; it typically indicates a deployment issue...");
         }
 
         if (res != null) {
@@ -62,7 +77,7 @@ public abstract class Version {
                     }
                 }
                 if (foundJars > 1) {
-                    throw new Error(sb.toString());
+                    throw new IllegalArgumentException(sb.toString());
                 }
             }
         }
@@ -72,7 +87,7 @@ public abstract class Version {
         URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
         String urlStr = url.toString();
 
-        int maj = 0, min = 0, rev = 0;
+        byte maj = 0, min = 0, rev = 0;
         String ver = "Unknown";
         String hash = ver;
 
@@ -81,43 +96,20 @@ public abstract class Version {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
                 ver = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-                int[] vers = from(ver);
+                byte[] vers = from(ver);
                 maj = vers[0];
                 min = vers[1];
                 rev = vers[2];
             } catch (Exception ex) {
-                throw new Error("Detected Elasticsearch SQL jar but cannot retrieve its version", ex);
+                throw new IllegalArgumentException("Detected Elasticsearch SQL jar but cannot retrieve its version", ex);
             }
         }
-        VER_MAJ = maj;
-        VER_MIN = min;
-        VER_REV = rev;
-        VER = ver;
-        SHORT_HASH = hash;
+        CURRENT = new Version(ver, hash, maj, min, rev);
     }
 
-    public static int versionMajor() {
-        return VER_MAJ;
-    }
-
-    public static int versionMinor() {
-        return VER_MIN;
-    }
-
-    public static int versionRevision() {
-        return VER_REV;
-    }
-
-    public static String version() {
-        return "v" + versionNumber() + " [" + versionHash() + "]";
-    }
-
-    public static String versionNumber() {
-        return VER;
-    }
-
-    public static String versionHash() {
-        return SHORT_HASH;
+    @Override
+    public String toString() {
+        return "v" + version + " [" + hash + "]";
     }
 
     public static int jdbcMajorVersion() {

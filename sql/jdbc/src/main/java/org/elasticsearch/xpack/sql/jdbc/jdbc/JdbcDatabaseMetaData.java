@@ -90,7 +90,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return Version.version();
+        return Version.CURRENT.toString();
     }
 
     @Override
@@ -100,17 +100,17 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return Version.versionMajor() + "." + Version.versionMinor();
+        return Version.CURRENT.major + "." + Version.CURRENT.minor;
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return Version.versionMajor();
+        return Version.CURRENT.major;
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return Version.versionMinor();
+        return Version.CURRENT.minor;
     }
 
     @Override

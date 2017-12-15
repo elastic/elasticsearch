@@ -62,7 +62,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         // typically this should have already happened but in case the
         // JdbcDriver/JdbcDataSource are not used and the impl. classes used directly
         // this covers that case
-        Version.version();
+        Version.CURRENT.toString();
     }
 
     // immutable properties

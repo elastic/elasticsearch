@@ -25,7 +25,7 @@ public class JdbcDriver implements java.sql.Driver {
 
     static {
         // invoke Version to perform classpath/jar sanity checks
-        Version.version();
+        Version.CURRENT.toString();
 
         try {
             register();
@@ -103,12 +103,12 @@ public class JdbcDriver implements java.sql.Driver {
 
     @Override
     public int getMajorVersion() {
-        return Version.versionMajor();
+        return Version.CURRENT.major;
     }
 
     @Override
     public int getMinorVersion() {
-        return Version.versionMinor();
+        return Version.CURRENT.minor;
     }
 
     @Override

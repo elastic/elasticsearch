@@ -1,5 +1,8 @@
 [[ml-troubleshooting]]
 == {xpackml} Troubleshooting
+++++
+<titleabbrev>{xpackml}</titleabbrev>
+++++
 
 Use the information in this section to troubleshoot common problems and find
 answers for frequently asked questions.
@@ -52,7 +55,7 @@ object mapping [field_name] with an object mapping [field_name]`.
 
 This issue typically occurs when two or more jobs store their results in the
 same index and the results contain fields with the same name but different
-data types or different `fields` settings. 
+data types or different `fields` settings.
 
 By default, {ml} results are stored in the `.ml-anomalies-shared` index in {es}.
 To resolve this issue, click *Advanced > Use dedicated index* when you create

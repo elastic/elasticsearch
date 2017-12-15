@@ -29,8 +29,6 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
 
-import java.nio.file.Paths
-
 // for deb/rpm
 buildscript {
   repositories {

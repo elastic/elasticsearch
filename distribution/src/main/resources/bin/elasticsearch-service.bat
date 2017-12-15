@@ -6,7 +6,7 @@ setlocal enableextensions
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-set SERVICE_ID=elasticsearch-service-x64
+if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
 
 if EXIST "%EXECUTABLE%" goto okExe

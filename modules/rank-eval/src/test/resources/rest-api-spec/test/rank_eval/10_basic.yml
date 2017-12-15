@@ -1,5 +1,10 @@
 ---
 "Response format":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
+
   - do:
      indices.create:
          index: foo
@@ -83,6 +88,10 @@
 
 ---
 "Mean Reciprocal Rank":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
 
   - do:
      indices.create:

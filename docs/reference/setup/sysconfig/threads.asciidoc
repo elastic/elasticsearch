@@ -10,3 +10,4 @@ This can be done by setting <<ulimit,`ulimit -u 4096`>> as root before
 starting Elasticsearch, or by setting `nproc` to `4096` in
 <<limits.conf,`/etc/security/limits.conf`>>.
 
+The Debian packages will configure this setting automatically. No further configuration is required.

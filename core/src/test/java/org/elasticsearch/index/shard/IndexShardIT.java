@@ -614,16 +614,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
         AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
-        CountDownLatch started = new CountDownLatch(1);
-        Thread t = new Thread(() -> {
-            SearchResponse searchResponse;
-            started.countDown();
-            do {
-               searchResponse = client().prepareSearch().get();
-           } while (searchResponse.getHits().totalHits != totalNumDocs.get());
-        });
-        t.start();
-        started.await();
         assertNoSearchHits(client().prepareSearch().get());
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
@@ -641,6 +631,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
             assertFalse(shard.isSearchIdle());
         }
+        CountDownLatch started = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            SearchResponse searchResponse;
+            started.countDown();
+            do {
+                searchResponse = client().prepareSearch().get();
+            } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+        });
+        t.start();
+        started.await();
         assertHitCount(client().prepareSearch().get(), 1);
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)

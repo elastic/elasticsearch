@@ -2455,6 +2455,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engineFactory;
     }
 
+    // for tests
+    GlobalCheckpointTracker getGlobalCheckpointTracker() {
+        return globalCheckpointTracker;
+    }
+
     /**
      * Executes a scheduled refresh if necessary.
      *

@@ -58,7 +58,7 @@ Elasticsearch 2.x, but not those created in 1.x or before.
 
 This also applies to indices backed up with <<modules-snapshots,snapshot
 and restore>>. If an index was originally created in 2.x, it cannot be
-restored to a 6.x cluster even if the snapshot was created by a 2.x cluster.
+restored to a 6.x cluster even if the snapshot was created by a 5.x cluster.
 
 Elasticsearch nodes will fail to start if incompatible indices are present.
 

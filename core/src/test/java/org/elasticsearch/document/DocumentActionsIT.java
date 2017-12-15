@@ -95,11 +95,11 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setOperationThreaded(false).execute().actionGet();
+            getResult = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
-            getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
+            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }

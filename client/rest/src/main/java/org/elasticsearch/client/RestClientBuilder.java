@@ -28,7 +28,9 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 
+import javax.net.ssl.SSLContext;
 import java.security.AccessController;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.Objects;
 
@@ -195,20 +197,25 @@ public final class RestClientBuilder {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
-        HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
+        try {
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL).useSystemProperties();
-        if (httpClientConfigCallback != null) {
-            httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
-        }
-
-        final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-        return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
-            @Override
-            public CloseableHttpAsyncClient run() {
-                return finalBuilder.build();
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+                .setSSLContext(SSLContext.getDefault());
+            if (httpClientConfigCallback != null) {
+                httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
-        });
+
+            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+            return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+                @Override
+                public CloseableHttpAsyncClient run() {
+                    return finalBuilder.build();
+                }
+            });
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("could not create the default ssl context", e);
+        }
     }
 
     /**

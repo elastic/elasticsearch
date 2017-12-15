@@ -84,9 +84,9 @@ These will create a document and immediately refresh the index so it is visible:
 
 [source,js]
 --------------------------------------------------
-PUT /test/test/1?refresh
+PUT /test/_doc/1?refresh
 {"test": "test"}
-PUT /test/test/2?refresh=true
+PUT /test/_doc/2?refresh=true
 {"test": "test"}
 --------------------------------------------------
 // CONSOLE
@@ -96,9 +96,9 @@ search:
 
 [source,js]
 --------------------------------------------------
-PUT /test/test/3
+PUT /test/_doc/3
 {"test": "test"}
-PUT /test/test/4?refresh=false
+PUT /test/_doc/4?refresh=false
 {"test": "test"}
 --------------------------------------------------
 // CONSOLE
@@ -107,7 +107,7 @@ This will create a document and wait for it to become visible for search:
 
 [source,js]
 --------------------------------------------------
-PUT /test/test/4?refresh=wait_for
+PUT /test/_doc/4?refresh=wait_for
 {"test": "test"}
 --------------------------------------------------
 // CONSOLE

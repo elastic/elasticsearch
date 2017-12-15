@@ -241,11 +241,11 @@ public class MetaDataTests extends ESTestCase {
                 .put(IndexMetaData.builder("index1")
                     .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("doc", FIND_MAPPINGS_TEST_ITEM))
+                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM))
                 .put(IndexMetaData.builder("index2")
                     .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("doc", FIND_MAPPINGS_TEST_ITEM)).build();
+                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)).build();
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(Strings.EMPTY_ARRAY,
@@ -266,7 +266,7 @@ public class MetaDataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2"},
-                    new String[]{randomBoolean() ? "doc" : "_all"}, MapperPlugin.NOOP_FIELD_FILTER);
+                    new String[]{randomBoolean() ? "_doc" : "_all"}, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(2, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
             assertIndexMappingsNotFiltered(mappings, "index2");
@@ -274,7 +274,7 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testFindMappingsNoOpFilters() throws IOException {
-        MappingMetaData originalMappingMetaData = new MappingMetaData("doc",
+        MappingMetaData originalMappingMetaData = new MappingMetaData("_doc",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, true));
 
         MetaData metaData = MetaData.builder()
@@ -287,28 +287,28 @@ public class MetaDataTests extends ESTestCase {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
                     randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, MapperPlugin.NOOP_FIELD_FILTER);
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
-            MappingMetaData mappingMetaData = index1.get("doc");
+            MappingMetaData mappingMetaData = index1.get("_doc");
             assertSame(originalMappingMetaData, mappingMetaData);
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
                     randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, index -> field -> randomBoolean());
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
-            MappingMetaData mappingMetaData = index1.get("doc");
+            MappingMetaData mappingMetaData = index1.get("_doc");
             assertNotSame(originalMappingMetaData, mappingMetaData);
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
-                    new String[]{"doc"}, MapperPlugin.NOOP_FIELD_FILTER);
+                    new String[]{"_doc"}, MapperPlugin.NOOP_FIELD_FILTER);
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
-            MappingMetaData mappingMetaData = index1.get("doc");
+            MappingMetaData mappingMetaData = index1.get("_doc");
             assertSame(originalMappingMetaData, mappingMetaData);
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
-                    new String[]{"doc"}, index -> field -> randomBoolean());
+                    new String[]{"_doc"}, index -> field -> randomBoolean());
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
-            MappingMetaData mappingMetaData = index1.get("doc");
+            MappingMetaData mappingMetaData = index1.get("_doc");
             assertNotSame(originalMappingMetaData, mappingMetaData);
         }
     }
@@ -318,7 +318,7 @@ public class MetaDataTests extends ESTestCase {
         String mapping = FIND_MAPPINGS_TEST_ITEM;
         if (randomBoolean()) {
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
-            Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("doc");
+            Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("_doc");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(doc);
                 mapping = builder.string();
@@ -329,20 +329,20 @@ public class MetaDataTests extends ESTestCase {
                 .put(IndexMetaData.builder("index1")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping("doc", mapping))
+                .putMapping("_doc", mapping))
                 .put(IndexMetaData.builder("index2")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", mapping))
+                        .putMapping("_doc", mapping))
                 .put(IndexMetaData.builder("index3")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", mapping)).build();
+                        .putMapping("_doc", mapping)).build();
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2", "index3"},
-                    new String[]{"doc"}, index -> {
+                    new String[]{"_doc"}, index -> {
                         if (index.equals("index1")) {
                             return field -> field.startsWith("name.") == false && field.startsWith("properties.key.") == false
                                     && field.equals("age") == false && field.equals("address.location") == false;
@@ -362,7 +362,7 @@ public class MetaDataTests extends ESTestCase {
             assertNotNull(index1Mappings);
 
             assertEquals(1, index1Mappings.size());
-            MappingMetaData docMapping = index1Mappings.get("doc");
+            MappingMetaData docMapping = index1Mappings.get("_doc");
             assertNotNull(docMapping);
 
             Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -406,13 +406,13 @@ public class MetaDataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    new String[]{"doc"}, index -> field -> (index.equals("index3") && field.endsWith("keyword")));
+                    new String[]{"_doc"}, index -> field -> (index.equals("index3") && field.endsWith("keyword")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
             ImmutableOpenMap<String, MappingMetaData> index3 = mappings.get("index3");
             assertEquals(1, index3.size());
-            MappingMetaData mappingMetaData = index3.get("doc");
+            MappingMetaData mappingMetaData = index3.get("_doc");
             Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
             assertEquals(3, sourceAsMap.size());
             assertTrue(sourceAsMap.containsKey("_routing"));
@@ -442,7 +442,7 @@ public class MetaDataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    new String[]{"doc"}, index -> field -> (index.equals("index2")));
+                    new String[]{"_doc"}, index -> field -> (index.equals("index2")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index3");
@@ -456,7 +456,7 @@ public class MetaDataTests extends ESTestCase {
         ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(index);
         assertNotNull(indexMappings);
         assertEquals(1, indexMappings.size());
-        MappingMetaData docMapping = indexMappings.get("doc");
+        MappingMetaData docMapping = indexMappings.get("_doc");
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
         assertEquals(3, sourceAsMap.size());
@@ -473,7 +473,7 @@ public class MetaDataTests extends ESTestCase {
         assertNotNull(indexMappings);
 
         assertEquals(1, indexMappings.size());
-        MappingMetaData docMapping = indexMappings.get("doc");
+        MappingMetaData docMapping = indexMappings.get("_doc");
         assertNotNull(docMapping);
 
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -540,7 +540,7 @@ public class MetaDataTests extends ESTestCase {
     }
 
     private static final String FIND_MAPPINGS_TEST_ITEM = "{\n" +
-            "  \"doc\": {\n" +
+            "  \"_doc\": {\n" +
             "      \"_routing\": {\n" +
             "        \"required\":true\n" +
             "      }," +

@@ -293,7 +293,9 @@ public class MetaDataMappingService extends AbstractComponent {
             }
             assert mappingType != null;
 
-            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && mappingType.charAt(0) == '_') {
+            if (MapperService.DEFAULT_MAPPING.equals(mappingType) == false
+                    && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
+                    && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             MetaData.Builder builder = MetaData.builder(metaData);

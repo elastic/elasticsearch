@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class ChronoLocalDate -> java.time.chrono.ChronoLocalDate {
+class java.time.chrono.ChronoLocalDate {
   ChronoLocalDateTime atTime(LocalTime)
   int compareTo(ChronoLocalDate)
   boolean equals(Object)
@@ -51,7 +51,7 @@ class ChronoLocalDate -> java.time.chrono.ChronoLocalDate {
   ChronoLocalDate with(TemporalField,long)
 }
 
-class ChronoLocalDateTime -> java.time.chrono.ChronoLocalDateTime {
+class java.time.chrono.ChronoLocalDateTime {
   ChronoZonedDateTime atZone(ZoneId)
   int compareTo(ChronoLocalDateTime)
   boolean equals(Object)
@@ -76,7 +76,7 @@ class ChronoLocalDateTime -> java.time.chrono.ChronoLocalDateTime {
   ChronoLocalDateTime with(TemporalField,long)
 }
 
-class Chronology -> java.time.chrono.Chronology {
+class java.time.chrono.Chronology {
   int compareTo(Chronology)
   ChronoLocalDate date(TemporalAccessor)
   ChronoLocalDate date(Era,int,int,int)
@@ -106,7 +106,7 @@ class Chronology -> java.time.chrono.Chronology {
   ChronoZonedDateTime zonedDateTime(Instant,ZoneId)
 }
 
-class ChronoPeriod -> java.time.chrono.ChronoPeriod {
+class java.time.chrono.ChronoPeriod {
   ChronoPeriod between(ChronoLocalDate,ChronoLocalDate)
   boolean equals(Object)
   Chronology getChronology()
@@ -122,7 +122,7 @@ class ChronoPeriod -> java.time.chrono.ChronoPeriod {
   String toString()
 }
 
-class ChronoZonedDateTime -> java.time.chrono.ChronoZonedDateTime {
+class java.time.chrono.ChronoZonedDateTime {
   int compareTo(ChronoZonedDateTime)
   boolean equals(Object)
   String format(DateTimeFormatter)
@@ -153,17 +153,17 @@ class ChronoZonedDateTime -> java.time.chrono.ChronoZonedDateTime {
   ChronoZonedDateTime withZoneSameInstant(ZoneId)
 }
 
-class Era -> java.time.chrono.Era {
+class java.time.chrono.Era {
   String getDisplayName(TextStyle,Locale)
   int getValue()
 }
 
 #### Classes
 
-class AbstractChronology -> java.time.chrono.AbstractChronology {
+class java.time.chrono.AbstractChronology {
 }
 
-class HijrahChronology -> java.time.chrono.HijrahChronology {
+class java.time.chrono.HijrahChronology {
   HijrahChronology INSTANCE
   HijrahDate date(TemporalAccessor)
   HijrahDate date(int,int,int)
@@ -175,7 +175,7 @@ class HijrahChronology -> java.time.chrono.HijrahChronology {
   HijrahDate resolveDate(Map,ResolverStyle)
 }
 
-class HijrahDate -> java.time.chrono.HijrahDate {
+class java.time.chrono.HijrahDate {
   HijrahDate from(TemporalAccessor)
   HijrahChronology getChronology()
   HijrahEra getEra()
@@ -189,7 +189,7 @@ class HijrahDate -> java.time.chrono.HijrahDate {
   HijrahDate withVariant(HijrahChronology)
 }
 
-class IsoChronology -> java.time.chrono.IsoChronology {
+class java.time.chrono.IsoChronology {
   IsoChronology INSTANCE
   LocalDate date(TemporalAccessor)
   LocalDate date(int,int,int)
@@ -205,7 +205,7 @@ class IsoChronology -> java.time.chrono.IsoChronology {
   ZonedDateTime zonedDateTime(Instant,ZoneId)
 }
 
-class JapaneseChronology -> java.time.chrono.JapaneseChronology {
+class java.time.chrono.JapaneseChronology {
   JapaneseChronology INSTANCE
   JapaneseDate date(TemporalAccessor)
   JapaneseDate date(int,int,int)
@@ -217,7 +217,7 @@ class JapaneseChronology -> java.time.chrono.JapaneseChronology {
   JapaneseDate resolveDate(Map,ResolverStyle)
 }
 
-class JapaneseDate -> java.time.chrono.JapaneseDate {
+class java.time.chrono.JapaneseDate {
   JapaneseDate of(int,int,int)
   JapaneseDate from(TemporalAccessor)
   JapaneseChronology getChronology()
@@ -230,7 +230,7 @@ class JapaneseDate -> java.time.chrono.JapaneseDate {
   JapaneseDate minus(long,TemporalUnit)
 }
 
-class JapaneseEra -> java.time.chrono.JapaneseEra {
+class java.time.chrono.JapaneseEra {
   JapaneseEra HEISEI
   JapaneseEra MEIJI
   JapaneseEra SHOWA
@@ -241,7 +241,7 @@ class JapaneseEra -> java.time.chrono.JapaneseEra {
   JapaneseEra[] values()
 }
 
-class MinguoChronology -> java.time.chrono.MinguoChronology {
+class java.time.chrono.MinguoChronology {
   MinguoChronology INSTANCE
   MinguoDate date(TemporalAccessor)
   MinguoDate date(int,int,int)
@@ -253,7 +253,7 @@ class MinguoChronology -> java.time.chrono.MinguoChronology {
   MinguoDate resolveDate(Map,ResolverStyle)
 }
 
-class MinguoDate -> java.time.chrono.MinguoDate {
+class java.time.chrono.MinguoDate {
   MinguoDate of(int,int,int)
   MinguoDate from(TemporalAccessor)
   MinguoChronology getChronology()
@@ -266,7 +266,7 @@ class MinguoDate -> java.time.chrono.MinguoDate {
   MinguoDate minus(long,TemporalUnit)
 }
 
-class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology {
+class java.time.chrono.ThaiBuddhistChronology {
   ThaiBuddhistChronology INSTANCE
   ThaiBuddhistDate date(TemporalAccessor)
   ThaiBuddhistDate date(int,int,int)
@@ -278,7 +278,7 @@ class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology {
   ThaiBuddhistDate resolveDate(Map,ResolverStyle)
 }
 
-class ThaiBuddhistDate -> java.time.chrono.ThaiBuddhistDate {
+class java.time.chrono.ThaiBuddhistDate {
   ThaiBuddhistDate of(int,int,int)
   ThaiBuddhistDate from(TemporalAccessor)
   ThaiBuddhistChronology getChronology()
@@ -293,7 +293,7 @@ class ThaiBuddhistDate -> java.time.chrono.ThaiBuddhistDate {
 
 #### Enums
 
-class HijrahEra -> java.time.chrono.HijrahEra {
+class java.time.chrono.HijrahEra {
   HijrahEra AH
   int getValue()
   HijrahEra of(int)
@@ -301,7 +301,7 @@ class HijrahEra -> java.time.chrono.HijrahEra {
   HijrahEra[] values()
 }
 
-class IsoEra -> java.time.chrono.IsoEra {
+class java.time.chrono.IsoEra {
   IsoEra BCE
   IsoEra CE
   int getValue()
@@ -310,7 +310,7 @@ class IsoEra -> java.time.chrono.IsoEra {
   IsoEra[] values()
 }
 
-class MinguoEra -> java.time.chrono.MinguoEra {
+class java.time.chrono.MinguoEra {
   MinguoEra BEFORE_ROC
   MinguoEra ROC
   int getValue()
@@ -319,7 +319,7 @@ class MinguoEra -> java.time.chrono.MinguoEra {
   MinguoEra[] values()
 }
 
-class ThaiBuddhistEra -> java.time.chrono.ThaiBuddhistEra {
+class java.time.chrono.ThaiBuddhistEra {
   ThaiBuddhistEra BE
   ThaiBuddhistEra BEFORE_BE
   int getValue()

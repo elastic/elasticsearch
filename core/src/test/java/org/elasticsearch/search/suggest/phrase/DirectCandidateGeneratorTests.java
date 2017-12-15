@@ -83,16 +83,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> DirectCandidateGeneratorBuilder.resolveDistance(null));
     }
 
-    public void testLevensteinDeprecation() {
-        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenstein"), instanceOf(LevensteinDistance.class));
-        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
-    }
-
-    public void testJaroWinklerDeprecation() {
-        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaroWinkler"), instanceOf(JaroWinklerDistance.class));
-        assertWarnings("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
-    }
-
     private static DirectCandidateGeneratorBuilder mutate(DirectCandidateGeneratorBuilder original) throws IOException {
         DirectCandidateGeneratorBuilder mutation = copy(original);
         List<Supplier<DirectCandidateGeneratorBuilder>> mutators = new ArrayList<>();

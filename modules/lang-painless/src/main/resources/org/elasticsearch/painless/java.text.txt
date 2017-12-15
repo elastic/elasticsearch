@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class AttributedCharacterIterator -> java.text.AttributedCharacterIterator {
+class java.text.AttributedCharacterIterator {
   Set getAllAttributeKeys()
   def getAttribute(AttributedCharacterIterator.Attribute)
   Map getAttributes()
@@ -34,7 +34,7 @@ class AttributedCharacterIterator -> java.text.AttributedCharacterIterator {
   int getRunStart(Set)
 }
 
-class CharacterIterator -> java.text.CharacterIterator {
+class java.text.CharacterIterator {
   char DONE
   def clone()
   char current()
@@ -50,18 +50,18 @@ class CharacterIterator -> java.text.CharacterIterator {
 
 #### Classes
 
-class Annotation -> java.text.Annotation {
+class java.text.Annotation {
   (Object)
   def getValue()
 }
 
-class AttributedCharacterIterator.Attribute -> java.text.AttributedCharacterIterator$Attribute {
+class java.text.AttributedCharacterIterator$Attribute {
   AttributedCharacterIterator.Attribute INPUT_METHOD_SEGMENT
   AttributedCharacterIterator.Attribute LANGUAGE
   AttributedCharacterIterator.Attribute READING
 }
 
-class AttributedString -> java.text.AttributedString {
+class java.text.AttributedString {
   (String)
   (String,Map)
   void addAttribute(AttributedCharacterIterator.Attribute,Object)
@@ -72,7 +72,7 @@ class AttributedString -> java.text.AttributedString {
   AttributedCharacterIterator getIterator(AttributedCharacterIterator.Attribute[],int,int)
 }
 
-class Bidi -> java.text.Bidi {
+class java.text.Bidi {
   int DIRECTION_DEFAULT_LEFT_TO_RIGHT
   int DIRECTION_DEFAULT_RIGHT_TO_LEFT
   int DIRECTION_LEFT_TO_RIGHT
@@ -96,7 +96,7 @@ class Bidi -> java.text.Bidi {
   boolean requiresBidi(char[],int,int)
 }
 
-class BreakIterator -> java.text.BreakIterator {
+class java.text.BreakIterator {
   int DONE
   def clone()
   int current()
@@ -121,7 +121,7 @@ class BreakIterator -> java.text.BreakIterator {
   void setText(String)
 }
 
-class ChoiceFormat -> java.text.ChoiceFormat {
+class java.text.ChoiceFormat {
   (double[],String[])
   (String)
   void applyPattern(String)
@@ -134,7 +134,7 @@ class ChoiceFormat -> java.text.ChoiceFormat {
   String toPattern()
 }
 
-class CollationElementIterator -> java.text.CollationElementIterator {
+class java.text.CollationElementIterator {
   int NULLORDER
   int getMaxExpansion(int)
   int getOffset()
@@ -148,13 +148,13 @@ class CollationElementIterator -> java.text.CollationElementIterator {
   short tertiaryOrder(int)
 }
 
-class CollationKey -> java.text.CollationKey {
+class java.text.CollationKey {
   int compareTo(CollationKey)
   String getSourceString()
   byte[] toByteArray()
 }
 
-class Collator -> java.text.Collator {
+class java.text.Collator {
   int CANONICAL_DECOMPOSITION
   int FULL_DECOMPOSITION
   int IDENTICAL
@@ -174,7 +174,7 @@ class Collator -> java.text.Collator {
   void setStrength(int)
 }
 
-class DateFormat -> java.text.DateFormat {
+class java.text.DateFormat {
   int AM_PM_FIELD
   int DATE_FIELD
   int DAY_OF_WEEK_FIELD
@@ -221,7 +221,7 @@ class DateFormat -> java.text.DateFormat {
   void setTimeZone(TimeZone)
 }
 
-class DateFormat.Field -> java.text.DateFormat$Field {
+class java.text.DateFormat$Field {
   DateFormat.Field AM_PM
   DateFormat.Field DAY_OF_MONTH
   DateFormat.Field DAY_OF_WEEK
@@ -244,7 +244,7 @@ class DateFormat.Field -> java.text.DateFormat$Field {
   DateFormat.Field ofCalendarField(int)
 }
 
-class DateFormatSymbols -> java.text.DateFormatSymbols {
+class java.text.DateFormatSymbols {
   ()
   (Locale)
   def clone()
@@ -270,7 +270,7 @@ class DateFormatSymbols -> java.text.DateFormatSymbols {
   void setZoneStrings(String[][])
 }
 
-class DecimalFormat -> java.text.DecimalFormat {
+class java.text.DecimalFormat {
   ()
   (String)
   (String,DecimalFormatSymbols)
@@ -298,7 +298,7 @@ class DecimalFormat -> java.text.DecimalFormat {
   String toPattern()
 }
 
-class DecimalFormatSymbols -> java.text.DecimalFormatSymbols {
+class java.text.DecimalFormatSymbols {
   ()
   (Locale)
   def clone()
@@ -337,7 +337,7 @@ class DecimalFormatSymbols -> java.text.DecimalFormatSymbols {
   void setZeroDigit(char)
 }
 
-class FieldPosition -> java.text.FieldPosition {
+class java.text.FieldPosition {
   (int)
   (Format.Field,int)
   int getBeginIndex()
@@ -348,7 +348,7 @@ class FieldPosition -> java.text.FieldPosition {
   void setEndIndex(int)
 }
 
-class Format -> java.text.Format {
+class java.text.Format {
   def clone()
   String format(Object)
   StringBuffer format(Object,StringBuffer,FieldPosition)
@@ -357,10 +357,10 @@ class Format -> java.text.Format {
   Object parseObject(String,ParsePosition)
 }
 
-class Format.Field -> java.text.Format$Field {
+class java.text.Format$Field {
 }
 
-class MessageFormat -> java.text.MessageFormat {
+class java.text.MessageFormat {
   void applyPattern(String)
   String format(String,Object[])
   Format[] getFormats()
@@ -376,16 +376,16 @@ class MessageFormat -> java.text.MessageFormat {
   String toPattern()
 }
 
-class MessageFormat.Field -> java.text.MessageFormat$Field {
+class java.text.MessageFormat$Field {
   MessageFormat.Field ARGUMENT
 }
 
-class Normalizer -> java.text.Normalizer {
+class java.text.Normalizer {
   boolean isNormalized(CharSequence,Normalizer.Form)
   String normalize(CharSequence,Normalizer.Form)
 }
 
-class NumberFormat -> java.text.NumberFormat {
+class java.text.NumberFormat {
   int FRACTION_FIELD
   int INTEGER_FIELD
   Locale[] getAvailableLocales()
@@ -419,7 +419,7 @@ class NumberFormat -> java.text.NumberFormat {
   void setRoundingMode(RoundingMode)
 }
 
-class NumberFormat.Field -> java.text.NumberFormat$Field {
+class java.text.NumberFormat$Field {
   NumberFormat.Field CURRENCY
   NumberFormat.Field DECIMAL_SEPARATOR
   NumberFormat.Field EXPONENT
@@ -433,7 +433,7 @@ class NumberFormat.Field -> java.text.NumberFormat$Field {
   NumberFormat.Field SIGN
 }
 
-class ParsePosition -> java.text.ParsePosition {
+class java.text.ParsePosition {
   (int)
   int getErrorIndex()
   int getIndex()
@@ -441,13 +441,13 @@ class ParsePosition -> java.text.ParsePosition {
   void setIndex(int)
 }
 
-class RuleBasedCollator -> java.text.RuleBasedCollator {
+class java.text.RuleBasedCollator {
   (String)
   CollationElementIterator getCollationElementIterator(String)
   String getRules()
 }
 
-class SimpleDateFormat -> java.text.SimpleDateFormat {
+class java.text.SimpleDateFormat {
   ()
   (String)
   (String,Locale)
@@ -461,7 +461,7 @@ class SimpleDateFormat -> java.text.SimpleDateFormat {
   String toPattern()
 }
 
-class StringCharacterIterator -> java.text.StringCharacterIterator {
+class java.text.StringCharacterIterator {
   (String)
   (String,int)
   (String,int,int,int)
@@ -470,7 +470,7 @@ class StringCharacterIterator -> java.text.StringCharacterIterator {
 
 #### Enums
 
-class Normalizer.Form -> java.text.Normalizer$Form {
+class java.text.Normalizer$Form {
   Normalizer.Form NFC
   Normalizer.Form NFD
   Normalizer.Form NFKC
@@ -481,7 +481,7 @@ class Normalizer.Form -> java.text.Normalizer$Form {
 
 #### Exceptions
 
-class ParseException -> java.text.ParseException {
+class java.text.ParseException {
   (String,int)
   int getErrorOffset()
 }

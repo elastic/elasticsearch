@@ -259,6 +259,10 @@ public class VersionUtilsTests extends ESTestCase {
      * agree with the list of wire and index compatible versions we build in gradle.
      */
     public void testGradleVersionsMatchVersionUtils() {
+        if (System.getProperty("build.snapshot", "true").equals("false")) {
+            logger.warn("Skipping testGradleVersionsMatchVersionUtils(): See #27815 for details");
+            return;
+        }
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
         List<Version> released = VersionUtils.allReleasedVersions().stream()

@@ -278,13 +278,6 @@ public final class NodeEnvironment  implements Closeable {
         return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
     }
 
-    /** Returns true if the directory is empty */
-    private static boolean dirEmpty(final Path path) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-            return stream.iterator().hasNext() == false;
-        }
-    }
-
     private static void releaseAndNullLocks(Lock[] locks) {
         for (int i = 0; i < locks.length; i++) {
             if (locks[i] != null) {

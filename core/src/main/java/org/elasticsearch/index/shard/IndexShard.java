@@ -141,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -304,7 +303,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-        indexShardOperationPermits = new IndexShardOperationPermits(shardId, logger, threadPool);
+        indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
@@ -415,7 +414,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
                     getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
                 }
 
@@ -1745,11 +1743,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void initiateTracking(final String allocationId) {
         verifyPrimary();
         getEngine().seqNoService().initiateTracking(allocationId);
-        /*
-         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
-         * the replica; mark our self as active to force a future background sync.
-         */
-        active.compareAndSet(false, true);
     }
 
     /**

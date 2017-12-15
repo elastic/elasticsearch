@@ -4,6 +4,7 @@
 :lucene_version_path:   7_2_0
 :branch:                master
 :jdk:                   1.8.0_131
+:jdk_major:             8
 
 //////////
 release-state can be: released | prerelease | unreleased
@@ -36,6 +37,7 @@ ifeval::["{release-state}"=="unreleased"]
 :parent-join-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}-SNAPSHOT
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
 :matrixstats-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
+:rank-eval-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}-SNAPSHOT
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
@@ -48,6 +50,7 @@ ifeval::["{release-state}"!="unreleased"]
 :parent-join-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
+:rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
 endif::[]
 
 ///////

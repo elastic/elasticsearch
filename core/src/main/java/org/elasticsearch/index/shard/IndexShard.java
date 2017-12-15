@@ -1321,7 +1321,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
 
+
         final EngineConfig config = newEngineConfig(openMode);
+
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(
+                Translog.readGlobalCheckpoint(config.getTranslogConfig().getTranslogPath()),
+                "opening index and translog"
+            );
+        }
+
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
@@ -2188,7 +2197,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, globalCheckpointTracker);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, globalCheckpointTracker::getGlobalCheckpoint);
     }
 
     /**

@@ -126,7 +126,7 @@ public class RefreshListenersTests extends ESTestCase {
                 eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null, null,
                 new NoneCircuitBreakerService(),
-                new GlobalCheckpointTracker(shardId, allocationId, indexSettings, SequenceNumbers.UNASSIGNED_SEQ_NO));
+                () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

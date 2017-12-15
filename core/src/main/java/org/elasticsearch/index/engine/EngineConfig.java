@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -45,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -79,7 +79,7 @@ public final class EngineConfig {
     private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
-    private final GlobalCheckpointTracker globalCheckpointTracker;
+    private final LongSupplier globalCheckpointSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -127,7 +127,7 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        GlobalCheckpointTracker globalCheckpointTracker) {
+                        LongSupplier globalCheckpointSupplier) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -158,7 +158,7 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
-        this.globalCheckpointTracker = globalCheckpointTracker;
+        this.globalCheckpointSupplier = globalCheckpointSupplier;
     }
 
     /**
@@ -234,8 +234,8 @@ public final class EngineConfig {
     /**
      * Returns the global checkpoint tracker
      */
-    public GlobalCheckpointTracker getGlobalCheckpointTracker() {
-        return globalCheckpointTracker;
+    public LongSupplier getGlobalCheckpointSupplier() {
+        return globalCheckpointSupplier;
     }
 
     /**

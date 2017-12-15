@@ -1036,11 +1036,9 @@ public class InternalEngine extends Engine {
      * Asserts that the doc in the index operation really doesn't exist
      */
     private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
-        final VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes()); // this uses direct access to the version map -
-        // this is a trade-off since it's not entirely correct if we are indexing append only documents since
-        // the version map might be unsafe. Yet if we refresh to make the map safe again we loose the optimization and never test it.
-        // therefore we decided to make this assertion best effort in the case of append only documents.
-        // Also opening a private reader won't cut it since it will make test super slow.
+        // NOTE this uses direct access to the version map since we are in the assertion code where we maintain a secondary
+        // map in the version map such that we don't need to refresh if we are unsafe;
+        final VersionValue versionValue = versionMap.getVersionForAssert(index.uid().bytes());
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");

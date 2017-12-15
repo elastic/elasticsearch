@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
@@ -94,7 +93,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    private static class Maps {
+    private static final class Maps {
 
         // All writes (adds and deletes) go into here:
         final VersionLookup current;
@@ -102,6 +101,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final VersionLookup old;
 
+        // this is not volatile since we don't need to maintain a happens before relation ship across doc IDs so it's enough to
+        // have the volatile read of the Maps reference to make it visible even across threads.
         boolean needsSafeAccess;
         final boolean previousMapsNeededSafeAccess;
 
@@ -125,12 +126,30 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                 // we haven't seen any ops and map before needed it so we maintain it
                 || (mapHasNotSeenAnyOperations && previousMapsNeededSafeAccess);
         }
+
+        /**
+         * Builds a new map for the refresh transition this should be called in beforeRefresh()
+         */
+        Maps buildTransitionMap() {
+            return new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
+                current, shouldInheritSafeAccess());
+        }
+
+        /**
+         * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
+         */
+        Maps invalidateOldMap() {
+            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+        }
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
     private final Map<BytesRef,DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private volatile Maps maps = new Maps();
+    // we maintain a second map that only receives the updates that we skip on the actual map (unsafe ops)
+    // this map is only maintained if assertions are enabled
+    private volatile Maps unsafeKeysMap = new Maps();
 
     /** Bytes consumed for each BytesRef UID:
      * In this base value, we account for the {@link BytesRef} object itself as
@@ -175,8 +194,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size())),
-            maps.current, maps.shouldInheritSafeAccess());
+        maps = maps.buildTransitionMap();
+        assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
         ramBytesUsedCurrent.set(0);
@@ -191,12 +210,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = new Maps(maps.current, VersionLookup.EMPTY, maps.previousMapsNeededSafeAccess);
+        maps = maps.invalidateOldMap();
+        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
+
     }
 
     /** Returns the live version (add or delete) for this uid. */
     VersionValue getUnderLock(final BytesRef uid) {
-        Maps currentMaps = maps;
+        return getUnderLock(uid, maps);
+    }
+
+    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
@@ -209,6 +233,14 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         return tombstones.get(uid);
+    }
+
+    VersionValue getVersionForAssert(final BytesRef uid) {
+        VersionValue value = getUnderLock(uid, maps);
+        if (value == null) {
+            value = getUnderLock(uid, unsafeKeysMap);
+        }
+        return value;
     }
 
     boolean isUnsafe() {
@@ -230,7 +262,13 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             putUnderLock(uid, version, maps);
         } else {
             maps.current.markAsUnsafe();
+            assert putAssertionMap(uid, version);
         }
+    }
+
+    private boolean putAssertionMap(BytesRef uid, VersionValue version) {
+        putUnderLock(uid, version, unsafeKeysMap);
+        return true;
     }
 
     /** Adds this uid/version to the pending adds map. */

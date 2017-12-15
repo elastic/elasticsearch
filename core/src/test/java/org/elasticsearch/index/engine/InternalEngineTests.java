@@ -4193,14 +4193,15 @@ public class InternalEngineTests extends EngineTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb")));
         indexSettings.updateIndexMetaData(builder.build());
 
+        final Path translogPath = createTempDir();
         store = createStore();
-        engine = new InternalEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null), seqNoServiceSupplier) {
+        engine = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier) {
             @Override
             protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
-                // The global checkpoint is advanced but not fsynced yet.
-                final long lagging = seqNoService().getLocalCheckpoint() - seqNoService().getGlobalCheckpoint();
-                if (lagging > 0 && rarely()) {
-                    globalCheckpoint.addAndGet(randomLongBetween(1, lagging));
+                // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
+                // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
+                if (rarely()) {
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.seqNoService().getLocalCheckpoint()));
                 }
                 super.commitIndexWriter(writer, translog, syncId);
             }
@@ -4211,13 +4212,11 @@ public class InternalEngineTests extends EngineTestCase {
             document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
             engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
             if (frequently()) {
-                globalCheckpoint.set(randomIntBetween(
-                    Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
-                    Math.toIntExact(engine.seqNoService().getLocalCheckpoint())));
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.seqNoService().getLocalCheckpoint()));
                 engine.getTranslog().sync();
             }
             if (frequently()) {
-                final long lastSyncedGlobalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
                 engine.flush(false, true);
                 final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                 // Keep only one safe commit as the oldest commit.

@@ -17,7 +17,7 @@ For example, let's index a simple doc:
 
 [source,js]
 --------------------------------------------------
-PUT test/type1/1
+PUT test/_doc/1
 {
     "counter" : 1,
     "tags" : ["red"]
@@ -32,7 +32,7 @@ Now, we can execute a script that would increment the counter:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -51,7 +51,7 @@ will still add it, since its a list):
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.tags.add(params.tag)",
@@ -73,7 +73,7 @@ We can also add a new field to the document:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : "ctx._source.new_field = 'value_of_new_field'"
 }
@@ -85,7 +85,7 @@ Or remove a field from the document:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : "ctx._source.remove('new_field')"
 }
@@ -99,7 +99,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
@@ -123,7 +123,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -144,7 +144,7 @@ By default updates that don't change anything detect that they don't change anyt
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -167,7 +167,7 @@ the request was ignored.
         "failed": 0
    },
    "_index": "test",
-   "_type": "type1",
+   "_type": "_doc",
    "_id": "1",
    "_version": 6,
    "result": "noop"
@@ -179,7 +179,7 @@ You can disable this behavior by setting "detect_noop": false like this:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -200,7 +200,7 @@ will be inserted as a new document.  If the document does exist, then the
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -255,7 +255,7 @@ value:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"

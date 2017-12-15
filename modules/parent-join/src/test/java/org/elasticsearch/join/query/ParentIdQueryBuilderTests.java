@@ -53,7 +53,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQueryBuilder> {
 
-    private static final String TYPE = "doc";
+    private static final String TYPE = "_doc";
     private static final String JOIN_FIELD_NAME = "join_field";
     private static final String PARENT_NAME = "parent";
     private static final String CHILD_NAME = "child";
@@ -73,7 +73,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
                 .startObject("relations")

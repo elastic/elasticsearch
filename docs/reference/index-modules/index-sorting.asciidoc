@@ -25,7 +25,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "date": {
                     "type": "date"
@@ -53,7 +53,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "username": {
                     "type": "keyword",

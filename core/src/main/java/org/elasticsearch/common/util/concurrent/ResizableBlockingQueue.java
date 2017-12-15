@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import java.util.concurrent.BlockingQueue;
-import org.elasticsearch.common.SuppressForbidden;
 
 /**
  * Extends the {@code SizeBlockingQueue} to add the {@code adjustCapacity} method, which will adjust
@@ -33,12 +32,6 @@ final class ResizableBlockingQueue<E> extends SizeBlockingQueue<E> {
     ResizableBlockingQueue(BlockingQueue<E> queue, int initialCapacity) {
         super(queue, initialCapacity);
         this.capacity = initialCapacity;
-    }
-
-    @SuppressForbidden(reason = "optimalCapacity is non-negative, therefore the difference cannot be < -Integer.MAX_VALUE")
-    private int getChangeAmount(int optimalCapacity) {
-        assert optimalCapacity >= 0 : "optimal capacity should always be positive, got: " + optimalCapacity;
-        return Math.abs(optimalCapacity - this.capacity);
     }
 
     @Override

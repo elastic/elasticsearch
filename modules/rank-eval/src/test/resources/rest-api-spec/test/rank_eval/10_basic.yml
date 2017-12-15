@@ -1,0 +1,163 @@
+---
+"Response format":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
+
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "text": "amsterdam" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "text": "amsterdam" }
+        
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "text": "something about amsterdam and berlin" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {  
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                "ratings": [
+                    {"_index": "foo", "_id": "doc1", "rating": 0},
+                    {"_index": "foo", "_id": "doc2", "rating": 1},
+                    {"_index": "foo", "_id": "doc3", "rating": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { rank_eval.quality_level: 1}
+  - match: { rank_eval.details.amsterdam_query.quality_level: 1.0}
+  - match: { rank_eval.details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
+  - match: { rank_eval.details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 2, "docs_retrieved": 2}}
+  
+  - length: { rank_eval.details.amsterdam_query.hits: 3}
+  - match: { rank_eval.details.amsterdam_query.hits.0.hit._id:  "doc2"}
+  - match: { rank_eval.details.amsterdam_query.hits.0.rating: 1}
+  - match: { rank_eval.details.amsterdam_query.hits.1.hit._id:  "doc3"}
+  - match: { rank_eval.details.amsterdam_query.hits.1.rating: 1}
+  - match: { rank_eval.details.amsterdam_query.hits.2.hit._id:  "doc4"}
+  - is_false: rank_eval.details.amsterdam_query.hits.2.rating
+  
+  - match: { rank_eval.details.berlin_query.quality_level: 1.0}
+  - match: { rank_eval.details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
+  - match: { rank_eval.details.berlin_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
+  - length: { rank_eval.details.berlin_query.hits: 2}
+  - match: { rank_eval.details.berlin_query.hits.0.hit._id: "doc1" }
+  - match: { rank_eval.details.berlin_query.hits.0.rating: 1}
+  - match: { rank_eval.details.berlin_query.hits.1.hit._id: "doc4" }
+  - is_false: rank_eval.details.berlin_query.hits.1.rating 
+
+---
+"Mean Reciprocal Rank":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
+
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "text": "amsterdam" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "text": "amsterdam" }
+        
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "text": "something about amsterdam and berlin" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                # doc4 should be returned in third position, so reciprocal rank is 1/3
+                "ratings": [{"_index": "foo", "_id": "doc4", "rating": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                # doc1 should be returned in first position, doc3 in second, so reciprocal rank is 1/2 
+                "ratings": [{"_index": "foo", "_id": "doc4", "rating": 1}]
+            }
+          ],
+          "metric" : { "mean_reciprocal_rank": {} }
+        }
+
+# average is (1/3 + 1/2)/2 = 5/12 ~ 0.41666666666666663
+  - match: {rank_eval.quality_level: 0.41666666666666663}
+  - match: {rank_eval.details.amsterdam_query.quality_level: 0.3333333333333333}
+  - match: {rank_eval.details.amsterdam_query.metric_details: {"first_relevant": 3}}
+  - match: {rank_eval.details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc2"},
+                                                               {"_index": "foo", "_id": "doc3"} ]}
+  - match: {rank_eval.details.berlin_query.quality_level: 0.5}
+  - match: {rank_eval.details.berlin_query.metric_details: {"first_relevant": 2}}
+  - match: {rank_eval.details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc1"}]}
+

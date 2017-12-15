@@ -61,7 +61,7 @@ could use the following template:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "integers": {
@@ -90,7 +90,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
@@ -117,7 +117,7 @@ fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "longs_as_strings": {
@@ -134,7 +134,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "long_num": "5", <1>
   "long_text": "foo" <2>
@@ -173,7 +173,7 @@ top-level `full_name` field, except for the `middle` field:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "full_name": {
@@ -190,7 +190,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "name": {
     "first":  "Alice",
@@ -214,7 +214,7 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "named_analyzers": {
@@ -240,7 +240,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "english": "Some English text", <1>
   "count":   5 <2>
@@ -268,7 +268,7 @@ you will have to search on the exact same value that was indexed.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_keywords": {
@@ -298,7 +298,7 @@ before 5.0):
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_text": {
@@ -326,7 +326,7 @@ disable the storage of these scoring factors in the index and save some space.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_keywords": {
@@ -367,7 +367,7 @@ maybe gain some indexing speed:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "unindexed_longs": {

@@ -49,7 +49,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
         assertIndexInMetaState(masterNode, "test");
@@ -64,7 +64,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
-        index(index, "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
@@ -99,7 +99,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().getMetaData().index(index).getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin().indices().preparePutMapping(index).setType("doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("integer_field")
                 .field("type", "integer")
@@ -107,12 +107,12 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
 
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         /* Try the same and see if this also works if node was just restarted.
@@ -124,7 +124,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin().indices().preparePutMapping(index).setType("doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("float_field")
                 .field("type", "float")
@@ -132,12 +132,12 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("doc").getSourceAsMap().get("properties"))).get("float_field"));
+        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
 
         // make sure it was also written on red node although index is closed
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // finally check that meta data is also written of index opened again

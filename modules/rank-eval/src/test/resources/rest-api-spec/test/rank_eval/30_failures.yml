@@ -1,0 +1,42 @@
+---
+"Response format":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
+
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "bar": 1 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match_all" : { }}},
+                "ratings": [
+                    {"_index": "foo", "_id": "doc1", "rating": 1}]
+            },
+            {
+                "id" : "invalid_query",
+                "request": { "query": { "range" : { "bar" : { "from" : "Basel", "time_zone": "+01:00" }}}},
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { rank_eval.quality_level: 1}
+  - match: { rank_eval.details.amsterdam_query.quality_level: 1.0}
+  - match: { rank_eval.details.amsterdam_query.unknown_docs:  [ ]}
+  - match: { rank_eval.details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
+
+  - is_true: rank_eval.failures.invalid_query

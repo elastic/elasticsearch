@@ -7,9 +7,9 @@ list or manually rated documents, the `_rank_eval` endpoint calculates and
 returns typical information retrieval metrics like _mean reciprocal rank_,
 _precision_ or _discounted cumulative gain_.
 
-experimental[The ranking evaluation API is new and may change in non-backwards compatible ways in the future,
-even on minor versions updates.]
+experimental[The ranking evaluation API is new and may change in non-backwards compatible ways in the future, even on minor versions updates.]
 
+[float]
 === Overview
 
 Search quality evaluation starts with looking at the users of your search application, and the things that they are searching for.
@@ -30,6 +30,7 @@ In order to get started with search quality evaluation, three basic things are n
 
 The ranking evaluation API provides a convenient way to use this information in a ranking evaluation request to calculate different search evaluation metrics. This gives a first estimation of your overall search quality and give you a measurement to optimize against when fine-tuning various aspect of the query generation in your application. 
 
+[float]
 === Ranking evaluation request structure
 
 In its most basic form, a request to the `_rank_eval` endpoint has two sections:
@@ -86,6 +87,7 @@ the rating of the documents relevance with regards to this search request
 
 A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.  
 
+[float]
 === Template based ranking evaluation
 
 As an alternative to having to provide a single query per test request, it is possible to specify query templates in the evaluation request and later refer to them. Queries with similar structure that only differ in their parameters don't have to be repeated all the time in the `requests` section this way. In typical search systems where user inputs usually get filled into a small set of query templates, this helps making the evaluation request more succinct.
@@ -127,11 +129,13 @@ GET /my_index/_rank_eval
 <3> a reference to a previously defined temlate
 <4> the parameters to use to fill the template
 
+[float]
 === Available evaluation metrics
 
 The `metric` section determines which of the available evaluation metrics is going to be used.
 Currently, the following metrics are supported:
 
+[float]
 ==== Precision at K (P@k)
 
 This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k
@@ -174,6 +178,7 @@ The `precision` metric takes the following optional parameters
 If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
 |=======================================================================
 
+[float]
 ==== Mean reciprocal rank
 
 For every query in the test suite, this metric calculates the reciprocal of the rank of the
@@ -210,6 +215,7 @@ The `mean_reciprocal_rank` metric takes the following optional parameters
 "relevant". Defaults to `1`.
 |=======================================================================
 
+[float]
 ==== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, https://en.wikipedia.org/wiki/Discounted_cumulative_gain[discounted cumulative gain] takes both, the rank and the rating of the search results, into account.
@@ -244,6 +250,7 @@ The `dcg` metric takes the following optional parameters:
 |`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
 |=======================================================================
 
+[float]
 === Response format
 
 The response of the `_rank_eval` endpoint contains the overall calculated result for the defined quality metric, 

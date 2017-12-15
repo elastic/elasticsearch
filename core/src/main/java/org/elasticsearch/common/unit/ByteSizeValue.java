@@ -39,7 +39,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_2_0)) {
             size = in.readVLong();
             unit = ByteSizeUnit.BYTES;
         } else {
@@ -50,7 +50,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_2_0)) {
             out.writeVLong(getBytes());
         } else {
             out.writeZLong(size);

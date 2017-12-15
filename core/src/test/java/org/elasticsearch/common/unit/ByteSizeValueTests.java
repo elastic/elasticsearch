@@ -208,7 +208,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         if (randomBoolean()) {
             ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
             long size = randomNonNegativeLong() / unit.toBytes(1);
-            if (size >= Long.MAX_VALUE / unit.toBytes(1)) {
+            if (size > Long.MAX_VALUE / unit.toBytes(1)) {
                 throw new AssertionError();
             }
             return new ByteSizeValue(size, unit);

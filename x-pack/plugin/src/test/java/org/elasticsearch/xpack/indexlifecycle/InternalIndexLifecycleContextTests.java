@@ -219,6 +219,18 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         assertEquals(phase, context.getPhase());
     }
 
+    public void testGetReplicas() {
+        int replicas = randomIntBetween(0, 5);
+        IndexMetaData idxMeta = IndexMetaData.builder("test").settings(Settings.builder().put("index.version.created", 7000001L).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(replicas).build();
+
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
+            throw new AssertionError("nowSupplier should not be called");
+        });
+
+        assertEquals(replicas, context.getNumberOfReplicas());
+    }
+
     public void testSetAction() {
         long creationDate = randomNonNegativeLong();
         String newAction = randomAlphaOfLengthBetween(1, 20);

@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -41,7 +41,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * dictate the order in which the {@link Phase}s are executed and will define
  * which {@link LifecycleAction}s are allowed in each phase.
  */
-public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, NamedWriteable {
+public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
+        implements ToXContentObject, NamedDiffable<LifecyclePolicy> {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");

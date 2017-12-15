@@ -26,7 +26,7 @@ public class MockAction implements LifecycleAction {
     public static final ParseField EXECUTED_COUNT_FIELD = new ParseField("executed_count");
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final String NAME = "TEST_ACTION";
-    private final SetOnce<Boolean> completed = new SetOnce<>();
+    private SetOnce<Boolean> completed = new SetOnce<>();
     private final AtomicLong executedCount;
     private Exception exceptionToThrow = null;
     private boolean completeOnExecute = false;
@@ -87,6 +87,10 @@ public class MockAction implements LifecycleAction {
 
     public boolean wasCompleted() {
         return completed.get() != null && completed.get();
+    }
+
+    public void resetCompleted() {
+        completed = new SetOnce<>();
     }
 
     public long getExecutedCount() {

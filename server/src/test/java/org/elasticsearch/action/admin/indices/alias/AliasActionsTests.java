@@ -21,8 +21,10 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,9 +36,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AliasActionsTests extends ESTestCase {
@@ -58,8 +61,7 @@ public class AliasActionsTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                 () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(null));
         assertEquals("[index] can't be empty string", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(""));
+        e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(""));
         assertEquals("[index] can't be empty string", e.getMessage());
         e = expectThrows(IllegalArgumentException.class,
                 () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices((String[]) null));
@@ -110,8 +112,10 @@ public class AliasActionsTests extends ESTestCase {
         Object searchRouting = randomBoolean() ? randomRouting() : null;
         Object indexRouting = randomBoolean() ? randomBoolean() ? searchRouting : randomRouting() : null;
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject("add"); {
+        b.startObject();
+        {
+            b.startObject("add");
+            {
                 if (indices.length > 1 || randomBoolean()) {
                     b.array("indices", indices);
                 } else {
@@ -161,8 +165,10 @@ public class AliasActionsTests extends ESTestCase {
         Object searchRouting = randomRouting();
         Object indexRouting = randomRouting();
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject("add"); {
+        b.startObject();
+        {
+            b.startObject("add");
+            {
                 b.field("index", index);
                 b.field("alias", alias);
                 if (randomBoolean()) {
@@ -191,8 +197,10 @@ public class AliasActionsTests extends ESTestCase {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject("remove"); {
+        b.startObject();
+        {
+            b.startObject("remove");
+            {
                 if (indices.length > 1 || randomBoolean()) {
                     b.array("indices", indices);
                 } else {
@@ -217,10 +225,12 @@ public class AliasActionsTests extends ESTestCase {
     }
 
     public void testParseRemoveIndex() throws IOException {
-        String[] indices = randomBoolean() ? new String[] {randomAlphaOfLength(5)} : generateRandomStringArray(10, 5, false, false);
+        String[] indices = randomBoolean() ? new String[] { randomAlphaOfLength(5) } : generateRandomStringArray(10, 5, false, false);
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject("remove_index"); {
+        b.startObject();
+        {
+            b.startObject("remove_index");
+            {
                 if (indices.length > 1 || randomBoolean()) {
                     b.array("indices", indices);
                 } else {
@@ -241,8 +251,10 @@ public class AliasActionsTests extends ESTestCase {
 
     public void testParseIndexAndIndicesThrowsError() throws IOException {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject(randomFrom("add", "remove")); {
+        b.startObject();
+        {
+            b.startObject(randomFrom("add", "remove"));
+            {
                 b.field("index", randomAlphaOfLength(5));
                 b.array("indices", generateRandomStringArray(10, 5, false, false));
                 b.field("alias", randomAlphaOfLength(5));
@@ -259,8 +271,10 @@ public class AliasActionsTests extends ESTestCase {
 
     public void testParseAliasAndAliasesThrowsError() throws IOException {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        b.startObject(); {
-            b.startObject(randomFrom("add", "remove")); {
+        b.startObject();
+        {
+            b.startObject(randomFrom("add", "remove"));
+            {
                 b.field("index", randomAlphaOfLength(5));
                 b.field("alias", randomAlphaOfLength(5));
                 b.array("aliases", generateRandomStringArray(10, 5, false, false));
@@ -311,6 +325,19 @@ public class AliasActionsTests extends ESTestCase {
         }
     }
 
+    public void testFromToXContent() throws IOException {
+        for (int runs = 0; runs < 20; runs++) {
+            AliasActions action = randomAliasAction();
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference shuffled = toShuffledXContent(action, xContentType, ToXContent.EMPTY_PARAMS, false, "filter");
+            AliasActions parsedAction;
+            try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
+                parsedAction = AliasActions.fromXContent(parser);
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsedAction, equalTo(action));
+        }
+    }
 
     private Map<String, Object> randomMap(int maxDepth) {
         int members = between(0, 5);

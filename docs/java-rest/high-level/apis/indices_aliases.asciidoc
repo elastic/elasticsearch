@@ -1,0 +1,89 @@
+[[java-rest-high-indices-aliases]]
+=== Index Aliases API
+
+[[java-rest-high-indices-aliases-request]]
+==== Index Aliases Request
+
+The index aliases API allows aliasing an index with a name, with all APIs 
+automatically converting the alias name to the actual index name.
+
+An `IndicesAliasesRequest` must have at least one `AliasActions`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-request]
+--------------------------------------------------
+<1> Creates an `IndicesAliasesRequest`
+<2> Creates an `AliasActions` that aliases index `test1` with `alias1`
+<3> Add the alias action to the request
+
+The following action types are supported: `add` - alias an index, `remove` - 
+remove the alias assosiated with the index and `remove_index` - deletes the 
+index. 
+
+Defining an alias with filters provide an easy way to create different 
+"views" of the same index. The filter can be defined using Query DSL and is 
+applied to all Search, Count, Delete By Query and More Like This operations 
+with this alias.
+
+It is possible to associate routing values with aliases. This feature can be 
+used together with filtering aliases in order to avoid unnecessary shard 
+operations.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-request2]
+--------------------------------------------------
+<1> Creates an alias `alias1` with optional filter on field `year`
+<2> Creates an alias `alias2` associated with two indices and with an optional routing -
+all operations using this alias are automatically modified to use value `1` for routing
+<3> Removes the associated alias `alias3`
+<4> `remove_index` is just like <<java-rest-high-delete-index>>
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the operation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the operation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-indices-aliases-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-execute]
+--------------------------------------------------
+
+[[java-rest-high-indices-aliases-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-indices-aliases-response]]
+==== Indices Aliases Response
+
+The returned `IndicesAliasesResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

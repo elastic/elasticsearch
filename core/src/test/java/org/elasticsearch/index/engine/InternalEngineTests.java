@@ -741,7 +741,7 @@ public class InternalEngineTests extends EngineTestCase {
             initialEngine = createEngine(
                     store,
                     createTempDir(),
-                    InternalEngine::localCheckpointTracker,
+                    LocalCheckpointTracker::new,
                     (engine, operation) -> seqNos.get(counter.getAndIncrement()));
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -3591,7 +3591,7 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final List<Thread> threads = new ArrayList<>();
             initialEngine =
-                    createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, InternalEngine::localCheckpointTracker, null, getStallingSeqNoGenerator(latchReference, barrier, stall, expectedLocalCheckpoint));
+                    createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, LocalCheckpointTracker::new, null, getStallingSeqNoGenerator(latchReference, barrier, stall, expectedLocalCheckpoint));
             final InternalEngine finalInitialEngine = initialEngine;
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -3816,7 +3816,7 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final Map<Thread, CountDownLatch> threads = new LinkedHashMap<>();
             actualEngine =
-                    createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, InternalEngine::localCheckpointTracker, null, getStallingSeqNoGenerator(latchReference, barrier, stall, expectedLocalCheckpoint));
+                    createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, LocalCheckpointTracker::new, null, getStallingSeqNoGenerator(latchReference, barrier, stall, expectedLocalCheckpoint));
             final InternalEngine finalActualEngine = actualEngine;
             final Translog translog = finalActualEngine.getTranslog();
             final long generation = finalActualEngine.getTranslog().currentFileGeneration();

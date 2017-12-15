@@ -150,7 +150,7 @@ public class InternalEngine extends Engine {
     private final String historyUUID;
 
     public InternalEngine(EngineConfig engineConfig) {
-        this(engineConfig, InternalEngine::localCheckpointTracker);
+        this(engineConfig, LocalCheckpointTracker::new);
     }
 
     InternalEngine(
@@ -366,12 +366,6 @@ public class InternalEngine extends Engine {
             }
         }
         maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
-    }
-
-    static LocalCheckpointTracker localCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {
-        return new LocalCheckpointTracker(
-            maxSeqNo,
-            localCheckpoint);
     }
 
     @Override

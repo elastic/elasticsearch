@@ -399,14 +399,14 @@ public class ReplicationOperation<
     public interface ReplicaResponse {
 
         /**
-         * The local checkpoint for the shard. See {@link SequenceNumbersService#getLocalCheckpoint()}.
+         * The local checkpoint for the shard.
          *
          * @return the local checkpoint
          **/
         long localCheckpoint();
 
         /**
-         * The global checkpoint for the shard. See {@link SequenceNumbersService#getGlobalCheckpoint()}.
+         * The global checkpoint for the shard.
          *
          * @return the global checkpoint
          **/

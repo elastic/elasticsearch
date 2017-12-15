@@ -3,27 +3,17 @@
 
 [partintro]
 --
-The {xpackml} features automate the analysis of time-series data by creating
-accurate baselines of normal behaviors in the data and identifying anomalous
-patterns in that data.
-
-Using proprietary {ml} algorithms, the following circumstances are detected,
-scored, and linked with statistically significant influencers in the data:
-
-* Anomalies related to temporal deviations in values, counts, or frequencies
-* Statistical rarity
-* Unusual behaviors for a member of a population
-
-Automated periodicity detection and quick adaptation to changing data ensure
-that you don’t need to specify algorithms, models, or other data science-related
-configurations in order to get the benefits of {ml}.
-
-[float]
-[[ml-intro]]
-== Integration with the Elastic Stack
-
 Machine learning is tightly integrated with the Elastic Stack. Data is pulled
 from {es} for analysis and anomaly results are displayed in {kib} dashboards.
+
+* <<ml-overview>>
+* <<ml-getting-started>>
+* <<ml-configuring>>
+* <<stopping-ml>>
+* <<ml-troubleshooting, Troubleshooting Machine Learning>>
+* <<ml-api-quickref>>
+* <<ml-functions>>
+
 
 --
 

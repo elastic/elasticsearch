@@ -15,6 +15,8 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.XPackSingleNodeTestCase;
+import org.elasticsearch.xpack.watcher.WatcherService;
+import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
@@ -127,6 +129,8 @@ public class HipChatServiceTests extends XPackSingleNodeTestCase {
     }
 
     public void testWatchWithHipChatAction() throws Exception {
+        assertBusy(() -> assertThat(getInstanceFromNode(WatcherService.class).state(), is(WatcherState.STARTED)));
+
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
         String account;

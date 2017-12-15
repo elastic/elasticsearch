@@ -212,7 +212,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         Query parentQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter();
+            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }

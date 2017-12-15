@@ -36,9 +36,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -46,10 +48,15 @@ import java.util.List;
  */
 public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndexRequest, GetIndexResponse> {
 
+    private final IndicesService indicesService;
+
     @Inject
     public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new, indexNameExpressionResolver);
+                                   ThreadPool threadPool, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
+        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
+                indexNameExpressionResolver);
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -60,7 +67,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -82,8 +90,14 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             switch (feature) {
             case MAPPINGS:
                     if (!doneMappings) {
-                        mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
-                        doneMappings = true;
+                        try {
+                            mappingsResult = state.metaData().findMappings(concreteIndices, request.types(),
+                                    indicesService.getFieldFilter());
+                            doneMappings = true;
+                        } catch (IOException e) {
+                            listener.onFailure(e);
+                            return;
+                        }
                     }
                     break;
             case ALIASES:

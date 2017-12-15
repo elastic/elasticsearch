@@ -380,7 +380,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc")
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("_doc")
                 .setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
@@ -398,7 +398,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureStableCluster(2);
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("index", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
 
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
@@ -409,7 +409,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         ensureGreen("index");
-        assertTrue(client().prepareGet("index", "doc", "1").get().isExists());
+        assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
     }
 
     /**

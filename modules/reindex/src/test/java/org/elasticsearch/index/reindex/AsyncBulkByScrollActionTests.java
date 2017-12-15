@@ -455,7 +455,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap());
         SearchHits hits = new SearchHits(new SearchHit[] { hit }, 0, 0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null);
+        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null,
+                SearchResponse.Clusters.EMPTY);
 
         if (randomBoolean()) {
             client.lastScroll.get().listener.onResponse(searchResponse);

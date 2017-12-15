@@ -208,12 +208,12 @@ public final class ConnectionProfile {
          * Returns one of the channels out configured for this handle. The channel is selected in a round-robin
          * fashion.
          */
-        <T> T getChannel(T[] channels) {
+        <T> T getChannel(List<T> channels) {
             if (length == 0) {
                 throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }
-            assert channels.length >= offset + length : "illegal size: " + channels.length + " expected >= " + (offset + length);
-            return channels[offset + Math.floorMod(counter.incrementAndGet(), length)];
+            assert channels.size() >= offset + length : "illegal size: " + channels.size() + " expected >= " + (offset + length);
+            return channels.get(offset + Math.floorMod(counter.incrementAndGet(), length));
         }
 
         /**
@@ -223,5 +223,4 @@ public final class ConnectionProfile {
             return types;
         }
     }
-
 }

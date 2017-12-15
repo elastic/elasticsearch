@@ -24,14 +24,14 @@
 
 #### Interfaces
 
-class java.lang.Appendable import {
+class java.lang.Appendable {
   # append(char/CharSequence): skipped. left to subclasses (e.g. StringBuilder).
   Appendable append(CharSequence,int,int)
 }
 
 # AutoCloseable: i/o
 
-class java.lang.CharSequence import {
+class java.lang.CharSequence {
   char charAt(int)
   IntStream chars()
   IntStream codePoints()
@@ -44,11 +44,11 @@ class java.lang.CharSequence import {
 
 # Cloneable: add clone() to subclasses directly.
 
-class java.lang.Comparable import {
+class java.lang.Comparable {
   int compareTo(def)
 }
 
-class java.lang.Iterable import {
+class java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
   Spliterator spliterator()
@@ -72,7 +72,7 @@ class java.lang.Iterable import {
 
 #### Classes
 
-class java.lang.Boolean import {
+class java.lang.Boolean {
   Boolean TRUE
   Boolean FALSE
   boolean booleanValue()
@@ -87,7 +87,7 @@ class java.lang.Boolean import {
   Boolean valueOf(boolean)
 }
 
-class java.lang.Byte import {
+class java.lang.Byte {
   int BYTES
   byte MAX_VALUE
   byte MIN_VALUE
@@ -105,7 +105,7 @@ class java.lang.Byte import {
   Byte valueOf(String,int)
 }
 
-class java.lang.Character import {
+class java.lang.Character {
   int BYTES
   byte COMBINING_SPACING_MARK
   byte CONNECTOR_PUNCTUATION
@@ -226,10 +226,10 @@ class java.lang.Character import {
   Character valueOf(char)
 }
 
-class java.lang.Character$Subset import {
+class java.lang.Character$Subset {
 }
 
-class java.lang.Character$UnicodeBlock import {
+class java.lang.Character$UnicodeBlock {
   Character.UnicodeBlock AEGEAN_NUMBERS
   Character.UnicodeBlock ALCHEMICAL_SYMBOLS
   Character.UnicodeBlock ALPHABETIC_PRESENTATION_FORMS
@@ -459,7 +459,7 @@ class java.lang.Character$UnicodeBlock import {
 # ClassValue: ...
 # Compiler: ...
 
-class java.lang.Double import {
+class java.lang.Double {
   int BYTES
   int MAX_EXPONENT
   double MAX_VALUE
@@ -490,13 +490,13 @@ class java.lang.Double import {
   Double valueOf(double)
 }
 
-class java.lang.Enum import {
+class java.lang.Enum {
   int compareTo(Enum)
   String name()
   int ordinal()
 }
 
-class java.lang.Float import {
+class java.lang.Float {
   int BYTES
   int MAX_EXPONENT
   float MAX_VALUE
@@ -529,7 +529,7 @@ class java.lang.Float import {
 
 # InheritableThreadLocal: threads
 
-class java.lang.Integer import {
+class java.lang.Integer {
   int BYTES
   int MAX_VALUE
   int MIN_VALUE
@@ -569,7 +569,7 @@ class java.lang.Integer import {
   Integer valueOf(String,int)
 }
 
-class java.lang.Long import {
+class java.lang.Long {
   int BYTES
   long MAX_VALUE
   long MIN_VALUE
@@ -609,7 +609,7 @@ class java.lang.Long import {
   Long valueOf(String,int)
 }
 
-class java.lang.Math import {
+class java.lang.Math {
   double E
   double PI
   double abs(double)
@@ -651,7 +651,7 @@ class java.lang.Math import {
   double ulp(double)
 }
 
-class java.lang.Number import {
+class java.lang.Number {
   byte byteValue()
   short shortValue()
   int intValue()
@@ -660,7 +660,7 @@ class java.lang.Number import {
   double doubleValue()
 }
 
-class java.lang.Object import {
+class java.lang.Object {
   boolean equals(Object)
   int hashCode()
   String toString()
@@ -674,7 +674,7 @@ class java.lang.Object import {
 # RuntimePermission: skipped
 # SecurityManger: skipped
 
-class java.lang.Short import {
+class java.lang.Short {
   int BYTES
   short MAX_VALUE
   short MIN_VALUE
@@ -693,7 +693,7 @@ class java.lang.Short import {
   Short valueOf(String,int)
 }
 
-class java.lang.StackTraceElement import {
+class java.lang.StackTraceElement {
   (String,String,String,int)
   String getClassName()
   String getFileName()
@@ -702,7 +702,7 @@ class java.lang.StackTraceElement import {
   boolean isNativeMethod()
 }
 
-class java.lang.StrictMath import {
+class java.lang.StrictMath {
   double E
   double PI
   double abs(double)
@@ -744,7 +744,7 @@ class java.lang.StrictMath import {
   double ulp(double)
 }
 
-class java.lang.String import {
+class java.lang.String {
   ()
   int codePointAt(int)
   int codePointBefore(int)
@@ -786,7 +786,7 @@ class java.lang.String import {
   String valueOf(def)
 }
 
-class java.lang.StringBuffer import {
+class java.lang.StringBuffer {
   ()
   (CharSequence)
   StringBuffer append(def)
@@ -813,7 +813,7 @@ class java.lang.StringBuffer import {
   String substring(int,int)
 }
 
-class java.lang.StringBuilder import {
+class java.lang.StringBuilder {
   ()
   (CharSequence)
   StringBuilder append(def)
@@ -840,7 +840,7 @@ class java.lang.StringBuilder import {
   String substring(int,int)
 }
 
-class java.lang.System import {
+class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
   long currentTimeMillis()
   long nanoTime()
@@ -851,12 +851,12 @@ class java.lang.System import {
 # ThreadLocal: skipped
 # Throwable: skipped (reserved for painless, users can only catch Exceptions)
 
-class java.lang.Void import {
+class java.lang.Void {
 }
 
 #### Enums
 
-class java.lang.Character$UnicodeScript import {
+class java.lang.Character$UnicodeScript {
   Character.UnicodeScript ARABIC
   Character.UnicodeScript ARMENIAN
   Character.UnicodeScript AVESTAN
@@ -968,41 +968,41 @@ class java.lang.Character$UnicodeScript import {
 
 #### Exceptions
 
-class java.lang.ArithmeticException import {
+class java.lang.ArithmeticException {
   ()
   (String)
 }
 
-class java.lang.ArrayIndexOutOfBoundsException import {
+class java.lang.ArrayIndexOutOfBoundsException {
   ()
   (String)
 }
 
-class java.lang.ArrayStoreException import {
+class java.lang.ArrayStoreException {
   ()
   (String)
 }
 
-class java.lang.ClassCastException import {
+class java.lang.ClassCastException {
   ()
   (String)
 }
 
-class java.lang.ClassNotFoundException import {
+class java.lang.ClassNotFoundException {
   ()
   (String)
 }
 
-class java.lang.CloneNotSupportedException import {
+class java.lang.CloneNotSupportedException {
   ()
   (String)
 }
 
-class java.lang.EnumConstantNotPresentException import {
+class java.lang.EnumConstantNotPresentException {
   String constantName()
 }
 
-class java.lang.Exception import {
+class java.lang.Exception {
   ()
   (String)
   String getLocalizedMessage()
@@ -1010,96 +1010,96 @@ class java.lang.Exception import {
   StackTraceElement[] getStackTrace()
 }
 
-class java.lang.IllegalAccessException import {
+class java.lang.IllegalAccessException {
   ()
   (String)
 }
 
-class java.lang.IllegalArgumentException import {
+class java.lang.IllegalArgumentException {
   ()
   (String)
 }
 
-class java.lang.IllegalMonitorStateException import {
+class java.lang.IllegalMonitorStateException {
   ()
   (String)
 }
 
-class java.lang.IllegalStateException import {
+class java.lang.IllegalStateException {
   ()
   (String)
 }
 
-class java.lang.IllegalThreadStateException import {
+class java.lang.IllegalThreadStateException {
   ()
   (String)
 }
 
-class java.lang.IndexOutOfBoundsException import {
+class java.lang.IndexOutOfBoundsException {
   ()
   (String)
 }
 
-class java.lang.InstantiationException import {
+class java.lang.InstantiationException {
   ()
   (String)
 }
 
-class java.lang.InterruptedException import {
+class java.lang.InterruptedException {
   ()
   (String)
 }
 
-class java.lang.NegativeArraySizeException import {
+class java.lang.NegativeArraySizeException {
   ()
   (String)
 }
 
-class java.lang.NoSuchFieldException import {
+class java.lang.NoSuchFieldException {
   ()
   (String)
 }
 
-class java.lang.NoSuchMethodException import {
+class java.lang.NoSuchMethodException {
   ()
   (String)
 }
 
-class java.lang.NullPointerException import {
+class java.lang.NullPointerException {
   ()
   (String)
 }
 
-class java.lang.NumberFormatException import {
+class java.lang.NumberFormatException {
   ()
   (String)
 }
 
-class java.lang.ReflectiveOperationException import {
+class java.lang.ReflectiveOperationException {
   ()
   (String)
 }
 
-class java.lang.RuntimeException import {
+class java.lang.RuntimeException {
   ()
   (String)
 }
 
-class java.lang.SecurityException import {
+class java.lang.SecurityException {
   ()
   (String)
 }
 
-class java.lang.StringIndexOutOfBoundsException import {
+class java.lang.StringIndexOutOfBoundsException {
   ()
   (String)
 }
 
-class java.lang.TypeNotPresentException import {
+class java.lang.TypeNotPresentException {
   String typeName()
 }
 
-class java.lang.UnsupportedOperationException import {
+class java.lang.UnsupportedOperationException {
   ()
   (String)
 }

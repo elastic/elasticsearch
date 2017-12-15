@@ -130,7 +130,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         }
 
         TopFieldCollector topFieldCollector =
-            TopFieldCollector.create(sort, totalHits, true, trackMaxScores, trackMaxScores);
+            TopFieldCollector.create(sort, totalHits, true, trackMaxScores, trackMaxScores, true);
 
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         searcher.search(new MatchAllDocsQuery(), topFieldCollector);

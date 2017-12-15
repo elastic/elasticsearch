@@ -29,12 +29,15 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -135,6 +139,32 @@ public final class Request {
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(createIndexRequest.timeout());
+        parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
+
+        HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     static Request info() {
         return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
@@ -191,23 +221,23 @@ public final class Request {
                         metadata.field("_id", request.id());
                     }
                     if (Strings.hasLength(request.routing())) {
-                        metadata.field("_routing", request.routing());
+                        metadata.field("routing", request.routing());
                     }
                     if (Strings.hasLength(request.parent())) {
-                        metadata.field("_parent", request.parent());
+                        metadata.field("parent", request.parent());
                     }
                     if (request.version() != Versions.MATCH_ANY) {
-                        metadata.field("_version", request.version());
+                        metadata.field("version", request.version());
                     }
 
                     VersionType versionType = request.versionType();
                     if (versionType != VersionType.INTERNAL) {
                         if (versionType == VersionType.EXTERNAL) {
-                            metadata.field("_version_type", "external");
+                            metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
-                            metadata.field("_version_type", "external_gte");
+                            metadata.field("version_type", "external_gte");
                         } else if (versionType == VersionType.FORCE) {
-                            metadata.field("_version_type", "force");
+                            metadata.field("version_type", "force");
                         }
                     }
 
@@ -219,7 +249,7 @@ public final class Request {
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = (UpdateRequest) request;
                         if (updateRequest.retryOnConflict() > 0) {
-                            metadata.field("_retry_on_conflict", updateRequest.retryOnConflict());
+                            metadata.field("retry_on_conflict", updateRequest.retryOnConflict());
                         }
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
@@ -381,6 +411,18 @@ public final class Request {
         return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
     }
 
+    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
+        return new Request("GET", "/_msearch", params.getParams(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -518,6 +560,13 @@ public final class Request {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
+        }
+
+        Params withUpdateAllTypes(boolean updateAllTypes) {
+            if (updateAllTypes) {
+                return putParam("update_all_types", Boolean.TRUE.toString());
+            }
+            return this;
         }
 
         Params withVersion(long version) {

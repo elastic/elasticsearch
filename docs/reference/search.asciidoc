@@ -34,7 +34,7 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_search?routing=kimchy
+POST /twitter/_search?routing=kimchy
 {
     "query": {
         "bool" : {
@@ -162,3 +162,5 @@ include::search/explain.asciidoc[]
 include::search/profile.asciidoc[]
 
 include::search/field-caps.asciidoc[]
+
+include::search/rank-eval.asciidoc[]

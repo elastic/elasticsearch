@@ -1,0 +1,137 @@
+---
+"Response format":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: the ranking evaluation feature is only available on 7.0
+
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "bar": 1 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "bar": 2 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "bar": 3 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "bar": 4 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc5
+        body:   { "bar": 5 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc6
+        body:   { "bar": 6 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "dcg_query",
+                "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
+                "ratings": [
+                    {"_index" : "foo", "_id" : "doc1", "rating": 3},
+                    {"_index" : "foo", "_id" : "doc2", "rating": 2},
+                    {"_index" : "foo", "_id" : "doc3", "rating": 3},
+                    {"_index" : "foo", "_id" : "doc4", "rating": 0},
+                    {"_index" : "foo", "_id" : "doc5", "rating": 1},
+                    {"_index" : "foo", "_id" : "doc6", "rating": 2}]
+            }
+          ],
+          "metric" : { "dcg": {}}
+        }
+
+  - match: {rank_eval.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
+
+# reverse the order in which the results are returned (less relevant docs first)
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "dcg_query_reverse",
+                "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
+                "ratings": [
+                    {"_index" : "foo", "_id" : "doc1", "rating": 3},
+                    {"_index" : "foo", "_id" : "doc2", "rating": 2},
+                    {"_index" : "foo", "_id" : "doc3", "rating": 3},
+                    {"_index" : "foo", "_id" : "doc4", "rating": 0},
+                    {"_index" : "foo", "_id" : "doc5", "rating": 1},
+                    {"_index" : "foo", "_id" : "doc6", "rating": 2}]
+            }, 
+          ],
+          "metric" : { "dcg": { }}
+        }
+
+  - match: {rank_eval.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}
+
+# if we mix both, we should get the average
+  
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "dcg_query",
+                "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
+                "ratings": [
+                  {"_index" : "foo", "_id" : "doc1", "rating": 3},
+                  {"_index" : "foo", "_id" : "doc2", "rating": 2},
+                  {"_index" : "foo", "_id" : "doc3", "rating": 3},
+                  {"_index" : "foo", "_id" : "doc4", "rating": 0},
+                  {"_index" : "foo", "_id" : "doc5", "rating": 1},
+                  {"_index" : "foo", "_id" : "doc6", "rating": 2}]
+            },
+            {
+                "id": "dcg_query_reverse",
+                "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
+                "ratings": [
+                  {"_index" : "foo", "_id" : "doc1", "rating": 3},
+                  {"_index" : "foo", "_id" : "doc2", "rating": 2},
+                  {"_index" : "foo", "_id" : "doc3", "rating": 3},
+                  {"_index" : "foo", "_id" : "doc4", "rating": 0},
+                  {"_index" : "foo", "_id" : "doc5", "rating": 1},
+                  {"_index" : "foo", "_id" : "doc6", "rating": 2}]
+            }, 
+          ],
+          "metric" : { "dcg": { }}
+        }
+
+  - match: {rank_eval.quality_level: 12.073969010408984}
+  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
+  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}

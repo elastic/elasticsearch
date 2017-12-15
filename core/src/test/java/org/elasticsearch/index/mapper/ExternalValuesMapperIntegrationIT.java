@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -118,7 +118,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilders.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", new PointBuilder(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
@@ -131,8 +131,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        prepareCreate("test-idx").addMapping("doc",
-                XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+        prepareCreate("test-idx").addMapping("_doc",
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("f")
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
@@ -150,7 +150,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().endObject()).execute().get();
 
-        index("test-idx", "doc", "1", "f", "This is my text");
+        index("test-idx", "_doc", "1", "f", "This is my text");
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")

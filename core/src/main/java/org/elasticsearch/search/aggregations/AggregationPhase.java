@@ -123,6 +123,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
+        context.aggregations().resetBucketMultiConsumer();
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();

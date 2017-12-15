@@ -109,6 +109,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
+    protected int channelsPerNodeConnection() {
+        return 13;
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -1976,7 +1980,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
-            protected String handleRequest(MockChannel mockChannel, String profileName, StreamInput stream, long requestId,
+            protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
                 throws IOException {
                 return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
@@ -2345,6 +2349,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testAcceptedChannelCount() throws Exception {
+        assertBusy(() -> {
+            TransportStats transportStats = serviceA.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+
+        serviceA.close();
+
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(0, transportStats.getServerOpen());
+        });
+    }
+
     public void testTransportStatsWithException() throws Exception {
         MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
@@ -2568,7 +2590,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings randomSettings = randomFrom(random(), globalSettings, transportSettings, profileSettings);
         ClusterSettings clusterSettings = new ClusterSettings(randomSettings, ClusterSettings
             .BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.validate(randomSettings);
+        clusterSettings.validate(randomSettings, false);
         TcpTransport.ProfileSettings settings = new TcpTransport.ProfileSettings(
             Settings.builder().put(randomSettings).put("transport.profiles.some_profile.port", "9700-9800").build(), // port is required
             "some_profile");

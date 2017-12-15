@@ -27,7 +27,7 @@ grant codeBase "${codebase.elasticsearch-rest-client}" {
   permission java.net.NetPermission "getProxySelector";
 };
 
-grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
+grant codeBase "${codebase.httpasyncclient}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };

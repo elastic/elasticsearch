@@ -79,6 +79,11 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     return new ConstantScoreScorer(this, score(), DocIdSetIterator.all(context.reader().maxDoc()));
                 }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
             };
         }
 
@@ -362,6 +367,11 @@ public class IndicesQueryCacheTests extends ESTestCase {
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             scorerSupplierCalled = true;
             return weight.scorerSupplier(context);
+        }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return true;
         }
 
     }

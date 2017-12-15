@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class java.util.Collection import {
+class java.util.Collection {
   boolean add(def)
   boolean addAll(Collection)
   void clear()
@@ -50,7 +50,7 @@ class java.util.Collection import {
   List org.elasticsearch.painless.api.Augmentation split(Predicate)
 }
 
-class java.util.Comparator import {
+class java.util.Comparator {
   int compare(def,def)
   Comparator comparing(Function)
   Comparator comparing(Function,Comparator)
@@ -70,7 +70,7 @@ class java.util.Comparator import {
   Comparator thenComparingLong(ToLongFunction)
 }
 
-class java.util.Deque import {
+class java.util.Deque {
   void addFirst(def)
   void addLast(def)
   Iterator descendingIterator()
@@ -91,26 +91,26 @@ class java.util.Deque import {
   boolean removeLastOccurrence(def)
 }
 
-class java.util.Enumeration import {
+class java.util.Enumeration {
   boolean hasMoreElements()
   def nextElement()
 }
 
-class java.util.EventListener import {
+class java.util.EventListener {
 }
 
-class java.util.Formattable import {
+class java.util.Formattable {
   void formatTo(Formatter,int,int,int)
 }
 
-class java.util.Iterator import {
+class java.util.Iterator {
   void forEachRemaining(Consumer)
   boolean hasNext()
   def next()
   void remove()
 }
 
-class java.util.List import {
+class java.util.List {
   void add(int,def)
   boolean addAll(int,Collection)
   boolean equals(Object)
@@ -128,7 +128,7 @@ class java.util.List import {
   List subList(int,int)
 }
 
-class java.util.ListIterator import {
+class java.util.ListIterator {
   void add(def)
   boolean hasPrevious()
   int nextIndex()
@@ -136,7 +136,7 @@ class java.util.ListIterator import {
   void set(def)
 }
 
-class java.util.Map import {
+class java.util.Map {
   void clear()
   def compute(def,BiFunction)
   def computeIfAbsent(def,Function)
@@ -176,7 +176,7 @@ class java.util.Map import {
   Map org.elasticsearch.painless.api.Augmentation groupBy(BiFunction)
 }
 
-class java.util.Map$Entry import {
+class java.util.Map$Entry {
   Comparator comparingByKey()
   Comparator comparingByKey(Comparator)
   Comparator comparingByValue()
@@ -188,7 +188,7 @@ class java.util.Map$Entry import {
   def setValue(def)
 }
 
-class java.util.NavigableMap import {
+class java.util.NavigableMap {
   Map.Entry ceilingEntry(def)
   def ceilingKey(def)
   NavigableSet descendingKeySet()
@@ -208,7 +208,7 @@ class java.util.NavigableMap import {
   NavigableMap tailMap(def,boolean)
 }
 
-class java.util.NavigableSet import {
+class java.util.NavigableSet {
   def ceiling(def)
   Iterator descendingIterator()
   NavigableSet descendingSet()
@@ -222,30 +222,30 @@ class java.util.NavigableSet import {
   NavigableSet tailSet(def,boolean)
 }
 
-class java.util.Observer import {
+class java.util.Observer {
   void update(Observable,Object)
 }
 
-class java.util.PrimitiveIterator import {
+class java.util.PrimitiveIterator {
   void forEachRemaining(def)
 }
 
-class java.util.PrimitiveIterator$OfDouble import {
+class java.util.PrimitiveIterator$OfDouble {
   Double next()
   double nextDouble()
 }
 
-class java.util.PrimitiveIterator$OfInt import {
+class java.util.PrimitiveIterator$OfInt {
   Integer next()
   int nextInt()
 }
 
-class java.util.PrimitiveIterator$OfLong import {
+class java.util.PrimitiveIterator$OfLong {
   Long next()
   long nextLong()
 }
 
-class java.util.Spliterator import {
+class java.util.Spliterator {
   int CONCURRENT
   int DISTINCT
   int IMMUTABLE
@@ -264,25 +264,25 @@ class java.util.Spliterator import {
   Spliterator trySplit()
 }
 
-class java.util.Spliterator$OfPrimitive import {
+class java.util.Spliterator$OfPrimitive {
   void forEachRemaining(def)
   boolean tryAdvance(def)
   Spliterator.OfPrimitive trySplit()
 }
 
-class java.util.Spliterator$OfDouble import {
+class java.util.Spliterator$OfDouble {
   Spliterator.OfDouble trySplit()
 }
 
-class java.util.Spliterator$OfInt import {
+class java.util.Spliterator$OfInt {
   Spliterator.OfInt trySplit()
 }
 
-class java.util.Spliterator$OfLong import {
+class java.util.Spliterator$OfLong {
   Spliterator.OfLong trySplit()
 }
 
-class java.util.Queue import {
+class java.util.Queue {
   def element()
   boolean offer(def)
   def peek()
@@ -290,16 +290,16 @@ class java.util.Queue import {
   def remove()
 }
 
-class java.util.RandomAccess import {
+class java.util.RandomAccess {
 }
 
-class java.util.Set import {
+class java.util.Set {
   boolean equals(Object)
   int hashCode()
   boolean remove(def)
 }
 
-class java.util.SortedMap import {
+class java.util.SortedMap {
   Comparator comparator()
   def firstKey()
   SortedMap headMap(def)
@@ -308,7 +308,7 @@ class java.util.SortedMap import {
   SortedMap tailMap(def)
 }
 
-class java.util.SortedSet import {
+class java.util.SortedSet {
   Comparator comparator()
   def first()
   SortedSet headSet(def)
@@ -319,55 +319,55 @@ class java.util.SortedSet import {
 
 #### Classes
 
-class java.util.AbstractCollection import {
+class java.util.AbstractCollection {
 }
 
-class java.util.AbstractList import {
+class java.util.AbstractList {
 }
 
-class java.util.AbstractMap import {
+class java.util.AbstractMap {
 }
 
-class java.util.AbstractMap$SimpleEntry import {
+class java.util.AbstractMap$SimpleEntry {
   (def,def)
   (Map.Entry)
 }
 
-class java.util.AbstractMap$SimpleImmutableEntry import {
+class java.util.AbstractMap$SimpleImmutableEntry {
   (def,def)
   (Map.Entry)
 }
 
-class java.util.AbstractQueue import {
+class java.util.AbstractQueue {
 }
 
-class java.util.AbstractSequentialList import {
+class java.util.AbstractSequentialList {
 }
 
-class java.util.AbstractSet import {
+class java.util.AbstractSet {
 }
 
-class java.util.ArrayDeque import {
+class java.util.ArrayDeque {
   ()
   (Collection)
   ArrayDeque clone()
 }
 
-class java.util.ArrayList import {
+class java.util.ArrayList {
   ()
   (Collection)
   def clone()
   void trimToSize()
 }
 
-class java.util.Arrays import {
+class java.util.Arrays {
   List asList(Object[])
   boolean deepEquals(Object[],Object[])
   int deepHashCode(Object[])
   String deepToString(Object[])
 }
 
-class java.util.Base64 import {
+class java.util.Base64 {
   Base64.Decoder getDecoder()
   Base64.Encoder getEncoder()
   Base64.Decoder getMimeDecoder()
@@ -377,18 +377,18 @@ class java.util.Base64 import {
   Base64.Encoder getUrlEncoder()
 }
 
-class java.util.Base64$Decoder import {
+class java.util.Base64$Decoder {
   int decode(byte[],byte[])
   byte[] decode(String)
 }
 
-class java.util.Base64$Encoder import {
+class java.util.Base64$Encoder {
   int encode(byte[],byte[])
   String encodeToString(byte[])
   Base64.Encoder withoutPadding()
 }
 
-class java.util.BitSet import {
+class java.util.BitSet {
   ()
   (int)
   void and(BitSet)
@@ -418,7 +418,7 @@ class java.util.BitSet import {
   void xor(BitSet)
 }
 
-class java.util.Calendar import {
+class java.util.Calendar {
   int ALL_STYLES
   int AM
   int AM_PM
@@ -516,7 +516,7 @@ class java.util.Calendar import {
   Instant toInstant()
 }
 
-class java.util.Calendar$Builder import {
+class java.util.Calendar$Builder {
   ()
   Calendar build()
   Calendar.Builder set(int,int)
@@ -533,7 +533,7 @@ class java.util.Calendar$Builder import {
   Calendar.Builder setWeekDefinition(int,int)
 }
 
-class java.util.Collections import {
+class java.util.Collections {
   List EMPTY_LIST
   Map EMPTY_MAP
   Set EMPTY_SET
@@ -588,7 +588,7 @@ class java.util.Collections import {
   SortedSet unmodifiableSortedSet(SortedSet)
 }
 
-class java.util.Currency import {
+class java.util.Currency {
   Set getAvailableCurrencies()
   String getCurrencyCode()
   int getDefaultFractionDigits()
@@ -600,7 +600,7 @@ class java.util.Currency import {
   String getSymbol(Locale)
 }
 
-class java.util.Date import {
+class java.util.Date {
   ()
   (long)
   boolean after(Date)
@@ -612,7 +612,7 @@ class java.util.Date import {
   void setTime(long)
 }
 
-class java.util.Dictionary import {
+class java.util.Dictionary {
   Enumeration elements()
   def get(def)
   boolean isEmpty()
@@ -622,7 +622,7 @@ class java.util.Dictionary import {
   int size()
 }
 
-class java.util.DoubleSummaryStatistics import {
+class java.util.DoubleSummaryStatistics {
   ()
   void combine(DoubleSummaryStatistics)
   double getAverage()
@@ -632,22 +632,22 @@ class java.util.DoubleSummaryStatistics import {
   double getSum()
 }
 
-class java.util.EventListenerProxy import {
+class java.util.EventListenerProxy {
   EventListener getListener()
 }
 
-class java.util.EventObject import {
+class java.util.EventObject {
   (Object)
   Object getSource()
 }
 
-class java.util.FormattableFlags import {
+class java.util.FormattableFlags {
   int ALTERNATE
   int LEFT_JUSTIFY
   int UPPERCASE
 }
 
-class java.util.Formatter import {
+class java.util.Formatter {
   ()
   (Appendable)
   (Appendable,Locale)
@@ -657,7 +657,7 @@ class java.util.Formatter import {
   Appendable out()
 }
 
-class java.util.GregorianCalendar import {
+class java.util.GregorianCalendar {
   int AD
   int BC
   ()
@@ -673,31 +673,31 @@ class java.util.GregorianCalendar import {
   ZonedDateTime toZonedDateTime()
 }
 
-class java.util.HashMap import {
+class java.util.HashMap {
   ()
   (Map)
   def clone()
 }
 
-class java.util.HashSet import {
+class java.util.HashSet {
   ()
   (Collection)
   def clone()
 }
 
-class java.util.Hashtable import {
+class java.util.Hashtable {
   ()
   (Map)
   def clone()
 }
 
-class java.util.IdentityHashMap import {
+class java.util.IdentityHashMap {
   ()
   (Map)
   def clone()
 }
 
-class java.util.IntSummaryStatistics import {
+class java.util.IntSummaryStatistics {
   ()
   void combine(IntSummaryStatistics)
   double getAverage()
@@ -707,23 +707,23 @@ class java.util.IntSummaryStatistics import {
   long getSum()
 }
 
-class java.util.LinkedHashMap import {
+class java.util.LinkedHashMap {
   ()
   (Map)
 }
 
-class java.util.LinkedHashSet import {
+class java.util.LinkedHashSet {
   ()
   (Collection)
 }
 
-class java.util.LinkedList import {
+class java.util.LinkedList {
   ()
   (Collection)
   def clone()
 }
 
-class java.util.Locale import {
+class java.util.Locale {
   Locale CANADA
   Locale CANADA_FRENCH
   Locale CHINA
@@ -788,7 +788,7 @@ class java.util.Locale import {
   String toLanguageTag()
 }
 
-class java.util.Locale$Builder import {
+class java.util.Locale$Builder {
   ()
   Locale.Builder addUnicodeLocaleAttribute(String)
   Locale build()
@@ -805,7 +805,7 @@ class java.util.Locale$Builder import {
   Locale.Builder setVariant(String)
 }
 
-class java.util.Locale$LanguageRange import {
+class java.util.Locale$LanguageRange {
   double MAX_WEIGHT
   double MIN_WEIGHT
   (String)
@@ -817,7 +817,7 @@ class java.util.Locale$LanguageRange import {
   List parse(String,Map)
 }
 
-class java.util.LongSummaryStatistics import {
+class java.util.LongSummaryStatistics {
   ()
   void combine(LongSummaryStatistics)
   double getAverage()
@@ -827,7 +827,7 @@ class java.util.LongSummaryStatistics import {
   long getSum()
 }
 
-class java.util.Objects import {
+class java.util.Objects {
   int compare(def,def,Comparator)
   boolean deepEquals(Object,Object)
   boolean equals(Object,Object)
@@ -841,7 +841,7 @@ class java.util.Objects import {
   String toString(Object,String)
 }
 
-class java.util.Observable import {
+class java.util.Observable {
   ()
   void addObserver(Observer)
   int countObservers()
@@ -852,7 +852,7 @@ class java.util.Observable import {
   void notifyObservers(Object)
 }
 
-class java.util.Optional import {
+class java.util.Optional {
   Optional empty()
   Optional filter(Predicate)
   Optional flatMap(Function)
@@ -867,7 +867,7 @@ class java.util.Optional import {
   def orElseThrow(Supplier)
 }
 
-class java.util.OptionalDouble import {
+class java.util.OptionalDouble {
   OptionalDouble empty()
   double getAsDouble()
   void ifPresent(DoubleConsumer)
@@ -878,7 +878,7 @@ class java.util.OptionalDouble import {
   double orElseThrow(Supplier)
 }
 
-class java.util.OptionalInt import {
+class java.util.OptionalInt {
   OptionalInt empty()
   int getAsInt()
   void ifPresent(IntConsumer)
@@ -889,7 +889,7 @@ class java.util.OptionalInt import {
   int orElseThrow(Supplier)
 }
 
-class java.util.OptionalLong import {
+class java.util.OptionalLong {
   OptionalLong empty()
   long getAsLong()
   void ifPresent(LongConsumer)
@@ -900,12 +900,12 @@ class java.util.OptionalLong import {
   long orElseThrow(Supplier)
 }
 
-class java.util.PriorityQueue import {
+class java.util.PriorityQueue {
   ()
   (Comparator)
 }
 
-class java.util.Random import {
+class java.util.Random {
   ()
   (long)
   DoubleStream doubles(long)
@@ -925,7 +925,7 @@ class java.util.Random import {
   void setSeed(long)
 }
 
-class java.util.SimpleTimeZone import {
+class java.util.SimpleTimeZone {
   int STANDARD_TIME
   int UTC_TIME
   int WALL_TIME
@@ -944,7 +944,7 @@ class java.util.SimpleTimeZone import {
   void setStartYear(int)
 }
 
-class java.util.Spliterators import {
+class java.util.Spliterators {
   Spliterator.OfDouble emptyDoubleSpliterator()
   Spliterator.OfInt emptyIntSpliterator()
   Spliterator.OfLong emptyLongSpliterator()
@@ -955,7 +955,7 @@ class java.util.Spliterators import {
   Spliterator spliteratorUnknownSize(Iterator,int)
 }
 
-class java.util.Stack import {
+class java.util.Stack {
   ()
   def push(def)
   def pop()
@@ -964,7 +964,7 @@ class java.util.Stack import {
   int search(def)
 }
 
-class java.util.StringJoiner import {
+class java.util.StringJoiner {
   (CharSequence)
   (CharSequence,CharSequence,CharSequence)
   StringJoiner add(CharSequence)
@@ -973,7 +973,7 @@ class java.util.StringJoiner import {
   StringJoiner setEmptyValue(CharSequence)
 }
 
-class java.util.StringTokenizer import {
+class java.util.StringTokenizer {
   (String)
   (String,String)
   (String,String,boolean)
@@ -983,7 +983,7 @@ class java.util.StringTokenizer import {
   String nextToken(String)
 }
 
-class java.util.TimeZone import {
+class java.util.TimeZone {
   int LONG
   int SHORT
   def clone()
@@ -1008,19 +1008,19 @@ class java.util.TimeZone import {
   boolean useDaylightTime()
 }
 
-class java.util.TreeMap import {
+class java.util.TreeMap {
   ()
   (Comparator)
   def clone()
 }
 
-class java.util.TreeSet import {
+class java.util.TreeSet {
   ()
   (Comparator)
   def clone()
 }
 
-class java.util.UUID import {
+class java.util.UUID {
   (long,long)
   int compareTo(UUID)
   int clockSequence()
@@ -1034,7 +1034,7 @@ class java.util.UUID import {
   int version()
 }
 
-class java.util.Vector import {
+class java.util.Vector {
   ()
   (Collection)
   void addElement(def)
@@ -1054,19 +1054,19 @@ class java.util.Vector import {
 
 #### Enums
 
-class java.util.Formatter$BigDecimalLayoutForm import {
+class java.util.Formatter$BigDecimalLayoutForm {
   Formatter.BigDecimalLayoutForm DECIMAL_FLOAT
   Formatter.BigDecimalLayoutForm SCIENTIFIC
 }
 
-class java.util.Locale$Category import {
+class java.util.Locale$Category {
   Locale.Category DISPLAY
   Locale.Category FORMAT
   Locale.Category valueOf(String)
   Locale.Category[] values()
 }
 
-class java.util.Locale$FilteringMode import {
+class java.util.Locale$FilteringMode {
   Locale.FilteringMode AUTOSELECT_FILTERING
   Locale.FilteringMode EXTENDED_FILTERING
   Locale.FilteringMode IGNORE_EXTENDED_RANGES
@@ -1078,101 +1078,101 @@ class java.util.Locale$FilteringMode import {
 
 #### Exceptions
 
-class java.util.ConcurrentModificationException import {
+class java.util.ConcurrentModificationException {
   ()
   (String)
 }
 
-class java.util.DuplicateFormatFlagsException import {
+class java.util.DuplicateFormatFlagsException {
   (String)
   String getFlags()
 }
 
-class java.util.EmptyStackException import {
+class java.util.EmptyStackException {
   ()
 }
 
-class java.util.FormatFlagsConversionMismatchException import {
+class java.util.FormatFlagsConversionMismatchException {
   (String,char)
   char getConversion()
   String getFlags()
 }
 
-class java.util.FormatterClosedException import {
+class java.util.FormatterClosedException {
   ()
 }
 
-class java.util.IllegalFormatCodePointException import {
+class java.util.IllegalFormatCodePointException {
   (int)
   int getCodePoint()
 }
 
-class java.util.IllegalFormatConversionException import {
+class java.util.IllegalFormatConversionException {
   char getConversion()
 }
 
-class java.util.IllegalFormatException import {
+class java.util.IllegalFormatException {
 }
 
-class java.util.IllegalFormatFlagsException import {
+class java.util.IllegalFormatFlagsException {
   (String)
   String getFlags()
 }
 
-class java.util.IllegalFormatPrecisionException import {
+class java.util.IllegalFormatPrecisionException {
   (int)
   int getPrecision()
 }
 
-class java.util.IllegalFormatWidthException import {
+class java.util.IllegalFormatWidthException {
   (int)
   int getWidth()
 }
 
-class java.util.IllformedLocaleException import {
+class java.util.IllformedLocaleException {
   ()
   (String)
   (String,int)
   int getErrorIndex()
 }
 
-class java.util.InputMismatchException import {
+class java.util.InputMismatchException {
   ()
   (String)
 }
 
-class java.util.MissingFormatArgumentException import {
+class java.util.MissingFormatArgumentException {
   (String)
   String getFormatSpecifier()
 }
 
-class java.util.MissingFormatWidthException import {
+class java.util.MissingFormatWidthException {
   (String)
   String getFormatSpecifier()
 }
 
-class java.util.MissingResourceException import {
+class java.util.MissingResourceException {
   (String,String,String)
   String getClassName()
   String getKey()
 }
 
-class java.util.NoSuchElementException import {
+class java.util.NoSuchElementException {
   ()
   (String)
 }
 
-class java.util.TooManyListenersException import {
+class java.util.TooManyListenersException {
   ()
   (String)
 }
 
-class java.util.UnknownFormatConversionException import {
+class java.util.UnknownFormatConversionException {
   (String)
   String getConversion()
 }
 
-class java.util.UnknownFormatFlagsException import {
+class java.util.UnknownFormatFlagsException {
   (String)
   String getFlags()
 }

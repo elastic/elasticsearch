@@ -60,10 +60,9 @@ public final class Whitelist {
         public final String javaClassName;
 
         /**
-         * Allow the Java class name to be imported so only the final text of the Java class is
-         * necessary to specify the Painless type name.
+         * Allow the Java class name to only be specified as the fully-qualified name.
          */
-        public final boolean importJavaClassName;
+        public final boolean onlyFQNJavaClassName;
 
         /** The {@link List} of white-listed ({@link Constructor}s) available to this struct. */
         public final List<Constructor> whitelistConstructors;
@@ -75,11 +74,11 @@ public final class Whitelist {
         public final List<Field> whitelistFields;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public Struct(String origin, String javaClassName, boolean importJavaClassName,
+        public Struct(String origin, String javaClassName, boolean onlyFQNJavaClassName,
                       List<Constructor> whitelistConstructors, List<Method> whitelistMethods, List<Field> whitelistFields) {
             this.origin = Objects.requireNonNull(origin);
             this.javaClassName = Objects.requireNonNull(javaClassName);
-            this.importJavaClassName = importJavaClassName;
+            this.onlyFQNJavaClassName = onlyFQNJavaClassName;
 
             this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
             this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));

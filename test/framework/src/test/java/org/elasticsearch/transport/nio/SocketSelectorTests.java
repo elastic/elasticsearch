@@ -21,8 +21,8 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
@@ -34,8 +34,8 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -53,8 +53,9 @@ public class SocketSelectorTests extends ESTestCase {
     private NioSocketChannel channel;
     private TestSelectionKey selectionKey;
     private WriteContext writeContext;
-    private ActionListener<NioChannel> listener;
-    private NetworkBytesReference bufferReference = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
+    private ActionListener<Void> listener;
+    private BytesReference bufferReference = new BytesArray(new byte[1]);
+    private Selector rawSelector;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -66,7 +67,7 @@ public class SocketSelectorTests extends ESTestCase {
         listener = mock(ActionListener.class);
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(channel);
-        Selector rawSelector = mock(Selector.class);
+        rawSelector = mock(Selector.class);
 
         this.socketSelector = new SocketSelector(eventHandler, rawSelector);
         this.socketSelector.setThread();
@@ -84,10 +85,6 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.preSelect();
 
         verify(eventHandler).handleRegistration(channel);
-
-        Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
-        assertEquals(1, registeredChannels.size());
-        assertTrue(registeredChannels.contains(channel));
     }
 
     public void testClosedChannelWillNotBeRegistered() throws Exception {
@@ -98,10 +95,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         verify(eventHandler).registrationException(same(channel), any(ClosedChannelException.class));
         verify(channel, times(0)).finishConnect();
-
-        Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
-        assertEquals(0, registeredChannels.size());
-        assertFalse(registeredChannels.contains(channel));
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {
@@ -114,10 +107,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         verify(eventHandler).registrationException(channel, closedChannelException);
         verify(channel, times(0)).finishConnect();
-
-        Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
-        assertEquals(0, registeredChannels.size());
-        assertFalse(registeredChannels.contains(channel));
     }
 
     public void testSuccessfullyRegisterChannelWillConnect() throws Exception {
@@ -306,14 +295,36 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
-        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
+        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), new BytesArray(new byte[1]), listener));
         socketSelector.scheduleForRegistration(unRegisteredChannel);
+
+        TestSelectionKey testSelectionKey = new TestSelectionKey(0);
+        testSelectionKey.attach(channel);
+        when(rawSelector.keys()).thenReturn(new HashSet<>(Collections.singletonList(testSelectionKey)));
 
         socketSelector.cleanupAndCloseChannels();
 
         verify(listener).onFailure(any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channel);
         verify(eventHandler).handleClose(unRegisteredChannel);
+    }
+
+    public void testExecuteListenerWillHandleException() throws Exception {
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onResponse(null);
+
+        socketSelector.executeListener(listener, null);
+
+        verify(eventHandler).listenerException(listener, exception);
+    }
+
+    public void testExecuteFailedListenerWillHandleException() throws Exception {
+        IOException ioException = new IOException();
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onFailure(ioException);
+
+        socketSelector.executeFailedListener(listener, ioException);
+
+        verify(eventHandler).listenerException(listener, exception);
     }
 }

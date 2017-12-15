@@ -157,3 +157,17 @@ poorer precision worthwhile. If you want to view or change the aggregations
 that are used in your job, refer to the `aggregations` property in your {dfeed}.
 
 For more information, see {ref}/ml-datafeed-resource.html[Datafeed Resources].
+
+[float]
+=== Security Integration
+
+When {security} is enabled, a {dfeed} stores the roles of the user who created
+or updated the {dfeed} **at that time**. This means that if those roles are
+updated then the {dfeed} will subsequently run with the new permissions associated
+with the roles. However, if the user's roles are adjusted after creating or
+updating the {dfeed} then the {dfeed} will continue to run with the permissions
+associated with the original roles.
+
+A way to update the roles stored within the {dfeed} without changing any other
+settings is to submit an empty JSON document (`{}`) to the
+{ref}/ml-update-datafeed.html[update {dfeed} API].

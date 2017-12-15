@@ -383,7 +383,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             throw new IllegalStateException("JTS not available");
         }
         getRequest.preference("_local");
-        getRequest.operationThreaded(false);
         client.get(getRequest, new ActionListener<GetResponse>(){
 
             @Override

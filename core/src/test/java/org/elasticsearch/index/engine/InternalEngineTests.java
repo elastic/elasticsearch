@@ -4264,42 +4264,44 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Path translogPath = createTempDir();
         store = createStore();
-        engine = new InternalEngine(config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier) {
+        final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null);
+        try (Engine engine = new InternalEngine(engineConfig, seqNoServiceSupplier) {
             @Override
             protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
                 // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                 // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
                 if (rarely()) {
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.seqNoService().getLocalCheckpoint()));
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), seqNoService().getLocalCheckpoint()));
                 }
                 super.commitIndexWriter(writer, translog, syncId);
             }
-        };
-        int numDocs = scaledRandomIntBetween(10, 100);
-        for (int docId = 0; docId < numDocs; docId++) {
-            ParseContext.Document document = testDocumentWithTextField();
-            document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-            engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
-            if (frequently()) {
-                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.seqNoService().getLocalCheckpoint()));
-                engine.getTranslog().sync();
-            }
-            if (frequently()) {
-                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
-                engine.flush(false, true);
-                final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-                // Keep only one safe commit as the oldest commit.
-                final IndexCommit safeCommit = commits.get(0);
-                assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
-                for (int i = 1; i < commits.size(); i++) {
-                    assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                        greaterThan(lastSyncedGlobalCheckpoint));
+        }){
+            int numDocs = scaledRandomIntBetween(10, 100);
+            for (int docId = 0; docId < numDocs; docId++) {
+                ParseContext.Document document = testDocumentWithTextField();
+                document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
+                if (frequently()) {
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.seqNoService().getLocalCheckpoint()));
+                    engine.getTranslog().sync();
                 }
-                // Make sure we keep all translog operations after the local checkpoint of the safe commit.
-                long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
+                if (frequently()) {
+                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+                    engine.flush(randomBoolean(), true);
+                    final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+                    // Keep only one safe commit as the oldest commit.
+                    final IndexCommit safeCommit = commits.get(0);
+                    assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                        lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                    for (int i = 1; i < commits.size(); i++) {
+                        assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                            greaterThan(lastSyncedGlobalCheckpoint));
+                    }
+                    // Make sure we keep all translog operations after the local checkpoint of the safe commit.
+                    long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                        assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
+                    }
                 }
             }
         }

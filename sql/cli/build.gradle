@@ -77,7 +77,7 @@ thirdPartyAudit.excludes = [
   'org.mozilla.universalchardet.UniversalDetector'
 ]
 
-task run {
+task runcli {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
   dependsOn 'assemble'
   doLast {

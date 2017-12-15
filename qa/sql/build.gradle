@@ -161,7 +161,7 @@ subprojects {
       finalizedBy cliFixture.stopTask
     }
 
-    task run(type: RunTask) {
+    task runqa(type: RunTask) {
       distribution = 'zip'
       plugin project(':x-pack-elasticsearch:plugin').path
       setting 'xpack.monitoring.enabled', 'false'
@@ -170,6 +170,6 @@ subprojects {
       setting 'script.max_compilations_rate', '1000/1m'
       dependsOn cliFixture
     }
-    run.finalizedBy cliFixture.stopTask
+    runqa.finalizedBy cliFixture.stopTask
   }
 }

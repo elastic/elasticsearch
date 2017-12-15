@@ -43,7 +43,7 @@ subprojects {
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_access.log"
   }
 
-  run {
+  runqa {
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'logfile'

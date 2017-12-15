@@ -2,6 +2,6 @@ integTestCluster {
   setting 'xpack.security.enabled', 'false'
 }
 
-run {
+runqa {
   setting 'xpack.security.enabled', 'false'
 }

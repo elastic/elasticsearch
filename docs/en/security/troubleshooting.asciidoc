@@ -1,5 +1,8 @@
 [[security-troubleshooting]]
 == {security} Troubleshooting
+++++
+<titleabbrev>{security}</titleabbrev>
+++++
 
 Use the information in this section to troubleshoot common problems and find
 answers for frequently asked questions.

@@ -377,7 +377,7 @@ public class InternalEngine extends Engine {
                 return new SeqNoStats(
                     SequenceNumbers.NO_OPS_PERFORMED,
                     SequenceNumbers.NO_OPS_PERFORMED,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    SequenceNumbers.NO_OPS_PERFORMED);
             default:
                 throw new IllegalArgumentException(openMode.toString());
         }

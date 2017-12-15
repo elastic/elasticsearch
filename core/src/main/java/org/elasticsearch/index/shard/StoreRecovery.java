@@ -394,9 +394,13 @@ final class StoreRecovery {
                 }
                 indexShard.performTranslogRecovery(indexShouldExists);
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                assert indexShard.indexSettings.getIndexVersionCreated().before(Version.V_6_0_0) ||
+                    indexShard.getGlobalCheckpoint() > SequenceNumbers.UNASSIGNED_SEQ_NO :
+                    "a primary shard recovering from store should restore it's global checkpoint";
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             }
-            indexShard.finalizeRecovery();
+            // this is the only
+            indexShard.finalizeRecovery(indexShard.getGlobalCheckpoint());
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
@@ -436,7 +440,9 @@ final class StoreRecovery {
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
-            indexShard.finalizeRecovery();
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            // this a new primary shard, with a new history id that will force file based recoveries on any copies
+            indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             indexShard.postRecovery("restore done");
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(shardId, "restore failed", e);

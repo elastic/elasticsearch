@@ -1409,9 +1409,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * perform the last stages of recovery once all translog operations are done.
      * note that you should still call {@link #postRecovery(String)}.
+     *
+     * @param globalCheckpoint a global checkpoint to boostrap the shard with
      */
-    public void finalizeRecovery() {
+    public void finalizeRecovery(long globalCheckpoint) {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
+        updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         Engine engine = getEngine();
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);

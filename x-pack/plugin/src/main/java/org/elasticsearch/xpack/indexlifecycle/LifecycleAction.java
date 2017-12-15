@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
@@ -29,7 +30,7 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      * @param listener
      *            a {@link Listener} to call when this call completes.
      */
-    void execute(Index index, Client client, Listener listener);
+    void execute(Index index, Client client, ClusterService clusterService, Listener listener);
 
     /**
      * A callback for when a {@link LifecycleAction} finishes executing
@@ -38,23 +39,23 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
 
         /**
          * Called if the call to
-         * {@link LifecycleAction#execute(Index, Client, Listener)} was
-         * successful
+         * {@link LifecycleAction#execute(Index, Client, ClusterService, Listener)}
+         * was successful
          * 
          * @param completed
          *            <code>true</code> iff the {@link LifecycleAction} is now
          *            complete and requires no more calls to
-         *            {@link LifecycleAction#execute(Index, Client, Listener)
+         *            {@link LifecycleAction#execute(Index, Client, ClusterService, Listener)
          *            execute(Index, Client, Listener)}.
          */
         void onSuccess(boolean completed);
 
         /**
          * Called if there was an exception during
-         * {@link LifecycleAction#execute(Index, Client, Listener)}. Note that
-         * even the call to
-         * {@link LifecycleAction#execute(Index, Client, Listener)} may be
-         * retried even after this method is called.
+         * {@link LifecycleAction#execute(Index, Client, ClusterService, Listener)}.
+         * Note that even the call to
+         * {@link LifecycleAction#execute(Index, Client, ClusterService, Listener)}
+         * may be retried even after this method is called.
          * 
          * @param e
          *            the exception that caused the failure

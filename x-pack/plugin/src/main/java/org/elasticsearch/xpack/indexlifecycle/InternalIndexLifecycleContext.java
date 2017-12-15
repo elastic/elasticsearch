@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.function.LongSupplier;
@@ -23,6 +24,7 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     private Client client;
     private IndexMetaData idxMeta;
     private LongSupplier nowSupplier;
+    private ClusterService clusterService;
 
     /**
      * @param idxMeta
@@ -33,9 +35,10 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
      *            a {@link LongSupplier} to provide the current timestamp when
      *            required.
      */
-    public InternalIndexLifecycleContext(IndexMetaData idxMeta, Client client, LongSupplier nowSupplier) {
+    public InternalIndexLifecycleContext(IndexMetaData idxMeta, Client client, ClusterService clusterService, LongSupplier nowSupplier) {
         this.idxMeta = idxMeta;
         this.client = client;
+        this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
     }
 
@@ -81,7 +84,7 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
 
     @Override
     public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {
-        action.execute(idxMeta.getIndex(), client, listener);
+        action.execute(idxMeta.getIndex(), client, clusterService, listener);
     }
 
     private void writeSettings(String index, Settings settings, Listener listener) {

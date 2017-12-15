@@ -67,7 +67,7 @@ public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction>
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
         DeleteAction action = new DeleteAction();
-        action.execute(index, client, new Listener() {
+        action.execute(index, client, null, new Listener() {
 
             @Override
             public void onSuccess(boolean completed) {
@@ -116,7 +116,7 @@ public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction>
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteAction action = new DeleteAction();
-        action.execute(index, client, new Listener() {
+        action.execute(index, client, null, new Listener() {
 
             @Override
             public void onSuccess(boolean completed) {

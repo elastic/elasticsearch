@@ -72,7 +72,7 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
 
     @Override
     public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {
-        action.execute(null, null, listener);
+        action.execute(null, null, null, listener);
     }
 
 }

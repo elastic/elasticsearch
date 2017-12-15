@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,7 +42,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction();
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction();
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
 
     @Before

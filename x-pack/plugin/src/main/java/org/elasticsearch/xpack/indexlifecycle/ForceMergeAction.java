@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,7 +55,7 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public void execute(Index index, Client client, Listener listener) {
+    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
         // nocommit: stub
         listener.onSuccess(true);
     }

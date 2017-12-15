@@ -56,7 +56,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
         SetOnce<Boolean> listenerCalled = new SetOnce<>();
 
-        action.execute(null, null, new LifecycleAction.Listener() {
+        action.execute(null, null, null, new LifecycleAction.Listener() {
 
             @Override
             public void onSuccess(boolean completed) {
@@ -84,7 +84,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
         SetOnce<Boolean> listenerCalled = new SetOnce<>();
 
-        action.execute(null, null, new LifecycleAction.Listener() {
+        action.execute(null, null, null, new LifecycleAction.Listener() {
 
             @Override
             public void onSuccess(boolean completed) {
@@ -114,7 +114,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
         SetOnce<Boolean> listenerCalled = new SetOnce<>();
 
-        action.execute(null, null, new LifecycleAction.Listener() {
+        action.execute(null, null, null, new LifecycleAction.Listener() {
 
             @Override
             public void onSuccess(boolean completed) {

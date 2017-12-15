@@ -57,7 +57,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -115,7 +115,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -176,7 +176,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -212,7 +212,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                         .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), phase).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -249,7 +249,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -306,7 +306,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -366,7 +366,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, client, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -402,7 +402,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                         .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), action).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -416,7 +416,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 
@@ -432,7 +432,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> now);
 
         Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
@@ -448,7 +448,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> now);
 
         Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
@@ -464,7 +464,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> now);
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> now);
 
         Phase phase = new Phase("test_phase", after, Collections.emptyMap());
 
@@ -476,7 +476,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", 0L).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, () -> {
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
             throw new AssertionError("nowSupplier should not be called");
         });
 

@@ -659,4 +659,128 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(0L, thirdAction.getExecutedCount());
     }
 
+    public void testExecuteActionFailure() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String phaseName = randomAlphaOfLengthBetween(1, 20);
+        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+        };
+        firstAction.setCompleteOnExecute(false);
+        actions.put(firstAction.getWriteableName(), firstAction);
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
+        actions.put(secondAction.getWriteableName(), secondAction);
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
+        thirdAction.setCompleteOnExecute(false);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
+        Phase phase = new Phase(phaseName, after, actions);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(), 0) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
+
+        // First check that if an exception is thrown when we execute the second
+        // action, action is not completed and the phase and action are not
+        // updated in the context
+        Exception exception = new RuntimeException();
+        secondAction.setCompleteOnExecute(false);
+        secondAction.setExceptionToThrow(exception);
+
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(secondAction.getWriteableName(), context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+
+        // Now check that if an exception is thrown when we execute the second
+        // action again, action is not completed even though it would normally
+        // complete, also check the third action is not executed in this case
+        // and the phase and action are not updated in the context
+        secondAction.setCompleteOnExecute(true);
+
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(secondAction.getWriteableName(), context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(2L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+
+        // Now check that if the action is run again without an exception thrown
+        // then it completes successfully, the action and phase in the context
+        // are updated and the third action is executed
+        secondAction.setCompleteOnExecute(true);
+        secondAction.setExceptionToThrow(null);
+
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(thirdAction.getWriteableName(), context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(3L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
+    }
+
 }

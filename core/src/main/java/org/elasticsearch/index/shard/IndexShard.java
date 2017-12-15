@@ -1205,6 +1205,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
+            // shards recovering from an old primary are an exception
+            assert (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0) &&
+                (shardRouting.primary() == false || shardRouting.isRelocationTarget())
+            ) || getGlobalCheckpoint() > SequenceNumbers.UNASSIGNED_SEQ_NO : "a recovered shard must have it's global checkpoint set";
         }
         return this;
     }

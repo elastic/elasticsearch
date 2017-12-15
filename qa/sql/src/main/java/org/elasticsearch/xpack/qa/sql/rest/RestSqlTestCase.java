@@ -335,6 +335,16 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertEquals(0, getNumberOfSearchContexts("test"));
     }
 
+    public void testSelectUnimplementedMatrixAggs() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/doc/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        expectBadRequest(() -> runSql("SELECT covariance(foo) FROM test"), containsString("innerkey/matrix stats not handled (yet)"));
+    }
+
+
     private Tuple<String, String> runSqlAsText(String sql) throws IOException {
         return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }

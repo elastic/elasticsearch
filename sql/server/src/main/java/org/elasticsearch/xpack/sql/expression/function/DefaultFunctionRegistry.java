@@ -7,8 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Correlation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Covariance;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixCount;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixMean;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixVariance;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Mean;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
@@ -99,13 +104,17 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
                 Mean.class,
                 StddevPop.class,
                 VarPop.class,
+                Percentile.class,
+                PercentileRank.class,
                 SumOfSquares.class,
+                // Matrix aggs
+                MatrixCount.class,
+                MatrixMean.class,
+                MatrixVariance.class,
                 Skewness.class,
                 Kurtosis.class,
-                Percentile.class,
-                PercentileRank.class
-                // TODO: add multi arg functions like Covariance, Correlate
-
+                Covariance.class,
+                Correlation.class
                 );
     }
     

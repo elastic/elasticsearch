@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -354,7 +355,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
                                 if (withAgg.v2().innerKey() != null) {
-                                    throw new PlanningException("innerkey/matrix stats not handled (yet)");
+                                    throw new PlanningException("innerkey/matrix stats not handled (yet)", RestStatus.BAD_REQUEST);
                                 }
                             }
                         }

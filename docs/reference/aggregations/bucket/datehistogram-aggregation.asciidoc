@@ -125,12 +125,12 @@ Consider the following example:
 
 [source,js]
 ---------------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
@@ -247,12 +247,12 @@ to run from 6am to 6am:
 
 [source,js]
 -----------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }

@@ -156,7 +156,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWithBlocks() throws IOException {
         client().admin().indices().prepareCreate("test")
-                .addMapping("doc", getMappingForType("doc"))
+                .addMapping("_doc", getMappingForType("_doc"))
                 .execute().actionGet();
         ensureGreen();
 

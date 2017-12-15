@@ -70,7 +70,7 @@ Closure setupTwitter = { String name, int count ->
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              tweet:
+              _doc:
                 properties:
                   user:
                     type: keyword
@@ -82,7 +82,7 @@ Closure setupTwitter = { String name, int count ->
   - do:
         bulk:
           index: twitter
-          type: tweet
+          type: _doc
           refresh: true
           body: |'''
     for (int i = 0; i < count; i++) {
@@ -134,7 +134,7 @@ buildRestTests.setups['ledger'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              sale:
+              _doc:
                 properties:
                   type:
                     type: keyword
@@ -143,7 +143,7 @@ buildRestTests.setups['ledger'] = '''
   - do:
         bulk:
           index: ledger
-          type: sale
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -167,14 +167,14 @@ buildRestTests.setups['sales'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              sale:
+              _doc:
                 properties:
                   type:
                     type: keyword
   - do:
         bulk:
           index: sales
-          type: sale
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -204,7 +204,7 @@ buildRestTests.setups['bank'] = '''
   - do:
         bulk:
           index: bank
-          type: account
+          type: _doc
           refresh: true
           body: |
 #bank_data#
@@ -231,7 +231,7 @@ buildRestTests.setups['range_index'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              my_type:
+              _doc:
                 properties:
                   expected_attendees:
                     type: integer_range
@@ -241,7 +241,7 @@ buildRestTests.setups['range_index'] = '''
   - do:
         bulk:
           index: range_index
-          type: my_type
+          type: _doc
           refresh: true
           body: |
             {"index":{"_id": 1}}
@@ -271,7 +271,7 @@ buildRestTests.setups['stackoverflow'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              question:
+              _doc:
                 properties:
                   author:
                     type: keyword
@@ -280,7 +280,7 @@ buildRestTests.setups['stackoverflow'] = '''
   - do:
         bulk:
           index: stackoverflow
-          type: question
+          type: _doc
           refresh: true
           body: |'''
 
@@ -326,7 +326,7 @@ buildRestTests.setups['news'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              question:
+              _doc:
                 properties:
                   source:
                     type: keyword
@@ -335,7 +335,7 @@ buildRestTests.setups['news'] = '''
   - do:
         bulk:
           index: news
-          type: article
+          type: _doc
           refresh: true
           body: |'''
 
@@ -379,14 +379,14 @@ buildRestTests.setups['exams'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              exam:
+              _doc:
                 properties:
                   grade:
                     type: byte
   - do:
         bulk:
           index: exams
-          type: exam
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -444,7 +444,7 @@ buildRestTests.setups['analyze_sample'] = '''
                     type: custom
                     filter: [lowercase]
             mappings:
-              tweet:
+              _doc:
                 properties:
                   obj1.field1:
                     type: text'''
@@ -459,14 +459,14 @@ buildRestTests.setups['latency'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              data:
+              _doc:
                 properties:
                   load_time:
                     type: long
   - do:
         bulk:
           index: latency
-          type: data
+          type: _doc
           refresh: true
           body: |'''
 
@@ -491,14 +491,14 @@ buildRestTests.setups['iprange'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              data:
+              _doc:
                 properties:
                   ip:
                     type: ip
   - do:
         bulk:
           index: ip_addresses
-          type: data
+          type: _doc
           refresh: true
           body: |'''
 

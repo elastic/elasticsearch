@@ -86,7 +86,7 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "sale",
+                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChK",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -111,7 +111,7 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "sale",
+                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChL",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -136,7 +136,7 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "sale",
+                         "_type": "_doc",
                          "_id": "AVnNBmatCQpcRyxw6ChH",
                          "_source": {
                             "date": "2015/01/01 00:00:00",
@@ -234,7 +234,7 @@ Let's see how it works with a real sample. Considering the following mapping:
 PUT /sales
 {
     "mappings": {
-        "product" : {
+        "_doc" : {
             "properties" : {
                 "tags" : { "type" : "keyword" },
                 "comments" : { <1>
@@ -256,7 +256,7 @@ And some documents:
 
 [source,js]
 --------------------------------------------------
-PUT /sales/product/1?refresh
+PUT /sales/_doc/1?refresh
 {
     "tags": ["car", "auto"],
     "comments": [
@@ -324,7 +324,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                 "hits": [
                   {
                     "_index": "sales",
-                    "_type" : "product",
+                    "_type" : "_doc",
                     "_id": "1",
                     "_nested": {
                       "field": "comments",  <1>

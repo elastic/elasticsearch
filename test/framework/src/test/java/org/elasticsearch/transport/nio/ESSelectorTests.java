@@ -81,6 +81,12 @@ public class ESSelectorTests extends ESTestCase {
         verify(handler).selectException(ioException);
     }
 
+    public void testSelectorClosedIfOpenAndEventLoopNotRunning() throws IOException {
+        when(rawSelector.isOpen()).thenReturn(true);
+        selector.close();
+        verify(rawSelector).close();
+    }
+
     private static class TestSelector extends ESSelector {
 
         TestSelector(EventHandler eventHandler, Selector selector) throws IOException {

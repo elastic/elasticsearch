@@ -10,7 +10,7 @@ GET /_search
 {
     "query": {
         "ids" : {
-            "type" : "my_type",
+            "type" : "_doc",
             "values" : ["1", "4", "100"]
         }
     }

@@ -216,6 +216,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
         "s3:ListBucketVersions"
       ],
       "Effect": "Allow",
+      "Principal":"CanonicalUser:3674589dc9857ed3b33287d5c40c1c9b9679ec422f92946b30c0428bfc03d3e7",
       "Resource": [
         "arn:aws:s3:::snaps.example.com"
       ]
@@ -229,6 +230,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
         "s3:ListMultipartUploadParts"
       ],
       "Effect": "Allow",
+      "Principal":"CanonicalUser:3674589dc9857ed3b33287d5c40c1c9b9679ec422f92946b30c0428bfc03d3e7",
       "Resource": [
         "arn:aws:s3:::snaps.example.com/*"
       ]

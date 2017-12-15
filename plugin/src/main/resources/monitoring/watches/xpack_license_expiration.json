@@ -51,6 +51,13 @@
                           "term": {
                             "type": "cluster_stats"
                           }
+                        },
+                        {
+                          "range": {
+                            "timestamp": {
+                              "gte": "now-2m"
+                            }
+                          }
                         }
                       ]
                     }

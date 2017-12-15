@@ -135,15 +135,11 @@ after the bucket results are written.
 * Improved modeling of long periodic components, particularly when there is a
 long bucket span.
 // https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
-////
+
 Monitoring::
-* [Monitoring] Cleaner Service should be able to cleanup .watcher-history*
-// https://github.com/elastic/x-pack-elasticsearch/pull/2696[#2696] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
-* [Monitoring] Add interval_ms to Monitoring documents
+* Added the new `interval_ms` field to monitoring documents. This field
+indicates the current collection interval for {es} or external monitored systems.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2650[#2650]
-* [Monitoring] Shorten names for cluster alert watches
-// https://github.com/elastic/x-pack-elasticsearch/pull/2558[#2558]
-////
 
 Security::
 * Added the `manage_index_templates` cluster privilege to the built-in role
@@ -209,24 +205,12 @@ information, see
 // https://github.com/elastic/x-pack-elasticsearch/pull/3205[#3205] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3204[#3204])
 * Removed unnecessary messages from logs when a job is forcefully closed.
 // https://github.com/elastic/x-pack-elasticsearch/pull/3193[#3193] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3149[#3149])
-////
-Monitoring::
-* [Monitoring/Cluster Alerts] Fix the email message when cluster license expiration is resolved
-// https://github.com/elastic/x-pack-elasticsearch/pull/2557[#2557]
-* [Monitoring] Remove Legacy Monitoring Indices
-// https://github.com/elastic/x-pack-elasticsearch/pull/2513[#2513]
-* [Monitoring] Remove Dedicated IndicesStatsCollector
-// https://github.com/elastic/x-pack-elasticsearch/pull/2192[#2192]
-* [Monitoring] Remove monitoring resolvers
-// https://github.com/elastic/x-pack-elasticsearch/pull/2566[#2566] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2226[#2226])
-* [Security] Add 'read_cross_cluster' privilege for .monitoring indices
-// https://github.com/elastic/x-pack-elasticsearch/pull/2111[#2111] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2110[#2110])
-////
 
 Security::
 * Fixed REST requests that required a body but did not validate it, resulting in
 null pointer exceptions.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2610[#2610]
+
 ////
 Watcher::
 * "password" misspelled in action webhook docs [ISSUE]

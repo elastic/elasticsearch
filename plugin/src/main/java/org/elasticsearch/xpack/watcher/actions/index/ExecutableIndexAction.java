@@ -38,6 +38,8 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
+    private static final String INDEX_FIELD = "_index";
+    private static final String TYPE_FIELD = "_type";
     private static final String ID_FIELD = "_id";
 
     private final Client client;
@@ -71,24 +73,13 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
         }
 
-        String docId = action.docId;
-
-        // prevent double-setting id
-        if (data.containsKey(ID_FIELD)) {
-            if (docId != null) {
-                throw illegalState("could not execute action [{}] of watch [{}]. " +
-                        "[ctx.payload.{}] or [ctx.payload._doc.{}] were set with [doc_id]. Only set [{}] or [doc_id]",
-                        actionId, ctx.watch().id(), ID_FIELD, ID_FIELD, ID_FIELD);
-            }
-
+        if (data.containsKey(INDEX_FIELD) || data.containsKey(TYPE_FIELD) || data.containsKey(ID_FIELD)) {
             data = mutableMap(data);
-            docId = data.remove(ID_FIELD).toString();
         }
-
         IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(action.index);
-        indexRequest.type(action.docType);
-        indexRequest.id(docId);
+        indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
+        indexRequest.type(getField(actionId, ctx.id().watchId(), "type",data, TYPE_FIELD, action.docType));
+        indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
 
         data = addTimestampToDocument(data, ctx.executionTime());
         BytesReference bytesReference;
@@ -97,8 +88,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), action.docType, docId, new XContentSource(indexRequest.source(),
-                    XContentType.JSON));
+            return new IndexAction.Simulated(indexRequest.index(), indexRequest.type(), indexRequest.id(),
+                    new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
         IndexResponse response = WatcherClientHelper.execute(ctx.watch(), client,
@@ -121,14 +112,17 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
+
             Map<String, Object> doc = (Map<String, Object>) item;
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.index(action.index);
-            indexRequest.type(action.docType);
-            if (doc.containsKey(ID_FIELD)) {
+            if (doc.containsKey(INDEX_FIELD) || doc.containsKey(TYPE_FIELD) || doc.containsKey(ID_FIELD)) {
                 doc = mutableMap(doc);
-                indexRequest.id(doc.remove(ID_FIELD).toString());
             }
+
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
+            indexRequest.type(getField(actionId, ctx.id().watchId(), "type",doc, TYPE_FIELD, action.docType));
+            indexRequest.id(getField(actionId, ctx.id().watchId(), "id",doc, ID_FIELD, action.docId));
+
             doc = addTimestampToDocument(doc, ctx.executionTime());
             try (XContentBuilder builder = jsonBuilder()) {
                 indexRequest.source(builder.prettyPrint().map(doc));
@@ -161,6 +155,24 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(executionTime));
         }
         return data;
+    }
+
+    /**
+     * Extracts the specified field out of data map, or alternative falls back to the action value
+     */
+    private String getField(String actionId, String watchId, String name, Map<String, Object> data, String fieldName, String defaultValue) {
+        Object obj = data.remove(fieldName);
+        if (obj != null) {
+            if (defaultValue != null) {
+                throw illegalState("could not execute action [{}] of watch [{}]. " +
+                                "[ctx.payload.{}] or [ctx.payload._doc.{}] were set together with action [{}] field. Only set one of them",
+                        actionId, watchId, fieldName, fieldName, name);
+            } else {
+                return obj.toString();
+            }
+        }
+
+        return defaultValue;
     }
 
     /**

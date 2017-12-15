@@ -25,14 +25,14 @@ public class IndexAction implements Action {
 
     public static final String TYPE = "index";
 
-    final String index;
-    final String docType;
+    @Nullable final String docType;
+    @Nullable final String index;
     @Nullable final String docId;
     @Nullable final String executionTimeField;
     @Nullable final TimeValue timeout;
     @Nullable final DateTimeZone dynamicNameTimeZone;
 
-    public IndexAction(String index, String docType, @Nullable String docId,
+    public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
                        @Nullable String executionTimeField,
                        @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.index = index;
@@ -89,8 +89,12 @@ public class IndexAction implements Action {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Field.INDEX.getPreferredName(), index);
-        builder.field(Field.DOC_TYPE.getPreferredName(), docType);
+        if (index != null) {
+            builder.field(Field.INDEX.getPreferredName(), index);
+        }
+        if (docType != null) {
+            builder.field(Field.DOC_TYPE.getPreferredName(), docType);
+        }
         if (docId != null) {
             builder.field(Field.DOC_ID.getPreferredName(), docId);
         }
@@ -144,12 +148,7 @@ public class IndexAction implements Action {
                     // Parser for human specified timeouts and 2.x compatibility
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
                 } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        dynamicNameTimeZone = DateTimeZone.forID(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException("could not parse [{}] action for watch [{}]. failed to parse [{}]. must be " +
-                                "a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
-                    }
+                    dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,
                             watchId, actionId, currentFieldName);
@@ -158,16 +157,6 @@ public class IndexAction implements Action {
                 throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
                         actionId, token);
             }
-        }
-
-        if (index == null) {
-            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
-                    actionId, Field.INDEX.getPreferredName());
-        }
-
-        if (docType == null) {
-            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
-                    actionId, Field.DOC_TYPE.getPreferredName());
         }
 
         return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone);

@@ -34,6 +34,17 @@ privileges to use this API. For more information, see
 //<<privileges-list-cluster>>.
 
 
+==== Security Integration
+
+When {security} is enabled, the {dfeed} query will be previewed using the
+credentials of the user calling the preview {dfeed} API.  When the {dfeed}
+is started it will run the query using the roles of the last user to
+create or update it.  If the two sets of roles differ then the preview may
+not accurately reflect what the {dfeed} will return when started.  To avoid
+such problems, the same user that creates/updates the {dfeed} should preview
+it to ensure it is returning the expected data.
+
+
 ==== Examples
 
 The following example obtains a preview of the `datafeed-farequote` {dfeed}:

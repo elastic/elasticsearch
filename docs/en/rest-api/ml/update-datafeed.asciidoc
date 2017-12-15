@@ -82,6 +82,13 @@ For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 //<<privileges-list-cluster>>.
 
+
+==== Security Integration
+
+When {security} is enabled, your {dfeed} will remember which roles the user who
+updated it had at the time of update, and run the query using those same roles.
+
+
 ==== Examples
 
 The following example updates the query for the `datafeed-it-ops-kpi` {dfeed}

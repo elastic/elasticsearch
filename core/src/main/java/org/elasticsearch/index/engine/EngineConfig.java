@@ -39,6 +39,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -51,6 +52,7 @@ import java.util.List;
  */
 public final class EngineConfig {
     private final ShardId shardId;
+    private final String allocationId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
@@ -67,10 +69,15 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
     @Nullable
-    private final List<ReferenceManager.RefreshListener> refreshListeners;
+    private final List<ReferenceManager.RefreshListener> externalRefreshListener;
+    @Nullable
+    private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
+    private final boolean forceNewHistoryUUID;
     private final TranslogRecoveryRunner translogRecoveryRunner;
+    @Nullable
+    private final CircuitBreakerService circuitBreakerService;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -109,17 +116,20 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
+    public EngineConfig(OpenMode openMode, ShardId shardId, String allocationId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, List<ReferenceManager.RefreshListener> refreshListeners,
-                        Sort indexSort, TranslogRecoveryRunner translogRecoveryRunner) {
+                        boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
+                        List<ReferenceManager.RefreshListener> externalRefreshListener,
+                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
+                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
         this.shardId = shardId;
+        this.allocationId = allocationId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -139,9 +149,12 @@ public final class EngineConfig {
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
-        this.refreshListeners = refreshListeners;
+        this.forceNewHistoryUUID = forceNewHistoryUUID;
+        this.externalRefreshListener = externalRefreshListener;
+        this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     /**
@@ -241,6 +254,15 @@ public final class EngineConfig {
     public ShardId getShardId() { return shardId; }
 
     /**
+     * Returns the allocation ID for the shard.
+     *
+     * @return the allocation ID
+     */
+    public String getAllocationId() {
+        return allocationId;
+    }
+
+    /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
      */
     public Analyzer getAnalyzer() {
@@ -289,6 +311,15 @@ public final class EngineConfig {
         return openMode;
     }
 
+
+    /**
+     * Returns true if a new history uuid must be generated. If false, a new uuid will only be generated if no existing
+     * one is found.
+     */
+    public boolean getForceNewHistoryUUID() {
+        return forceNewHistoryUUID;
+    }
+
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
@@ -316,11 +347,17 @@ public final class EngineConfig {
     }
 
     /**
-     * The refresh listeners to add to Lucene
+     * The refresh listeners to add to Lucene for externally visible refreshes
      */
-    public List<ReferenceManager.RefreshListener> getRefreshListeners() {
-        return refreshListeners;
+    public List<ReferenceManager.RefreshListener> getExternalRefreshListener() {
+        return externalRefreshListener;
     }
+
+    /**
+     * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
+     */
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
+
 
     /**
      * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID
@@ -334,5 +371,13 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
+    }
+
+    /**
+     * Returns the circuit breaker service for this engine, or {@code null} if none is to be used.
+     */
+    @Nullable
+    public CircuitBreakerService getCircuitBreakerService() {
+        return this.circuitBreakerService;
     }
 }

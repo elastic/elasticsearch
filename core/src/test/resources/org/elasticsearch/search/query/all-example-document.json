@@ -21,7 +21,6 @@
   "f_long": "42",
   "f_float": "1.7",
   "f_hfloat": "1.5",
-  "f_sfloat": "12.23",
   "f_ip": "127.0.0.1",
   "f_binary": "VGhpcyBpcyBzb21lIGJpbmFyeSBkYXRhCg==",
   "f_suggest": {

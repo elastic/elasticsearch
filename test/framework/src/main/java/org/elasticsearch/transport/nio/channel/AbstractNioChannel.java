@@ -19,14 +19,17 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -53,13 +56,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
-    private final String profile;
-    private final CloseFuture closeFuture = new CloseFuture();
+    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
-    AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
-        this.profile = profile;
+    AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
         this.selector = selector;
@@ -67,17 +68,12 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public boolean isOpen() {
-        return closeFuture.isClosed() == false;
+        return closeContext.isDone() == false;
     }
 
     @Override
     public InetSocketAddress getLocalAddress() {
         return localAddress;
-    }
-
-    @Override
-    public String getProfile() {
-        return profile;
     }
 
     /**
@@ -87,15 +83,12 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * be scheduled with the event loop.
      * <p>
      * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
-     *
-     * @return future that will be complete when the channel is closed
      */
     @Override
-    public CloseFuture closeAsync() {
+    public void close() {
         if (isClosing.compareAndSet(false, true)) {
             selector.queueChannelClose(this);
         }
-        return closeFuture;
     }
 
     /**
@@ -104,20 +97,16 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * Once this method returns, the channel will be closed.
      */
     @Override
-    public void closeFromSelector() {
+    public void closeFromSelector() throws IOException {
         assert selector.isOnCurrentThread() : "Should only call from selector thread";
         isClosing.set(true);
-        if (closeFuture.isClosed() == false) {
-            boolean closedOnThisCall = false;
+        if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();
-                closedOnThisCall = closeFuture.channelClosed(this);
+                closeContext.complete(null);
             } catch (IOException e) {
-                closedOnThisCall = closeFuture.channelCloseThrewException(e);
-            } finally {
-                if (closedOnThisCall) {
-                    selector.removeRegisteredChannel(this);
-                }
+                closeContext.completeExceptionally(e);
+                throw e;
             }
         }
     }
@@ -144,23 +133,22 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public CloseFuture getCloseFuture() {
-        return closeFuture;
+    public S getRawChannel() {
+        return socketChannel;
     }
 
     @Override
-    public S getRawChannel() {
-        return socketChannel;
+    public void addCloseListener(ActionListener<Void> listener) {
+        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     // Package visibility for testing
     void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
     }
-
     // Package visibility for testing
+
     void closeRawChannel() throws IOException {
         socketChannel.close();
     }
-
 }

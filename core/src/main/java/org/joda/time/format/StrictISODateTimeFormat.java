@@ -32,7 +32,7 @@ import java.util.Set;
  * All methods have been marked with an "// ES change" commentary
  *
  * In case you compare this with the original ISODateTimeFormat, make sure you use a diff
- * call, that ignores whitespaces/tabs/indendetations like 'diff -b'
+ * call, that ignores whitespaces/tabs/indentations like 'diff -b'
  */
 /**
  * Factory that creates instances of DateTimeFormatter based on the ISO8601 standard.

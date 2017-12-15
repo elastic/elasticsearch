@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.Closeable;
@@ -91,16 +90,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String DEFAULT_MAPPING = "_default_";
+    public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
+    // maximum allowed number of nested json objects across all fields in a single document
+    public static final Setting<Long> INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.nested_objects.limit", 10000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
             Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
+    @Deprecated
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
-        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
+                Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
+    //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
+    //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -109,11 +116,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
-
-    /**
-     * Will create types automatically if they do not exists in the mapping definition yet
-     */
-    private final boolean dynamic;
 
     private volatile String defaultMappingSource;
 
@@ -148,13 +150,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
-        this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
+        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings()) &&
+                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+        }
+
         defaultMappingSource = "{\"_default_\":{}}";
 
         if (logger.isTraceEnabled()) {
-            logger.trace("using dynamic[{}], default mapping source[{}]", dynamic, defaultMappingSource);
-        } else if (logger.isDebugEnabled()) {
-            logger.debug("using dynamic[{}]", dynamic);
+            logger.trace("default mapping source[{}]", defaultMappingSource);
         }
     }
 
@@ -335,6 +339,27 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(defaultMapper, defaultMappingSource, documentMappers, reason, updateAllTypes);
     }
 
+    static void validateTypeName(String type) {
+        if (type.length() == 0) {
+            throw new InvalidTypeNameException("mapping type name is empty");
+        }
+        if (type.length() > 255) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] is too long; limit is length 255 but was [" + type.length() + "]");
+        }
+        if (type.charAt(0) == '_' && SINGLE_MAPPING_NAME.equals(type) == false) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] can't start with '_' unless it is called [" + SINGLE_MAPPING_NAME + "]");
+        }
+        if (type.contains("#")) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] should not include '#' in it");
+        }
+        if (type.contains(",")) {
+            throw new InvalidTypeNameException("mapping type name [" + type + "] should not include ',' in it");
+        }
+        if (type.charAt(0) == '.') {
+            throw new IllegalArgumentException("mapping type name [" + type + "] must not start with a '.'");
+        }
+    }
+
     private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
                                                                    List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
         boolean hasNested = this.hasNested;
@@ -358,26 +383,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (DocumentMapper mapper : documentMappers) {
             // check naming
-            if (mapper.type().length() == 0) {
-                throw new InvalidTypeNameException("mapping type name is empty");
-            }
-            if (mapper.type().length() > 255) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-            }
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-            }
-            if (mapper.type().contains("#")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-            }
-            if (mapper.type().contains(",")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-            }
+            validateTypeName(mapper.type());
             if (mapper.type().equals(mapper.parentFieldMapper().type())) {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
-            if (typeNameStartsWithIllegalDot(mapper)) {
-                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
             }
 
             // compute the merged DocumentMapper
@@ -415,7 +423,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                validateCopyTo(fieldMappers, fullPathObjectMappers);
+                validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
             }
 
             if (reason == MergeReason.MAPPING_UPDATE) {
@@ -514,10 +522,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return true;
-    }
-
-    private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        return mapper.type().startsWith(".");
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -644,14 +648,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers) {
+    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers,
+            FieldTypeLookup fieldTypes) {
         for (FieldMapper mapper : fieldMappers) {
             if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
+                String sourceParent = parentObject(mapper.name());
+                if (sourceParent != null && fieldTypes.get(sourceParent) != null) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + mapper.name() + "]");
+                }
+
                 final String sourceScope = getNestedScope(mapper.name(), fullPathObjectMappers);
                 for (String copyTo : mapper.copyTo().copyToFields()) {
+                    String copyToParent = parentObject(copyTo);
+                    if (copyToParent != null && fieldTypes.get(copyToParent) != null) {
+                        throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                    }
+
                     if (fullPathObjectMappers.containsKey(copyTo)) {
                         throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                     }
+
                     final String targetScope = getNestedScope(copyTo, fullPathObjectMappers);
                     checkNestedScopeCompatibility(sourceScope, targetScope);
                 }
@@ -674,7 +690,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (source == null || target == null) {
             targetIsParentOfSource = target == null;
         } else {
-            targetIsParentOfSource = source.startsWith(target + ".");
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
         }
         if (targetIsParentOfSource == false) {
             throw new IllegalArgumentException(
@@ -727,10 +743,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper mapper = mappers.get(type);
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
-        }
-        if (!dynamic) {
-            throw new TypeMissingException(index(),
-                    new IllegalStateException("trying to auto create mapping, but dynamic mapping is disabled"), type);
         }
         mapper = parse(type, null, true);
         return new DocumentMapperForType(mapper, mapper.mapping());

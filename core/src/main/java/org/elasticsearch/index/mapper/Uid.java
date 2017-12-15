@@ -135,36 +135,36 @@ public final class Uid {
         // 'xxx=' and 'xxx' could be considered the same id
         final int length = id.length();
         switch (length & 0x03) {
-        case 0:
-            break;
-        case 1:
-            return false;
-        case 2:
-            // the last 2 symbols (12 bits) are encoding 1 byte (8 bits)
-            // so the last symbol only actually uses 8-6=2 bits and can only take 4 values
-            char last = id.charAt(length - 1);
-            if (last != 'A' && last != 'Q' && last != 'g' && last != 'w') {
+            case 0:
+                break;
+            case 1:
                 return false;
-            }
-            break;
-        case 3:
-            // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
-            // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
-            last = id.charAt(length - 1);
-            if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
+            case 2:
+                // the last 2 symbols (12 bits) are encoding 1 byte (8 bits)
+                // so the last symbol only actually uses 8-6=2 bits and can only take 4 values
+                char last = id.charAt(length - 1);
+                if (last != 'A' && last != 'Q' && last != 'g' && last != 'w') {
+                    return false;
+                }
+                break;
+            case 3:
+                // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
+                // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
+                last = id.charAt(length - 1);
+                if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
                     && last != 'c'&& last != 'g'&& last != 'k' && last != 'o' && last != 's' && last != 'w'
                     && last != '0' && last != '4' && last != '8') {
-                return false;
-            }
-            break;
-        default:
-            // number & 0x03 is always in [0,3]
-            throw new AssertionError("Impossible case");
+                    return false;
+                }
+                break;
+            default:
+                // number & 0x03 is always in [0,3]
+                throw new AssertionError("Impossible case");
         }
         for (int i = 0; i < length; ++i) {
             final char c = id.charAt(i);
             final boolean allowed =
-                    (c >= '0' && c <= '9') ||
+                (c >= '0' && c <= '9') ||
                     (c >= 'A' && c <= 'Z') ||
                     (c >= 'a' && c <= 'z') ||
                     c == '-' || c == '_';
@@ -244,16 +244,16 @@ public final class Uid {
         }
     }
 
-    private static String decodeNumericId(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) == NUMERIC;
-        int length = (idBytes.length - 1) * 2;
+    private static String decodeNumericId(byte[] idBytes, int offset, int len) {
+        assert Byte.toUnsignedInt(idBytes[offset]) == NUMERIC;
+        int length = (len - 1) * 2;
         char[] chars = new char[length];
-        for (int i = 1; i < idBytes.length; ++i) {
-            final int b = Byte.toUnsignedInt(idBytes[i]);
+        for (int i = 1; i < len; ++i) {
+            final int b = Byte.toUnsignedInt(idBytes[offset + i]);
             final int b1 = (b >>> 4);
             final int b2 = b & 0x0f;
             chars[(i - 1) * 2] = (char) (b1 + '0');
-            if (i == idBytes.length - 1 && b2 == 0x0f) {
+            if (i == len - 1 && b2 == 0x0f) {
                 length--;
                 break;
             }
@@ -262,15 +262,17 @@ public final class Uid {
         return new String(chars, 0, length);
     }
 
-    private static String decodeUtf8Id(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) == UTF8;
-        return new BytesRef(idBytes, 1, idBytes.length - 1).utf8ToString();
+    private static String decodeUtf8Id(byte[] idBytes, int offset, int length) {
+        assert Byte.toUnsignedInt(idBytes[offset]) == UTF8;
+        return new BytesRef(idBytes, offset + 1, length - 1).utf8ToString();
     }
 
-    private static String decodeBase64Id(byte[] idBytes) {
-        assert Byte.toUnsignedInt(idBytes[0]) <= BASE64_ESCAPE;
-        if (Byte.toUnsignedInt(idBytes[0]) == BASE64_ESCAPE) {
-            idBytes = Arrays.copyOfRange(idBytes, 1, idBytes.length);
+    private static String decodeBase64Id(byte[] idBytes, int offset, int length) {
+        assert Byte.toUnsignedInt(idBytes[offset]) <= BASE64_ESCAPE;
+        if (Byte.toUnsignedInt(idBytes[offset]) == BASE64_ESCAPE) {
+            idBytes = Arrays.copyOfRange(idBytes, offset + 1, offset + length);
+        } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
+            idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
     }
@@ -278,17 +280,23 @@ public final class Uid {
     /** Decode an indexed id back to its original form.
      *  @see #encodeId */
     public static String decodeId(byte[] idBytes) {
-        if (idBytes.length == 0) {
+        return decodeId(idBytes, 0, idBytes.length);
+    }
+
+    /** Decode an indexed id back to its original form.
+     *  @see #encodeId */
+    public static String decodeId(byte[] idBytes, int offset, int length) {
+        if (length == 0) {
             throw new IllegalArgumentException("Ids can't be empty");
         }
-        final int magicChar = Byte.toUnsignedInt(idBytes[0]);
+        final int magicChar = Byte.toUnsignedInt(idBytes[offset]);
         switch (magicChar) {
-        case NUMERIC:
-            return decodeNumericId(idBytes);
-        case UTF8:
-            return decodeUtf8Id(idBytes);
-        default:
-            return decodeBase64Id(idBytes);
+            case NUMERIC:
+                return decodeNumericId(idBytes, offset, length);
+            case UTF8:
+                return decodeUtf8Id(idBytes, offset, length);
+            default:
+                return decodeBase64Id(idBytes, offset, length);
         }
     }
 }

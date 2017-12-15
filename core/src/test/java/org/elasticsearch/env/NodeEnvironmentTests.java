@@ -80,12 +80,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // Reuse the same location and attempt to lock again
         IllegalStateException ex =
-            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, new Environment(settings)));
+            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
-        env = new NodeEnvironment(settings, new Environment(settings));
+        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -120,7 +120,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
         final NodeEnvironment first = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -397,14 +397,14 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testPersistentNodeId() throws IOException {
-        String[] paths = tmpPaths();
-        NodeEnvironment env = newNodeEnvironment(paths, Settings.builder()
+        NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
             .put("node.local_storage", false)
             .put("node.master", false)
             .put("node.data", false)
             .build());
         String nodeID = env.nodeId();
         env.close();
+        final String[] paths = tmpPaths();
         env = newNodeEnvironment(paths, Settings.EMPTY);
         assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
         nodeID = env.nodeId();
@@ -477,13 +477,13 @@ public class NodeEnvironmentTests extends ESTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
-        return new NodeEnvironment(build, new Environment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                     .put(settings).build();
     }
 
@@ -491,8 +491,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, new Environment(build));
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
@@ -500,7 +500,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, new Environment(build));
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

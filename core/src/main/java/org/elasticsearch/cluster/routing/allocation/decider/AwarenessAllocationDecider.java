@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
@@ -85,7 +86,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private volatile String[] awarenessAttributes;
 
-    private volatile Map<String, String[]> forcedAwarenessAttributes;
+    private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
@@ -97,11 +98,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
-        Map<String, String[]> forcedAwarenessAttributes = new HashMap<>();
+        Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
-            String[] aValues = entry.getValue().getAsArray("values");
-            if (aValues.length > 0) {
+            List<String> aValues = entry.getValue().getAsList("values");
+            if (aValues.size() > 0) {
                 forcedAwarenessAttributes.put(entry.getKey(), aValues);
             }
         }
@@ -169,7 +170,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             int numberOfAttributes = nodesPerAttribute.size();
-            String[] fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
+            List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
             if (fullValues != null) {
                 for (String fullValue : fullValues) {
                     if (!shardPerAttribute.containsKey(fullValue)) {

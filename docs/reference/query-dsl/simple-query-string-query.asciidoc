@@ -29,9 +29,10 @@ The `simple_query_string` top level parameters include:
 |`query` |The actual query to be parsed. See below for syntax.
 
 |`fields` |The fields to perform the parsed query against. Defaults to the
-`index.query.default_field` index settings, which in turn defaults to `*`.
-`*` extracts all fields in the mapping that are eligible to term queries
-and filters the metadata fields.
+`index.query.default_field` index settings, which in turn defaults to `*`. `*`
+extracts all fields in the mapping that are eligible to term queries and filters
+the metadata fields. There is a limit of no more than 1024 fields being queried
+at once.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -69,6 +70,15 @@ Defaults to `true`.
 |`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
 Perform the query on all fields detected in the mapping that can
 be queried.
+
+|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
+is `0`.
+
+|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
+expand to. Defaults to `50`
+
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
 |=======================================================================
 
 [float]

@@ -39,6 +39,19 @@ import static org.hamcrest.Matchers.equalTo;
 // Tests borrowed from Solr's Icu collation key filter factory test.
 public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     /*
+     * Tests usage where we do not provide a language or locale
+     */
+    public void testDefaultUsage() throws Exception {
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.analysis.filter.myCollator.strength", "primary")
+                .build();
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
+        assertCollatesToSame(filterFactory, "FOO", "foo");
+    }
+    /*
     * Turkish has some funny casing.
     * This test shows how you can solve this kind of thing easily with collation.
     * Instead of using LowerCaseFilter, use a turkish collator with primary strength.
@@ -205,6 +218,23 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");
     }
+    
+    /*
+     * Test a basic custom rules (should not interfere with reading rules list
+     * in IcuCollationTokenFilterFactory and throw InvalidPathException on
+     * Windows platforms).
+     */
+    public void testBasicCustomRules() throws Exception {
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.analysis.filter.myCollator.rules", "&a < g")
+                .build();
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
+        assertCollation(filterFactory, "green", "bird", -1);
+    }
+
 
     private void assertCollatesToSame(TokenFilterFactory factory, String string1, String string2) throws IOException {
         assertCollation(factory, string1, string2, 0);

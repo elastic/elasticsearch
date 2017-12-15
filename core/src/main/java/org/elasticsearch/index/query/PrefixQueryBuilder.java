@@ -43,7 +43,7 @@ import java.util.Objects;
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
 
-    private static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
+    private static final ParseField PREFIX_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     private final String fieldName;

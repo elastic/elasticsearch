@@ -79,7 +79,7 @@ teardown:
 ---
 "Test simulate with provided invalid pipeline definition":
   - do:
-      catch: request
+      catch: bad_request
       ingest.simulate:
         body: >
           {
@@ -183,7 +183,7 @@ teardown:
 ---
 "Test simulate with no provided pipeline or pipeline_id":
   - do:
-      catch: request
+      catch: bad_request
       ingest.simulate:
         body: >
           {
@@ -206,7 +206,7 @@ teardown:
 ---
 "Test simulate with invalid processor config":
   - do:
-      catch: request
+      catch: bad_request
       ingest.simulate:
         body: >
           {

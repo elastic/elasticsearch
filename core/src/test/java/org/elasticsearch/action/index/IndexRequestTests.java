@@ -26,10 +26,10 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -56,23 +55,18 @@ public class IndexRequestTests extends ESTestCase {
 
         IndexRequest indexRequest = new IndexRequest("");
         indexRequest.opType(create);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(createUpper);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(index);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         indexRequest.opType(indexUpper);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
     }
 
-    public void testReadBogusString() {
-        try {
-            IndexRequest indexRequest = new IndexRequest("");
-            indexRequest.opType("foobar");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
-        }
+    public void testReadIncorrectOpType() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexRequest("").opType("foobar"));
+        assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
     }
 
     public void testCreateOperationRejectsVersions() {
@@ -135,7 +129,7 @@ public class IndexRequestTests extends ESTestCase {
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -155,7 +149,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
-                ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
+                ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
                 ",primaryTerm=" + 0 +
                 ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
                 indexResponse.toString());

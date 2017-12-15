@@ -81,7 +81,7 @@ public class EElvis extends AExpression {
         }
 
         if (expected == null) {
-            final Type promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+            final Type promote = locals.getDefinition().caster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
 
             lhs.expected = promote;
             rhs.expected = promote;

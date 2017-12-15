@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -43,10 +44,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -116,7 +119,12 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
+        final String[] classesThatCanExit =
+                new String[]{
+                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+                        Command.class.getName()};
+        System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
@@ -191,27 +199,39 @@ final class Security {
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
+            List<String> propertiesSet = new ArrayList<>();
             try {
                 // set codebase properties
                 for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
+                    String fileName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (fileName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
-                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    // We attempt to use a versionless identifier for each codebase. This assumes a specific version
+                    // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
+                    // only means policy grants would need to include the entire jar filename as they always have before.
+                    String property = "codebase." + fileName;
+                    String aliasProperty = "codebase." + fileName.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    if (aliasProperty.equals(property) == false) {
+                        propertiesSet.add(aliasProperty);
+                        String previous = System.setProperty(aliasProperty, url.toString());
+                        if (previous != null) {
+                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
+                                                            ", cannot set to " + url.toString());
+                        }
+                    }
+                    propertiesSet.add(property);
+                    String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
+                                                        ", cannot set to " + url.toString());
                     }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
-                    System.clearProperty("codebase." + shortName);
+                for (String property : propertiesSet) {
+                    System.clearProperty(property);
                 }
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {

@@ -43,15 +43,10 @@ import java.io.IOException;
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexFieldData<?> indexFieldData;
-    private final MultiValueMode sortMode;
-    private final Object missingValue;
-    private final Nested nested;
 
     public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode, Nested nested) {
+        super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
-        this.sortMode = sortMode;
-        this.missingValue = missingValue;
-        this.nested = nested;
     }
 
     @Override

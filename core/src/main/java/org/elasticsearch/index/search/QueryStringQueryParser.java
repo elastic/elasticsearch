@@ -46,11 +46,10 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -94,6 +93,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+    private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
     /**
      * @param context The query shard context.
@@ -235,6 +235,14 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     public void setAutoGenerateMultiTermSynonymsPhraseQuery(boolean enable) {
         queryBuilder.setAutoGenerateSynonymsPhraseQuery(enable);
+    }
+
+    /**
+     * @param fuzzyTranspositions Sets whether transpositions are supported in fuzzy queries.
+     * Defaults to {@link FuzzyQuery#defaultTranspositions}.
+     */
+    public void setFuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.fuzzyTranspositions = fuzzyTranspositions;
     }
 
     private Query applyBoost(Query q, Float boost) {
@@ -394,14 +402,8 @@ public class QueryStringQueryParser extends XQueryParser {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
-            Query rangeQuery;
-            if (currentFieldType instanceof DateFieldMapper.DateFieldType && timeZone != null) {
-                DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
-                rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
-                    startInclusive, endInclusive, timeZone, null, context);
-            } else {
-                rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary, startInclusive, endInclusive, context);
-            }
+            Query rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary,
+                startInclusive, endInclusive, null, timeZone, null, context);
             return rangeQuery;
         } catch (RuntimeException e) {
             if (lenient) {
@@ -449,7 +451,7 @@ public class QueryStringQueryParser extends XQueryParser {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
-                getFuzzyPrefixLength(), fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
+                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -462,7 +464,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
-            fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
+            fuzzyMaxExpansions, fuzzyTranspositions);
         QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
         return query;
     }

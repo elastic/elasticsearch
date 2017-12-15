@@ -34,7 +34,7 @@ class VersionValue implements Accountable {
 
     /** the seq number of the operation that last changed the associated uuid */
     final long seqNo;
-    /** the the term of the operation that last changed the associated uuid */
+    /** the term of the operation that last changed the associated uuid */
     final long term;
 
     VersionValue(long version, long seqNo, long term) {
@@ -58,9 +58,30 @@ class VersionValue implements Accountable {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        VersionValue that = (VersionValue) o;
+
+        if (version != that.version) return false;
+        if (seqNo != that.seqNo) return false;
+        return term == that.term;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (version ^ (version >>> 32));
+        result = 31 * result + (int) (seqNo ^ (seqNo >>> 32));
+        result = 31 * result + (int) (term ^ (term >>> 32));
+        return result;
+    }
+
+    @Override
     public String toString() {
         return "VersionValue{" +
             "version=" + version +
+
             ", seqNo=" + seqNo +
             ", term=" + term +
             '}';

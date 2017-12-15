@@ -110,7 +110,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
     private static final Predicate<InternalTestCluster> CLUSTER2_ONLY = c -> c.getClusterName().equals(cluster2.getClusterName());
 
     /**
-     * A predicate that is used to select the the two remote clusters
+     * A predicate that is used to select the two remote clusters
      **/
     private static final Predicate<InternalTestCluster> ALL = c -> true;
 

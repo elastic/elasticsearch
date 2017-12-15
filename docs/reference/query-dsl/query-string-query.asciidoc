@@ -48,12 +48,12 @@ The `query_string` top level parameters include:
 |Parameter |Description
 |`query` |The actual query to be parsed. See <<query-string-syntax>>.
 
-|`default_field` |The default field for query terms if no prefix field
-is specified. Defaults to the `index.query.default_field` index
-settings, which in turn defaults to `*`.
-`*` extracts all fields in the mapping that are eligible to term queries
-and filters the metadata fields. All extracted fields are then combined
-to build a query when no prefix field is provided.
+|`default_field` |The default field for query terms if no prefix field is
+specified. Defaults to the `index.query.default_field` index settings, which in
+turn defaults to `*`. `*` extracts all fields in the mapping that are eligible
+to term queries and filters the metadata fields. All extracted fields are then
+combined to build a query when no prefix field is provided. There is a limit of
+no more than 1024 fields being queried at once.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -62,6 +62,11 @@ with default operator of `AND`, the same query is translated to
 `capital AND of AND Hungary`. The default value is `OR`.
 
 |`analyzer` |The analyzer name used to analyze the query string.
+
+|`quote_analyzer` |The name of the analyzer that is used to analyze
+quoted phrases in the query string. For those parts, it overrides other
+analyzers that are set using the `analyzer` parameter or the
+<<search-quote-analyzer,`search_quote_analyzer`>> setting.
 
 |`allow_leading_wildcard` |When set, `*` or `?` are allowed as the first
 character. Defaults to `true`.
@@ -73,10 +78,13 @@ increments in result queries. Defaults to `true`.
 expand to. Defaults to `50`
 
 |`fuzziness` |Set the fuzziness for fuzzy queries. Defaults
-to `AUTO`. See  <<fuzziness>> for allowed settings.
+to `AUTO`. See <<fuzziness>> for allowed settings.
 
 |`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
 is `0`.
+
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
 
 |`phrase_slop` |Sets the default slop for phrases. If zero, then exact
 phrase matches are required. Default value is `0`.

@@ -40,6 +40,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private FuzzyOptions fuzzyOptions;
     private RegexOptions regexOptions;
+    private boolean skipDuplicates;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
 
     CompletionFieldMapper.CompletionFieldType getFieldType() {
@@ -62,6 +63,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         this.queryContexts = queryContexts;
     }
 
+    void setSkipDuplicates(boolean skipDuplicates) {
+        this.skipDuplicates = skipDuplicates;
+    }
+
     public FuzzyOptions getFuzzyOptions() {
         return fuzzyOptions;
     }
@@ -72,6 +77,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     public Map<String, List<ContextMapping.InternalQueryContext>> getQueryContexts() {
         return queryContexts;
+    }
+
+    public boolean isSkipDuplicates() {
+        return skipDuplicates;
     }
 
     CompletionQuery toQuery() {

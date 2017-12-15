@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -100,11 +100,6 @@ public final class IndexModule {
     // for test purposes only
     public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
-
-    // This setting is an escape hatch in case not caching term queries would slow some users down
-    // Do not document.
-    public static final Setting<Boolean> INDEX_QUERY_CACHE_TERM_QUERIES_SETTING =
-        Setting.boolSetting("index.queries.cache.term_queries", false, Property.IndexScope);
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;

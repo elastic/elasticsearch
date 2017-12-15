@@ -36,7 +36,7 @@ public class LongHashTests extends ESSingleNodeTestCase {
     LongHash hash;
 
     private BigArrays randombigArrays() {
-        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     private void newHash() {

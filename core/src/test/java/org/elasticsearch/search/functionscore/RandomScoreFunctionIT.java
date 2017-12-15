@@ -107,7 +107,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         for (int o = 0; o < outerIters; o++) {
             final int seed = randomInt();
             String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
-            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards)
             while (preference.startsWith("_")) {
                 preference = randomRealisticUnicodeOfLengthBetween(1, 10);
             }

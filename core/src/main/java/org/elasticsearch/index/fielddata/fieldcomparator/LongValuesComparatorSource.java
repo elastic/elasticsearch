@@ -38,15 +38,10 @@ import java.io.IOException;
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
-    private final Object missingValue;
-    private final MultiValueMode sortMode;
-    private final Nested nested;
 
     public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
-        this.sortMode = sortMode;
-        this.nested = nested;
     }
 
     @Override

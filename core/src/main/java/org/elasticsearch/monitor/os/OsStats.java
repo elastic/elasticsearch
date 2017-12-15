@@ -294,6 +294,10 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
+        // These will be null for nodes running versions prior to 6.1.0
+        private final String memoryControlGroup;
+        private final String memoryLimitInBytes;
+        private final String memoryUsageInBytes;
 
         /**
          * The control group for the {@code cpuacct} subsystem.
@@ -355,19 +359,57 @@ public class OsStats implements Writeable, ToXContentFragment {
             return cpuStat;
         }
 
+        /**
+         * The control group for the {@code memory} subsystem.
+         *
+         * @return the control group
+         */
+        public String getMemoryControlGroup() {
+            return memoryControlGroup;
+        }
+
+        /**
+         * The maximum amount of user memory (including file cache).
+         * This is stored as a <code>String</code> because the value can be too big to fit in a
+         * <code>long</code>.  (The alternative would have been <code>BigInteger</code> but then
+         * it would not be possible to index the OS stats document into Elasticsearch without
+         * losing information, as <code>BigInteger</code> is not a supported Elasticsearch type.)
+         *
+         * @return the maximum amount of user memory (including file cache).
+         */
+        public String getMemoryLimitInBytes() {
+            return memoryLimitInBytes;
+        }
+
+        /**
+         * The total current memory usage by processes in the cgroup (in bytes).
+         * This is stored as a <code>String</code> for consistency with <code>memoryLimitInBytes</code>.
+         *
+         * @return the total current memory usage by processes in the cgroup (in bytes).
+         */
+        public String getMemoryUsageInBytes() {
+            return memoryUsageInBytes;
+        }
+
         public Cgroup(
             final String cpuAcctControlGroup,
             final long cpuAcctUsageNanos,
             final String cpuControlGroup,
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
-            final CpuStat cpuStat) {
+            final CpuStat cpuStat,
+            final String memoryControlGroup,
+            final String memoryLimitInBytes,
+            final String memoryUsageInBytes) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
             this.cpuStat = Objects.requireNonNull(cpuStat);
+            this.memoryControlGroup = memoryControlGroup;
+            this.memoryLimitInBytes = memoryLimitInBytes;
+            this.memoryUsageInBytes = memoryUsageInBytes;
         }
 
         Cgroup(final StreamInput in) throws IOException {
@@ -377,6 +419,15 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                memoryControlGroup = in.readOptionalString();
+                memoryLimitInBytes = in.readOptionalString();
+                memoryUsageInBytes = in.readOptionalString();
+            } else {
+                memoryControlGroup = null;
+                memoryLimitInBytes = null;
+                memoryUsageInBytes = null;
+            }
         }
 
         @Override
@@ -387,6 +438,11 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeOptionalString(memoryControlGroup);
+                out.writeOptionalString(memoryLimitInBytes);
+                out.writeOptionalString(memoryUsageInBytes);
+            }
         }
 
         @Override
@@ -407,6 +463,19 @@ public class OsStats implements Writeable, ToXContentFragment {
                     cpuStat.toXContent(builder, params);
                 }
                 builder.endObject();
+                if (memoryControlGroup != null) {
+                    builder.startObject("memory");
+                    {
+                        builder.field("control_group", memoryControlGroup);
+                        if (memoryLimitInBytes != null) {
+                            builder.field("limit_in_bytes", memoryLimitInBytes);
+                        }
+                        if (memoryUsageInBytes != null) {
+                            builder.field("usage_in_bytes", memoryUsageInBytes);
+                        }
+                    }
+                    builder.endObject();
+                }
             }
             builder.endObject();
             return builder;

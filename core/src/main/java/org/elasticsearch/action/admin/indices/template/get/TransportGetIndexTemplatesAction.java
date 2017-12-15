@@ -43,7 +43,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     @Inject
     public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                             ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexTemplatesRequest::new);
+        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexTemplatesRequest::new, indexNameExpressionResolver);
     }
 
     @Override

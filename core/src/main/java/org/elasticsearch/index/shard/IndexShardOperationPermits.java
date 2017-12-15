@@ -49,7 +49,6 @@ import java.util.function.Supplier;
 final class IndexShardOperationPermits implements Closeable {
 
     private final ShardId shardId;
-    private final Logger logger;
     private final ThreadPool threadPool;
 
     static final int TOTAL_PERMITS = Integer.MAX_VALUE;
@@ -62,12 +61,10 @@ final class IndexShardOperationPermits implements Closeable {
      * Construct operation permits for the specified shards.
      *
      * @param shardId    the shard
-     * @param logger     the logger for the shard
      * @param threadPool the thread pool (used to execute delayed operations)
      */
-    IndexShardOperationPermits(final ShardId shardId, final Logger logger, final ThreadPool threadPool) {
+    IndexShardOperationPermits(final ShardId shardId, final ThreadPool threadPool) {
         this.shardId = shardId;
-        this.logger = logger;
         this.threadPool = threadPool;
     }
 
@@ -183,7 +180,7 @@ final class IndexShardOperationPermits implements Closeable {
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
              *     interruptions are bad here as permit acquisition will throw an interrupted exception which will be swallowed by
              *     the threaded action listener if the queue of the thread pool on which it submits is full
-             *   - if a permit is acquired and the queue of the thread pool which the the threaded action listener uses is full, the
+             *   - if a permit is acquired and the queue of the thread pool which the threaded action listener uses is full, the
              *     onFailure handler is executed on the calling thread; this should not be the recovery thread as it would delay the
              *     recovery
              */

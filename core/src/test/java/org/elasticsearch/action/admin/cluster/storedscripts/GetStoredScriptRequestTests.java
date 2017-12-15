@@ -38,8 +38,7 @@ public class GetStoredScriptRequestTests extends ESTestCase {
 
         StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
-        GetStoredScriptRequest request2 = new GetStoredScriptRequest();
-        request2.readFrom(in);
+        GetStoredScriptRequest request2 = new GetStoredScriptRequest(in);
 
         assertThat(request2.id(), equalTo(request.id()));
     }

@@ -22,7 +22,9 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -506,13 +508,16 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }
 
-    public void testDontExplode() throws Exception {
+    public void testUseMaxDocInsteadOfSize() throws Exception {
         if (legacy()) {
             assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("index1")
                 .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
+        client().admin().indices().prepareUpdateSettings("index1")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
+            .get();
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index1", "parent", "1", null));
         requests.add(createIndexRequest("index1", "child", "2", "1", "field", "value1"));
@@ -584,5 +589,57 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertNoFailures(response);
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "3");
+    }
+
+    public void testTooHighResultWindow() throws Exception {
+        if (legacy()) {
+            assertAcked(prepareCreate("index1")
+                .addMapping("parent_type", "nested_type", "type=nested")
+                .addMapping("child_type", "_parent", "type=parent_type")
+            );
+        } else {
+            assertAcked(prepareCreate("index1")
+                .addMapping("doc", addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
+                    "nested_type", "nested"))
+            );
+        }
+        createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
+        createIndexRequest("index1", "child_type", "2", "1").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                .innerHit(new InnerHitBuilder().setFrom(50).setSize(10).setName("_name")))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        Exception e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")))
+            .get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]"));
+        e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")))
+            .get());
+        assertThat(e.getCause().getMessage(),
+            containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]"));
+
+        client().admin().indices().prepareUpdateSettings("index1")
+            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
+            .get();
+        response = client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")))
+            .get();
+        assertNoFailures(response);
+        response = client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")))
+            .get();
+        assertNoFailures(response);
     }
 }

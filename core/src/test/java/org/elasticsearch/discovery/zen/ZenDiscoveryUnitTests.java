@@ -47,7 +47,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -320,7 +319,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService());
+            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+            Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -342,7 +342,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
             final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
                 EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
-            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
+            final DiscoveryNode localNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
+                (() -> localNode, ZenDiscovery.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
@@ -374,19 +377,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             } else {
                 AtomicBoolean sendResponse = new AtomicBoolean(false);
                 request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
-                    @Override
-                    public String action() {
-                        return null;
-                    }
 
                     @Override
                     public String getProfileName() {
                         return null;
-                    }
-
-                    @Override
-                    public long getRequestId() {
-                        return 0;
                     }
 
                     @Override

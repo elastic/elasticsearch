@@ -123,9 +123,11 @@ class BuildPlugin implements Plugin<Project> {
             }
             println "  Random Testing Seed   : ${project.testSeed}"
 
-            // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('3.3')
-            if (GradleVersion.current() < minGradle) {
+            // enforce Gradle version
+            final GradleVersion currentGradleVersion = GradleVersion.current();
+
+            final GradleVersion minGradle = GradleVersion.version('3.3')
+            if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
 
@@ -231,7 +233,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
     private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
-        return "_transitive_${groupId}:${artifactId}:${version}"
+        return "_transitive_${groupId}_${artifactId}_${version}"
     }
 
     /**
@@ -455,28 +457,8 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void configureJavadoc(Project project) {
-        String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
-        project.afterEvaluate {
-            project.tasks.withType(Javadoc) {
-                executable = new File(project.javaHome, 'bin/javadoc')
-            }
-            /*
-             * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
-             * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
-             */
-            Closure sortClosure = { a, b -> b.group <=> a.group }
-            Closure depJavadocClosure = { dep ->
-                if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-                    String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-                    if (substitution != null) {
-                        project.javadoc.dependsOn substitution + ':javadoc'
-                        String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-                        project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
-                    }
-                }
-            }
-            project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-            project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+        project.tasks.withType(Javadoc) {
+            executable = new File(project.javaHome, 'bin/javadoc')
         }
         configureJavadocJar(project)
     }

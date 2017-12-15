@@ -52,19 +52,16 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
 
-    private GatewayMetaState metaState;
+    private final GatewayMetaState metaState;
 
     @Inject
     public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool,
                                               ClusterService clusterService, TransportService transportService,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                              GatewayMetaState metaState) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
-    }
-
-    TransportNodesListGatewayMetaState init(GatewayMetaState metaState) {
         this.metaState = metaState;
-        return this;
     }
 
     public ActionFuture<NodesGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {

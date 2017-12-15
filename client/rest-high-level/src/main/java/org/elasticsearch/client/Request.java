@@ -29,11 +29,15 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -42,11 +46,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,26 +63,44 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 
-final class Request {
+public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    final String method;
-    final String endpoint;
-    final Map<String, String> params;
-    final HttpEntity entity;
+    private final String method;
+    private final String endpoint;
+    private final Map<String, String> parameters;
+    private final HttpEntity entity;
 
-    Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
-        this.method = method;
-        this.endpoint = endpoint;
-        this.params = params;
+    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
+        this.method = Objects.requireNonNull(method, "method cannot be null");
+        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
         this.entity = entity;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public Map<String, String> getParameters() {
+        return parameters;
+    }
+
+    public HttpEntity getEntity() {
+        return entity;
     }
 
     @Override
@@ -84,7 +108,7 @@ final class Request {
         return "Request{" +
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
-                ", params=" + params +
+                ", params=" + parameters +
                 ", hasBody=" + (entity != null) +
                 '}';
     }
@@ -102,6 +126,43 @@ final class Request {
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withMasterTimeout(deleteIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(createIndexRequest.timeout());
+        parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
+
+        HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     static Request info() {
@@ -139,8 +200,8 @@ final class Request {
             bulkContentType = XContentType.JSON;
         }
 
-        byte separator = bulkContentType.xContent().streamSeparator();
-        ContentType requestContentType = ContentType.create(bulkContentType.mediaType());
+        final byte separator = bulkContentType.xContent().streamSeparator();
+        final ContentType requestContentType = createContentType(bulkContentType);
 
         ByteArrayOutputStream content = new ByteArrayOutputStream();
         for (DocWriteRequest<?> request : bulkRequest.requests()) {
@@ -160,23 +221,23 @@ final class Request {
                         metadata.field("_id", request.id());
                     }
                     if (Strings.hasLength(request.routing())) {
-                        metadata.field("_routing", request.routing());
+                        metadata.field("routing", request.routing());
                     }
                     if (Strings.hasLength(request.parent())) {
-                        metadata.field("_parent", request.parent());
+                        metadata.field("parent", request.parent());
                     }
                     if (request.version() != Versions.MATCH_ANY) {
-                        metadata.field("_version", request.version());
+                        metadata.field("version", request.version());
                     }
 
                     VersionType versionType = request.versionType();
                     if (versionType != VersionType.INTERNAL) {
                         if (versionType == VersionType.EXTERNAL) {
-                            metadata.field("_version_type", "external");
+                            metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
-                            metadata.field("_version_type", "external_gte");
+                            metadata.field("version_type", "external_gte");
                         } else if (versionType == VersionType.FORCE) {
-                            metadata.field("_version_type", "force");
+                            metadata.field("version_type", "force");
                         }
                     }
 
@@ -188,7 +249,7 @@ final class Request {
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = (UpdateRequest) request;
                         if (updateRequest.retryOnConflict() > 0) {
-                            metadata.field("_retry_on_conflict", updateRequest.retryOnConflict());
+                            metadata.field("retry_on_conflict", updateRequest.retryOnConflict());
                         }
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
@@ -231,7 +292,7 @@ final class Request {
 
     static Request exists(GetRequest getRequest) {
         Request request = get(getRequest);
-        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.params, null);
+        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.parameters, null);
     }
 
     static Request get(GetRequest getRequest) {
@@ -268,7 +329,7 @@ final class Request {
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
 
         BytesRef source = indexRequest.source().toBytesRef();
-        ContentType contentType = ContentType.create(indexRequest.getContentType().mediaType());
+        ContentType contentType = createContentType(indexRequest.getContentType());
         HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, contentType);
 
         return new Request(method, endpoint, parameters.getParams(), entity);
@@ -350,9 +411,21 @@ final class Request {
         return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
     }
 
+    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
+        return new Request("GET", "/_msearch", params.getParams(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
@@ -370,6 +443,17 @@ final class Request {
             }
         }
         return joiner.toString();
+    }
+
+    /**
+     * Returns a {@link ContentType} from a given {@link XContentType}.
+     *
+     * @param xContentType the {@link XContentType}
+     * @return the {@link ContentType}
+     */
+    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    public static ContentType createContentType(final XContentType xContentType) {
+        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     /**
@@ -417,6 +501,10 @@ final class Request {
                 }
             }
             return this;
+        }
+
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withParent(String parent) {
@@ -472,6 +560,13 @@ final class Request {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
+        }
+
+        Params withUpdateAllTypes(boolean updateAllTypes) {
+            if (updateAllTypes) {
+                return putParam("update_all_types", Boolean.TRUE.toString());
+            }
+            return this;
         }
 
         Params withVersion(long version) {

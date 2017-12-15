@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,6 +58,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
     static final String SUGGESTION_NAME = "completion";
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
+    static final ParseField SKIP_DUPLICATES_FIELD = new ParseField("skip_duplicates");
 
     /**
      * {
@@ -94,11 +96,13 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             v.contextBytes = builder.bytes();
             p.skipChildren();
         }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
+        PARSER.declareBoolean(CompletionSuggestionBuilder::skipDuplicates, SKIP_DUPLICATES_FIELD);
     }
 
     protected FuzzyOptions fuzzyOptions;
     protected RegexOptions regexOptions;
     protected BytesReference contextBytes = null;
+    protected boolean skipDuplicates = false;
 
     public CompletionSuggestionBuilder(String field) {
         super(field);
@@ -113,6 +117,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         fuzzyOptions = in.fuzzyOptions;
         regexOptions = in.regexOptions;
         contextBytes = in.contextBytes;
+        skipDuplicates = in.skipDuplicates;
     }
 
     /**
@@ -123,6 +128,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         fuzzyOptions = in.readOptionalWriteable(FuzzyOptions::new);
         regexOptions = in.readOptionalWriteable(RegexOptions::new);
         contextBytes = in.readOptionalBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            skipDuplicates = in.readBoolean();
+        }
     }
 
     @Override
@@ -130,6 +138,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         out.writeOptionalWriteable(fuzzyOptions);
         out.writeOptionalWriteable(regexOptions);
         out.writeOptionalBytesReference(contextBytes);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(skipDuplicates);
+        }
     }
 
     /**
@@ -210,6 +221,21 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         return this;
     }
 
+    /**
+     * Returns whether duplicate suggestions should be filtered out.
+     */
+    public boolean skipDuplicates() {
+        return skipDuplicates;
+    }
+
+    /**
+     * Should duplicates be filtered or not. Defaults to <tt>false</tt>.
+     */
+    public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
+        this.skipDuplicates = skipDuplicates;
+        return this;
+    }
+
     private static class InnerBuilder extends CompletionSuggestionBuilder {
         private String field;
 
@@ -230,6 +256,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         }
         if (regexOptions != null) {
             regexOptions.toXContent(builder, params);
+        }
+        if (skipDuplicates) {
+            builder.field(SKIP_DUPLICATES_FIELD.getPreferredName(), skipDuplicates);
         }
         if (contextBytes != null) {
             builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
@@ -255,8 +284,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         // copy over common settings to each suggestion builder
         final MapperService mapperService = context.getMapperService();
         populateCommonFields(mapperService, suggestionContext);
+        suggestionContext.setSkipDuplicates(skipDuplicates);
         suggestionContext.setFuzzyOptions(fuzzyOptions);
         suggestionContext.setRegexOptions(regexOptions);
+        if (shardSize != null) {
+            suggestionContext.setShardSize(shardSize);
+        }
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
         if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
@@ -302,13 +335,14 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected boolean doEquals(CompletionSuggestionBuilder other) {
-        return Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
+        return skipDuplicates == other.skipDuplicates &&
+            Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
             Objects.equals(regexOptions, other.regexOptions) &&
             Objects.equals(contextBytes, other.contextBytes);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fuzzyOptions, regexOptions, contextBytes);
+        return Objects.hash(fuzzyOptions, regexOptions, contextBytes, skipDuplicates);
     }
 }

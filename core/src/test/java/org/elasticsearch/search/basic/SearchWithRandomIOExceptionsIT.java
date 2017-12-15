@@ -90,7 +90,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         if (createIndexWithoutErrors) {
             Settings.Builder settings = Settings.builder()
                 .put("index.number_of_replicas", numberOfReplicas());
-            logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
+            logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
@@ -112,7 +112,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate); // we cannot expect that the index will be valid
-            logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
+            logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type", mapping, XContentType.JSON).execute().actionGet();

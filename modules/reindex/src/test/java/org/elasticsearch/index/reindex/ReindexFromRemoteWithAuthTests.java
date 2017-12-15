@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -29,23 +30,31 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -129,9 +138,21 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
      * Plugin that demands authentication.
      */
     public static class TestPlugin extends Plugin implements ActionPlugin {
+
+        private final SetOnce<ReindexFromRemoteWithAuthTests.TestFilter> testFilter = new SetOnce<>();
+
         @Override
-        public List<Class<? extends ActionFilter>> getActionFilters() {
-            return singletonList(ReindexFromRemoteWithAuthTests.TestFilter.class);
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+            testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return singletonList(testFilter.get());
         }
 
         @Override
@@ -153,7 +174,6 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         private static final String EXAMPLE_HEADER = "Example-Header";
         private final ThreadContext context;
 
-        @Inject
         public TestFilter(ThreadPool threadPool) {
             context = threadPool.getThreadContext();
         }

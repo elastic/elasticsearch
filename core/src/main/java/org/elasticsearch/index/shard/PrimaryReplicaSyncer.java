@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -218,6 +218,8 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             }
         }
 
+        private static Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
+
         @Override
         protected void doRun() throws Exception {
             long size = 0;
@@ -231,7 +233,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
                 if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
@@ -247,7 +249,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
             if (!operations.isEmpty()) {
                 task.setPhase("sending_ops");
-                ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations);
+                ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations.toArray(EMPTY_ARRAY));
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);

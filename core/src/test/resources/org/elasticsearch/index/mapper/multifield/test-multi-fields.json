@@ -18,12 +18,6 @@
             "type": "text",
             "store": true,
             "eager_global_ordinals": true
-          },
-          "test2": {
-            "type": "token_count",
-            "index": true,
-            "store": true,
-            "analyzer": "simple"
           }
         }
       },

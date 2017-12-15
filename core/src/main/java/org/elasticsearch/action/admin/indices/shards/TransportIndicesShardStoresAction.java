@@ -69,7 +69,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     @Inject
     public TransportIndicesShardStoresAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver, TransportNodesListGatewayStartedShards listShardStoresInfo) {
-        super(settings, IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesShardStoresRequest::new);
+        super(settings, IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesShardStoresRequest::new, indexNameExpressionResolver);
         this.listShardStoresInfo = listShardStoresInfo;
     }
 

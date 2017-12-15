@@ -139,8 +139,8 @@ public class InnerHitBuilderTests extends ESTestCase {
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(1, 16));
-        innerHits.setFrom(randomIntBetween(0, 128));
-        innerHits.setSize(randomIntBetween(0, 128));
+        innerHits.setFrom(randomIntBetween(0, 32));
+        innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());

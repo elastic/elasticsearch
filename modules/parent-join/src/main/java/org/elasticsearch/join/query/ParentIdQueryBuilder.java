@@ -53,7 +53,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField ID_FIELD = new ParseField("id");
-    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String type;

@@ -159,10 +159,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .endObject().endObject().string();
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
-        assertAcked(prepareCreate("test").setSettings(
-            SETTING_NUMBER_OF_SHARDS, numberOfShards(),
-            SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1)
-        ).addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
+            .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))).addMapping("type1", mapping, XContentType.JSON));
 
         int value1Docs;
         int value2Docs;
@@ -517,7 +515,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);
         index("test", "type", "1");

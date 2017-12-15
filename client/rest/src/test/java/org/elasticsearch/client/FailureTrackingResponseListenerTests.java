@@ -41,6 +41,10 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
         MockResponseListener responseListener = new MockResponseListener();
         RestClient.FailureTrackingResponseListener listener = new RestClient.FailureTrackingResponseListener(responseListener);
 
+        final Response response = mockResponse();
+        listener.onSuccess(response);
+        assertSame(response, responseListener.response.get());
+        assertNull(responseListener.exception.get());
     }
 
     public void testOnFailure() {

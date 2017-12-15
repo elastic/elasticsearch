@@ -31,9 +31,11 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -357,6 +359,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
 
+        // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {
             return resolveSearchRoutingAllIndices(state.metaData(), routing);
         }
@@ -366,7 +369,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         // List of indices that don't require any routing
         Set<String> norouting = new HashSet<>();
         if (routing != null) {
-            paramRouting = Strings.splitStringByCommaToSet(routing);
+            paramRouting = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
         }
 
         for (String expression : resolvedExpressions) {
@@ -441,9 +444,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Sets the same routing for all indices
      */
-    private Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
+    public Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
-            Set<String> r = Strings.splitStringByCommaToSet(routing);
+            Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metaData.getConcreteAllIndices();
             for (String index : concreteIndices) {
@@ -601,6 +604,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Strings.isEmpty(expression)) {
                     throw indexNotFoundException(expression);
                 }
+                validateAliasOrIndex(expression);
                 if (aliasOrIndexExists(options, metaData, expression)) {
                     if (result != null) {
                         result.add(expression);
@@ -652,6 +656,16 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
             }
             return result;
+        }
+
+        private static void validateAliasOrIndex(String expression) {
+            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+            // if the expression can't be found.
+            if (expression.charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            }
         }
 
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {

@@ -33,7 +33,7 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         String json = "/org/elasticsearch/index/analysis/stop.json";
         Settings settings = Settings.builder()
-            .loadFromStream(json, getClass().getResourceAsStream(json))
+            .loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

@@ -69,6 +69,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -78,6 +80,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -124,9 +127,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
 
-    /** how many retry attempts to perform if join request failed with an retriable error */
+    /** how many retry attempts to perform if join request failed with an retryable error */
     private final int joinRetryAttempts;
-    /** how long to wait before performing another join attempt after a join request failed with an retriable error */
+    /** how long to wait before performing another join attempt after a join request failed with an retryable error */
     private final TimeValue joinRetryDelay;
 
     /** how many pings from *another* master to tolerate before forcing a rejoin on other or local master */
@@ -146,15 +149,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final NodeJoinController nodeJoinController;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-
     private final ClusterApplier clusterApplier;
     private final AtomicReference<ClusterState> committedState; // last committed cluster state
     private final Object stateMutex = new Object();
+    private final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators;
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
-                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService) {
+                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
         super(settings);
+        this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -211,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         namedWriteableRegistry,
                         this,
                         discoverySettings);
-        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
@@ -221,6 +226,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+    }
+
+    static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
+        Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
+        validators.add((node, state) -> {
+            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+        });
+        validators.addAll(onJoinValidators);
+        return Collections.unmodifiableCollection(validators);
     }
 
     // protected to allow overriding in tests
@@ -396,8 +412,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     public DiscoveryStats stats() {
-        PendingClusterStateStats queueStats = pendingStatesQueue.stats();
-        return new DiscoveryStats(queueStats);
+        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
     }
 
     public DiscoverySettings getDiscoverySettings() {
@@ -720,7 +735,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         final ClusterState newClusterState = pendingStatesQueue.getNextClusterStateToProcess();
         final ClusterState currentState = committedState.get();
-        final ClusterState adaptedNewClusterState;
         // all pending states have been processed
         if (newClusterState == null) {
             return false;
@@ -758,54 +772,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
-            adaptedNewClusterState = newClusterState;
-        } else if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
-            // some optimizations to make sure we keep old objects where possible
-            ClusterState.Builder builder = ClusterState.builder(newClusterState);
-
-            // if the routing table did not change, use the original one
-            if (newClusterState.routingTable().version() == currentState.routingTable().version()) {
-                builder.routingTable(currentState.routingTable());
-            }
-            // same for metadata
-            if (newClusterState.metaData().version() == currentState.metaData().version()) {
-                builder.metaData(currentState.metaData());
-            } else {
-                // if its not the same version, only copy over new indices or ones that changed the version
-                MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
-                for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                    IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
-                    if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
-                        currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
-                        // safe to reuse
-                        metaDataBuilder.put(currentIndexMetaData, false);
-                    } else {
-                        metaDataBuilder.put(indexMetaData, false);
-                    }
-                }
-                builder.metaData(metaDataBuilder);
-            }
-
-            adaptedNewClusterState = builder.build();
-        } else {
-            adaptedNewClusterState = newClusterState;
         }
 
-        if (currentState == adaptedNewClusterState) {
+        if (currentState == newClusterState) {
             return false;
         }
 
-        committedState.set(adaptedNewClusterState);
+        committedState.set(newClusterState);
 
         // update failure detection only after the state has been updated to prevent race condition with handleLeaveRequest
         // and handleNodeFailure as those check the current state to determine whether the failure is to be handled by this node
-        if (adaptedNewClusterState.nodes().isLocalNodeElectedMaster()) {
+        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
             // update the set of nodes to ping
-            nodesFD.updateNodesAndPing(adaptedNewClusterState);
+            nodesFD.updateNodesAndPing(newClusterState);
         } else {
             // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(adaptedNewClusterState.nodes().getMasterNode())) {
-                masterFD.restart(adaptedNewClusterState.nodes().getMasterNode(),
+            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                masterFD.restart(newClusterState.nodes().getMasterNode(),
                     "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
             }
         }
@@ -885,8 +868,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            onJoinValidators.stream().forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
@@ -898,7 +880,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node),
+                    e);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }
@@ -1313,4 +1296,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
     }
+
+    public final Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
+        return onJoinValidators;
+    }
+
 }

@@ -38,6 +38,17 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest() {
     }
 
+    protected MasterNodeRequest(StreamInput in) throws IOException {
+        super(in);
+        masterNodeTimeout = new TimeValue(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        masterNodeTimeout.writeTo(out);
+    }
+
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
@@ -60,13 +71,9 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        // TODO(talevy): throw exception once all MasterNodeRequest
+        //               subclasses have been migrated to Writeable Readers
         super.readFrom(in);
         masterNodeTimeout = new TimeValue(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        masterNodeTimeout.writeTo(out);
     }
 }

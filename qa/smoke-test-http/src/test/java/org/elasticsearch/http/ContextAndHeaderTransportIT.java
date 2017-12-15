@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -31,12 +32,14 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -46,8 +49,10 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -282,21 +287,20 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public static class ActionLoggingPlugin extends Plugin implements ActionPlugin {
 
+        private final SetOnce<LoggingFilter> loggingFilter = new SetOnce<>();
+
         @Override
-        public Collection<Module> createGuiceModules() {
-            return Collections.<Module>singletonList(new ActionLoggingModule());
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+            loggingFilter.set(new LoggingFilter(clusterService.getSettings(), threadPool));
+            return Collections.emptyList();
         }
 
         @Override
-        public List<Class<? extends ActionFilter>> getActionFilters() {
-            return singletonList(LoggingFilter.class);
-        }
-    }
-
-    public static class ActionLoggingModule extends AbstractModule {
-        @Override
-        protected void configure() {
-            bind(LoggingFilter.class).asEagerSingleton();
+        public List<ActionFilter> getActionFilters() {
+            return singletonList(loggingFilter.get());
         }
 
     }
@@ -305,7 +309,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
         private final ThreadPool threadPool;
 
-        @Inject
         public LoggingFilter(Settings settings, ThreadPool pool) {
             super(settings);
             this.threadPool = pool;

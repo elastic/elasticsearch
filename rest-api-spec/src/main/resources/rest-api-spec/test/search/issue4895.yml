@@ -22,7 +22,7 @@ setup:
 "Test with _local preference placed in query body - should fail":
 
   - do:
-      catch: request
+      catch: bad_request
       search:
           index: test
           type:  test

@@ -21,13 +21,13 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,11 +40,11 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) throws StorageException, IOException, URISyntaxException {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings), new Environment(internalSettings),
-            NamedXContentRegistry.EMPTY, null);
+        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
+            TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, null);
     }
 
 

@@ -20,21 +20,17 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
-import org.elasticsearch.transport.nio.OpenChannels;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -48,7 +44,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setSelector() throws IOException {
-        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)));
+        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(Supplier.class)));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();
@@ -61,37 +57,47 @@ public class NioServerSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
-    public void testClose() throws IOException, TimeoutException, InterruptedException {
-        AtomicReference<NioChannel> ref = new AtomicReference<>();
+    public void testClose() throws Exception {
+        AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
         NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
-        Consumer<NioChannel> listener = (c) -> {
-            ref.set(c);
-            latch.countDown();
-        };
-        channel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
 
-        CloseFuture closeFuture = channel.getCloseFuture();
+        channel.addCloseListener(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                isClosed.set(true);
+                latch.countDown();
+            }
 
-        assertFalse(closeFuture.isClosed());
+            @Override
+            public void onFailure(Exception e) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertTrue(channel.isOpen());
         assertFalse(closedRawChannel.get());
+        assertFalse(isClosed.get());
 
-        channel.closeAsync();
+        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+        channel.addCloseListener(closeFuture);
+        channel.close();
+        closeFuture.actionGet();
 
-        closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
         assertTrue(closedRawChannel.get());
-        assertTrue(closeFuture.isClosed());
+        assertFalse(channel.isOpen());
         latch.await();
-        assertSame(channel, ref.get());
+        assertTrue(isClosed.get());
     }
 
     private class DoNotCloseServerChannel extends DoNotRegisterServerChannel {
 
         private DoNotCloseServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory,
                                         AcceptingSelector selector) throws IOException {
-            super(profile, channel, channelFactory, selector);
+            super(channel, channelFactory, selector);
         }
 
         @Override

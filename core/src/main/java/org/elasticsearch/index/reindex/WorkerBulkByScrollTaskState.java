@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static java.lang.Math.round;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
@@ -43,6 +44,11 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     private static final Logger logger = Loggers.getLogger(WorkerBulkByScrollTaskState.class);
+
+    /**
+     * Maximum wait time allowed for throttling.
+     */
+    private static final TimeValue MAX_THROTTLE_WAIT_TIME =  TimeValue.timeValueHours(1);
 
     private final BulkByScrollTask task;
 
@@ -189,7 +195,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     public TimeValue throttleWaitTime(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         long earliestNextBatchStartTime = now.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        return timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime()));
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
+        return timeValueNanos(waitTime);
     }
 
     /**

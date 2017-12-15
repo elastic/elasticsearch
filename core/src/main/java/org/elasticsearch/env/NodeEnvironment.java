@@ -278,13 +278,6 @@ public final class NodeEnvironment  implements Closeable {
         return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
     }
 
-    /** Returns true if the directory is empty */
-    private static boolean dirEmpty(final Path path) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-            return stream.iterator().hasNext() == false;
-        }
-    }
-
     private static void releaseAndNullLocks(Lock[] locks) {
         for (int i = 0; i < locks.length; i++) {
             if (locks[i] != null) {
@@ -843,6 +836,29 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
         return shardIds;
+    }
+
+    /**
+     * Find all the shards for this index, returning a map of the {@code NodePath} to the number of shards on that path
+     * @param index the index by which to filter shards
+     * @return a map of NodePath to count of the shards for the index on that path
+     * @throws IOException if an IOException occurs
+     */
+    public Map<NodePath, Long> shardCountPerPath(final Index index) throws IOException {
+        assert index != null;
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Map<NodePath, Long> shardCountPerPath = new HashMap<>();
+        final String indexUniquePathId = index.getUUID();
+        for (final NodePath nodePath : nodePaths) {
+            Path indexLocation = nodePath.indicesPath.resolve(indexUniquePathId);
+            if (Files.isDirectory(indexLocation)) {
+                shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexLocation, index).size());
+            }
+        }
+        return shardCountPerPath;
     }
 
     private static Set<ShardId> findAllShardsForIndex(Path indexPath, Index index) throws IOException {

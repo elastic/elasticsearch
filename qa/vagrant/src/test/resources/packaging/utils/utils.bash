@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This file contains some utilities to test the the .deb/.rpm
+# This file contains some utilities to test the .deb/.rpm
 # packages and the SysV/Systemd scripts.
 
 # WARNING: This testing file must be executed as root and can
@@ -139,6 +139,11 @@ skip_not_zip() {
 
 assert_file_exist() {
     local file="$1"
+    local count=$(echo "$file" | wc -l)
+    [[ "$count" == "1" ]] || {
+      echo "assert_file_exist must be run on a single file at a time but was called on [$count] files: $file"
+      false
+    }
     if [ ! -e "$file" ]; then
         echo "Should exist: ${file} but does not"
     fi
@@ -417,7 +422,7 @@ wait_for_elasticsearch_status() {
     local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200/_cluster/health || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries 120 http://localhost:9200/_cluster/health || {
           echo "Looks like elasticsearch never started. Here is its log:"
           if [ -e "$ESLOG/elasticsearch.log" ]; then
               cat "$ESLOG/elasticsearch.log"

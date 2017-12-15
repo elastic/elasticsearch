@@ -77,6 +77,11 @@ public final class DocValuesSliceQuery extends SliceQuery {
                 return new ConstantScoreScorer(this, score(), twoPhase);
             }
 
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return DocValues.isCacheable(ctx, getField());
+            }
+
         };
     }
 }

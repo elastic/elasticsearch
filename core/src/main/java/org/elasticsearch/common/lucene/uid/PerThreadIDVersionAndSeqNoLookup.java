@@ -32,7 +32,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 
@@ -138,7 +138,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (seqNos != null && seqNos.advanceExact(docID)) {
                 seqNo = seqNos.longValue();
             } else {
-                seqNo =  SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {

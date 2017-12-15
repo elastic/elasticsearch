@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action;
 
+import com.fasterxml.jackson.core.io.JsonEOFException;
+import java.util.Arrays;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -59,10 +61,32 @@ public class RestActionsTests extends ESTestCase {
     }
 
     public void testParseTopLevelBuilderEmptyObject() throws IOException {
-        String requestBody = "{}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
-            QueryBuilder query = RestActions.getQueryContent(parser);
-            assertNull(query);
+        for (String requestBody : Arrays.asList("{}", "")) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                QueryBuilder query = RestActions.getQueryContent(parser);
+                assertNull(query);
+            }
+        }
+    }
+
+    public void testParseTopLevelBuilderMalformedJson() throws IOException {
+        for (String requestBody : Arrays.asList("\"\"", "\"someString\"", "\"{\"")) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                ParsingException exception =
+                    expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                assertEquals("Expected [START_OBJECT] but found [VALUE_STRING]", exception.getMessage());
+            }
+        }
+    }
+
+    public void testParseTopLevelBuilderIncompleteJson() throws IOException {
+        for (String requestBody : Arrays.asList("{", "{ \"query\" :")) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                ParsingException exception =
+                    expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                assertEquals("Failed to parse", exception.getMessage());
+                assertEquals(JsonEOFException.class, exception.getRootCause().getClass());
+            }
         }
     }
 

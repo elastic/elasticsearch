@@ -32,8 +32,10 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -63,12 +65,28 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 
+    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+                                        ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+    }
+
     protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Supplier<Request> request) {
+                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
             request);
+        this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.executor = executor();
+    }
+
+    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                        ActionFilters actionFilters, Writeable.Reader<Request> request,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, request,
+            indexNameExpressionResolver);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();
@@ -172,7 +190,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, masterChangePredicate);
                 } else {
-                    transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::newResponse) {
+                    DiscoveryNode masterNode = nodes.getMasterNode();
+                    final String actionName = getMasterActionName(masterNode);
+                    transportService.sendRequest(masterNode, actionName, request, new ActionListenerResponseHandler<Response>(listener,
+                        TransportMasterNodeAction.this::newResponse) {
                         @Override
                         public void handleException(final TransportException exp) {
                             Throwable cause = exp.unwrapCause();
@@ -211,5 +232,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 }, statePredicate
             );
         }
+    }
+
+    /**
+     * Allows to conditionally return a different master node action name in the case an action gets renamed.
+     * This mainly for backwards compatibility should be used rarely
+     */
+    protected String getMasterActionName(DiscoveryNode node) {
+        return actionName;
     }
 }

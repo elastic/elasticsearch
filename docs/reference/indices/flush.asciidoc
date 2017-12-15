@@ -96,6 +96,7 @@ which returns something similar to:
                    "generation" : 2,
                    "user_data" : {
                      "translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA",
+                     "history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ",
                      "local_checkpoint" : "-1",
                      "translog_generation" : "1",
                      "max_seq_no" : "-1",
@@ -117,6 +118,7 @@ which returns something similar to:
 --------------------------------------------------
 // TESTRESPONSE[s/"id" : "3M3zkw2GHMo2Y4h4\/KFKCg=="/"id": $body.indices.twitter.shards.0.0.commit.id/]
 // TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
+// TESTRESPONSE[s/"history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ"/"history_uuid": $body.indices.twitter.shards.0.0.commit.user_data.history_uuid/]
 // TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
 // TESTRESPONSE[s/"1": \.\.\./"1": $body.indices.twitter.shards.1/]
 // TESTRESPONSE[s/"2": \.\.\./"2": $body.indices.twitter.shards.2/]

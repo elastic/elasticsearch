@@ -37,7 +37,7 @@ import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
@@ -46,16 +46,23 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
+import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -165,9 +172,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                  */
                 final Matcher<Long> globalCheckpointMatcher;
                 if (shardRouting.primary()) {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED) : equalTo(numDocs - 1L);
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbers.NO_OPS_PERFORMED) : equalTo(numDocs - 1L);
                 } else {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED)
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbers.NO_OPS_PERFORMED)
                         : anyOf(equalTo(numDocs - 1L), equalTo(numDocs - 2L));
                 }
                 assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
@@ -177,7 +184,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
             shards.syncGlobalCheckpoint();
 
-            final long noOpsPerformed = SequenceNumbersService.NO_OPS_PERFORMED;
+            final long noOpsPerformed = SequenceNumbers.NO_OPS_PERFORMED;
             for (IndexShard shard : shards) {
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
@@ -299,6 +306,68 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    public void testSeqNoCollision() throws Exception {
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            int initDocs = shards.indexDocs(randomInt(10));
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica1 = replicas.get(0);
+            IndexShard replica2 = replicas.get(1);
+            shards.syncGlobalCheckpoint();
+
+            logger.info("--> Isolate replica1");
+            IndexRequest indexDoc1 = new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON);
+            BulkShardRequest replicationRequest = indexOnPrimary(indexDoc1, shards.getPrimary());
+            indexOnReplica(replicationRequest, replica2);
+
+            final Translog.Operation op1;
+            final List<Translog.Operation> initOperations = new ArrayList<>(initDocs);
+            try (Translog.Snapshot snapshot = replica2.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
+                for (int i = 0; i < initDocs; i++) {
+                    Translog.Operation op = snapshot.next();
+                    assertThat(op, is(notNullValue()));
+                    initOperations.add(op);
+                }
+                op1 = snapshot.next();
+                assertThat(op1, notNullValue());
+                assertThat(snapshot.next(), nullValue());
+                assertThat(snapshot.overriddenOperations(), equalTo(0));
+            }
+            // Make sure that replica2 receives translog ops (eg. op2) from replica1 and overwrites its stale operation (op1).
+            logger.info("--> Promote replica1 as the primary");
+            shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
+            shards.index(new IndexRequest(index.getName(), "type", "d2").source("{}", XContentType.JSON));
+            final Translog.Operation op2;
+            try (Translog.Snapshot snapshot = replica2.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 2));
+                op2 = snapshot.next();
+                assertThat(op2.seqNo(), equalTo(op1.seqNo()));
+                assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
+                assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
+                assertThat(snapshot.overriddenOperations(), equalTo(1));
+            }
+
+            // Make sure that peer-recovery transfers all but non-overridden operations.
+            IndexShard replica3 = shards.addReplica();
+            logger.info("--> Promote replica2 as the primary");
+            shards.promoteReplicaToPrimary(replica2);
+            logger.info("--> Recover replica3 from replica2");
+            recoverReplica(replica3, replica2);
+            try (Translog.Snapshot snapshot = replica3.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
+                assertThat(snapshot.next(), equalTo(op2));
+                assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
+                assertThat("Peer-recovery should not send overridden operations", snapshot.overriddenOperations(), equalTo(0));
+            }
+            // TODO: We should assert the content of shards in the ReplicationGroup.
+            // Without rollback replicas(current implementation), we don't have the same content across shards:
+            // - replica1 has {doc1}
+            // - replica2 has {doc1, doc2}
+            // - replica3 can have either {doc2} only if operation-based recovery or {doc1, doc2} if file-based recovery
+        }
+    }
+
     /** Throws <code>documentFailure</code> on every indexing operation */
     static class ThrowingDocumentFailureEngineFactory implements EngineFactory {
         final String documentFailureMessage;
@@ -316,7 +385,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             assert documentFailureMessage != null;
                             throw new IOException(documentFailureMessage);
                         }
-                    }, null, config);
+                    }, null, null, config);
         }
     }
 

@@ -62,7 +62,7 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
-                actual = Definition.DOUBLE_TYPE;
+                actual = locals.getDefinition().doubleType;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
@@ -73,14 +73,14 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = Definition.FLOAT_TYPE;
+                actual = locals.getDefinition().floatType;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
-                actual = Definition.LONG_TYPE;
+                actual = locals.getDefinition().longType;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid long constant [" + value + "]."));
             }
@@ -91,16 +91,16 @@ public final class ENumeric extends AExpression {
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    actual = Definition.BYTE_TYPE;
+                    actual = locals.getDefinition().byteType;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    actual = Definition.CHAR_TYPE;
+                    actual = locals.getDefinition().charType;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    actual = Definition.SHORT_TYPE;
+                    actual = locals.getDefinition().shortType;
                 } else {
                     constant = integer;
-                    actual = Definition.INT_TYPE;
+                    actual = locals.getDefinition().intType;
                 }
             } catch (NumberFormatException exception) {
                 try {

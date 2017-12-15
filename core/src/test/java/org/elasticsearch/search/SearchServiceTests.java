@@ -25,7 +25,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -48,6 +47,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -61,11 +64,14 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -84,7 +90,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FailOnRewriteQueryPlugin.class);
+        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        static final String DUMMY_SCRIPT = "dummyScript";
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap(DUMMY_SCRIPT, vars -> {
+                return "dummy";
+            });
+        }
     }
 
     @Override
@@ -230,8 +248,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         new String[0],
                         false,
                         new AliasFilter(null, Strings.EMPTY_ARRAY),
-                        1.0f),
-                null);
+                        1.0f)
+        );
         try {
             // the search context should inherit the default timeout
             assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -250,8 +268,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         new String[0],
                         false,
                         new AliasFilter(null, Strings.EMPTY_ARRAY),
-                        1.0f),
-            null);
+                        1.0f)
+        );
         try {
             // the search context should inherit the query timeout
             assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
@@ -260,6 +278,68 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             service.freeContext(context.id());
         }
 
+    }
+
+    /**
+     * test that getting more than the allowed number of docvalue_fields throws an exception
+     */
+    public void testMaxDocvalueFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // adding the maximum allowed number of docvalue_fields to retrieve
+        for (int i = 0; i < indexService.getIndexSettings().getMaxDocvalueFields(); i++) {
+            searchSourceBuilder.docValueField("field" + i);
+        }
+        try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f))) {
+            assertNotNull(context);
+            searchSourceBuilder.docValueField("one_field_too_much");
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f)));
+            assertEquals(
+                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
+                            + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
+                    ex.getMessage());
+        }
+    }
+
+    /**
+     * test that getting more than the allowed number of script_fields throws an exception
+     */
+    public void testMaxScriptFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // adding the maximum allowed number of script_fields to retrieve
+        int maxScriptFields = indexService.getIndexSettings().getMaxScriptFields();
+        for (int i = 0; i < maxScriptFields; i++) {
+            searchSourceBuilder.scriptField("field" + i,
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+        }
+        try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f))) {
+            assertNotNull(context);
+            searchSourceBuilder.scriptField("anotherScriptField",
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f)));
+            assertEquals(
+                    "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
+                            + (maxScriptFields + 1)
+                            + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
+                    ex.getMessage());
+        }
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

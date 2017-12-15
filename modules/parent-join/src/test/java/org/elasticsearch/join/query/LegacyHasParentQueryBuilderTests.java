@@ -26,9 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -184,20 +181,6 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
         HasParentQueryBuilder qb = hasParentQuery("just_a_type", new MatchAllQueryBuilder(), false);
         QueryShardException qse = expectThrows(QueryShardException.class, () -> qb.doToQuery(context));
         assertThat(qse.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
-    }
-
-    public void testDeprecatedXContent() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field("type", "foo"); // deprecated
-        builder.endObject();
-        builder.endObject();
-        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string());
-        assertEquals("foo", queryBuilder.type());
-        assertWarnings("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

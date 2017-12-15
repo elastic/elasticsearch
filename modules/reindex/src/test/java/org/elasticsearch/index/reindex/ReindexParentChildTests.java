@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.join.ParentJoinPlugin;
@@ -113,7 +114,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     public void testScriptAddsParent() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("source")
-            .setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
 
         createParentChildIndex("dest");
         createParentChildDocs("source", false);
@@ -149,7 +150,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
-        create.setSettings("index.version.created", Version.V_5_6_0.id); // allows for multiple types
+        create.setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
         create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);

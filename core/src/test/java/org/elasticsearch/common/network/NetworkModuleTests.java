@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
@@ -133,6 +134,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
@@ -193,6 +195,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
@@ -227,6 +230,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
@@ -306,7 +310,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
-        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null,
-            new NullDispatcher());
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, null,
+            xContentRegistry(), null, new NullDispatcher());
     }
 }

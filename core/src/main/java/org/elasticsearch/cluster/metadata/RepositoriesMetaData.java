@@ -20,15 +20,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -151,7 +148,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                                 throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
-                            settings = Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
+                            settings = Settings.fromXContent(parser);
                         } else {
                             throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
                         }

@@ -217,13 +217,11 @@ abstract class QueryCollectorContext {
                                                                                boolean trackTotalHits,
                                                                                boolean shouldCollect) {
         return new QueryCollectorContext(REASON_SEARCH_TERMINATE_AFTER_COUNT) {
-            private BooleanSupplier terminatedEarlySupplier;
             private IntSupplier countSupplier = null;
 
             @Override
             Collector create(Collector in) throws IOException {
                 EarlyTerminatingSortingCollector sortingCollector = new EarlyTerminatingSortingCollector(in, indexSort, numHits);
-                terminatedEarlySupplier = sortingCollector::terminatedEarly;
                 Collector collector = sortingCollector;
                 if (trackTotalHits) {
                     int count = shouldCollect ? -1 : shortcutTotalHitCount(reader, query);
@@ -240,9 +238,6 @@ abstract class QueryCollectorContext {
 
             @Override
             void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {
-                if (terminatedEarlySupplier.getAsBoolean()) {
-                    result.terminatedEarly(true);
-                }
                 if (countSupplier != null) {
                     final TopDocs topDocs = result.topDocs();
                     topDocs.totalHits = countSupplier.getAsInt();

@@ -257,9 +257,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         isolatePreferredMaster.startDisrupting();
 
         assertAcked(client(randomFrom(nonPreferredNodes)).admin().indices().prepareCreate("test").setSettings(
-                INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1,
-                INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0
-        ));
+            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)));
 
         internalCluster().clearDisruptionScheme(false);
         internalCluster().setDisruptionScheme(isolateAllNodes);

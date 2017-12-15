@@ -28,7 +28,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -132,8 +131,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
-                Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), FuzzyQuery.defaultPrefixLength,
-                    FuzzyQuery.defaultMaxExpansions, FuzzyQuery.defaultTranspositions);
+                Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
+                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
@@ -293,6 +292,12 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         private String quoteFieldSuffix = null;
         /** Whether phrase queries should be automatically generated for multi terms synonyms. */
         private boolean autoGenerateSynonymsPhraseQuery = true;
+        /** Prefix length in fuzzy queries.*/
+        private int fuzzyPrefixLength = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
+        /** The number of terms fuzzy queries will expand to.*/
+        private int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
+        /** Whether transpositions are supported in fuzzy queries.*/
+        private boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
 
         /**
          * Generates default {@link Settings} object (uses ROOT locale, does
@@ -306,6 +311,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;
             this.autoGenerateSynonymsPhraseQuery = other.autoGenerateSynonymsPhraseQuery;
+            this.fuzzyPrefixLength = other.fuzzyPrefixLength;
+            this.fuzzyMaxExpansions = other.fuzzyMaxExpansions;
+            this.fuzzyTranspositions = other.fuzzyTranspositions;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -355,9 +363,34 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             return autoGenerateSynonymsPhraseQuery;
         }
 
+        public int fuzzyPrefixLength() {
+            return fuzzyPrefixLength;
+        }
+
+        public void fuzzyPrefixLength(int fuzzyPrefixLength) {
+            this.fuzzyPrefixLength = fuzzyPrefixLength;
+        }
+
+        public int fuzzyMaxExpansions() {
+            return fuzzyMaxExpansions;
+        }
+
+        public void fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+            this.fuzzyMaxExpansions = fuzzyMaxExpansions;
+        }
+
+        public boolean fuzzyTranspositions() {
+            return fuzzyTranspositions;
+        }
+
+        public void fuzzyTranspositions(boolean fuzzyTranspositions) {
+            this.fuzzyTranspositions = fuzzyTranspositions;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery);
+            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery,
+                fuzzyPrefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
         }
 
         @Override
@@ -372,7 +405,10 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             return Objects.equals(lenient, other.lenient) &&
                 Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
                 Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
-                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
+                Objects.equals(fuzzyPrefixLength, fuzzyPrefixLength) &&
+                Objects.equals(fuzzyMaxExpansions, fuzzyMaxExpansions) &&
+                Objects.equals(fuzzyTranspositions, fuzzyTranspositions);
         }
     }
 }

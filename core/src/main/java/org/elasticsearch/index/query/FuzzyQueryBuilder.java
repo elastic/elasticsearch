@@ -54,8 +54,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     public static final int DEFAULT_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
 
     /** Default as to whether transpositions should be treated as a primitive edit operation,
-     * instead of classic Levenshtein algorithm. Defaults to false. */
-    public static final boolean DEFAULT_TRANSPOSITIONS = false;
+     * instead of classic Levenshtein algorithm. Defaults to true. */
+    public static final boolean DEFAULT_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -74,7 +74,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     private int maxExpansions = DEFAULT_MAX_EXPANSIONS;
 
-    //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private boolean transpositions = DEFAULT_TRANSPOSITIONS;
 
     private String rewrite;

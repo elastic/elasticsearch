@@ -175,7 +175,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 this.topDocsCollector = TopScoreDocCollector.create(numHits, searchAfter);
             } else {
                 this.topDocsCollector = TopFieldCollector.create(sortAndFormats.sort, numHits,
-                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore);
+                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore, true);
             }
         }
 
@@ -283,14 +283,18 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             return new ScrollingTopDocsCollectorContext(searchContext.scrollContext(),
                 searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards());
         } else if (searchContext.collapse() != null) {
+            boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                searchContext.sort(), numDocs, searchContext.trackScores());
+                searchContext.sort(), numDocs, trackScores);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
-            for (RescoreContext rescoreContext : searchContext.rescore()) {
-                numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+            if (rescore) {
+                assert searchContext.sort() == null;
+                for (RescoreContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+                }
             }
             return new SimpleTopDocsCollectorContext(searchContext.sort(),
                                                      searchContext.searchAfter(),

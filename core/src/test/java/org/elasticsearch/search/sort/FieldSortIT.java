@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -1460,10 +1461,10 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
         String sortField = "sortField";
         assertAcked(prepareCreate("test1")
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards()))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards())))
                 .addMapping("type", sortField, "type=long").get());
         assertAcked(prepareCreate("test2")
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1))
                 .addMapping("type", sortField, "type=long").get());
 
         for (String index : new String[]{"test1", "test2"}) {

@@ -20,9 +20,18 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,7 +39,9 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexTemplateMetaDataTests extends ESTestCase {
 
@@ -78,4 +89,77 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         }
     }
 
+    public void testIndexTemplateMetaDataXContentRoundTrip() throws Exception {
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
+
+        String template = "{\"index_patterns\" : [ \".test-*\" ],\"order\" : 1000," +
+            "\"settings\" : {\"number_of_shards\" : 1,\"number_of_replicas\" : 0}," +
+            "\"mappings\" : {\"doc\" :" +
+            "{\"properties\":{\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
+            "}}}";
+
+        BytesReference templateBytes = new BytesArray(template);
+        final IndexTemplateMetaData indexTemplateMetaData;
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, templateBytes, XContentType.JSON)) {
+            indexTemplateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
+        }
+
+        final BytesReference templateBytesRoundTrip;
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
+            builder.startObject();
+            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+            builder.endObject();
+            templateBytesRoundTrip = builder.bytes();
+        }
+
+        final IndexTemplateMetaData indexTemplateMetaDataRoundTrip;
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, templateBytesRoundTrip, XContentType.JSON)) {
+            indexTemplateMetaDataRoundTrip = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
+        }
+        assertThat(indexTemplateMetaData, equalTo(indexTemplateMetaDataRoundTrip));
+    }
+
+    public void testValidateInvalidIndexPatterns() throws Exception {
+        final IllegalArgumentException emptyPatternError = expectThrows(IllegalArgumentException.class, () -> {
+            new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
+                Collections.emptyList(), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        });
+        assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
+
+        final IllegalArgumentException nullPatternError = expectThrows(IllegalArgumentException.class, () -> {
+            new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
+                null, Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        });
+        assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
+
+        final String templateWithEmptyPattern = "{\"index_patterns\" : [],\"order\" : 1000," +
+            "\"settings\" : {\"number_of_shards\" : 10,\"number_of_replicas\" : 1}," +
+            "\"mappings\" : {\"doc\" :" +
+            "{\"properties\":{\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
+            "}}}";
+        try (XContentParser parser =
+                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(templateWithEmptyPattern), XContentType.JSON)) {
+            final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
+            assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
+        }
+
+        final String templateWithoutPattern = "{\"order\" : 1000," +
+            "\"settings\" : {\"number_of_shards\" : 10,\"number_of_replicas\" : 1}," +
+            "\"mappings\" : {\"doc\" :" +
+            "{\"properties\":{\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
+            "}}}";
+        try (XContentParser parser =
+                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(templateWithoutPattern), XContentType.JSON)) {
+            final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
+            assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
+        }
+    }
 }

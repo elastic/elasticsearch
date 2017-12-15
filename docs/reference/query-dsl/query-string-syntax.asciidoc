@@ -55,6 +55,25 @@ match the query string `"a* b* c*"`.
 
 [WARNING]
 =======
+Pure wildcards `\*` are rewritten to <<query-dsl-exists-query,`exists`>> queries for efficiency.
+As a consequence, the wildcard `"field:*"` would match documents with an emtpy value
+ like the following:
+```
+{
+  "field": ""
+}
+```
+\... and would **not** match if the field is missing or set with an explicit null
+value like the following:
+```
+{
+  "field": null
+}
+```
+=======
+
+[WARNING]
+=======
 Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly
 heavy, because all terms in the index need to be examined, just in case
 they match.  Leading wildcards can be disabled by setting

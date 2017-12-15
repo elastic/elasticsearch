@@ -19,6 +19,8 @@
 
 import java.nio.file.Files
 
+import org.gradle.util.GradleVersion
+
 apply plugin: 'groovy'
 
 group = 'org.elasticsearch.gradle'
@@ -92,16 +94,18 @@ dependencies {
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.3'
+  compile 'de.thetaphi:forbiddenapis:2.4.1'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.4.0-1"
 }
 
 // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
 // Use logging dependency instead
+// Gradle 4.3.1 stopped releasing the logging jars to jcenter, just use the last available one
+GradleVersion logVersion = GradleVersion.current() > GradleVersion.version('4.3') ? GradleVersion.version('4.3') : GradleVersion.current()
 
 dependencies {
-  compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
+  compileOnly "org.gradle:gradle-logging:${logVersion.getVersion()}"
   compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
 }
 

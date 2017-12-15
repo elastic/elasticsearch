@@ -39,7 +39,10 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public class MembershipAction extends AbstractComponent {
 
@@ -63,7 +66,8 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener) {
+    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener,
+                            Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators) {
         super(settings);
         this.transportService = transportService;
         this.listener = listener;
@@ -73,7 +77,7 @@ public class MembershipAction extends AbstractComponent {
             ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
             () -> new ValidateJoinRequest(), ThreadPool.Names.GENERIC,
-            new ValidateJoinRequestRequestHandler());
+            new ValidateJoinRequestRequestHandler(transportService::getLocalNode, joinValidators));
         transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new,
             ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
@@ -176,12 +180,20 @@ public class MembershipAction extends AbstractComponent {
     }
 
     static class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
+        private final Supplier<DiscoveryNode> localNodeSupplier;
+        private final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators;
+
+        ValidateJoinRequestRequestHandler(Supplier<DiscoveryNode> localNodeSupplier,
+                                          Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
+            this.localNodeSupplier = localNodeSupplier;
+            this.joinValidators = joinValidators;
+        }
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
-            ensureNodesCompatibility(Version.CURRENT, request.state.getNodes());
-            ensureIndexCompatibility(Version.CURRENT, request.state.getMetaData());
-            // for now, the mere fact that we can serialize the cluster state acts as validation....
+            DiscoveryNode node = localNodeSupplier.get();
+            assert node != null : "local node is null";
+            joinValidators.stream().forEach(action -> action.accept(node, request.state));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

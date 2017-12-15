@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -89,6 +90,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     /** Default for search flags to use. */
     public static final int DEFAULT_FLAGS = SimpleQueryStringFlag.ALL.value;
+    /** Default for prefix length in fuzzy queries.*/
+    public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
+    /** Default number of terms fuzzy queries will expand to.*/
+    public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
+    /** Default for using transpositions in fuzzy queries.*/
+    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
@@ -109,6 +116,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
             .withAllDeprecated("Set [fields] to `*` instead");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
+    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
+    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     /** Query text to parse. */
     private final String queryText;
@@ -181,6 +191,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
+            settings.fuzzyPrefixLength(in.readVInt());
+            settings.fuzzyMaxExpansions(in.readVInt());
+            settings.fuzzyTranspositions(in.readBoolean());
         }
     }
 
@@ -219,6 +232,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
+            out.writeVInt(settings.fuzzyPrefixLength());
+            out.writeVInt(settings.fuzzyMaxExpansions());
+            out.writeBoolean(settings.fuzzyTranspositions());
         }
     }
 
@@ -395,6 +411,39 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return settings.autoGenerateSynonymsPhraseQuery();
     }
 
+    public SimpleQueryStringBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
+        this.settings.fuzzyPrefixLength(fuzzyPrefixLength);
+        return this;
+    }
+
+    public int fuzzyPrefixLength() {
+        return settings.fuzzyPrefixLength();
+    }
+
+    public SimpleQueryStringBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.settings.fuzzyMaxExpansions(fuzzyMaxExpansions);
+        return this;
+    }
+
+    public int fuzzyMaxExpansions() {
+        return settings.fuzzyMaxExpansions();
+    }
+
+    public boolean fuzzyTranspositions() {
+        return settings.fuzzyTranspositions();
+    }
+
+    /**
+     * Sets whether transpositions are supported in fuzzy queries.<p>
+     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+     * distance formula which supports transpositions. Setting transposition to false will
+     * switch to classic Levenshtein distance.<br>
+     * If not set, Damerau-Levenshtein distance metric will be used.
+     */
+    public SimpleQueryStringBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.settings.fuzzyTranspositions(fuzzyTranspositions);
+        return this;
+    }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
@@ -460,6 +509,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
         builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), settings.autoGenerateSynonymsPhraseQuery());
+        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), settings.fuzzyPrefixLength());
+        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), settings.fuzzyMaxExpansions());
+        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -478,6 +530,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
+        int fuzzyPrefixLenght = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
+        int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
+        boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -532,6 +587,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     // Ignore deprecated option
                 } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
+                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                    fuzzyPrefixLenght = parser.intValue();
+                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                    fuzzyMaxExpansions = parser.intValue();
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                    fuzzyTranspositions = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -558,6 +619,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         qb.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        qb.fuzzyPrefixLength(fuzzyPrefixLenght);
+        qb.fuzzyMaxExpansions(fuzzyMaxExpansions);
+        qb.fuzzyTranspositions(fuzzyTranspositions);
         return qb;
     }
 

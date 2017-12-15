@@ -58,7 +58,7 @@ setup:
 ---
 "count body without query element":
   - do:
-      catch: request
+      catch: bad_request
       count:
         index: test
         body:

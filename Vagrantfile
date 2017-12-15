@@ -60,8 +60,12 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-25" do |config|
-    config.vm.box = "elastic/fedora-25-x86_64"
+  config.vm.define "fedora-26" do |config|
+    config.vm.box = "elastic/fedora-26-x86_64"
+    dnf_common config
+  end
+  config.vm.define "fedora-27" do |config|
+    config.vm.box = "elastic/fedora-27-x86_64"
     dnf_common config
   end
   config.vm.define "opensuse-42" do |config|
@@ -302,5 +306,10 @@ Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "BATS_ARCHIVES"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
+  SHELL
+  # This prevents leftovers from previous tests using the
+  # same VM from messing up the current test
+  config.vm.provision "clean_tmp", run: "always", type: "shell", inline: <<-SHELL
+    rm -rf /tmp/elasticsearch*
   SHELL
 end

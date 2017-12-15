@@ -31,6 +31,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -66,13 +67,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        searchPhaseController = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
     }
 
     public void testSort() throws Exception {
         List<CompletionSuggestion> suggestions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20)));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
@@ -139,7 +141,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             int size = randomIntBetween(1, 20);
             maxSuggestSize += size;
-            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), size));
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), size, false));
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
@@ -202,7 +204,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<CompletionSuggestion> shardSuggestion = new ArrayList<>();
             for (CompletionSuggestion completionSuggestion : suggestions) {
                 CompletionSuggestion suggestion = new CompletionSuggestion(
-                    completionSuggestion.getName(), completionSuggestion.getSize());
+                    completionSuggestion.getName(), completionSuggestion.getSize(), false);
                 final CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text(""), 0, 5);
                 suggestion.addTerm(completionEntry);
                 int optionSize = randomIntBetween(1, suggestion.getSize());

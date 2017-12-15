@@ -64,7 +64,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,12 +75,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
@@ -188,7 +187,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
+            final MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);
@@ -386,40 +385,45 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     }
                     Settings normalizedChangeSettings = Settings.builder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.getSettings().getAsMap());
+                    Settings settings = indexMetaData.getSettings();
+                    Set<String> keyFilters = new HashSet<>();
                     List<String> simpleMatchPatterns = new ArrayList<>();
                     for (String ignoredSetting : ignoreSettings) {
                         if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
                             if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
                                 throw new SnapshotRestoreException(snapshot, "cannot remove setting [" + ignoredSetting + "] on restore");
                             } else {
-                                settingsMap.remove(ignoredSetting);
+                                keyFilters.add(ignoredSetting);
                             }
                         } else {
                             simpleMatchPatterns.add(ignoredSetting);
                         }
                     }
-                    if (!simpleMatchPatterns.isEmpty()) {
-                        String[] removePatterns = simpleMatchPatterns.toArray(new String[simpleMatchPatterns.size()]);
-                        Iterator<Map.Entry<String, String>> iterator = settingsMap.entrySet().iterator();
-                        while (iterator.hasNext()) {
-                            Map.Entry<String, String> entry = iterator.next();
-                            if (UNREMOVABLE_SETTINGS.contains(entry.getKey()) == false) {
-                                if (Regex.simpleMatch(removePatterns, entry.getKey())) {
-                                    iterator.remove();
+                    Predicate<String> settingsFilter = k -> {
+                        if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                            for (String filterKey : keyFilters) {
+                                if (k.equals(filterKey)) {
+                                    return false;
+                                }
+                            }
+                            for (String pattern : simpleMatchPatterns) {
+                                if (Regex.simpleMatch(pattern, k)) {
+                                    return false;
                                 }
                             }
                         }
-                    }
-                    for(Map.Entry<String, String> entry : normalizedChangeSettings.getAsMap().entrySet()) {
-                        if (UNMODIFIABLE_SETTINGS.contains(entry.getKey())) {
-                            throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + entry.getKey() + "] on restore");
-                        } else {
-                            settingsMap.put(entry.getKey(), entry.getValue());
-                        }
-                    }
-
-                    return builder.settings(Settings.builder().put(settingsMap)).build();
+                        return true;
+                    };
+                    Settings.Builder settingsBuilder = Settings.builder()
+                        .put(settings.filter(settingsFilter))
+                        .put(normalizedChangeSettings.filter(k -> {
+                            if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                            } else {
+                                return true;
+                            }
+                        }));
+                    return builder.settings(settingsBuilder).build();
                 }
 
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
@@ -529,7 +533,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 RecoverySource recoverySource = initializingShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                     Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                    changes(snapshot).startedShards.put(initializingShard.shardId(),
+                    changes(snapshot).shards.put(initializingShard.shardId(),
                         new ShardRestoreStatus(initializingShard.currentNodeId(), RestoreInProgress.State.SUCCESS));
                 }
             }
@@ -545,7 +549,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
                     if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
-                        changes(snapshot).failedShards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
+                        changes(snapshot).shards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
                             RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
                     }
                 }
@@ -558,8 +562,21 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
                 initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
                 Snapshot snapshot = ((SnapshotRecoverySource) unassignedShard.recoverySource()).snapshot();
-                changes(snapshot).failedShards.put(unassignedShard.shardId(), new ShardRestoreStatus(null,
+                changes(snapshot).shards.put(unassignedShard.shardId(), new ShardRestoreStatus(null,
                     RestoreInProgress.State.FAILURE, "recovery source type changed from snapshot to " + initializedShard.recoverySource()));
+            }
+        }
+
+        @Override
+        public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
+            RecoverySource recoverySource = unassignedShard.recoverySource();
+            if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
+                if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                    Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
+                    String reason = "shard could not be allocated to any of the nodes";
+                    changes(snapshot).shards.put(unassignedShard.shardId(),
+                        new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
+                }
             }
         }
 
@@ -571,25 +588,21 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         }
 
         private static class Updates {
-            private Map<ShardId, ShardRestoreStatus> failedShards = new HashMap<>();
-            private Map<ShardId, ShardRestoreStatus> startedShards = new HashMap<>();
+            private Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
         }
 
-        public RestoreInProgress applyChanges(RestoreInProgress oldRestore) {
+        public RestoreInProgress applyChanges(final RestoreInProgress oldRestore) {
             if (shardChanges.isEmpty() == false) {
                 final List<RestoreInProgress.Entry> entries = new ArrayList<>();
                 for (RestoreInProgress.Entry entry : oldRestore.entries()) {
                     Snapshot snapshot = entry.snapshot();
                     Updates updates = shardChanges.get(snapshot);
-                    assert Sets.haveEmptyIntersection(updates.startedShards.keySet(), updates.failedShards.keySet());
-                    if (updates.startedShards.isEmpty() == false || updates.failedShards.isEmpty() == false) {
+                    if (updates.shards.isEmpty() == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                        for (Map.Entry<ShardId, ShardRestoreStatus> startedShardEntry : updates.startedShards.entrySet()) {
-                            shardsBuilder.put(startedShardEntry.getKey(), startedShardEntry.getValue());
+                        for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
+                            shardsBuilder.put(shard.getKey(), shard.getValue());
                         }
-                        for (Map.Entry<ShardId, ShardRestoreStatus> failedShardEntry : updates.failedShards.entrySet()) {
-                            shardsBuilder.put(failedShardEntry.getKey(), failedShardEntry.getValue());
-                        }
+
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));
@@ -602,7 +615,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 return oldRestore;
             }
         }
-
     }
 
     public static RestoreInProgress.Entry restoreInProgress(ClusterState state, Snapshot snapshot) {

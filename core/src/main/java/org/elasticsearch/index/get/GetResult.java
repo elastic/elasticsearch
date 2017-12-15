@@ -82,7 +82,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     /**
-     * Does the document exists.
+     * Does the document exist.
      */
     public boolean isExists() {
         return exists;

@@ -67,7 +67,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         collector.addNodeStatistics("node1", 1, 100, 10);
         Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
-        assertThat(nodeStats.get("node1").queueSize, equalTo(1.0));
+        assertThat(nodeStats.get("node1").queueSize, equalTo(1));
         assertThat(nodeStats.get("node1").responseTime, equalTo(100.0));
         assertThat(nodeStats.get("node1").serviceTime, equalTo(10.0));
     }
@@ -113,7 +113,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         logger.info("--> got stats: {}", nodeStats);
         for (String nodeId : nodes) {
             if (nodeStats.containsKey(nodeId)) {
-                assertThat(nodeStats.get(nodeId).queueSize, greaterThan(0.0));
+                assertThat(nodeStats.get(nodeId).queueSize, greaterThan(0));
                 assertThat(nodeStats.get(nodeId).responseTime, greaterThan(0.0));
                 assertThat(nodeStats.get(nodeId).serviceTime, greaterThan(0.0));
             }

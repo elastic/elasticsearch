@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -144,7 +145,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryWithRouting() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("number_of_shards", 2));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 2)));
         ensureGreen("test");
 
         final int docs = randomIntBetween(2, 10);
@@ -313,7 +314,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
      */
     public void testFilterByType() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
         indexRandom(true,
                 client().prepareIndex("test", "test1", "1").setSource("foo", "a"),
                 client().prepareIndex("test", "test2", "2").setSource("foo", "a"),

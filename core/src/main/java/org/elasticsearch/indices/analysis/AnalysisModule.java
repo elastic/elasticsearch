@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.ArabicAnalyzerProvider;
 import org.elasticsearch.index.analysis.ArmenianAnalyzerProvider;
 import org.elasticsearch.index.analysis.BasqueAnalyzerProvider;
+import org.elasticsearch.index.analysis.BengaliAnalyzerProvider;
 import org.elasticsearch.index.analysis.BrazilianAnalyzerProvider;
 import org.elasticsearch.index.analysis.BulgarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.CatalanAnalyzerProvider;
@@ -270,6 +271,7 @@ public final class AnalysisModule {
         analyzers.register("arabic", ArabicAnalyzerProvider::new);
         analyzers.register("armenian", ArmenianAnalyzerProvider::new);
         analyzers.register("basque", BasqueAnalyzerProvider::new);
+        analyzers.register("bengali", BengaliAnalyzerProvider::new);
         analyzers.register("brazilian", BrazilianAnalyzerProvider::new);
         analyzers.register("bulgarian", BulgarianAnalyzerProvider::new);
         analyzers.register("catalan", CatalanAnalyzerProvider::new);

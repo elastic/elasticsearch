@@ -42,7 +42,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetPipelineRequest::new);
+        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new, indexNameExpressionResolver);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 

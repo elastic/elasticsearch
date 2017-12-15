@@ -21,6 +21,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -128,11 +129,11 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     public void testGetFieldMappingsMultiType() throws Exception {
         assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
         assertAcked(prepareCreate("indexa")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
         assertAcked(client().admin().indices().prepareCreate("indexb")
-            .setSettings("index.version.created", Version.V_5_6_0.id)
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
 
@@ -247,14 +248,14 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     public void testGetFieldMappingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("doc", getMappingForType("doc")));
+                .addMapping("_doc", getMappingForType("_doc")));
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
                 enableIndexBlock("test", block);
-                GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setTypes("doc")
+                GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setTypes("_doc")
                     .setFields("field1", "obj.subfield").get();
-                assertThat(response.fieldMappings("test", "doc", "field1").fullName(), equalTo("field1"));
+                assertThat(response.fieldMappings("test", "_doc", "field1").fullName(), equalTo("field1"));
             } finally {
                 disableIndexBlock("test", block);
             }

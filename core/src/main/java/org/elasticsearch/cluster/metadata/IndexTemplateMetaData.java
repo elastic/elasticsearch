@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -95,6 +93,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
                                  ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+        if (patterns == null || patterns.isEmpty()) {
+            throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
+        }
         this.name = name;
         this.order = order;
         this.version = version;
@@ -246,7 +247,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(patterns);
         } else {
-            out.writeString(patterns.size() > 0 ? patterns.get(0) : "");
+            out.writeString(patterns.get(0));
         }
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
@@ -405,7 +406,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] mappingSource = cursor.value.uncompressed();
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), false).v2();
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);
@@ -447,9 +448,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings.Builder templateSettingsBuilder = Settings.builder();
-                        templateSettingsBuilder.put(
-                            SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()))
-                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+                        templateSettingsBuilder.put(Settings.fromXContent(parser));
+                        templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

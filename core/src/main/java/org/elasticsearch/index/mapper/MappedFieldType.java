@@ -35,6 +35,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -347,7 +348,15 @@ public abstract class MappedFieldType extends FieldType {
         return new ConstantScoreQuery(builder.build());
     }
 
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+    /**
+     * Factory method for range queries.
+     * @param relation the relation, nulls should be interpreted like INTERSECTS
+     */
+    public Query rangeQuery(
+            Object lowerTerm, Object upperTerm,
+            boolean includeLower, boolean includeUpper,
+            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser,
+            QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
@@ -369,6 +378,8 @@ public abstract class MappedFieldType extends FieldType {
         }
         return new ConstantScoreQuery(termQuery(nullValue, null));
     }
+
+    public abstract Query existsQuery(QueryShardContext context);
 
     /**
      * An enum used to describe the relation between the range of terms in a

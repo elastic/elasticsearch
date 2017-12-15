@@ -38,6 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -66,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -155,9 +157,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
@@ -233,9 +235,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
@@ -305,9 +307,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
-        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
+        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
@@ -704,5 +706,46 @@ public class QueryRescorerIT extends ESIntegTestCase {
         request.addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50);
 
         assertEquals(4, request.get().getHits().getHits().length);
+    }
+
+    public void testRescorePhaseWithInvalidSort() throws Exception {
+        assertAcked(prepareCreate("test"));
+        for(int i=0;i<5;i++) {
+            client().prepareIndex("test", "type", ""+i).setSource("number", 0).get();
+        }
+        refresh();
+
+        Exception exc = expectThrows(Exception.class,
+            () -> client().prepareSearch()
+                .addSort(SortBuilders.fieldSort("number"))
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
+                .get()
+        );
+        assertNotNull(exc.getCause());
+        assertThat(exc.getCause().getMessage(),
+            containsString("Cannot use [sort] option in conjunction with [rescore]."));
+
+        exc = expectThrows(Exception.class,
+            () -> client().prepareSearch()
+                .addSort(SortBuilders.fieldSort("number"))
+                .addSort(SortBuilders.scoreSort())
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
+                .get()
+        );
+        assertNotNull(exc.getCause());
+        assertThat(exc.getCause().getMessage(),
+            containsString("Cannot use [sort] option in conjunction with [rescore]."));
+
+        SearchResponse resp = client().prepareSearch().addSort(SortBuilders.scoreSort())
+            .setTrackScores(true)
+            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
+            .get();
+        assertThat(resp.getHits().totalHits, equalTo(5L));
+        assertThat(resp.getHits().getHits().length, equalTo(5));
+        for (SearchHit hit : resp.getHits().getHits()) {
+            assertThat(hit.getScore(), equalTo(101f));
+        }
     }
 }

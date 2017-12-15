@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -36,6 +37,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
@@ -86,6 +88,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private IngestStats ingestStats;
 
+    @Nullable
+    private AdaptiveSelectionStats adaptiveSelectionStats;
+
     NodeStats() {
     }
 
@@ -95,7 +100,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable AllCircuitBreakerStats breaker,
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
-                     @Nullable IngestStats ingestStats) {
+                     @Nullable IngestStats ingestStats,
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -110,6 +116,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
+        this.adaptiveSelectionStats = adaptiveSelectionStats;
     }
 
     public long getTimestamp() {
@@ -199,6 +206,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return ingestStats;
     }
 
+    @Nullable
+    public AdaptiveSelectionStats getAdaptiveSelectionStats() {
+        return adaptiveSelectionStats;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -223,6 +235,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
+        } else {
+            adaptiveSelectionStats = null;
+        }
     }
 
     @Override
@@ -246,6 +263,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalWriteable(adaptiveSelectionStats);
+        }
     }
 
     @Override
@@ -305,6 +325,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIngestStats() != null) {
             getIngestStats().toXContent(builder, params);
+        }
+        if (getAdaptiveSelectionStats() != null) {
+            getAdaptiveSelectionStats().toXContent(builder, params);
         }
         return builder;
     }

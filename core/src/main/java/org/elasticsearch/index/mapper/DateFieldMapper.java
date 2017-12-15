@@ -26,13 +26,17 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -245,8 +249,17 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = innerRangeQuery(value, value, true, true, null, null, context);
+            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -254,20 +267,13 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
-        }
-
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
-            return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
-        }
-
-        Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
-            failIfNotIndexed();
+            if (relation == ShapeRelation.DISJOINT) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                        "] does not support DISJOINT ranges");
+            }
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
@@ -457,6 +463,8 @@ public class DateFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+            createFieldNamesField(context, fields);
         }
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), timestamp));
@@ -465,8 +473,8 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         super.doMerge(mergeWith, updateAllTypes);
+        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }

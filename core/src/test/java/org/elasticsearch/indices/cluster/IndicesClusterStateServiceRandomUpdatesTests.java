@@ -410,20 +410,20 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
-            settings,
-            indicesService,
-            clusterService,
-            threadPool,
-            recoveryTargetService,
-            shardStateAction,
-            null,
-            repositoriesService,
-            null,
-            null,
-            null,
-            null,
-            null,
-            primaryReplicaSyncer);
+                settings,
+                indicesService,
+                clusterService,
+                threadPool,
+                recoveryTargetService,
+                shardStateAction,
+                null,
+                repositoriesService,
+                null,
+                null,
+                null,
+                null,
+                primaryReplicaSyncer,
+                s -> {});
     }
 
     private class RecordingIndicesService extends MockIndicesService {

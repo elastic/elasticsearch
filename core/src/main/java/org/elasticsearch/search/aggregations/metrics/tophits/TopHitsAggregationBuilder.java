@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
@@ -529,6 +530,17 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
+        long innerResultWindow = from() + size();
+        int maxInnerResultWindow = context.mapperService().getIndexSettings().getMaxInnerResultWindow();
+        if (innerResultWindow > maxInnerResultWindow) {
+            throw new IllegalArgumentException(
+                "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +
+                    "than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
+                    "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
+                    "] index level setting."
+            );
+        }
+
         List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

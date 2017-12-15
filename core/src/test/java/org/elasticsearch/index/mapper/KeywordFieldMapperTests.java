@@ -70,9 +70,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test", Settings.builder()
                 .put("index.analysis.normalizer.my_lowercase.type", "custom")
-                .putArray("index.analysis.normalizer.my_lowercase.filter", "lowercase")
+                .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
                 .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
-                .putArray("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
+                .putList("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
         parser = indexService.mapperService().documentMapperParser();
     }
 

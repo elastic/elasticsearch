@@ -149,35 +149,4 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, 0, parsed.types().length);
     }
-
-    public void testFromJsonDeprecatedSyntax() throws IOException {
-        IdsQueryBuilder testQuery = new IdsQueryBuilder().types("my_type");
-
-        //single value type can also be called _type
-        final String contentString = "{\n" +
-                "    \"ids\" : {\n" +
-                "        \"_type\" : \"my_type\",\n" +
-                "        \"values\" : [ ]\n" +
-                "    }\n" +
-                "}";
-
-        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
-        assertEquals(testQuery, parsed);
-
-        parseQuery(contentString);
-        assertWarnings("Deprecated field [_type] used, expected [type] instead");
-
-        //array of types can also be called types rather than type
-        final String contentString2 = "{\n" +
-                "    \"ids\" : {\n" +
-                "        \"types\" : [\"my_type\"],\n" +
-                "        \"values\" : [ ]\n" +
-                "    }\n" +
-                "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString2);
-        assertEquals(testQuery, parsed);
-
-        parseQuery(contentString2);
-        assertWarnings("Deprecated field [types] used, expected [type] instead");
-    }
 }

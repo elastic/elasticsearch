@@ -79,7 +79,7 @@ public class UidTests extends ESTestCase {
         for (int iter = 0; iter < iters; ++iter) {
             final String id = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
             BytesRef encoded = Uid.encodeId(id);
-            assertEquals(id, Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+            assertEquals(id, doDecodeId(encoded));
             assertTrue(encoded.length <= 1 + new BytesRef(id).length);
         }
     }
@@ -93,7 +93,7 @@ public class UidTests extends ESTestCase {
                 id = "0" + id;
             }
             BytesRef encoded = Uid.encodeId(id);
-            assertEquals(id, Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+            assertEquals(id, doDecodeId(encoded));
             assertEquals(1 + (id.length() + 1) / 2, encoded.length);
         }
     }
@@ -105,9 +105,26 @@ public class UidTests extends ESTestCase {
             random().nextBytes(binaryId);
             final String id = Base64.getUrlEncoder().withoutPadding().encodeToString(binaryId);
             BytesRef encoded = Uid.encodeId(id);
-            assertEquals(id, Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+            assertEquals(id, doDecodeId(encoded));
             assertTrue(encoded.length <= 1 + binaryId.length);
         }
     }
 
+    private static String doDecodeId(BytesRef encoded) {
+
+        if (randomBoolean()) {
+            return Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+        } else {
+            if (randomBoolean()) {
+                BytesRef slicedCopy = new BytesRef(randomIntBetween(encoded.length + 1, encoded.length + 100));
+                slicedCopy.offset = randomIntBetween(1, slicedCopy.bytes.length - encoded.length);
+                slicedCopy.length = encoded.length;
+                System.arraycopy(encoded.bytes, encoded.offset, slicedCopy.bytes, slicedCopy.offset, encoded.length);
+                assertArrayEquals(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length),
+                    Arrays.copyOfRange(slicedCopy.bytes, slicedCopy.offset, slicedCopy.offset + slicedCopy.length));
+                encoded = slicedCopy;
+            }
+            return Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);
+        }
+    }
 }

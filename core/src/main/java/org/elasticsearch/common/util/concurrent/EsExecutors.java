@@ -92,10 +92,6 @@ public class EsExecutors {
     public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
                                                          int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
                                                          ThreadFactory threadFactory, ThreadContext contextHolder) {
-        if (initialQueueCapacity == minQueueSize && initialQueueCapacity == maxQueueSize) {
-            return newFixed(name, size, initialQueueCapacity, threadFactory, contextHolder);
-        }
-
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
                             initialQueueCapacity);
@@ -250,13 +246,16 @@ public class EsExecutors {
      * waiting if necessary for space to become available.
      */
     static class ForceQueuePolicy implements XRejectedExecutionHandler {
+
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
+                // force queue policy should only be used with a scaling queue
+                assert executor.getQueue() instanceof ExecutorScalingQueue;
                 executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                //should never happen since we never wait
-                throw new EsRejectedExecutionException(e);
+            } catch (final InterruptedException e) {
+                // a scaling queue never blocks so a put to it can never be interrupted
+                throw new AssertionError(e);
             }
         }
 
@@ -264,6 +263,7 @@ public class EsExecutors {
         public long rejected() {
             return 0;
         }
+
     }
 
 }

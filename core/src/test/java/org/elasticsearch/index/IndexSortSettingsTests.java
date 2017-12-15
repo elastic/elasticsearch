@@ -76,9 +76,9 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testIndexSortWithArrays() throws IOException {
         Settings settings = Settings.builder()
-            .putArray("index.sort.field", "field1", "field2")
-            .putArray("index.sort.order", "asc", "desc")
-            .putArray("index.sort.missing", "_last", "_first")
+            .putList("index.sort.field", "field1", "field2")
+            .putList("index.sort.order", "asc", "desc")
+            .putList("index.sort.missing", "_last", "_first")
             .build();
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();
@@ -108,7 +108,7 @@ public class IndexSortSettingsTests extends ESTestCase {
     public void testInvalidIndexSortWithArray() throws IOException {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
-            .putArray("index.sort.order", new String[] {"asc", "desc"})
+            .putList("index.sort.order", new String[] {"asc", "desc"})
             .build();
         IllegalArgumentException exc =
             expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));

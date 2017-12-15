@@ -43,8 +43,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -346,22 +347,23 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
-                @Override
-                public int docValueCount() {
-                    return geoPointValues.docValueCount();
-                }
-
+            return mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
-                    return geoPointValues.advanceExact(docId);
-                }
-
-                @Override
-                public double nextValue() throws IOException {
-                    GeoPoint other = geoPointValues.nextValue();
-                    return Math.max(0.0d,
-                            distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
+                    if (geoPointValues.advanceExact(docId)) {
+                        int n = geoPointValues.docValueCount();
+                        resize(n);
+                        for (int i = 0; i < n; i++) {
+                            GeoPoint other = geoPointValues.nextValue();
+                            double distance = distFunction.calculate(
+                                origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS);
+                            values[i] = Math.max(0.0d, distance - offset);
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }, 0.0);
         }
@@ -427,20 +429,20 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
+            return mode.select(new SortingNumericDoubleValues() {
                 @Override
-                public int docValueCount() {
-                    return doubleValues.docValueCount();
-                }
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return doubleValues.advanceExact(doc);
-                }
-
-                @Override
-                public double nextValue() throws IOException {
-                    return Math.max(0.0d, Math.abs(doubleValues.nextValue() - origin) - offset);
+                public boolean advanceExact(int docId) throws IOException {
+                    if (doubleValues.advanceExact(docId)) {
+                        int n = doubleValues.docValueCount();
+                        resize(n);
+                        for (int i = 0; i < n; i++) {
+                            values[i] = Math.max(0.0d, Math.abs(doubleValues.nextValue() - origin) - offset);
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }, 0.0);
         }
@@ -542,10 +544,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     if (distance.advanceExact(docId) == false) {
                         return Explanation.noMatch("No value for the distance");
                     }
+                    double value = distance.doubleValue();
                     return Explanation.match(
                             (float) score(docId, subQueryScore.getValue()),
                             "Function for field " + getFieldName() + ":",
-                            func.explainFunction(getDistanceString(ctx, docId), distance.doubleValue(), scale));
+                            func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }
             };
         }

@@ -19,18 +19,16 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -54,22 +52,35 @@ public class SocketSelector extends ESSelector {
     }
 
     @Override
-    void doSelect(int timeout) throws IOException, ClosedSelectorException {
+    void processKey(SelectionKey selectionKey) {
+        NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
+        int ops = selectionKey.readyOps();
+        if ((ops & SelectionKey.OP_CONNECT) != 0) {
+            attemptConnect(nioSocketChannel, true);
+        }
+
+        if (nioSocketChannel.isConnectComplete()) {
+            if ((ops & SelectionKey.OP_WRITE) != 0) {
+                handleWrite(nioSocketChannel);
+            }
+
+            if ((ops & SelectionKey.OP_READ) != 0) {
+                handleRead(nioSocketChannel);
+            }
+        }
+    }
+
+    @Override
+    void preSelect() {
         setUpNewChannels();
         handleQueuedWrites();
-
-        int ready = selector.select(timeout);
-        if (ready > 0) {
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            processKeys(selectionKeys);
-        }
     }
 
     @Override
     void cleanup() {
         WriteOperation op;
         while ((op = queuedWrites.poll()) != null) {
-            op.getListener().onFailure(new ClosedSelectorException());
+            executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
         channelsToClose.addAll(newChannels);
     }
@@ -97,7 +108,7 @@ public class SocketSelector extends ESSelector {
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
             if (wasRemoved) {
-                writeOperation.getListener().onFailure(new ClosedSelectorException());
+                executeFailedListener(writeOperation.getListener(), new ClosedSelectorException());
             }
         } else {
             wakeup();
@@ -118,41 +129,41 @@ public class SocketSelector extends ESSelector {
             SelectionKeyUtils.setWriteInterested(channel);
             context.queueWriteOperations(writeOperation);
         } catch (Exception e) {
-            writeOperation.getListener().onFailure(e);
+            executeFailedListener(writeOperation.getListener(), e);
         }
     }
 
-    private void processKeys(Set<SelectionKey> selectionKeys) {
-        Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-        while (keyIterator.hasNext()) {
-            SelectionKey sk = keyIterator.next();
-            keyIterator.remove();
-            NioSocketChannel nioSocketChannel = (NioSocketChannel) sk.attachment();
-            if (sk.isValid()) {
-                try {
-                    int ops = sk.readyOps();
-                    if ((ops & SelectionKey.OP_CONNECT) != 0) {
-                        attemptConnect(nioSocketChannel, true);
-                    }
-
-                    if (nioSocketChannel.isConnectComplete()) {
-                        if ((ops & SelectionKey.OP_WRITE) != 0) {
-                            handleWrite(nioSocketChannel);
-                        }
-
-                        if ((ops & SelectionKey.OP_READ) != 0) {
-                            handleRead(nioSocketChannel);
-                        }
-                    }
-                } catch (CancelledKeyException e) {
-                    eventHandler.genericChannelException(nioSocketChannel, e);
-                }
-            } else {
-                eventHandler.genericChannelException(nioSocketChannel, new CancelledKeyException());
-            }
+    /**
+     * Executes a success listener with consistent exception handling. This can only be called from current
+     * selector thread.
+     *
+     * @param listener to be executed
+     * @param value to provide to listener
+     */
+    public <V> void executeListener(ActionListener<V> listener, V value) {
+        assert isOnCurrentThread() : "Must be on selector thread";
+        try {
+            listener.onResponse(value);
+        } catch (Exception e) {
+            eventHandler.listenerException(listener, e);
         }
     }
 
+    /**
+     * Executes a failed listener with consistent exception handling. This can only be called from current
+     * selector thread.
+     *
+     * @param listener to be executed
+     * @param exception to provide to listener
+     */
+    public <V> void executeFailedListener(ActionListener<V> listener, Exception exception) {
+        assert isOnCurrentThread() : "Must be on selector thread";
+        try {
+            listener.onFailure(exception);
+        } catch (Exception e) {
+            eventHandler.listenerException(listener, e);
+        }
+    }
 
     private void handleWrite(NioSocketChannel nioSocketChannel) {
         try {
@@ -176,7 +187,7 @@ public class SocketSelector extends ESSelector {
             if (writeOperation.getChannel().isWritable()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
-                writeOperation.getListener().onFailure(new ClosedChannelException());
+                executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
             }
         }
     }
@@ -193,7 +204,6 @@ public class SocketSelector extends ESSelector {
         try {
             if (newChannel.isOpen()) {
                 newChannel.register();
-                addRegisteredChannel(newChannel);
                 SelectionKey key = newChannel.getSelectionKey();
                 key.attach(newChannel);
                 eventHandler.handleRegistration(newChannel);

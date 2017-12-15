@@ -105,6 +105,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
+        if (randomBoolean()) {
+            result.fuzzyPrefixLength(randomIntBetween(0, 5));
+        }
+        if (randomBoolean()) {
+            result.fuzzyMaxExpansions(randomIntBetween(1, 5));
+        }
+        if (randomBoolean()) {
+            result.fuzzyTranspositions(randomBoolean());
+        }
         return result;
     }
 
@@ -126,6 +135,18 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         assertEquals("Wrong default default lenient.", false, qb.lenient());
         assertEquals("Wrong default default lenient field.", false, SimpleQueryStringBuilder.DEFAULT_LENIENT);
+
+        assertEquals("Wrong default default fuzzy prefix length.", FuzzyQuery.defaultPrefixLength, qb.fuzzyPrefixLength());
+        assertEquals("Wrong default default fuzzy prefix length field.",
+            FuzzyQuery.defaultPrefixLength, SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH);
+
+        assertEquals("Wrong default default fuzzy max expansions.", FuzzyQuery.defaultMaxExpansions, qb.fuzzyMaxExpansions());
+        assertEquals("Wrong default default fuzzy max expansions field.",
+            FuzzyQuery.defaultMaxExpansions, SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS);
+
+        assertEquals("Wrong default default fuzzy transpositions.", FuzzyQuery.defaultTranspositions, qb.fuzzyTranspositions());
+        assertEquals("Wrong default default fuzzy transpositions field.",
+            FuzzyQuery.defaultTranspositions, SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS);
     }
 
     public void testDefaultNullComplainFlags() {
@@ -336,6 +357,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"quote_field_suffix\" : \".quote\",\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_prefix_length\" : 1,\n" +
+                "    \"fuzzy_max_expansions\" : 5,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -347,6 +371,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 1, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
         assertEquals(json, ".quote", parsed.quoteFieldSuffix());
+        assertEquals(json, 1, parsed.fuzzyPrefixLength());
+        assertEquals(json, 5, parsed.fuzzyMaxExpansions());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     public void testMinimumShouldMatch() throws IOException {
@@ -548,7 +575,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
         Query query = new SimpleQueryStringBuilder("hello")
@@ -563,8 +590,21 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // Reset the default value
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
         );
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new SimpleQueryStringBuilder("text~2")
+            .field(STRING_FIELD_NAME)
+            .fuzzyPrefixLength(2)
+            .fuzzyMaxExpansions(5)
+            .fuzzyTranspositions(false)
+            .toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

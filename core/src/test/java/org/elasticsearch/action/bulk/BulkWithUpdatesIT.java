@@ -457,7 +457,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id) // allows for multiple types
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allows for multiple types
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();

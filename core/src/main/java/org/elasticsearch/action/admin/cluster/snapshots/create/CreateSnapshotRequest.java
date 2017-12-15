@@ -90,6 +90,31 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         this.repository = repository;
     }
 
+    public CreateSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
+        snapshot = in.readString();
+        repository = in.readString();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        settings = readSettingsFromStream(in);
+        includeGlobalState = in.readBoolean();
+        waitForCompletion = in.readBoolean();
+        partial = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(snapshot);
+        out.writeString(repository);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        writeSettingsToStream(settings, out);
+        out.writeBoolean(includeGlobalState);
+        out.writeBoolean(waitForCompletion);
+        out.writeBoolean(partial);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -355,8 +380,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param source snapshot definition
      * @return this request
      */
+    @SuppressWarnings("unchecked")
     public CreateSnapshotRequest source(Map<String, Object> source) {
-        for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
@@ -377,34 +403,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
-        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        snapshot = in.readString();
-        repository = in.readString();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        settings = readSettingsFromStream(in);
-        includeGlobalState = in.readBoolean();
-        waitForCompletion = in.readBoolean();
-        partial = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(snapshot);
-        out.writeString(repository);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
-        out.writeBoolean(includeGlobalState);
-        out.writeBoolean(waitForCompletion);
-        out.writeBoolean(partial);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

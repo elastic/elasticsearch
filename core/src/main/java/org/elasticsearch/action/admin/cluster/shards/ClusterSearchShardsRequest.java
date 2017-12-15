@@ -49,6 +49,42 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         indices(indices);
     }
 
+    public ClusterSearchShardsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = new String[in.readVInt()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = in.readString();
+        }
+
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+
+        if (in.getVersion().onOrBefore(Version.V_5_1_1)) {
+            //types
+            in.readStringArray();
+        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+
+        out.writeVInt(indices.length);
+        for (String index : indices) {
+            out.writeString(index);
+        }
+
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+
+        if (out.getVersion().onOrBefore(Version.V_5_1_1)) {
+            //types
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
+        indicesOptions.writeIndicesOptions(out);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -110,8 +146,8 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public ClusterSearchShardsRequest preference(String preference) {
         this.preference = preference;
@@ -124,40 +160,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
-
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-
-        if (in.getVersion().onOrBefore(Version.V_5_1_1)) {
-            //types
-            in.readStringArray();
-        }
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
-        }
-
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-
-        if (out.getVersion().onOrBefore(Version.V_5_1_1)) {
-            //types
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
-        indicesOptions.writeIndicesOptions(out);
-    }
-
 }

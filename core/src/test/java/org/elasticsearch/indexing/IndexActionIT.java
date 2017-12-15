@@ -250,6 +250,6 @@ public class IndexActionIT extends ESIntegTestCase {
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getRootCause().getMessage(),
-                containsString("object field starting or ending with a [.] makes object resolution ambiguous: []"));
+                containsString("field name cannot be an empty string"));
     }
 }

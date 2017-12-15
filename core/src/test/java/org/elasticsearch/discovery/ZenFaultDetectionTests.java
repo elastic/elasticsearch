@@ -59,7 +59,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -137,7 +136,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 Settings.builder()
                     .put(settings)
                     // trace zenfd actions but keep the default otherwise
-                    .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
+                    .putList(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
                     .build(),
                 new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
                     namedWriteableRegistry, new NetworkService(Collections.emptyList()), version),
@@ -145,7 +144,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 (boundAddress) ->
                     new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), boundAddress.publishAddress(),
-                        Node.NODE_ATTRIBUTES.get(settings).getAsMap(), DiscoveryNode.getRolesFromSettings(settings), version),
+                        Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
                 null);
         transportService.start();
         transportService.acceptIncomingRequests();

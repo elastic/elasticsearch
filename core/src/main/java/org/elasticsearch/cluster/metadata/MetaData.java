@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -43,17 +43,18 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -63,11 +64,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -323,32 +328,38 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return false;
     }
 
-    /*
-     * Finds all mappings for types and concrete indices. Types are expanded to
-     * include all types that match the glob patterns in the types array. Empty
-     * types array, null or {"_all"} will be expanded to all types available for
-     * the given indices.
+    /**
+     * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
+     * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
+     * the given indices. Only fields that match the provided field filter will be returned (default is a predicate
+     * that always returns true, which can be overridden via plugins)
+     *
+     * @see MapperPlugin#getFieldFilter()
+     *
      */
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
+                                                                                            final String[] types,
+                                                                                            Function<String, Predicate<String>> fieldFilter)
+            throws IOException {
         assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
+        boolean isAllTypes = isAllTypes(types);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
-            if (isAllTypes(types)) {
-                indexMapBuilder.put(index, indexMetaData.getMappings()); // No types specified means get it all
-
+            Predicate<String> fieldPredicate = fieldFilter.apply(index);
+            if (isAllTypes) {
+                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
             } else {
-                filteredMappings = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, cursor.value);
+                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
                     }
                 }
                 if (!filteredMappings.isEmpty()) {
@@ -357,6 +368,95 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return indexMapBuilder.build();
+    }
+
+    private static ImmutableOpenMap<String, MappingMetaData> filterFields(ImmutableOpenMap<String, MappingMetaData> mappings,
+                                                                          Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            return mappings;
+        }
+        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
+            builder.put(cursor.key, filterFields(cursor.value, fieldPredicate));
+        }
+        return builder.build(); // No types specified means return them all
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            return mappingMetaData;
+        }
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();
+        Map<String, Object> mapping;
+        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetaData.type())) {
+            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetaData.type());
+        } else {
+            mapping = sourceAsMap;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>)mapping.get("properties");
+        if (properties == null || properties.isEmpty()) {
+            return mappingMetaData;
+        }
+
+        filterFields("", properties, fieldPredicate);
+
+        return new MappingMetaData(mappingMetaData.type(), sourceAsMap);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
+        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
+        Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
+        while (entryIterator.hasNext()) {
+            Map.Entry<String, Object> entry = entryIterator.next();
+            String newPath = mergePaths(currentPath, entry.getKey());
+            Object value = entry.getValue();
+            boolean mayRemove = true;
+            boolean isMultiField = false;
+            if (value instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) value;
+                Map<String, Object> properties = (Map<String, Object>)map.get("properties");
+                if (properties != null) {
+                    mayRemove = filterFields(newPath, properties, fieldPredicate);
+                } else {
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    if (subFields != null) {
+                        isMultiField = true;
+                        if (mayRemove = filterFields(newPath, subFields, fieldPredicate)) {
+                            map.remove("fields");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalStateException("cannot filter mappings, found unknown element of type [" + value.getClass() + "]");
+            }
+
+            //only remove a field if it has no sub-fields left and it has to be excluded
+            if (fieldPredicate.test(newPath) == false) {
+                if (mayRemove) {
+                    entryIterator.remove();
+                } else if (isMultiField) {
+                    //multi fields that should be excluded but hold subfields that don't have to be excluded are converted to objects
+                    Map<String, Object> map = (Map<String, Object>) value;
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    assert subFields.size() > 0;
+                    map.put("properties", subFields);
+                    map.remove("fields");
+                    map.remove("type");
+                }
+            }
+        }
+        //return true if the ancestor may be removed, as it has no sub-fields left
+        return fields.size() == 0;
+    }
+
+    private static String mergePaths(String path, String field) {
+        if (path.length() == 0) {
+            return field;
+        }
+        return path + "." + field;
     }
 
     /**
@@ -915,55 +1015,70 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = new ArrayList<>();
+            final Set<String> allIndices = new HashSet<>(indices.size());
+            final List<String> allOpenIndices = new ArrayList<>();
+            final List<String> allClosedIndices = new ArrayList<>();
+            final Set<String> duplicateAliasesIndices = new HashSet<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.getIndex().getName());
-            }
-            String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
-
-            List<String> allOpenIndicesLst = new ArrayList<>();
-            List<String> allClosedIndicesLst = new ArrayList<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
+                final IndexMetaData indexMetaData = cursor.value;
+                final String name = indexMetaData.getIndex().getName();
+                boolean added = allIndices.add(name);
+                assert added : "double index named [" + name + "]";
                 if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.getIndex().getName());
+                    allOpenIndices.add(indexMetaData.getIndex().getName());
                 } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.getIndex().getName());
+                    allClosedIndices.add(indexMetaData.getIndex().getName());
                 }
+                indexMetaData.getAliases().keysIt().forEachRemaining(duplicateAliasesIndices::add);
             }
-            String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
-            String[] allClosedIndices = allClosedIndicesLst.toArray(new String[allClosedIndicesLst.size()]);
+            duplicateAliasesIndices.retainAll(allIndices);
+            if (duplicateAliasesIndices.isEmpty() == false) {
+                // iterate again and constructs a helpful message
+                ArrayList<String> duplicates = new ArrayList<>();
+                for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                    for (String alias: duplicateAliasesIndices) {
+                        if (cursor.value.getAliases().containsKey(alias)) {
+                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ")");
+                        }
+                    }
+                }
+                assert duplicates.size() > 0;
+                throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
+                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
+
+            }
 
             // build all indices map
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
-                    if (aliasOrIndex == null) {
-                        aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
-                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                        alias.addIndex(indexMetaData);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
-                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
-                    } else {
-                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
-                    }
+                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                        if (alias == null) {
+                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            return alias;
+                        }
+                    });
                 }
             }
             aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -984,17 +1099,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
-                for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
             if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
                 builder.startObject("transient_settings");
-                for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.transientSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
@@ -1054,7 +1165,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
+                        builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);

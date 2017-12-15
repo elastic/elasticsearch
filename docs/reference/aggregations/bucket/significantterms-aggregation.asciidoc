@@ -15,6 +15,50 @@ They are the terms that have undergone a significant change in popularity measur
 If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results
 that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /reports
+{
+    "mappings": {
+        "report": {
+            "properties": {
+                "force": {
+                    "type": "keyword"
+                },
+                "crime_type": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+POST /reports/report/_bulk?refresh
+{"index":{"_id":0}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":1}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":2}}
+{"force": "British Transport Police", "crime_type": "Bicycle theft"}
+{"index":{"_id":3}}
+{"force": "British Transport Police", "crime_type": "Robbery"}
+{"index":{"_id":4}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+{"index":{"_id":5}}
+{"force": "Metropolitan Police Service", "crime_type": "Bicycle theft"}
+{"index":{"_id":6}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+{"index":{"_id":7}}
+{"force": "Metropolitan Police Service", "crime_type": "Robbery"}
+
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
 ==== Single-set analysis
 
 In the simplest case, the _foreground_ set of interest is the search results matched by a query and the _background_
@@ -24,17 +68,20 @@ Example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
         "terms" : {"force" : [ "British Transport Police" ]}
     },
     "aggregations" : {
-        "significantCrimeTypes" : {
+        "significant_crime_types" : {
             "significant_terms" : { "field" : "crime_type" }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -42,9 +89,8 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations" : {
-        "significantCrimeTypes" : {
+        "significant_crime_types" : {
             "doc_count": 47347,
             "bg_count": 5064554,
             "buckets" : [
@@ -60,6 +106,8 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
 
 When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force
 stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554)
@@ -81,12 +129,13 @@ Example using a parent aggregation for segmentation:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggregations": {
         "forces": {
             "terms": {"field": "force"},
             "aggregations": {
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "significant_terms": {"field": "crime_type"}
                 }
             }
@@ -94,6 +143,8 @@ Example using a parent aggregation for segmentation:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -101,14 +152,15 @@ Response:
 --------------------------------------------------
 {
  ...
-
  "aggregations": {
     "forces": {
+        "doc_count_error_upper_bound": 1375,
+        "sum_other_doc_count": 7879845,
         "buckets": [
             {
                 "key": "Metropolitan Police Service",
                 "doc_count": 894038,
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "doc_count": 894038,
                     "bg_count": 5064554,
                     "buckets": [
@@ -117,7 +169,7 @@ Response:
                             "doc_count": 27617,
                             "score": 0.0599,
                             "bg_count": 53182
-                        },
+                        }
                         ...
                     ]
                 }
@@ -125,7 +177,7 @@ Response:
             {
                 "key": "British Transport Police",
                 "doc_count": 47347,
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "doc_count": 47347,
                     "bg_count": 5064554,
                     "buckets": [
@@ -134,16 +186,19 @@ Response:
                             "doc_count": 3640,
                             "score": 0.371,
                             "bg_count": 66799
-                        },
+                        }
                         ...
                     ]
                 }
             }
         ]
     }
+  }
 }
-
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
 Now we have anomaly detection for each of the police forces using a single request.
 
@@ -152,15 +207,16 @@ area to identify unusual hot-spots of a particular crime type:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs": {
         "hotspots": {
-            "geohash_grid" : {
-                "field":"location",
-                "precision":5,
+            "geohash_grid": {
+                "field": "location",
+                "precision": 5
             },
             "aggs": {
-                "significantCrimeTypes": {
+                "significant_crime_types": {
                     "significant_terms": {"field": "crime_type"}
                 }
             }
@@ -168,6 +224,7 @@ area to identify unusual hot-spots of a particular crime type:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
 bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
@@ -283,6 +340,7 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 	      "include_negatives": true
 	 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`.
 
@@ -293,7 +351,7 @@ Per default, the assumption is that the documents in the bucket are also contain
 
 "background_is_superset": false
 --------------------------------------------------
-
+// NOTCONSOLE
 
 ===== Chi square
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
@@ -304,7 +362,7 @@ Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5
 	 "chi_square": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
 
 
@@ -317,7 +375,7 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 	 "gnd": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
 
@@ -336,7 +394,7 @@ Multiple observations are typically required to reinforce a view so it is recomm
 	 "percentage": {
 	 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 ===== Which one is best?
 
@@ -360,7 +418,7 @@ Customized scores can be implemented via a script:
 	      }
             }
 --------------------------------------------------
-
+// NOTCONSOLE
 Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>.
 
 Available parameters in the script are
@@ -391,7 +449,7 @@ a consolidated review by the reducing node before the final selection. Obviously
 will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
 
-NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
+NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
 ===== Minimum document count
@@ -400,6 +458,7 @@ It is possible to only return terms that match more than a configured number of 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -411,7 +470,7 @@ It is possible to only return terms that match more than a configured number of 
     }
 }
 --------------------------------------------------
-
+// CONSOLE
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 
@@ -442,9 +501,12 @@ context:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        "match" : "madrid"
+        "match" : {
+            "city" : "madrid"
+        }
     },
     "aggs" : {
         "tags" : {
@@ -458,6 +520,7 @@ context:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
 terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
@@ -491,6 +554,7 @@ ordinals.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "aggs" : {
         "tags" : {
@@ -502,6 +566,7 @@ ordinals.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> the possible values are `map`, `global_ordinals`
 

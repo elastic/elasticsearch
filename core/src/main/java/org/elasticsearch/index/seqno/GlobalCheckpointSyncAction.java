@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,12 +35,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Background global checkpoint sync action initiated when a shard goes inactive. This is needed because while we send the global checkpoint
@@ -47,7 +54,7 @@ import org.elasticsearch.transport.TransportService;
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         GlobalCheckpointSyncAction.Request,
         GlobalCheckpointSyncAction.Request,
-        ReplicationResponse> implements IndexEventListener {
+        ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
 
@@ -73,7 +80,22 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
                 indexNameExpressionResolver,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME);
+                ThreadPool.Names.MANAGEMENT);
+    }
+
+    public void updateGlobalCheckpointForShard(final ShardId shardId) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            execute(
+                    new Request(shardId),
+                    ActionListener.wrap(r -> {
+                    }, e -> {
+                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                            logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);
+                        }
+                    }));
+        }
     }
 
     @Override
@@ -89,26 +111,30 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            listener.onResponse(new ReplicaResponse(SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT));
+            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
+            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
-    }
-
-    @Override
-    public void onShardInactive(final IndexShard indexShard) {
-        execute(new Request(indexShard.shardId()));
     }
 
     @Override
     protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
             final Request request, final IndexShard indexShard) throws Exception {
-        indexShard.getTranslog().sync();
+        maybeSyncTranslog(indexShard);
         return new PrimaryResult<>(request, new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard indexShard) throws Exception {
-        indexShard.getTranslog().sync();
+        maybeSyncTranslog(indexShard);
         return new ReplicaResult();
+    }
+
+    private void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+        final Translog translog = indexShard.getTranslog();
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST &&
+                translog.getLastSyncedGlobalCheckpoint() < indexShard.getGlobalCheckpoint()) {
+            indexShard.getTranslog().sync();
+        }
     }
 
     public static final class Request extends ReplicationRequest<Request> {

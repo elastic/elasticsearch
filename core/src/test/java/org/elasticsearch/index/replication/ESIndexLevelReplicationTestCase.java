@@ -141,7 +141,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting));
+            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
             replicas = new ArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -238,7 +238,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
-                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting));
+                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting), () -> {});
             addReplica(replica);
             return replica;
         }
@@ -259,8 +259,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 false, ShardRoutingState.INITIALIZING,
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
-            final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null,
-                    getEngineFactory(shardRouting));
+            final IndexShard newReplica =
+                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {});
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -315,7 +315,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return routingTable.build();
         }
 
-        synchronized boolean removeReplica(IndexShard replica) throws IOException {
+        public synchronized boolean removeReplica(IndexShard replica) throws IOException {
             final boolean removed = replicas.remove(replica);
             if (removed) {
                 updateAllocationIDsOnPrimary();
@@ -482,6 +482,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
+            public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
+                replicationGroup.getPrimary().updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+            }
+
+            @Override
             public long localCheckpoint() {
                 return replicationGroup.getPrimary().getLocalCheckpoint();
             }
@@ -518,7 +523,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 try {
                                     performOnReplica(request, replica);
                                     releasable.close();
-                                    listener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint()));
+                                    listener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
                                 } catch (final Exception e) {
                                     Releasables.closeWhileHandlingException(releasable);
                                     listener.onFailure(e);

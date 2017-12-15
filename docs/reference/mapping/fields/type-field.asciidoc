@@ -1,7 +1,7 @@
 [[mapping-type-field]]
 === `_type` field
 
-deprecated::[6.0.0,See <<removal-of-types>>]
+deprecated[6.0.0,See <<removal-of-types>>]
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
@@ -14,7 +14,7 @@ scripts, and when sorting:
 --------------------------
 # Example documents
 
-PUT my_index/doc/1?refresh=true
+PUT my_index/_doc/1?refresh=true
 {
   "text": "Document with type 'doc'"
 }
@@ -23,7 +23,7 @@ GET my_index/_search
 {
   "query": {
     "term": {
-      "_type": "doc"  <1>
+      "_type": "_doc"  <1>
     }
   },
   "aggs": {

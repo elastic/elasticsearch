@@ -24,11 +24,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -288,8 +292,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     // Issue #7967
     public void testLenientFlagBeingTooLenient() throws Exception {
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("num", 1, "body", "foo bar baz"),
-                client().prepareIndex("test", "doc", "2").setSource("num", 2, "body", "eggplant spaghetti lasagna"));
+                client().prepareIndex("test", "_doc", "1").setSource("num", 1, "body", "foo bar baz"),
+                client().prepareIndex("test", "_doc", "2").setSource("num", 2, "body", "eggplant spaghetti lasagna"));
 
         BoolQueryBuilder q = boolQuery().should(simpleQueryStringQuery("bar").field("num").field("body").lenient(true));
         SearchResponse resp = client().prepareSearch("test").setQuery(q).get();
@@ -382,9 +386,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar baz"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f2", "Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f3", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f2", "Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -406,8 +410,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
@@ -433,11 +437,11 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo",
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo",
                         "f_date", "2015/09/02",
                         "f_float", "1.7",
                         "f_ip", "127.0.0.1"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar",
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar",
                         "f_date", "2015/09/01",
                         "f_float", "1.8",
                         "f_ip", "127.0.0.2"));
@@ -467,7 +471,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -494,8 +498,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("12.23")).get();
-        assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");
         // binary doesn't match
@@ -514,9 +516,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f2", "Foo Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f1", "foo bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f2", "Foo Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -538,6 +540,38 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         simpleQueryStringQuery("foo123").lenient(false)).get());
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("NumberFormatException[For input string: \"foo123\"]"));
+    }
+
+
+    public void testLimitOnExpandedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject("type1");
+        builder.startObject("properties");
+        for (int i = 0; i < 1025; i++) {
+            builder.startObject("field" + i).field("type", "text").endObject();
+        }
+        builder.endObject(); // properties
+        builder.endObject(); // type1
+        builder.endObject();
+
+        assertAcked(prepareCreate("toomanyfields")
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200))
+                .addMapping("type1", builder));
+
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        refresh();
+
+        Exception e = expectThrows(Exception.class, () -> {
+                SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
+                if (randomBoolean()) {
+                    qb.useAllFields(true);
+                }
+                logger.info("--> using {}", qb);
+                client().prepareSearch("toomanyfields").setQuery(qb).get();
+                });
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -215,8 +214,8 @@ public class ThreadContextTests extends ESTestCase {
     public void testCopyHeaders() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
-        threadContext.copyHeaders(Collections.<String,String>emptyMap().entrySet());
-        threadContext.copyHeaders(Collections.<String,String>singletonMap("foo", "bar").entrySet());
+        threadContext.copyHeaders(Collections.<String, String>emptyMap().entrySet());
+        threadContext.copyHeaders(Collections.<String, String>singletonMap("foo", "bar").entrySet());
         assertEquals("bar", threadContext.getHeader("foo"));
     }
 
@@ -443,7 +442,7 @@ public class ThreadContextTests extends ESTestCase {
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
                         assertNotNull(threadContext.getTransient("failure"));
-                        assertEquals("exception from doRun", ((RuntimeException)threadContext.getTransient("failure")).getMessage());
+                        assertEquals("exception from doRun", ((RuntimeException) threadContext.getTransient("failure")).getMessage());
                         assertFalse(threadContext.isDefaultContext());
                         threadContext.putTransient("after", "after");
                     }
@@ -604,13 +603,24 @@ public class ThreadContextTests extends ESTestCase {
     public void testMarkAsSystemContext() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             assertFalse(threadContext.isSystemContext());
-            try(ThreadContext.StoredContext context = threadContext.stashContext()){
+            try (ThreadContext.StoredContext context = threadContext.stashContext()) {
                 assertFalse(threadContext.isSystemContext());
                 threadContext.markAsSystemContext();
                 assertTrue(threadContext.isSystemContext());
             }
             assertFalse(threadContext.isSystemContext());
         }
+    }
+
+    public void testPutHeaders() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader(Collections.<String, String>emptyMap());
+        threadContext.putHeader(Collections.<String, String>singletonMap("foo", "bar"));
+        assertEquals("bar", threadContext.getHeader("foo"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom")));
+        assertEquals("value for key [foo] already present", e.getMessage());
     }
 
     /**

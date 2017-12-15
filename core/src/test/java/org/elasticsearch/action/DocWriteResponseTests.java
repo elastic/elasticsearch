@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +42,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         new ShardId("index", "uuid", 0),
                         "type",
                         "id",
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
                         0,
                         Result.CREATED) {};
@@ -56,7 +56,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         new ShardId("index", "uuid", 0),
                         "type",
                         "❤",
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
                         0,
                         Result.CREATED) {};
@@ -70,7 +70,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         new ShardId("index", "uuid", 0),
                         "type",
                         "a b",
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
                         0,
                         Result.CREATED) {};
@@ -88,7 +88,7 @@ public class DocWriteResponseTests extends ESTestCase {
                 new ShardId("index", "uuid", 0),
                 "type",
                 "id",
-                SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
                 17,
                 0,
                 Result.CREATED) {

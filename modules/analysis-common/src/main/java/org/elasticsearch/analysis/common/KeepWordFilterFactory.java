@@ -22,7 +22,6 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -30,6 +29,8 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+
+import java.util.List;
 
 /**
  * A {@link TokenFilterFactory} for {@link KeepWordFilter}. This filter only
@@ -61,7 +62,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     KeepWordFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        final String[] arrayKeepWords = settings.getAsArray(KEEP_WORDS_KEY, null);
+        final List<String> arrayKeepWords = settings.getAsList(KEEP_WORDS_KEY, null);
         final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);
         if ((arrayKeepWords == null && keepWordsPath == null) || (arrayKeepWords != null && keepWordsPath != null)) {
             // we don't allow both or none

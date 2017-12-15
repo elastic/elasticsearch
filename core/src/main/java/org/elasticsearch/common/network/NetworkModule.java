@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.HttpServerTransport;
@@ -63,7 +64,6 @@ public final class NetworkModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String HTTP_TYPE_KEY = "http.type";
-    public static final String LOCAL_TRANSPORT = "local";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
 
@@ -108,6 +108,7 @@ public final class NetworkModule {
      */
     public NetworkModule(Settings settings, boolean transportClient, List<NetworkPlugin> plugins, ThreadPool threadPool,
                          BigArrays bigArrays,
+                         PageCacheRecycler pageCacheRecycler,
                          CircuitBreakerService circuitBreakerService,
                          NamedWriteableRegistry namedWriteableRegistry,
                          NamedXContentRegistry xContentRegistry,
@@ -122,9 +123,9 @@ public final class NetworkModule {
                     registerHttpTransport(entry.getKey(), entry.getValue());
                 }
             }
-            Map<String, Supplier<Transport>> httpTransportFactory = plugin.getTransports(settings, threadPool, bigArrays,
+            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(settings, threadPool, bigArrays, pageCacheRecycler,
                 circuitBreakerService, namedWriteableRegistry, networkService);
-            for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
+            for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
             List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,

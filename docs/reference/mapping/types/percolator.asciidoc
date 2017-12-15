@@ -18,7 +18,7 @@ If the following mapping configures the `percolator` field type for the
 PUT my_index
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "query": {
                     "type": "percolator"
@@ -38,7 +38,7 @@ Then you can index a query:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/match_value
+PUT my_index/_doc/match_value
 {
     "query" : {
         "match" : {
@@ -60,69 +60,6 @@ Fields referred in a percolator query may exist in any type of the index contain
 =====================================
 
 [float]
-==== Influencing query extraction
-
-As part of indexing the percolator query, the percolator field mapper extracts the query terms and numeric ranges from the provided
-query and indexes that alongside the query in separate internal fields. The `percolate` query uses these internal fields
-to build a candidate query from the document being percolated in order to reduce the number of document that need to be verified.
-
-In case a percolator query contains a `bool` query with must or filter clauses, then the percolator field mapper only has to
-extract ranges or terms from a single clause. The percolator field mapper will prefer longer terms over shorter terms, because
-longer terms in general match with less documents. For the same reason it prefers smaller ranges over bigger ranges.
-
-In general this behaviour works well. However sometimes there are fields in a bool query that shouldn't be taken into account
-when selecting the best must or filter clause, or fields are known to be more selective than other fields.
-
-For example a status like field may in fact not work well, because each status matches with many percolator queries and
-then the candidate query the `percolate` query generates may not be able to filter out that many percolator queries.
-
-The percolator field mapping allows to configure `boost_fields` in order to indicate to the percolator what fields are
-important or not important when selecting the best must or filter clause in a `bool` query:
-
-[source,js]
---------------------------------------------------
-PUT another_index
-{
-    "mappings": {
-        "doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator",
-                    "boost_fields": {
-                        "status_field": 0, <1>
-                        "price_field": 2 <2>
-                    }
-                },
-                "status_field": {
-                    "type": "keyword"
-                },
-                "price_field": {
-                    "type": "long"
-                },
-                "field": {
-                    "type": "text"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> A boost of zero hints to the percolator that if there are other clauses in a conjunction query then these should be
-    preferred over this one.
-
-<2> Any boost higher than 1 overrides the default behaviour when it comes to selecting the best clause. The clause
-    that has the field with the highest boost will be selected from a conjunction query for extraction.
-
-The steps the percolator field mapper takes when selecting a clause from a conjunction query:
-
-* If there are clauses that have boosted fields then the clause with highest boost field is selected.
-* If there are range based clauses and term based clauses then term based clauses are picked over range based clauses
-* From all term based clauses the clause with longest term is picked.
-* In the case when there are only range based clauses then the range clause with smallest range is picked over clauses with wider ranges.
-
-[float]
 ==== Reindexing your percolator queries
 
 Reindexing percolator queries is sometimes required to benefit from improvements made to the `percolator` field type in
@@ -136,7 +73,7 @@ Lets take a look at the following index with a percolator field type:
 PUT index
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -161,7 +98,7 @@ POST _aliases
   ]
 }
 
-PUT queries/doc/1?refresh
+PUT queries/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -184,7 +121,7 @@ to read your queries you need to reindex your queries into a new index on the cu
 PUT new_index
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -268,7 +205,7 @@ now returns matches from the new index:
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -277,6 +214,9 @@ now returns matches from the new index:
               "body": "quick brown fox"
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -340,7 +280,7 @@ PUT /test_index
     }
   },
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type": "percolator"
@@ -401,7 +341,7 @@ All the tokens in the returned order need to replace the query text in the perco
 
 [source,js]
 --------------------------------------------------
-PUT /test_index/doc/1?refresh
+PUT /test_index/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -460,7 +400,7 @@ This results in a response like this:
     "hits": [
       {
         "_index": "test_index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -472,6 +412,9 @@ This results in a response like this:
               }
             }
           }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
         }
       }
     ]
@@ -495,9 +438,9 @@ Otherwise percolate queries can be parsed incorrectly.
 In certain cases it is unknown what kind of percolator queries do get registered, and if no field mapping exists for fields
 that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
 to have the field with the appropriate settings, and then the percolator query can be added. But sometimes it is sufficient
-if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
-`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
-a percolator query does not exist, it will be handled as a default string field so that adding the percolator query doesn't
+if all unmapped fields are handled as if these were default text fields. In those cases one can configure the
+`index.percolator.map_unmapped_fields_as_text` setting to `true` (default to `false`) and then if a field referred in
+a percolator query does not exist, it will be handled as a default text field so that adding the percolator query doesn't
 fail.
 
 [float]

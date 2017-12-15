@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.action.resync;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -32,7 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
@@ -93,7 +95,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            listener.onResponse(new ReplicaResponse(SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT));
+            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
+            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
     }
 
@@ -157,6 +160,15 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {
+                    final ReplicationResponse.ShardInfo.Failure[] failures = response.getShardInfo().getFailures();
+                    // noinspection ForLoopReplaceableByForEach
+                    for (int i = 0; i < failures.length; i++) {
+                        final ReplicationResponse.ShardInfo.Failure f = failures[i];
+                        logger.info(
+                                new ParameterizedMessage(
+                                        "{} primary-replica resync to replica on node [{}] failed", f.fullShardId(), f.nodeId()),
+                                f.getCause());
+                    }
                     listener.onResponse(response);
                 }
 

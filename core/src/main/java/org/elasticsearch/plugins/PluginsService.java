@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -186,7 +187,7 @@ public class PluginsService extends AbstractComponent {
         final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
-            for (String setting : settings.getAsMap().keySet()) {
+            for (String setting : settings.keySet()) {
                 String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
                 if (oldPlugin != null) {
                     throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +
@@ -326,6 +327,9 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
+                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                    continue;
+                }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
                 final PluginInfo info;
                 try {

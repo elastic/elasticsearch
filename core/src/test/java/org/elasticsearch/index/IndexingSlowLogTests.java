@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -62,6 +63,16 @@ public class IndexingSlowLogTests extends ESTestCase {
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
         assertThat(p.toString(), containsString("source[{\"f]"));
         assertThat(p.toString(), startsWith("[foo/123] took"));
+
+        // Throwing a error if source cannot be converted
+        source = new BytesArray("invalid");
+        pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+            "test", null, null, source, XContentType.JSON, null);
+        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
+
+        assertThat(p.toString(), containsString("_failed_to_convert_[Unrecognized token 'invalid':"
+            + " was expecting ('true', 'false' or 'null')\n"
+            + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper"));
     }
 
     public void testReformatSetting() {

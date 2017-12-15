@@ -79,7 +79,7 @@ public class Joda {
             formatter = ISODateTimeFormat.basicTime();
         } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.basicTimeNoMillis();
-        } else if ("basicTTime".equals(input) || "basic_t_Time".equals(input)) {
+        } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
             formatter = ISODateTimeFormat.basicTTime();
         } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.basicTTimeNoMillis();

@@ -200,11 +200,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 LongPoint.newRangeQuery("field", instant1, instant2),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
         assertEquals(expected,
-                ft.rangeQuery(date1, date2, true, true, context).rewrite(new MultiReader()));
+                ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery(date1, date2, true, true, context));
+                () -> ft.rangeQuery(date1, date2, true, true, null, null, null, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

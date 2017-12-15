@@ -24,6 +24,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -88,6 +89,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "The _version field is not searchable");
         }
@@ -120,9 +126,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {
         // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
         // that don't have the field. This is consistent with the default value for efficiency.
+        Field version = context.version();
+        assert version != null;
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
-            doc.add(new NumericDocValuesField(NAME, 1L));
+            doc.add(version);
         }
     }
 

@@ -98,7 +98,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
-        assertAcked(prepareCreate("index").setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
+        // allows for multiple types
 
         // works when the type has been dynamically created
         client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
@@ -153,34 +154,4 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
         }
     }
-
-    public void testAutoCreateWithDisabledDynamicMappings() throws Exception {
-        assertAcked(client().admin().indices().preparePutTemplate("my_template")
-            .setCreate(true)
-            .setPatterns(Collections.singletonList("index_*"))
-            .addMapping("foo", "field", "type=keyword")
-            .setSettings(Settings.builder().put("index.mapper.dynamic", false).build())
-            .get());
-
-        // succeeds since 'foo' has an explicit mapping in the template
-        indexRandom(true, false, client().prepareIndex("index_1", "foo", "1").setSource("field", "abc"));
-
-        // fails since 'bar' does not have an explicit mapping in the template and dynamic template creation is disabled
-        TypeMissingException e1 = expectThrows(TypeMissingException.class,
-                () -> client().prepareIndex("index_2", "bar", "1").setSource("field", "abc").get());
-        assertEquals("type[bar] missing", e1.getMessage());
-        assertEquals("trying to auto create mapping, but dynamic mapping is disabled", e1.getCause().getMessage());
-
-        BulkResponse bulkResponse = client().prepareBulk().add(new IndexRequest("index_2", "bar", "2").source("field", "abc")).get();
-        assertTrue(bulkResponse.hasFailures());
-        BulkItemResponse.Failure firstFailure = bulkResponse.getItems()[0].getFailure();
-        assertThat(firstFailure.getCause(), instanceOf(TypeMissingException.class));
-        assertEquals("type[bar] missing", firstFailure.getCause().getMessage());
-        assertEquals("trying to auto create mapping, but dynamic mapping is disabled", firstFailure.getCause().getCause().getMessage());
-
-        // make sure no mappings were created for bar
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("index_2").get();
-        assertFalse(getIndexResponse.mappings().containsKey("bar"));
-    }
-
 }

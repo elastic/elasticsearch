@@ -53,7 +53,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, RestoreSnapshotRequest::new);
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, RestoreSnapshotRequest::new,indexNameExpressionResolver);
         this.restoreService = restoreService;
     }
 

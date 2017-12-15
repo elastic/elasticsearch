@@ -37,6 +37,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -54,7 +55,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", home)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
     }
 
     static MockTerminal listPlugins(Path home) throws Exception {
@@ -68,8 +69,10 @@ public class ListPluginsCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         int status = new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                final Settings realSettings = Settings.builder().put("path.home", home).put(settings).build();
+            protected Environment createEnv(Map<String, String> settings) throws UserException {
+                Settings.Builder builder = Settings.builder().put("path.home", home);
+                settings.forEach((k,v) -> builder.put(k, v));
+                final Settings realSettings = builder.build();
                 return new Environment(realSettings, home.resolve("config"));
             }
 

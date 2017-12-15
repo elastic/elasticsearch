@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -45,6 +46,9 @@ import java.util.function.Function;
 // TODO: move PathUtils to be package-private here instead of
 // public+forbidden api!
 public class Environment {
+
+    private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
+
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
             Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
@@ -85,10 +89,6 @@ public class Environment {
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
-    public Environment(Settings settings) {
-        this(settings, null);
-    }
-
     public Environment(final Settings settings, final Path configPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
@@ -107,16 +107,25 @@ public class Environment {
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (dataPaths.isEmpty() == false) {
-            dataFiles = new Path[dataPaths.size()];
-            dataWithClusterFiles = new Path[dataPaths.size()];
-            for (int i = 0; i < dataPaths.size(); i++) {
-                dataFiles[i] = PathUtils.get(dataPaths.get(i));
-                dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
+        if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
+            if (dataPaths.isEmpty() == false) {
+                dataFiles = new Path[dataPaths.size()];
+                dataWithClusterFiles = new Path[dataPaths.size()];
+                for (int i = 0; i < dataPaths.size(); i++) {
+                    dataFiles[i] = PathUtils.get(dataPaths.get(i));
+                    dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
+                }
+            } else {
+                dataFiles = new Path[]{homeFile.resolve("data")};
+                dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
             }
         } else {
-            dataFiles = new Path[]{homeFile.resolve("data")};
-            dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
+            if (dataPaths.isEmpty()) {
+                dataFiles = dataWithClusterFiles = EMPTY_PATH_ARRAY;
+            } else {
+                final String paths = String.join(",", dataPaths);
+                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
+            }
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).normalize();
@@ -124,13 +133,13 @@ public class Environment {
             sharedDataFile = null;
         }
         List<String> repoPaths = PATH_REPO_SETTING.get(settings);
-        if (repoPaths.isEmpty() == false) {
+        if (repoPaths.isEmpty()) {
+            repoFiles = EMPTY_PATH_ARRAY;
+        } else {
             repoFiles = new Path[repoPaths.size()];
             for (int i = 0; i < repoPaths.size(); i++) {
                 repoFiles[i] = PathUtils.get(repoPaths.get(i));
             }
-        } else {
-            repoFiles = new Path[0];
         }
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
@@ -153,9 +162,9 @@ public class Environment {
         Settings.Builder finalSettings = Settings.builder().put(settings);
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+            finalSettings.putList(PATH_DATA_SETTING.getKey(), dataPaths);
         }
-        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
+        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         this.settings = finalSettings.build();
     }
 

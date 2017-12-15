@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
@@ -30,8 +29,8 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.security.PrivilegedActionException;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
@@ -46,6 +45,7 @@ public class AcceptingSelectorTests extends ESTestCase {
     private NioServerSocketChannel serverChannel;
     private AcceptorEventHandler eventHandler;
     private TestSelectionKey selectionKey;
+    private Selector rawSelector;
 
     @Before
     public void setUp() throws Exception {
@@ -54,7 +54,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         eventHandler = mock(AcceptorEventHandler.class);
         serverChannel = mock(NioServerSocketChannel.class);
 
-        Selector rawSelector = mock(Selector.class);
+        rawSelector = mock(Selector.class);
         selector = new AcceptingSelector(eventHandler, rawSelector);
         this.selector.setThread();
 
@@ -71,9 +71,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(eventHandler).serverChannelRegistered(serverChannel);
-        Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
-        assertEquals(1, registeredChannels.size());
-        assertTrue(registeredChannels.contains(serverChannel));
     }
 
     public void testClosedChannelWillNotBeRegistered() throws Exception {
@@ -83,10 +80,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(eventHandler).registrationException(same(serverChannel), any(ClosedChannelException.class));
-
-        Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
-        assertEquals(0, registeredChannels.size());
-        assertFalse(registeredChannels.contains(serverChannel));
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {
@@ -98,10 +91,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(eventHandler).registrationException(serverChannel, closedChannelException);
-
-        Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
-        assertEquals(0, registeredChannels.size());
-        assertFalse(registeredChannels.contains(serverChannel));
     }
 
     public void testAcceptEvent() throws IOException {
@@ -128,7 +117,9 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selector.preSelect();
 
-        assertEquals(1, selector.getRegisteredChannels().size());
+        TestSelectionKey key = new TestSelectionKey(0);
+        key.attach(serverChannel);
+        when(rawSelector.keys()).thenReturn(new HashSet<>(Collections.singletonList(key)));
 
         selector.cleanupAndCloseChannels();
 

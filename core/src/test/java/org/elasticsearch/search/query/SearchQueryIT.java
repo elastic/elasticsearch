@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -1193,12 +1194,12 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testBasicQueryById() throws Exception {
         assertAcked(prepareCreate("test"));
 
-        client().prepareIndex("test", "doc", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "doc", "2").setSource("field1", "value2").get();
-        client().prepareIndex("test", "doc", "3").setSource("field1", "value3").get();
+        client().prepareIndex("test", "_doc", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test", "_doc", "2").setSource("field1", "value2").get();
+        client().prepareIndex("test", "_doc", "3").setSource("field1", "value3").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("doc").addIds("1", "2")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("_doc").addIds("1", "2")).get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
@@ -1214,7 +1215,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "doc").addIds("1", "2", "3", "4")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "_doc").addIds("1", "2", "3", "4")).get();
         assertHitCount(searchResponse, 3L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
     }
@@ -1488,9 +1489,9 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
-            .addMapping("doc", jsonBuilder()
+            .addMapping("_doc", jsonBuilder()
                 .startObject()
-                .startObject("doc")
+                .startObject("_doc")
                 .startObject("_routing")
                 .field("required", true)
                 .endObject()
@@ -1512,13 +1513,13 @@ public class SearchQueryIT extends ESIntegTestCase {
             );
 
 
-        client().prepareIndex("test", "doc", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts",
+        client().prepareIndex("test", "_doc", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts",
             System.currentTimeMillis() - 100, "type", "s").get();
-        client().prepareIndex("test", "doc", "2").setRouting("X").setSource("online", true, "bs", "X", "ts",
+        client().prepareIndex("test", "_doc", "2").setRouting("X").setSource("online", true, "bs", "X", "ts",
             System.currentTimeMillis() - 10000000, "type", "s").get();
-        client().prepareIndex("test", "doc", "3").setRouting(randomAlphaOfLength(2))
+        client().prepareIndex("test", "_doc", "3").setRouting(randomAlphaOfLength(2))
             .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs").get();
-        client().prepareIndex("test", "doc", "4").setRouting(randomAlphaOfLength(2))
+        client().prepareIndex("test", "_doc", "4").setRouting(randomAlphaOfLength(2))
             .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs").get();
         refresh();
 
@@ -1665,8 +1666,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testQueryStringWithSlopAndFields() {
         assertAcked(prepareCreate("test"));
 
-        client().prepareIndex("test", "doc", "1").setSource("desc", "one two three", "type", "customer").get();
-        client().prepareIndex("test", "doc", "2").setSource("desc", "one two three", "type", "product").get();
+        client().prepareIndex("test", "_doc", "1").setSource("desc", "one two three", "type", "customer").get();
+        client().prepareIndex("test", "_doc", "2").setSource("desc", "one two three", "type", "product").get();
         refresh();
         {
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
@@ -1802,6 +1803,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testNGramCopyField() {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
+                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
                 .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")

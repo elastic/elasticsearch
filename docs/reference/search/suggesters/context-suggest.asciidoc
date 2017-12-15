@@ -21,7 +21,7 @@ field:
 PUT place
 {
     "mappings": {
-        "shops" : {
+        "_doc" : {
             "properties" : {
                 "suggest" : {
                     "type" : "completion",
@@ -44,7 +44,7 @@ PUT place
 PUT place_path_category
 {
     "mappings": {
-        "shops" : {
+        "_doc" : {
             "properties" : {
                 "suggest" : {
                     "type" : "completion",
@@ -97,7 +97,7 @@ be sent in the suggest field like this:
 
 [source,js]
 --------------------------------------------------
-PUT place/shops/1
+PUT place/_doc/1
 {
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
@@ -115,7 +115,7 @@ add the categories:
 
 [source,js]
 --------------------------------------------------
-PUT place_path_category/shops/1
+PUT place_path_category/_doc/1
 {
     "suggest": ["timmy's", "starbucks", "dunkin donuts"],
     "cat": ["cafe", "food"] <1>
@@ -248,7 +248,7 @@ with two geo location contexts:
 
 [source,js]
 --------------------------------------------------
-PUT place/shops/1
+PUT place/_doc/1
 {
     "suggest": {
         "input": "timmy's",

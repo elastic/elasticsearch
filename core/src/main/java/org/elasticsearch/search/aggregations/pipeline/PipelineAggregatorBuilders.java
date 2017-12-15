@@ -29,11 +29,14 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extend
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketsort.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 
+import java.util.List;
 import java.util.Map;
 
 public final class PipelineAggregatorBuilders {
@@ -97,6 +100,10 @@ public final class PipelineAggregatorBuilders {
     public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Script script,
             String... bucketsPaths) {
         return new BucketSelectorPipelineAggregationBuilder(name, script, bucketsPaths);
+    }
+
+    public static BucketSortPipelineAggregationBuilder bucketSort(String name, List<FieldSortBuilder> sorts) {
+        return new BucketSortPipelineAggregationBuilder(name, sorts);
     }
 
     public static CumulativeSumPipelineAggregationBuilder cumulativeSum(String name,

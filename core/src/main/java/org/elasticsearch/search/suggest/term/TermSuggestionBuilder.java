@@ -66,6 +66,7 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
+
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -214,9 +215,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm based on
      * Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
-     * Levenstein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
+     * Levenshtein edit distance algorithm.
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -543,15 +544,15 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 return new LuceneLevenshteinDistance();
             }
         },
-        /** String distance algorithm based on Levenstein edit distance algorithm. */
-        LEVENSTEIN {
+        /** String distance algorithm based on Levenshtein edit distance algorithm. */
+        LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
                 return new LevensteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER {
+        JARO_WINKLER {
             @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
@@ -576,19 +577,18 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
-            final String distanceVal = str.toLowerCase(Locale.US);
+            final String distanceVal = str.toLowerCase(Locale.ROOT);
             switch (distanceVal) {
                 case "internal":
                     return INTERNAL;
                 case "damerau_levenshtein":
-                case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
-                case "levenstein":
-                    return LEVENSTEIN;
+                case "levenshtein":
+                    return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
-                case "jarowinkler":
-                    return JAROWINKLER;
+                case "jaro_winkler":
+                    return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

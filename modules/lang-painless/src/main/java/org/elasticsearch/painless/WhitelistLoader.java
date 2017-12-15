@@ -43,7 +43,7 @@ public final class WhitelistLoader {
      * and field.  Most validation will be done at a later point after all white-lists have been gathered and their
      * merging takes place.
      *
-     * A painless type name is considered to one of the following:
+     * A painless type name is one of the following:
      * <ul>
      *     <li> def - The Painless dynamic type which is automatically included without a need to be
      *     white-listed. </li>
@@ -51,7 +51,7 @@ public final class WhitelistLoader {
      *     a Painless type name with the exception that any dollar symbols used as part of inner classes will
      *     be replaced with dot symbols. </li>
      *     <li> short Java type name - The text after the final dot symbol of any specified Java class.  A
-     *     short type Java name may be specified by using the 'import' token during Painless struct parsing
+     *     short type Java name may be excluded by using the 'only_fqn' token during Painless struct parsing
      *     as described later. </li>
      * </ul>
      *
@@ -63,7 +63,7 @@ public final class WhitelistLoader {
      *   <li> Primitive types may be specified starting with 'class' and followed by the Java type name,
      *   an opening bracket, a newline, a closing bracket, and a final newline. </li>
      *   <li> Complex types may be specified starting with 'class' and followed the fully-qualified Java
-     *   class name, optionally followed by an 'import' token, an opening bracket, a newline,
+     *   class name, optionally followed by an 'only_fqn' token, an opening bracket, a newline,
      *   constructor/method/field specifications, a closing bracket, and a final newline. Within a complex
      *   type the following may be parsed:
      *   <ul>
@@ -93,7 +93,9 @@ public final class WhitelistLoader {
      * If the same Painless type is defined across multiple files and the Java class is the same, all
      * specified constructors, methods, and fields will be merged into a single Painless type.  The
      * Painless dynamic type, 'def', used as part of constructor, method, and field definitions will
-     * be appropriately parsed and handled.
+     * be appropriately parsed and handled.  Painless complex types must be specified with the
+     * fully-qualified Java class name.  Method argument types, method return types, and field types
+     * must be specified with Painless type names (def, fully-qualified, or short) as described earlier.
      *
      * The following example is used to create a single white-list text file:
      *
@@ -105,7 +107,7 @@ public final class WhitelistLoader {
      *
      * # complex types
      *
-     * class my.package.Example import {
+     * class my.package.Example only_fqn {
      *   # constructors
      *   ()
      *   (int)
@@ -141,7 +143,7 @@ public final class WhitelistLoader {
 
                 String whitelistStructOrigin = null;
                 String javaClassName = null;
-                boolean importJavaClassName = false;
+                boolean onlyFQNJavaClassName = false;
                 List<Whitelist.Constructor> whitelistConstructors = null;
                 List<Whitelist.Method> whitelistMethods = null;
                 List<Whitelist.Field> whitelistFields = null;
@@ -156,7 +158,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new struct by resetting all the variables necessary to construct a new Whitelist.Struct for the white-list.
-                    // Expects the following format: 'class' ID 'import'? '{' '\n'
+                    // Expects the following format: 'class' ID 'only_fqn'? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
@@ -168,8 +170,8 @@ public final class WhitelistLoader {
                         String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
 
                         // Ensure the correct number of tokens.
-                        if (tokens.length == 2 && "import".equals(tokens[1])) {
-                            importJavaClassName = true;
+                        if (tokens.length == 2 && "only_fqn".equals(tokens[1])) {
+                            onlyFQNJavaClassName = true;
                         } else if (tokens.length != 1) {
                             throw new IllegalArgumentException("invalid struct definition: failed to parse class name [" + line + "]");
                         }
@@ -190,13 +192,13 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid struct definition: extraneous closing bracket");
                         }
 
-                        whitelistStructs.add(new Whitelist.Struct(whitelistStructOrigin, javaClassName, importJavaClassName,
+                        whitelistStructs.add(new Whitelist.Struct(whitelistStructOrigin, javaClassName, onlyFQNJavaClassName,
                             whitelistConstructors, whitelistMethods, whitelistFields));
 
                         // Set all the variables to null to ensure a new struct definition is found before other parsable values.
                         whitelistStructOrigin = null;
                         javaClassName = null;
-                        importJavaClassName = false;
+                        onlyFQNJavaClassName = false;
                         whitelistConstructors = null;
                         whitelistMethods = null;
                         whitelistFields = null;

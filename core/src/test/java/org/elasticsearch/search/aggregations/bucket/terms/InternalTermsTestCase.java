@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.Before;
-import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;

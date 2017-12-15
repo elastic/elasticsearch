@@ -419,7 +419,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     public void testCopyToChildNested() throws Exception {
         IndexService indexService = createIndex("test");
         XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("source")
                             .field("type", "long")
@@ -437,12 +437,12 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                () -> indexService.mapperService().merge("_doc", new CompressedXContent(rootToNestedMapping.bytes()),
                         MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), Matchers.startsWith("Illegal combination of [copy_to] and [nested] mappings"));
 
         XContentBuilder nestedToNestedMapping = jsonBuilder().startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("n1")
                             .field("type", "nested")
@@ -465,14 +465,14 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject();
         e = expectThrows(IllegalArgumentException.class,
-                () -> indexService.mapperService().merge("doc", new CompressedXContent(nestedToNestedMapping.bytes()),
+                () -> indexService.mapperService().merge("_doc", new CompressedXContent(nestedToNestedMapping.bytes()),
                         MergeReason.MAPPING_UPDATE, false));
     }
 
     public void testCopyToSiblingNested() throws Exception {
         IndexService indexService = createIndex("test");
         XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("n1")
                             .field("type", "nested")
@@ -495,7 +495,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                () -> indexService.mapperService().merge("_doc", new CompressedXContent(rootToNestedMapping.bytes()),
                         MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), Matchers.startsWith("Illegal combination of [copy_to] and [nested] mappings"));
     }
@@ -503,7 +503,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     public void testCopyToObject() throws Exception {
         IndexService indexService = createIndex("test");
         XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("source")
                             .field("type", "long")
@@ -516,7 +516,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                () -> indexService.mapperService().merge("_doc", new CompressedXContent(rootToNestedMapping.bytes()),
                         MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), Matchers.startsWith("Cannot copy to field [target] since it is mapped as an object"));
     }
@@ -569,7 +569,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCopyToMultiField() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("doc")
+        String mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("my_field")
                         .field("type", "keyword")
@@ -585,12 +585,12 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+                () -> mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertEquals("[copy_to] may not be used to copy to a multi-field: [my_field.bar]", e.getMessage());
     }
 
     public void testNestedCopyTo() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("doc")
+        String mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("n")
                         .field("type", "nested")
@@ -608,11 +608,11 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()); // no exception
+        mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()); // no exception
     }
 
     public void testNestedCopyToMultiField() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("doc")
+        String mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("n")
                         .field("type", "nested")
@@ -633,12 +633,12 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+                () -> mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertEquals("[copy_to] may not be used to copy to a multi-field: [n.my_field.bar]", e.getMessage());
     }
 
     public void testCopyFromMultiField() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("doc")
+        String mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("my_field")
                         .field("type", "keyword")
@@ -654,7 +654,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapperService.merge("doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
+                () -> mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertThat(e.getMessage(),
                 Matchers.containsString("copy_to in multi fields is not allowed. Found the copy_to in field [bar] " +
                         "which is within a multi field."));

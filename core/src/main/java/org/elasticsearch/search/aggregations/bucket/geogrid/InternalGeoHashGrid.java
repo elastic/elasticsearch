@@ -211,7 +211,12 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
-            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
+            Bucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
+            if (removed != null) {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(1);
+            }
         }
         buckets.close();
         Bucket[] list = new Bucket[ordered.size()];

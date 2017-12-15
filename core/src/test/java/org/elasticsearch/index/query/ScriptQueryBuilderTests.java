@@ -50,11 +50,6 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     @Override
     protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
-        // make sure the query would not get cached
-        ScriptQuery sQuery = (ScriptQuery) query;
-        ScriptQuery clone = new ScriptQuery(sQuery.script, sQuery.filterScript);
-        assertFalse(sQuery.equals(clone));
-        assertFalse(sQuery.hashCode() == clone.hashCode());
     }
 
     public void testIllegalConstructorArg() {

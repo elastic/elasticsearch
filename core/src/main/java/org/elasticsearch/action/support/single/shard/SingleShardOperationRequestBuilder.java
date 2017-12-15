@@ -39,13 +39,4 @@ public abstract class SingleShardOperationRequestBuilder<Request extends SingleS
         request.index(index);
         return (RequestBuilder) this;
     }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.operationThreaded(threadedOperation);
-        return (RequestBuilder) this;
-    }
 }

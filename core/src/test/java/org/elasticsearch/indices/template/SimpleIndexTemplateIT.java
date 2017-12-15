@@ -450,15 +450,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         assertAcked(prepareCreate("test_index")
-                .addMapping("doc"));
+                .addMapping("_doc"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index", "doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -486,15 +486,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "    }\n").get();
 
         assertAcked(prepareCreate("test_index")
-                .addMapping("doc"));
+                .addMapping("_doc"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index", "doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -840,7 +840,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // create an index with too few shards
         IllegalArgumentException eBadIndex = expectThrows(IllegalArgumentException.class,
                 () -> prepareCreate("test_bad", Settings.builder()
-            .put("index.number_of_shards", 5))
+            .put("index.number_of_shards", 5)
+            .put("index.number_of_routing_shards", 5))
             .get());
 
         assertThat(eBadIndex.getMessage(), containsString("partition size [6] should be a positive number "
@@ -848,7 +849,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // finally, create a valid index
         prepareCreate("test_good", Settings.builder()
-            .put("index.number_of_shards", 7))
+            .put("index.number_of_shards", 7)
+            .put("index.number_of_routing_shards", 7))
             .get();
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();

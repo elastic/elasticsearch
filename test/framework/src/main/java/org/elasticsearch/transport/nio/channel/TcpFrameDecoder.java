@@ -36,11 +36,11 @@ public class TcpFrameDecoder {
 
     private int expectedMessageLength = -1;
 
-    public BytesReference decode(BytesReference bytesReference, int currentBufferSize) throws IOException {
-        if (currentBufferSize >= 6) {
+    public BytesReference decode(BytesReference bytesReference) throws IOException {
+        if (bytesReference.length() >= 6) {
             int messageLength = readHeaderBuffer(bytesReference);
             int totalLength = messageLength + HEADER_SIZE;
-            if (totalLength > currentBufferSize) {
+            if (totalLength > bytesReference.length()) {
                 expectedMessageLength = totalLength;
                 return null;
             } else if (totalLength == bytesReference.length()) {

@@ -97,7 +97,14 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
-            EsExecutors.newScaling(name(), core, max, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory, threadContext);
+            EsExecutors.newScaling(
+                    settings.nodeName + "/" + name(),
+                    core,
+                    max,
+                    keepAlive.millis(),
+                    TimeUnit.MILLISECONDS,
+                    threadFactory,
+                    threadContext);
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 

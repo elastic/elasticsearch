@@ -51,7 +51,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     // visible for testing
     Elasticsearch() {
-        super("starts elasticsearch");
+        super("starts elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
             "Prints elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
@@ -90,15 +90,6 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
         return elasticsearch.main(args, terminal);
-    }
-
-    @Override
-    protected boolean shouldConfigureLoggingWithoutConfig() {
-        /*
-         * If we allow logging to be configured without a config before we are ready to read the log4j2.properties file, then we will fail
-         * to detect uses of logging before it is properly configured.
-         */
-        return false;
     }
 
     @Override

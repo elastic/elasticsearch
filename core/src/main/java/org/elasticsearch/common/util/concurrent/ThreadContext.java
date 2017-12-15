@@ -74,7 +74,6 @@ public final class ThreadContext implements Closeable, Writeable {
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
-    private boolean isSystemContext;
 
     /**
      * Creates a new ThreadContext instance
@@ -120,7 +119,6 @@ public final class ThreadContext implements Closeable, Writeable {
         threadLocal.set(DEFAULT_CONTEXT.putHeaders(newHeader));
         return () -> threadLocal.set(context);
     }
-
 
     /**
      * Just like {@link #stashContext()} but no default context is set.

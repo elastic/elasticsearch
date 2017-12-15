@@ -411,7 +411,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
                     primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
-                } else if (indexMetaData.getMergeSourceIndex() != null) {
+                } else if (indexMetaData.getResizeSourceIndex() != null) {
                     // this is a new index but the initial shards should merged from another index
                     primaryRecoverySource = LocalShardsRecoverySource.INSTANCE;
                 } else {

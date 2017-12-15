@@ -97,4 +97,14 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.decrypt(new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
+
+    public void testIllegalSettingName() throws Exception {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> KeyStoreWrapper.validateSettingName("UpperCase"));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
+        e = expectThrows(IllegalArgumentException.class, () -> keystore.setString("UpperCase", new char[0]));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+        e = expectThrows(IllegalArgumentException.class, () -> keystore.setFile("UpperCase", new byte[0]));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+    }
 }

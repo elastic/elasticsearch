@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -43,7 +44,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String index;
     private final String providedName;
     private final boolean updateAllTypes;
-    private Index shrinkFrom;
+    private Index recoverFrom;
+    private ResizeType resizeType;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -58,7 +60,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
-
 
     public CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, String providedName,
                                                 boolean updateAllTypes) {
@@ -99,13 +100,18 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest shrinkFrom(Index shrinkFrom) {
-        this.shrinkFrom = shrinkFrom;
+    public CreateIndexClusterStateUpdateRequest recoverFrom(Index recoverFrom) {
+        this.recoverFrom = recoverFrom;
         return this;
     }
 
     public CreateIndexClusterStateUpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest resizeType(ResizeType resizeType) {
+        this.resizeType = resizeType;
         return this;
     }
 
@@ -145,8 +151,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return blocks;
     }
 
-    public Index shrinkFrom() {
-        return shrinkFrom;
+    public Index recoverFrom() {
+        return recoverFrom;
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */
@@ -164,5 +170,12 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
+    }
+
+    /**
+     * Returns the resize type or null if this is an ordinary create index request
+     */
+    public ResizeType resizeType() {
+        return resizeType;
     }
 }

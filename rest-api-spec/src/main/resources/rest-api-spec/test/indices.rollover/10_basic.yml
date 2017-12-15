@@ -17,8 +17,9 @@
         type:  test
         id:    "1"
         body:  { "foo": "hello world" }
-        refresh: true # make this doc visible in index stats
-
+        # make this doc visible in index stats
+        refresh: true
+ 
   - do:
       get:
         index: logs_search

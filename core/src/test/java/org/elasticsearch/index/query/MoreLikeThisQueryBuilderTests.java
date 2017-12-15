@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
-    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{Item.Field.DOC.getPreferredName()};
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{MoreLikeThisQueryBuilder.DOC.getPreferredName()};
 
     private static String[] randomFields;
     private static Item[] randomLikeItems;
@@ -222,7 +222,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Override
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //doc contains arbitrary content, anything can be added to it and no exception will be thrown
-        return Collections.singleton(MoreLikeThisQueryBuilder.Item.Field.DOC.getPreferredName());
+        return Collections.singleton(MoreLikeThisQueryBuilder.DOC.getPreferredName());
     }
 
     @Override

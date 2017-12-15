@@ -112,7 +112,8 @@ public class UnicastZenPingTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
         executorService =
-            EsExecutors.newScaling(getClass().getName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
+            EsExecutors.newScaling(
+                    getClass().getName() + "/" + getTestName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
     }
 
@@ -255,6 +256,16 @@ public class UnicastZenPingTests extends ESTestCase {
         logger.info("ping from UZP_D");
         pingResponses = zenPingD.pingAndWait().toList();
         assertThat(pingResponses.size(), equalTo(1));
+        assertPingCount(handleD, handleA, 0);
+        assertPingCount(handleD, handleB, 0);
+        assertPingCount(handleD, handleC, 3);
+
+        zenPingC.close();
+        handleD.counters.clear();
+        logger.info("ping from UZP_D after closing UZP_C");
+        pingResponses = zenPingD.pingAndWait().toList();
+        // check that node does not respond to pings anymore after the ping service has been closed
+        assertThat(pingResponses.size(), equalTo(0));
         assertPingCount(handleD, handleA, 0);
         assertPingCount(handleD, handleB, 0);
         assertPingCount(handleD, handleC, 3);

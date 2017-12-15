@@ -473,8 +473,8 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         super.doMerge(mergeWith, updateAllTypes);
+        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }

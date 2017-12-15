@@ -82,7 +82,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
-            assert indexMetaData == archiveBrokenIndexSettings(indexMetaData) : "all settings must have been upgraded before";
             return indexMetaData;
         }
         checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);

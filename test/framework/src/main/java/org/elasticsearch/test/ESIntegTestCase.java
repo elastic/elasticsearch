@@ -121,6 +121,7 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -428,9 +429,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
-            }
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -1909,6 +1907,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(AssertingTransportInterceptor.TestPlugin.class);
             }
+            if (randomBoolean()) {
+                mocks.add(MockFieldFilterPlugin.class);
+            }
         }
 
         if (addMockTransportService()) {
@@ -2075,7 +2076,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState();
+                checkStaticState(true);
             } finally {
                 INSTANCE = null;
             }

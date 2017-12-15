@@ -22,6 +22,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
@@ -184,17 +185,23 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals("Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
                 exception.getMessage());
 
-        // Make sure for units other than BYTES a size of -1 throws an exception
+        // Make sure for units other than BYTES a size of -1 logs a warning
         ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         long size2 = -1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size2, unit2));
-        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+        ByteSizeValue value2 = new ByteSizeValue(size2, unit2);
+        assertEquals(size2, value2.getSize());
+        assertEquals(unit2, value2.getUnit());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size2 + unit2.getSuffix() + "]");
 
         // Make sure for any unit a size < -1 throws an exception
         ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
         long size3 = -1L * randomNonNegativeLong() - 1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size3, unit3));
-        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+        ByteSizeValue value3 = new ByteSizeValue(size3, unit3);
+        assertEquals(size3, value3.getSize());
+        assertEquals(unit3, value3.getUnit());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size3 + unit3.getSuffix() + "]");
     }
 
     public void testConversionHashCode() {
@@ -255,11 +262,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseInvalidValue() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting"));
-        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
-        assertNotNull(exception.getCause());
-        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
+        ByteSizeValue value = ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting");
+        assertEquals(-6L, value.getSize());
+        assertEquals(ByteSizeUnit.MB, value.getUnit());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-6mb]");
     }
 
     public void testParseDefaultValue() {

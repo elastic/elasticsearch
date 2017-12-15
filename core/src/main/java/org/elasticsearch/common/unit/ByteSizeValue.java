@@ -65,7 +65,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
     public ByteSizeValue(long size, ByteSizeUnit unit) {
         if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
             DEPRECATION_LOGGER.deprecated(
-                    "Values less than -1 bytes are not deprecated and will not be supported in the next major version: [{}]",
+                    "Values less than -1 bytes are deprecated and will not be supported in the next major version: [{}]",
                     size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {

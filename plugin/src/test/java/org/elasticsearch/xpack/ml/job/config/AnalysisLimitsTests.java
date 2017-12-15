@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,7 +70,9 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         String json = "{\"model_memory_limit\":\"-4MB\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
-        assertThat(e.getRootCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
+        assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -4"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-4mb]");
     }
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {

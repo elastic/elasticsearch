@@ -192,7 +192,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals(size2, value2.getSize());
         assertEquals(unit2, value2.getUnit());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
-                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size2 + unit2.getSuffix() + "]");
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size2
+                        + unit2.getSuffix() + "]");
 
         // Make sure for any unit a size < -1 throws an exception
         ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
@@ -201,7 +202,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals(size3, value3.getSize());
         assertEquals(unit3, value3.getUnit());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
-                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size3 + unit3.getSuffix() + "]");
+                "Values less than -1 bytes are deprecated and will not be supported in the next major version: [" + size3
+                        + unit3.getSuffix() + "]");
     }
 
     public void testConversionHashCode() {

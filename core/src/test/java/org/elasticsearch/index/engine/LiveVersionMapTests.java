@@ -265,9 +265,12 @@ public class LiveVersionMapTests extends ESTestCase {
         assertNotNull(map.getUnderLock(uid("1")));
         map.beforeRefresh();
         assertFalse(map.isUnsafe());
+        assertTrue(map.isSafeAccessRequired());
         assertNotNull(map.getUnderLock(uid("1")));
         map.afterRefresh(randomBoolean());
         assertNull(map.getUnderLock(uid("1")));
         assertFalse(map.isUnsafe());
+        assertTrue(map.isSafeAccessRequired());
+
     }
 }

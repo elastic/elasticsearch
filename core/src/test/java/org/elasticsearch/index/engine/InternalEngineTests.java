@@ -177,9 +177,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class InternalEngineTests extends EngineTestCase {
 
     public void testVersionMapAfterAutoIDDocument() throws IOException {
-        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField("test"),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        Engine.Index operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
         engine.index(operation);
         assertFalse(engine.isSafeAccessRequired());
         doc = testParsedDocument("1", null, testDocumentWithTextField("updated"),
@@ -201,6 +203,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now lets make this document visible
         engine.refresh("test");
+        if (randomBoolean()) { // random empty refresh
+            engine.refresh("test");
+        }
         assertTrue("safe access should be required we carried it over", engine.isSafeAccessRequired());
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(1, searcher.reader().numDocs());
@@ -209,14 +214,16 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals("updated", luceneDoc.get("value"));
         }
 
-        doc = testParsedDocument("2", null, testDocumentWithTextField(),
+        doc = testParsedDocument("2", null, testDocumentWithTextField("test"),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        operation = appendOnlyPrimary(doc, false, 1);
+        operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, engine.seqNoService().generateSeqNo());
         engine.index(operation);
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         assertEquals(1, engine.getVersionMapSize()); // now we add this to the map
         engine.refresh("test");
-        if (randomBoolean()) { // force empty refresh to ensure we carry it over
+        if (randomBoolean()) { // randomly refresh here again
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
@@ -4291,16 +4298,15 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testConcurrentAppendUpdateAndRefresh() throws InterruptedException, IOException {
-        int numDocsPerThread = scaledRandomIntBetween(100, 1000);
+        int numDocs = scaledRandomIntBetween(100, 1000);
         CountDownLatch latch = new CountDownLatch(2);
-        AtomicInteger threadsRunning = new AtomicInteger();
+        AtomicBoolean done = new AtomicBoolean(false);
         AtomicInteger numDeletes = new AtomicInteger();
         Thread thread = new Thread(() -> {
            try {
-               threadsRunning.incrementAndGet();
                latch.countDown();
                latch.await();
-               for (int j = 0; j < numDocsPerThread; j++) {
+               for (int j = 0; j < numDocs; j++) {
                    String docID = Integer.toString(j);
                    ParsedDocument doc = testParsedDocument(docID, null, testDocumentWithTextField(),
                        new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
@@ -4319,13 +4325,13 @@ public class InternalEngineTests extends EngineTestCase {
            } catch (Exception e) {
                throw new AssertionError(e);
            } finally {
-               threadsRunning.decrementAndGet();
+               done.set(true);
            }
         });
         thread.start();
         latch.countDown();
         latch.await();
-        while (threadsRunning.get() != 0) {
+        while (done.get() == false) {
             engine.refresh("test", Engine.SearcherScope.INTERNAL);
         }
         thread.join();
@@ -4336,7 +4342,7 @@ public class InternalEngineTests extends EngineTestCase {
                 org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[i].doc);
                 assertEquals("updated", luceneDoc.get("value"));
             }
-            int totalNumDocs = numDocsPerThread - numDeletes.get();
+            int totalNumDocs = numDocs - numDeletes.get();
             assertEquals(totalNumDocs, searcher.reader().numDocs());
         }
     }

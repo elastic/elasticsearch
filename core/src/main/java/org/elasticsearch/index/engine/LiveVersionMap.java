@@ -63,7 +63,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
         // map reference itself.
         private boolean unsafe;
-        boolean safeAccessRequested = false;
 
         private VersionLookup(Map<BytesRef, VersionValue> map) {
             this.map = map;
@@ -121,9 +120,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         boolean shouldInheritSafeAccess() {
+            final boolean mapHasNotSeenAnyOperations = current.isEmpty() && current.isUnsafe() == false;
             return needsSafeAccess
-                // previous map was empty and not unsafe but the map before needed it so we maintain it
-                || (current.size() == 0 && current.isUnsafe() == false && previousMapsNeededSafeAccess);
+                // we haven't seen any ops and map before needed it so we maintain it
+                || (mapHasNotSeenAnyOperations && previousMapsNeededSafeAccess);
         }
     }
 

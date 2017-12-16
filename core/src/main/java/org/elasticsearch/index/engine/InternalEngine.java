@@ -182,8 +182,11 @@ public class InternalEngine extends Engine {
                 final SeqNoStats seqNoStats = loadSeqNoStats(openMode);
                 logger.trace("recovered [{}]", seqNoStats);
                 this.seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
+                translog = openTranslog(engineConfig, translogDeletionPolicy, seqNoService::getGlobalCheckpoint);
+                assert translog.getGeneration() != null;
+                this.translog = translog;
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
-                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, seqNoService::getGlobalCheckpoint)
+                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
                 );
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -195,10 +198,9 @@ public class InternalEngine extends Engine {
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService.getGlobalCheckpoint());
-                assert translog.getGeneration() != null;
                 // we can only do this after we generated and committed a translog uuid. other wise the combined
                 // retention policy, which listens to commits, gets all confused.
+                refreshTranslogUUIDIfNeeded(writer, translog);
                 persistHistoryUUIDIfNeeded();
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -211,7 +213,6 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            this.translog = translog;
             externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig));
             internalSearcherManager = externalSearcherManager.internalSearcherManager;
             this.internalSearcherManager = internalSearcherManager;
@@ -446,33 +447,27 @@ public class InternalEngine extends Engine {
         translog.trimUnreferencedReaders();
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         String translogUUID = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            translogUUID = loadTranslogUUIDFromCommit(writer);
+            translogUUID = loadTranslogUUIDFromLastCommit();
             // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
             if (translogUUID == null) {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
-        if (translogUUID == null) {
-            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
-                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-            boolean success = false;
-            try {
-                commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                    ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(translog);
-                }
-            }
+        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
+    }
+
+    private void refreshTranslogUUIDIfNeeded(IndexWriter writer, Translog translog) throws IOException {
+        final String translogUUID = commitDataAsMap(writer).get(Translog.TRANSLOG_UUID_KEY);
+        if (translog.getTranslogUUID().equals(translogUUID) == false) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OPEN_INDEX_AND_TRANSLOG must not fresh translogUUID";
+            commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
         }
-        return translog;
     }
 
     /** If needed, updates the metadata in the index writer to match the potentially new translog and history uuid */
@@ -511,14 +506,13 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Reads the current stored translog ID from the IW commit data. If the id is not found, recommits the current
-     * translog id into lucene and returns null.
+     * Reads the current stored translog ID from the last commit data.
      */
     @Nullable
-    private String loadTranslogUUIDFromCommit(IndexWriter writer) throws IOException {
-        // commit on a just opened writer will commit even if there are no changes done to it
-        // we rely on that for the commit data translog id key
-        final Map<String, String> commitUserData = commitDataAsMap(writer);
+    private String loadTranslogUUIDFromLastCommit() throws IOException {
+        assert openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG :
+            "Only reuse existing translogUUID with OPEN_INDEX_AND_TRANSLOG; openMode = [" + openMode + "]";
+        final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().getUserData();
         if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY)) {
             if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
                 throw new IllegalStateException("commit doesn't contain translog generation id");

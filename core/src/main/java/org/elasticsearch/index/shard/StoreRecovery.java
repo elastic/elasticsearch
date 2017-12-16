@@ -21,9 +21,6 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -49,17 +46,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -357,9 +351,6 @@ final class StoreRecovery {
             try {
                 store.failIfCorrupted();
                 try {
-                    if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
-                        prepareStartingCommitPoint(indexShard);
-                    }
                     si = store.readLastCommittedSegmentsInfo();
                 } catch (Exception e) {
                     String files = "_unknown_";
@@ -412,50 +403,6 @@ final class StoreRecovery {
         } finally {
             store.decRef();
         }
-    }
-
-    /**
-     * We may have kept multiple commit points in the existing store, thus we have chance to find a good starting
-     * commit point. All the required translog files of a starting commit point must be retained, and if possible
-     * its max seqno is at most the global checkpoint from the translog checkpoint. With a good starting commit,
-     * we may be able to throw away stale operations. Once the starting commit is determined, we delete other files
-     * which are not referenced by this commit to prevent potential problems.
-     */
-    private void prepareStartingCommitPoint(IndexShard indexShard) throws IOException {
-        assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE
-            : "Only call clean unsafe commits when recovering from existing store; recoveryType [" +
-            indexShard.recoveryState().getRecoverySource().getType() + "]";
-        final Store store = indexShard.store();
-        final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-        int startingIndex = commits.size() - 1;
-        try {
-            final Path translogPath = indexShard.getTranslogConfig().getTranslogPath();
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
-            final long minRefTranslogGen = Translog.readMinReferencedTranslogGen(translogPath);
-            startingIndex = indexOfStartingCommit(commits, globalCheckpoint, minRefTranslogGen);
-        } catch (IOException ex) {
-            logger.warn(new ParameterizedMessage("Failed to find a safe commit for shard [{}]; pick the last commit", shardId), ex);
-        }
-        store.pruneUnreferencedFiles(commits.get(startingIndex));
-    }
-
-    private int indexOfStartingCommit(List<IndexCommit> commits, long globalCheckpoint, long minReferencedTranslogGen) throws IOException {
-        for (int i = commits.size() - 1; i >= 0; i--) {
-            final Map<String, String> commitData = commits.get(i).getUserData();
-            // If all required translog files of this commit are not retained, we should use the younger commit.
-            if (Long.parseLong(commitData.get(Translog.TRANSLOG_GENERATION_KEY)) < minReferencedTranslogGen) {
-                return i + 1;
-            }
-            // 5.x commits do not contain MAX_SEQ_NO.
-            if (commitData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
-                return i;
-            }
-            // This is a safe commit.
-            if (Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) <= globalCheckpoint) {
-                return i;
-            }
-        }
-        return commits.size() - 1;
     }
 
     private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {

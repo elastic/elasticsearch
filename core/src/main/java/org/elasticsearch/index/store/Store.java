@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -212,16 +211,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
-     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * Loads the local checkpoint and the maximum sequence number from the provided Lucene commit point and returns the triplet of local
+     * and global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
      * externally as it is not stored in the commit point.
      *
      * @param globalCheckpoint the provided global checkpoint
+     * @param commit the commit point to load seqno stats, or the last commit in the store if the parameter is null
      * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+    public SeqNoStats loadSeqNoStats(final long globalCheckpoint, final IndexCommit commit) throws IOException {
+        final Map<String, String> userData = commit != null ? commit.getUserData() : SegmentInfos.readLatestCommit(directory).getUserData();
         return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
     }
 
@@ -348,20 +348,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public StoreStats stats() throws IOException {
         ensureOpen();
         return statsCache.getOrRefresh();
-    }
-
-    /**
-     * Removes all existing files in this store that are not referenced the given commit point.
-     */
-    public void pruneUnreferencedFiles(IndexCommit commit) throws IOException {
-        metadataLock.writeLock().lock();
-        try {
-            Lucene.pruneUnreferencedFiles(commit.getSegmentsFileName(), directory);
-            assert DirectoryReader.listCommits(directory).size() == 1
-                : "Should have one commit after pruning, found [" + DirectoryReader.listCommits(directory) + "]";
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
     }
 
     /**

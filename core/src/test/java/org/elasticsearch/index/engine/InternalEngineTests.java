@@ -106,7 +106,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -2643,7 +2642,7 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-                new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService(), null);
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");
@@ -2697,7 +2696,7 @@ public class InternalEngineTests extends EngineTestCase {
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), false, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
             config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-            new NoneCircuitBreakerService());
+            new NoneCircuitBreakerService(), null);
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();
@@ -2728,7 +2727,7 @@ public class InternalEngineTests extends EngineTestCase {
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), true, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
             config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-            new NoneCircuitBreakerService());
+            new NoneCircuitBreakerService(), null);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG) {
             Lucene.cleanLuceneIndex(store.directory());
         }
@@ -4344,6 +4343,40 @@ public class InternalEngineTests extends EngineTestCase {
             }
             int totalNumDocs = numDocs - numDeletes.get();
             assertEquals(totalNumDocs, searcher.reader().numDocs());
+        }
+    }
+
+    public void testOpenWithStartingCommitPoint() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final Path translogPath = createTempDir();
+        final List<Integer> docsInSegments = new ArrayList<>();
+        try (InternalEngine engine = createEngine(store, translogPath)) {
+            final int numDocs = between(10, 100);
+            docsInSegments.add(0); // Initial commit
+            for (int i = 0; i < numDocs; i++) {
+                ParseContext.Document document = testDocumentWithTextField();
+                document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, document, B_1, null)));
+                if (frequently()) {
+                    engine.flush(true, true);
+                    docsInSegments.add(i + 1);
+                }
+            }
+            engine.flush(true, true);
+            docsInSegments.add(numDocs);
+        }
+        int startingIdx = between(0, docsInSegments.size() - 1);
+        IndexCommit startingCommit = DirectoryReader.listCommits(store.directory()).get(startingIdx);
+        try (InternalEngine engine =
+                 new InternalEngine(config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, startingCommit))) {
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                assertThat(searcher.reader().numDocs(), equalTo(docsInSegments.get(startingIdx)));
+            }
+            // Keep only the starting commit but delete other commits
+            final List<IndexCommit> freshCommits  = DirectoryReader.listCommits(store.directory());
+            assertThat(freshCommits, hasSize(1));
+            assertThat(freshCommits.get(0), equalTo(startingCommit));
         }
     }
 }

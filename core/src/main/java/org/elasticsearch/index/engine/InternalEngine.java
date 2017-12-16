@@ -183,7 +183,8 @@ public class InternalEngine extends Engine {
                 logger.trace("recovered [{}]", seqNoStats);
                 this.seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
-                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, seqNoService::getGlobalCheckpoint)
+                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, seqNoService::getGlobalCheckpoint,
+                        engineConfig.getStartingCommitPoint())
                 );
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -370,9 +371,9 @@ public class InternalEngine extends Engine {
         switch (openMode) {
             case OPEN_INDEX_AND_TRANSLOG:
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
-                return store.loadSeqNoStats(globalCheckpoint);
+                return store.loadSeqNoStats(globalCheckpoint, engineConfig.getStartingCommitPoint());
             case OPEN_INDEX_CREATE_TRANSLOG:
-                return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
+                return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO, engineConfig.getStartingCommitPoint());
             case CREATE_INDEX_AND_TRANSLOG:
                 return new SeqNoStats(
                     SequenceNumbers.NO_OPS_PERFORMED,
@@ -1796,6 +1797,7 @@ public class InternalEngine extends Engine {
     private IndexWriter createWriter(boolean create) throws IOException {
         try {
             final IndexWriterConfig iwc = getIndexWriterConfig(create);
+            iwc.setIndexCommit(engineConfig.getStartingCommitPoint());
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);

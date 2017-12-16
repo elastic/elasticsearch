@@ -123,7 +123,7 @@ public class RefreshListenersTests extends ESTestCase {
                 indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
                 eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null, null,
-                new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService(), null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

@@ -458,20 +458,27 @@ public class PercolatorFieldMapper extends FieldMapper {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
         }
-        for (QueryAnalyzer.QueryExtraction term : result.extractions) {
-            if (term.term != null) {
+        for (QueryAnalyzer.QueryExtraction extraction : result.extractions) {
+            if (extraction.term != null) {
                 BytesRefBuilder builder = new BytesRefBuilder();
-                builder.append(new BytesRef(term.field()));
+                builder.append(new BytesRef(extraction.field()));
                 builder.append(FIELD_VALUE_SEPARATOR);
-                builder.append(term.bytes());
+                builder.append(extraction.bytes());
                 doc.add(new Field(queryTermsField.name(), builder.toBytesRef(), queryTermsField.fieldType()));
-            } else if (term.range != null) {
-                byte[] min = term.range.lowerPoint;
-                byte[] max = term.range.upperPoint;
-                doc.add(new BinaryRange(rangeFieldMapper.name(), encodeRange(term.range.fieldName, min, max)));
+            } else if (extraction.range != null) {
+                byte[] min = extraction.range.lowerPoint;
+                byte[] max = extraction.range.upperPoint;
+                doc.add(new BinaryRange(rangeFieldMapper.name(), encodeRange(extraction.range.fieldName, min, max)));
             }
         }
-        if (result.verified) {
+
+        Version indexVersionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        if (result.matchAllDocs) {
+            doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
+            if (result.verified) {
+                doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE, extractionResultField.fieldType()));
+            }
+        } else if (result.verified) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE, extractionResultField.fieldType()));
         } else {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, extractionResultField.fieldType()));
@@ -481,7 +488,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
-        if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)) {
+        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
             doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
         }
     }

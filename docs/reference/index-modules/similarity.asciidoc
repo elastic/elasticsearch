@@ -44,7 +44,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 
 [source,js]
 --------------------------------------------------
-PUT /index/_mapping/book
+PUT /index/_mapping/_doc
 {
   "properties" : {
     "title" : { "type" : "text", "similarity" : "my_similarity" }
@@ -197,7 +197,7 @@ PUT /index
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "field": {
           "type": "text",
@@ -208,12 +208,12 @@ PUT /index
   }
 }
 
-PUT /index/doc/1
+PUT /index/_doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT /index/doc/2
+PUT /index/_doc/2
 {
   "field": "bar baz"
 }
@@ -253,7 +253,7 @@ Which yields:
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -355,7 +355,7 @@ PUT /index
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "field": {
           "type": "text",
@@ -372,12 +372,12 @@ PUT /index
 
 [source,js]
 --------------------------------------------------
-PUT /index/doc/1
+PUT /index/_doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT /index/doc/2
+PUT /index/_doc/2
 {
   "field": "bar baz"
 }
@@ -416,7 +416,7 @@ GET /index/_search?explain=true
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {

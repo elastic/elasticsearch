@@ -196,6 +196,7 @@ subprojects {
     "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
+    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {

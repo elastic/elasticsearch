@@ -537,13 +537,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
 
         // Generate a couple of segments
-        client().prepareIndex("test", "doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
         // Use routing so 2 documents are guarenteed to be on the same shard
         String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test", "doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-        client().prepareIndex("test", "doc", "3").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+        client().prepareIndex("test", "_doc", "3").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
 
         checkAccountingBreaker();
@@ -614,16 +614,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
         AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
-        CountDownLatch started = new CountDownLatch(1);
-        Thread t = new Thread(() -> {
-            SearchResponse searchResponse;
-            started.countDown();
-            do {
-               searchResponse = client().prepareSearch().get();
-           } while (searchResponse.getHits().totalHits != totalNumDocs.get());
-        });
-        t.start();
-        started.await();
         assertNoSearchHits(client().prepareSearch().get());
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
@@ -641,6 +631,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
             assertFalse(shard.isSearchIdle());
         }
+        CountDownLatch started = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            SearchResponse searchResponse;
+            started.countDown();
+            do {
+                searchResponse = client().prepareSearch().get();
+            } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+        });
+        t.start();
+        started.await();
         assertHitCount(client().prepareSearch().get(), 1);
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)

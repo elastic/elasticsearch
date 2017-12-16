@@ -65,7 +65,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
+        mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
             INTEGER_RANGE_FIELD_NAME, "type=integer_range",
             LONG_RANGE_FIELD_NAME, "type=long_range",
             FLOAT_RANGE_FIELD_NAME, "type=float_range",

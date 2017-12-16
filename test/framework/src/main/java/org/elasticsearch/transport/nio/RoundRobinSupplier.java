@@ -19,22 +19,21 @@
 
 package org.elasticsearch.transport.nio;
 
-import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class RoundRobinSelectorSupplier implements Supplier<SocketSelector> {
+public class RoundRobinSupplier<S> implements Supplier<S> {
 
-    private final ArrayList<SocketSelector> selectors;
+    private final S[] selectors;
     private final int count;
     private AtomicInteger counter = new AtomicInteger(0);
 
-    public RoundRobinSelectorSupplier(ArrayList<SocketSelector> selectors) {
-        this.count = selectors.size();
+    public RoundRobinSupplier(S[] selectors) {
+        this.count = selectors.length;
         this.selectors = selectors;
     }
 
-    public SocketSelector get() {
-        return selectors.get(counter.getAndIncrement() % count);
+    public S get() {
+        return selectors[counter.getAndIncrement() % count];
     }
 }

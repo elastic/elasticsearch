@@ -48,6 +48,8 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
+    private DoubleArray compensations;
+
 
     public StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
             SearchContext context,
@@ -59,6 +61,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
             mins = bigArrays.newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
             maxes = bigArrays.newDoubleArray(1, false);
@@ -88,6 +91,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     final long overSize = BigArrays.overSize(bucket + 1);
                     counts = bigArrays.resize(counts, overSize);
                     sums = bigArrays.resize(sums, overSize);
+                    compensations = bigArrays.resize(compensations, overSize);
                     mins = bigArrays.resize(mins, overSize);
                     maxes = bigArrays.resize(maxes, overSize);
                     mins.fill(from, overSize, Double.POSITIVE_INFINITY);
@@ -97,16 +101,22 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     counts.increment(bucket, valuesCount);
-                    double sum = 0;
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        sum += value;
+                        double corrected = value - compensation;
+                        double newSum = sum + corrected;
+                        compensation = (newSum - sum) - corrected;
+                        sum = newSum;
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
-                    sums.increment(bucket, sum);
+                    sums.set(bucket, sum);
+                    compensations.set(bucket, compensation);
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
@@ -164,6 +174,6 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public void doClose() {
-        Releasables.close(counts, maxes, mins, sums);
+        Releasables.close(counts, maxes, mins, sums, compensations);
     }
 }

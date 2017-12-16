@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -35,6 +36,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuild
 
 import java.io.IOException;
 import java.util.function.Consumer;
+
+import static java.util.Collections.singleton;
 
 public class StatsAggregatorTests extends AggregatorTestCase {
     static final double TOLERANCE = 1e-10;
@@ -109,6 +112,27 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.min, stats.getMin(), 0);
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+            }
+        );
+    }
+
+    public void testSummationAccuracy() throws IOException {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        final String fieldName = "field";
+        ft.setName(fieldName);
+        testCase(ft,
+            iw -> {
+                double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+                for (double value : values) {
+                    iw.addDocument(singleton(new DoubleDocValuesField(fieldName, value)));
+                }
+            },
+            stats -> {
+                assertEquals(15, stats.getCount());
+                assertEquals(0.9, stats.getAvg(), 0d);
+                assertEquals(13.5, stats.getSum(), 0d);
+                assertEquals(1.7, stats.getMax(), 0d);
+                assertEquals(0.1, stats.getMin(), 0d);
             }
         );
     }

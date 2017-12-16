@@ -46,6 +46,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray sums;
     DocValueFormat format;
 
+    private DoubleArray compensations;
+
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
@@ -55,6 +57,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -76,15 +79,22 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     counts.increment(bucket, valueCount);
-                    double sum = 0;
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+
                     for (int i = 0; i < valueCount; i++) {
-                        sum += values.nextValue();
+                        double corrected = values.nextValue() - compensation;
+                        double newSum = sum + corrected;
+                        compensation = (newSum - sum) - corrected;
+                        sum = newSum;
                     }
-                    sums.increment(bucket, sum);
+                    sums.set(bucket, sum);
+                    compensations.set(bucket, compensation);
                 }
             }
         };
@@ -113,7 +123,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void doClose() {
-        Releasables.close(counts, sums);
+        Releasables.close(counts, sums, compensations);
     }
 
 }

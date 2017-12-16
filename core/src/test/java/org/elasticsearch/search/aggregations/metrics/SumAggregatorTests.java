@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -116,10 +117,28 @@ public class SumAggregatorTests extends AggregatorTestCase {
             "Re-index with correct docvalues type.", e.getMessage());
     }
 
+    public void testSummationAccuracy() throws IOException {
+        testCase(new MatchAllDocsQuery(),
+            iw -> {
+                double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+                for (double value : values) {
+                    iw.addDocument(singleton(new DoubleDocValuesField(FIELD_NAME, value)));
+                }
+            },
+            count -> assertEquals(15.3, count.getValue(), 0d),
+            NumberFieldMapper.NumberType.DOUBLE);
+    }
+
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<Sum> verify) throws IOException {
+        testCase(query, indexer, verify, NumberFieldMapper.NumberType.LONG);
+    }
 
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
+                          Consumer<Sum> verify,
+                          NumberFieldMapper.NumberType fieldNumberType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexer.accept(indexWriter);
@@ -128,7 +147,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
                 fieldType.setName(FIELD_NAME);
                 fieldType.setHasDocValues(true);
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.avg;
 
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -34,9 +35,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -103,8 +101,28 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
-            throws IOException {
+    public void testSummationAccuracy() throws IOException {
+        testCase(new MatchAllDocsQuery(),
+            iw -> {
+                double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+                for (double value : values) {
+                    iw.addDocument(singleton(new DoubleDocValuesField("number", value)));
+                }
+            },
+            avg -> assertEquals(0.9, avg.getValue(), 0d),
+            NumberFieldMapper.NumberType.DOUBLE);
+    }
+
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalAvg> verify) throws IOException {
+        testCase(query, buildIndex, verify, NumberFieldMapper.NumberType.LONG);
+    }
+
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalAvg> verify,
+                          NumberFieldMapper.NumberType fieldNumberType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -114,7 +132,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
         fieldType.setName("number");
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);

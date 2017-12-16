@@ -106,6 +106,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -174,6 +175,69 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends EngineTestCase {
+
+    public void testVersionMapAfterAutoIDDocument() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField("test"),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        engine.index(operation);
+        assertFalse(engine.isSafeAccessRequired());
+        doc = testParsedDocument("1", null, testDocumentWithTextField("updated"),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index update = indexForDoc(doc);
+        engine.index(update);
+        assertTrue(engine.isSafeAccessRequired());
+        assertEquals(1, engine.getVersionMapSize());
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(0, searcher.reader().numDocs());
+        }
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(1, searcher.reader().numDocs());
+            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 1);
+            org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[0].doc);
+            assertEquals("test", luceneDoc.get("value"));
+        }
+
+        // now lets make this document visible
+        engine.refresh("test");
+        if (randomBoolean()) { // random empty refresh
+            engine.refresh("test");
+        }
+        assertTrue("safe access should be required we carried it over", engine.isSafeAccessRequired());
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 1);
+            org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[0].doc);
+            assertEquals("updated", luceneDoc.get("value"));
+        }
+
+        doc = testParsedDocument("2", null, testDocumentWithTextField("test"),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, engine.seqNoService().generateSeqNo());
+        engine.index(operation);
+        assertTrue("safe access should be required", engine.isSafeAccessRequired());
+        assertEquals(1, engine.getVersionMapSize()); // now we add this to the map
+        engine.refresh("test");
+        if (randomBoolean()) { // randomly refresh here again
+            engine.refresh("test");
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(2, searcher.reader().numDocs());
+        }
+        assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
+        engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid()));
+        assertTrue("safe access should be required", engine.isSafeAccessRequired());
+        engine.refresh("test");
+        assertTrue("safe access should be required", engine.isSafeAccessRequired());
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+        }
+    }
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
@@ -3364,6 +3428,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         Collections.shuffle(docs, random());
         CountDownLatch startGun = new CountDownLatch(thread.length);
+
         AtomicInteger offset = new AtomicInteger(-1);
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread() {
@@ -3375,6 +3440,7 @@ public class InternalEngineTests extends EngineTestCase {
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }
+                    assertEquals(0, engine.getVersionMapSize());
                     int docOffset;
                     while ((docOffset = offset.incrementAndGet()) < docs.size()) {
                         try {
@@ -3386,6 +3452,9 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
             thread[i].start();
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals("unexpected refresh", 0, searcher.reader().maxDoc());
         }
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
@@ -4225,6 +4294,56 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testConcurrentAppendUpdateAndRefresh() throws InterruptedException, IOException {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        CountDownLatch latch = new CountDownLatch(2);
+        AtomicBoolean done = new AtomicBoolean(false);
+        AtomicInteger numDeletes = new AtomicInteger();
+        Thread thread = new Thread(() -> {
+           try {
+               latch.countDown();
+               latch.await();
+               for (int j = 0; j < numDocs; j++) {
+                   String docID = Integer.toString(j);
+                   ParsedDocument doc = testParsedDocument(docID, null, testDocumentWithTextField(),
+                       new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                   Engine.Index operation = appendOnlyPrimary(doc, false, 1);
+                   engine.index(operation);
+                   if (rarely()) {
+                       engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid()));
+                       numDeletes.incrementAndGet();
+                   } else {
+                       doc = testParsedDocument(docID, null, testDocumentWithTextField("updated"),
+                           new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                       Engine.Index update = indexForDoc(doc);
+                       engine.index(update);
+                   }
+               }
+           } catch (Exception e) {
+               throw new AssertionError(e);
+           } finally {
+               done.set(true);
+           }
+        });
+        thread.start();
+        latch.countDown();
+        latch.await();
+        while (done.get() == false) {
+            engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        }
+        thread.join();
+        engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), searcher.reader().numDocs());
+            for (int i = 0; i < search.scoreDocs.length; i++) {
+                org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[i].doc);
+                assertEquals("updated", luceneDoc.get("value"));
+            }
+            int totalNumDocs = numDocs - numDeletes.get();
+            assertEquals(totalNumDocs, searcher.reader().numDocs());
         }
     }
 }

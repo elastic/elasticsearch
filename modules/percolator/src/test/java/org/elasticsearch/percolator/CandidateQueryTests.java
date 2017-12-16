@@ -56,6 +56,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -193,6 +195,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
             if (randomBoolean()) {
                 builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
+            } else if (randomBoolean()) {
+                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
             }
             return builder.build();
         });
@@ -202,6 +206,20 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
             if (randomBoolean()) {
                 builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
+            } else if (randomBoolean()) {
+                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+            }
+            return builder.build();
+        });
+        queryFunctions.add((id) -> {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+            builder.add(new TermQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
+            if (randomBoolean()) {
+                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+            }
+            if (randomBoolean()) {
+                builder.setMinimumNumberShouldMatch(2);
             }
             return builder.build();
         });
@@ -465,6 +483,52 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             forString("192.168.1." + randomIntBetween(0, 255))));
         memoryIndex = MemoryIndex.fromDocument(doc, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
+    }
+
+    public void testPercolateMatchAll() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        addQuery(new MatchAllDocsQuery(), docs);
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+        builder = new BooleanQuery.Builder();
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+        addQuery(builder.build(), docs);
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.SHOULD);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        addQuery(builder.build(), docs);
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        assertEquals(3L, topDocs.totalHits);
+        assertEquals(3, topDocs.scoreDocs.length);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(1, topDocs.scoreDocs[1].doc);
+        assertEquals(4, topDocs.scoreDocs[2].doc);
+
+        topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
+        assertEquals(3L, topDocs.totalHits);
+        assertEquals(3, topDocs.scoreDocs.length);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(1, topDocs.scoreDocs[1].doc);
+        assertEquals(4, topDocs.scoreDocs[2].doc);
     }
 
     public void testPercolateSmallAndLargeDocument() throws Exception {

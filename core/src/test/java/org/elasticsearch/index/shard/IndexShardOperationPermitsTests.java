@@ -85,7 +85,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     @Before
     public void createIndexShardOperationsLock() {
-         permits = new IndexShardOperationPermits(new ShardId("blubb", "id", 0), logger, threadPool);
+        permits = new IndexShardOperationPermits(new ShardId("blubb", "id", 0), threadPool);
     }
 
     @After

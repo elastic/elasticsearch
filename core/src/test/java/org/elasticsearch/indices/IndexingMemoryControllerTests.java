@@ -35,8 +35,8 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -250,7 +250,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.min_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size] must be >= 0b", e.getMessage());
+        assertEquals("failed to parse setting [indices.memory.min_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 
@@ -274,7 +274,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.max_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size] must be >= -1b", e.getMessage());
+        assertEquals("failed to parse setting [indices.memory.max_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 

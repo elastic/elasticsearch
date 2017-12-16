@@ -38,7 +38,7 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_search?scroll=1m
+POST /twitter/_search?scroll=1m
 {
     "size": 100,
     "query": {
@@ -191,7 +191,7 @@ can be consumed independently:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "id": 0, <1>
@@ -203,7 +203,7 @@ GET /twitter/tweet/_search?scroll=1m
         }
     }
 }
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "id": 1,
@@ -254,7 +254,7 @@ slice gets deterministic results.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "field": "date",

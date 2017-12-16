@@ -14,12 +14,12 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1"
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]
@@ -36,11 +36,11 @@ GET /test/_mget
 {
     "docs" : [
         {
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1"
         },
         {
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]
@@ -79,48 +79,6 @@ GET /test/type/_mget
 // CONSOLE
 
 [float]
-[[mget-type]]
-=== Optional Type
-
-The mget API allows for `_type` to be optional. Set it to `_all` or leave it empty in order
-to fetch the first document matching the id across all types.
-
-If you don't set the type and have many documents sharing the same `_id`, you will end up
-getting only the first matching document.
-
-For example, if you have a document 1 within typeA and typeB then following request
-will give you back only the same document twice:
-
-[source,js]
---------------------------------------------------
-GET /test/_mget
-{
-    "ids" : ["1", "1"]
-}
---------------------------------------------------
-// CONSOLE
-
-You need in that case to explicitly set the `_type`:
-
-[source,js]
---------------------------------------------------
-GET /test/_mget/
-{
-  "docs" : [
-        {
-            "_type":"typeA",
-            "_id" : "1"
-        },
-        {
-            "_type":"typeB",
-            "_id" : "1"
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
 [[mget-source-filtering]]
 === Source filtering
 
@@ -139,19 +97,19 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
             "_source" : false
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2",
             "_source" : ["field3", "field4"]
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "3",
             "_source" : {
                 "include": ["user"],
@@ -178,13 +136,13 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
             "stored_fields" : ["field1", "field2"]
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2",
             "stored_fields" : ["field3", "field4"]
         }
@@ -228,13 +186,13 @@ GET /_mget?routing=key1
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
             "routing" : "key2"
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]

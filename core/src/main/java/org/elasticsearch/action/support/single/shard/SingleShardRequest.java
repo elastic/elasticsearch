@@ -94,22 +94,6 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         return INDICES_OPTIONS;
     }
 
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    @SuppressWarnings("unchecked")
-    public final Request operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return (Request) this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

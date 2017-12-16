@@ -397,15 +397,15 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMergeText() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
-        DocumentMapper mapper = indexService.mapperService().parse("doc", new CompressedXContent(mapping), false);
+        DocumentMapper mapper = indexService.mapperService().parse("_doc", new CompressedXContent(mapping), false);
 
-        String mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        String mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("date").field("type", "text").endObject()
                 .endObject().endObject().endObject().string();
-        DocumentMapper update = indexService.mapperService().parse("doc", new CompressedXContent(mappingUpdate), false);
+        DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate), false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping(), randomBoolean()));

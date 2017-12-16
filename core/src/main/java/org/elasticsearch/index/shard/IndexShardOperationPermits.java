@@ -49,7 +49,6 @@ import java.util.function.Supplier;
 final class IndexShardOperationPermits implements Closeable {
 
     private final ShardId shardId;
-    private final Logger logger;
     private final ThreadPool threadPool;
 
     static final int TOTAL_PERMITS = Integer.MAX_VALUE;
@@ -62,12 +61,10 @@ final class IndexShardOperationPermits implements Closeable {
      * Construct operation permits for the specified shards.
      *
      * @param shardId    the shard
-     * @param logger     the logger for the shard
      * @param threadPool the thread pool (used to execute delayed operations)
      */
-    IndexShardOperationPermits(final ShardId shardId, final Logger logger, final ThreadPool threadPool) {
+    IndexShardOperationPermits(final ShardId shardId, final ThreadPool threadPool) {
         this.shardId = shardId;
-        this.logger = logger;
         this.threadPool = threadPool;
     }
 

@@ -55,8 +55,11 @@ configurations {
 }
 
 dependencies {
-  // CLI deps
-  compile project(path: ':core:cli', configuration: 'runtime')
+  /*
+   * There appears to be a bug in maven-publish for project dependencies that set an archivesBaseName so this needs to be a runtime artifact
+   * dependency.
+   */
+  runtime "org.elasticsearch:elasticsearch-cli:${version}"
 
   // security deps
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')

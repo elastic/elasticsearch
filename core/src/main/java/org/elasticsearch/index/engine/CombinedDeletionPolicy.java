@@ -39,16 +39,14 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
+final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
-    private final IndexCommit startingIndexCommit;
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
-                           LongSupplier globalCheckpointSupplier, IndexCommit startingIndexCommit) {
+                           LongSupplier globalCheckpointSupplier) {
         this.openMode = openMode;
-        this.startingIndexCommit = startingIndexCommit;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
     }
@@ -66,14 +64,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                if (startingIndexCommit == null) {
-                    onCommit(commits);
-                } else {
-                    assert commits.contains(startingIndexCommit) : "Existing commits must contain the starting commit; " +
-                        "startingCommit [" + startingIndexCommit + "], commits [" + commits + "]";
-                    commits.stream().filter(commit -> startingIndexCommit.equals(commit) == false).forEach(IndexCommit::delete);
-                    updateTranslogDeletionPolicy(startingIndexCommit, startingIndexCommit);
-                }
+                onCommit(commits);
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
@@ -110,7 +101,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @param globalCheckpoint       the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
      * @param minRetainedTranslogGen the minimum translog generation is retained, see {@link Translog#readMinReferencedTranslogGen(Path)}
      */
-    public static IndexCommit startingCommitPoint(List<IndexCommit> commits, long globalCheckpoint, long minRetainedTranslogGen)
+    static IndexCommit startingCommitPoint(List<IndexCommit> commits, long globalCheckpoint, long minRetainedTranslogGen)
         throws IOException {
         if (commits.isEmpty()) {
             throw new IllegalArgumentException("Commit list must not empty");

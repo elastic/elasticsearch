@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
@@ -54,8 +53,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testKeepCommitsAfterGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy,
-            globalCheckpoint::get, null);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
 
         final LongArrayList maxSeqNoList = new LongArrayList();
         final LongArrayList translogGenList = new LongArrayList();
@@ -94,8 +92,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final UUID translogUUID = UUID.randomUUID();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy,
-            globalCheckpoint::get, null);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
 
         long firstMaxSeqNo = randomLongBetween(0, Long.MAX_VALUE - 1);
         long secondMaxSeqNo = randomLongBetween(firstMaxSeqNo + 1, Long.MAX_VALUE);
@@ -123,8 +120,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final UUID translogUUID = UUID.randomUUID();
 
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy,
-            globalCheckpoint::get, null);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
 
         long legacyTranslogGen = randomNonNegativeLong();
         IndexCommit legacyCommit = mockLegacyIndexCommit(translogUUID, legacyTranslogGen);
@@ -156,8 +152,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_CREATE_TRANSLOG, translogPolicy,
-            globalCheckpoint::get, null);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_CREATE_TRANSLOG, translogPolicy, globalCheckpoint::get);
 
         final int invalidCommits = between(1, 10);
         final List<IndexCommit> commitList = new ArrayList<>();
@@ -177,37 +172,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         indexPolicy.onCommit(commitList);
         for (int i = 0; i < invalidCommits - 1; i++) {
             verify(commitList.get(i), times(1)).delete();
-        }
-    }
-
-    public void testOnInitWithStartingCommitPoint() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
-        final Directory directory = mock(Directory.class);
-        List<IndexCommit> commitList = new ArrayList<>();
-        int numCommits = between(1, 10);
-        long lastGen = between(0, 100);
-        for (long i = 0; i < numCommits; i++) {
-            IndexCommit commit = mockIndexCommit(randomNonNegativeLong(), UUID.randomUUID(), randomNonNegativeLong());
-            when(commit.getGeneration()).thenReturn(lastGen);
-            when(commit.getDirectory()).thenReturn(directory);
-            commitList.add(commit);
-            lastGen += between(1, 100);
-        }
-        final IndexCommit startingCommit = randomFrom(commitList);
-        long retainedTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy,
-            globalCheckpoint::get, startingCommit);
-        indexPolicy.onInit(commitList);
-
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(retainedTranslogGen));
-        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(retainedTranslogGen));
-        for (IndexCommit commit : commitList) {
-            if (commit == startingCommit) {
-                verify(commit, times(0)).delete();
-            } else {
-                verify(commit, times(1)).delete();
-            }
         }
     }
 

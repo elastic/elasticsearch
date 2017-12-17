@@ -20,7 +20,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -79,7 +78,6 @@ public final class EngineConfig {
     private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
-    private final IndexCommit startingCommitPoint;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -126,8 +124,7 @@ public final class EngineConfig {
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        IndexCommit startingCommitPoint) {
+                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -158,7 +155,6 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
-        this.startingCommitPoint = startingCommitPoint;
     }
 
     /**
@@ -383,12 +379,5 @@ public final class EngineConfig {
     @Nullable
     public CircuitBreakerService getCircuitBreakerService() {
         return this.circuitBreakerService;
-    }
-
-    /**
-     * Returns the starting commit point that an engine should open with.
-     */
-    public IndexCommit getStartingCommitPoint() {
-        return startingCommitPoint;
     }
 }

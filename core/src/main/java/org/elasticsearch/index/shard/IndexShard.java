@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -77,7 +76,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -142,7 +140,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -2169,11 +2166,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) throws IOException {
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         Sort indexSort = indexSortSupplier.get();
         final boolean forceNewHistoryUUID;
-        final RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        switch (recoveryType) {
+        switch (shardRouting.recoverySource().getType()) {
             case EXISTING_STORE:
             case PEER:
                 forceNewHistoryUUID = false;
@@ -2184,15 +2180,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 forceNewHistoryUUID = true;
                 break;
             default:
-                throw new AssertionError("unknown recovery type: [" + recoveryType + "]");
-        }
-        final IndexCommit startingCommit;
-        if (recoveryType == RecoverySource.Type.EXISTING_STORE) {
-            startingCommit = CombinedDeletionPolicy.startingCommitPoint(DirectoryReader.listCommits(store.directory()),
-                Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
-                Translog.readMinReferencedTranslogGen(translogConfig.getTranslogPath()));
-        } else {
-            startingCommit = null;
+                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
         }
         return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
@@ -2201,7 +2189,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, startingCommit);
+            indexSort, this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**

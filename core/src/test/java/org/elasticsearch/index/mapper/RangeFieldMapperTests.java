@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
@@ -48,7 +49,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     private static String FROM_DATE = "2016-10-31";

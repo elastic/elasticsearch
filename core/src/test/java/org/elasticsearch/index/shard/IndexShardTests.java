@@ -1085,9 +1085,8 @@ public class IndexShardTests extends IndexShardTestCase {
      */
     public void testSnapshotStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
-        shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), 0);
-        shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), shard.getLocalCheckpoint());
         indexDoc(shard, "test", "0");
+        shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), 0);
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
@@ -1604,9 +1603,9 @@ public class IndexShardTests extends IndexShardTestCase {
         int translogOps = totalOps;
         for (int i = 0; i < totalOps; i++) {
             indexDoc(shard, "test", Integer.toString(i));
-            shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), i);
         }
         if (randomBoolean()) {
+            shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), totalOps - 1);
             flushShard(shard);
             translogOps = 0;
         }

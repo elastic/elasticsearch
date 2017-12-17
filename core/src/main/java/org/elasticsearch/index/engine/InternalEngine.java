@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -139,6 +141,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
+    private final IndexCommit startingCommit;
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -179,6 +182,9 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
+                this.startingCommit = getStartingCommitPoint();
+                assert startingCommit == null || openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG :
+                    "OPEN_INDEX_AND_TRANSLOG must have starting commit; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 final SeqNoStats seqNoStats = loadSeqNoStats(openMode);
                 logger.trace("recovered [{}]", seqNoStats);
                 this.seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
@@ -369,9 +375,13 @@ public class InternalEngine extends Engine {
     private SeqNoStats loadSeqNoStats(EngineConfig.OpenMode openMode) throws IOException {
         switch (openMode) {
             case OPEN_INDEX_AND_TRANSLOG:
+                // When recovering from a previous commit point, we use the local checkpoint from that commit,
+                // but the max_seqno from the last commit. This allows use to throw away stale operations.
+                assert startingCommit != null : "Starting commit must be non-null if openMode is OPEN_INDEX_AND_TRANSLOG";
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
-                // FIXME: select the right checkpoint here.
-                return store.loadSeqNoStats(globalCheckpoint, null);
+                final long localCheckPoint = store.loadSeqNoStats(globalCheckpoint, startingCommit).getLocalCheckpoint();
+                final long maxSeqNo = store.loadSeqNoStats(globalCheckpoint, null).getMaxSeqNo();
+                return new SeqNoStats(maxSeqNo, localCheckPoint, globalCheckpoint);
             case OPEN_INDEX_CREATE_TRANSLOG:
                 return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO, null);
             case CREATE_INDEX_AND_TRANSLOG:
@@ -384,6 +394,17 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private IndexCommit getStartingCommitPoint() throws IOException {
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+            return CombinedDeletionPolicy.startingCommitPoint(existingCommits,
+                Translog.readGlobalCheckpoint(translogPath),
+                Translog.readMinReferencedTranslogGen(translogPath));
+        }
+        return null;
+    }
+
     @Override
     public InternalEngine recoverFromTranslog() throws IOException {
         flushLock.lock();
@@ -391,6 +412,9 @@ public class InternalEngine extends Engine {
             ensureOpen();
             if (openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
                 throw new IllegalStateException("Can't recover from translog with open mode: " + openMode);
+            }
+            if (startingCommit == null) {
+                throw new IllegalStateException("Can't recover from translog without starting commit ");
             }
             if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
@@ -415,7 +439,7 @@ public class InternalEngine extends Engine {
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final long translogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
@@ -1796,6 +1820,8 @@ public class InternalEngine extends Engine {
     private IndexWriter createWriter(boolean create) throws IOException {
         try {
             final IndexWriterConfig iwc = getIndexWriterConfig(create);
+            assert startingCommit == null || create == false : "Starting commit makes sense only when create=false";
+            iwc.setIndexCommit(startingCommit);
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);

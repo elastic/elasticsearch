@@ -88,7 +88,7 @@ the rating of the documents relevance with regards to this search request
 A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.  
 
 NOTE: To use the ranking evaluation API with indices that use multiple types, you should add a filter on the `_type` field to
-the query in the request. Otherwise, if your index uses multiple types with the same id, the privided 
+the query in the request. Otherwise, if your index uses multiple types with the same id, the provided
 document rating might be ambiguous.
 
 [float]

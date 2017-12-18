@@ -39,11 +39,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * This must be called under write lock in the engine
      */
     void adjustMapSizeUnderLock() {
-        if (maps.current.isEmpty() == false || maps.old.isEmpty() == false) {
-            assert false : "map must be empty"; // fail hard if not empty and fail with assertion in tests to ensure we never swallow it
-            throw new IllegalStateException("map must be empty");
-        }
-        maps = new Maps();
+        // we have to make a copy since we might have some empty deletes in here see https://github.com/elastic/elasticsearch/issues/27852
+        maps = maps.getSizeAdjustedCopy();
     }
 
     private static final class VersionLookup {
@@ -79,7 +76,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             return map.isEmpty();
         }
 
-
         int size() {
             return map.size();
         }
@@ -114,6 +110,13 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
         Maps() {
             this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+        }
+
+        Maps getSizeAdjustedCopy() {
+            Maps newMaps = new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()),
+                old, previousMapsNeededSafeAccess);
+            newMaps.current.map.putAll(current.map);
+            return newMaps;
         }
 
         boolean isSafeAccessMode() {

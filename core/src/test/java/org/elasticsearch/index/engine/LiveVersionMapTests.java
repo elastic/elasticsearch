@@ -106,13 +106,7 @@ public class LiveVersionMapTests extends ESTestCase {
             map.beforeRefresh();
         }
         assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
-        final String msg;
-        if (Assertions.ENABLED) {
-            msg = expectThrows(AssertionError.class, map::adjustMapSizeUnderLock).getMessage();
-        } else {
-            msg = expectThrows(IllegalStateException.class, map::adjustMapSizeUnderLock).getMessage();
-        }
-        assertEquals("map must be empty", msg);
+        map.adjustMapSizeUnderLock();
         assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
         if (withinRefresh == false) {
             map.beforeRefresh();

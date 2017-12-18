@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -339,8 +340,11 @@ public class VersionTests extends ESTestCase {
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_5_0_0));
         assertFalse(isCompatible(Version.fromString("6.0.0"), Version.fromString("7.0.0")));
         assertFalse(isCompatible(Version.fromString("6.0.0-alpha1"), Version.fromString("7.0.0")));
-        assertFalse("only compatible with the latest minor",
-            isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("7.0.0")));
+        final boolean buildSnapshot = Booleans.parseBoolean(System.getProperty("build.snapshot", "true"));
+        assertThat(
+                "[" + VersionUtils.getPreviousMinorVersion() + "] should" + (!buildSnapshot ? " not" : "") + " be compatible with 7.0.0",
+                isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("7.0.0")),
+                equalTo(!buildSnapshot));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("7.0.0")));
 

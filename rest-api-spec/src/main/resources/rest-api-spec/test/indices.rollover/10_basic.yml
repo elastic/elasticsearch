@@ -76,8 +76,8 @@
 ---
 "Rollover no condition matched":
   - skip:
-        version: " - 5.0.0"
-        reason:  bug fixed in 5.0.1
+        version: "all"
+        reason:  "AwaitsFix - Fails complaining of negative BytesSizeValue"
 
   # create index with alias
   - do:

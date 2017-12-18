@@ -198,8 +198,6 @@ public class InternalEngine extends Engine {
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
-                // we can only do this after we generated and committed a translog uuid. other wise the combined
-                // retention policy, which listens to commits, gets all confused.
                 if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
                     persistHistoryUUIDIfNeeded();
                 } else {

@@ -200,8 +200,11 @@ public class InternalEngine extends Engine {
                 indexWriter = writer;
                 // we can only do this after we generated and committed a translog uuid. other wise the combined
                 // retention policy, which listens to commits, gets all confused.
-                refreshTranslogUUIDIfNeeded(writer, translog);
-                persistHistoryUUIDIfNeeded();
+                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                    persistHistoryUUIDIfNeeded();
+                } else {
+                    commitNewTranslogAndHistoryUUIDs(writer, translog);
+                }
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -461,13 +464,15 @@ public class InternalEngine extends Engine {
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }
 
-    private void refreshTranslogUUIDIfNeeded(IndexWriter writer, Translog translog) throws IOException {
-        final String translogUUID = commitDataAsMap(writer).get(Translog.TRANSLOG_UUID_KEY);
-        if (translog.getTranslogUUID().equals(translogUUID) == false) {
-            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OPEN_INDEX_AND_TRANSLOG must not fresh translogUUID";
-            commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
-        }
+    private void commitNewTranslogAndHistoryUUIDs(IndexWriter writer, Translog translog) throws IOException {
+        final Map<String, String> commitUserData = commitDataAsMap(writer);
+        assert commitUserData.get(Translog.TRANSLOG_UUID_KEY).equals(translog.getTranslogUUID()) == false :
+            "committing a new translog uuid but it's already equal (uuid [" + translog.getTranslogUUID() + "])";
+        assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OPEN_INDEX_AND_TRANSLOG must not fresh translogUUID";
+        assert historyUUID.equals(commitUserData.get(HISTORY_UUID_KEY)) == false || config().getForceNewHistoryUUID() == false :
+            "a new history id was forced, but the one in the commit is equal";
+        commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+            ? commitUserData.get(SYNC_COMMIT_ID) : null);
     }
 
     /** If needed, updates the metadata in the index writer to match the potentially new translog and history uuid */

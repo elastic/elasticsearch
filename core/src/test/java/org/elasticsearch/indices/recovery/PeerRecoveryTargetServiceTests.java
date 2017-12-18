@@ -114,7 +114,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 generation,
                 resolve,
                 FileChannel::open,
-                TranslogConfig.DEFAULT_BUFFER_SIZE, () -> globalCheckpoint, generation, () -> generation)) {}
+                TranslogConfig.DEFAULT_BUFFER_SIZE, generation, globalCheckpoint, () -> globalCheckpoint, () -> generation)) {}
         return tempDir;
     }
 

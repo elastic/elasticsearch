@@ -119,8 +119,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-                                        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier,
-                                        final long initialMinTranslogGen, final LongSupplier minTranslogGenerationSupplier)
+                                        ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
+                                        final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier)
         throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int firstOperationOffset = getHeaderLength(ref.length);
@@ -132,10 +132,21 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeHeader(out, ref);
             channel.force(true);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(firstOperationOffset, fileGeneration,
-                globalCheckpointSupplier.getAsLong(), initialMinTranslogGen);
+                initialGlobalCheckpoint, initialMinTranslogGen);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
+            final LongSupplier writerGlobalCheckpointSupplier;
+            if (Assertions.ENABLED) {
+                writerGlobalCheckpointSupplier = () -> {
+                    long gcp = globalCheckpointSupplier.getAsLong();
+                    assert gcp >= initialGlobalCheckpoint :
+                        "global checkpoint [" + gcp + "] lower than initial gcp [" + initialGlobalCheckpoint + "]";
+                    return gcp;
+                };
+            } else {
+                writerGlobalCheckpointSupplier = globalCheckpointSupplier;
+            }
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
-                globalCheckpointSupplier, minTranslogGenerationSupplier);
+                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition

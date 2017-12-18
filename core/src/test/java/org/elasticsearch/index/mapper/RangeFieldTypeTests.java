@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;

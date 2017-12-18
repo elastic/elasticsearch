@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import java.util.List;
-
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-
-import static org.elasticsearch.search.aggregations.MatrixStatsAggregationBuilders.matrixStats;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
 
 public class MatrixStatsAgg extends LeafAgg {
 
@@ -18,10 +17,11 @@ public class MatrixStatsAgg extends LeafAgg {
     public MatrixStatsAgg(String id, String propertyPath, List<String> fields) {
         super(id, propertyPath, "<multi-field>");
         this.fields = fields;
+        throw new PlanningException("innerkey/matrix stats not handled (yet)", RestStatus.BAD_REQUEST);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return matrixStats(id()).fields(fields);
+        throw new UnsupportedOperationException();
     }
 }

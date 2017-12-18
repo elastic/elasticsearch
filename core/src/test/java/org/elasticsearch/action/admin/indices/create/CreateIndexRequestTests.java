@@ -115,7 +115,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(createIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
-        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest(createIndexRequest.index());
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         parsedCreateIndexRequest.source(originalBytes, xContentType);
 
         assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());

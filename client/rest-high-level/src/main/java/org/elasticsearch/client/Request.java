@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -162,6 +163,18 @@ public final class Request {
         parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+        String endpoint = endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type());
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(putMappingRequest.timeout());
+        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.withUpdateAllTypes(putMappingRequest.updateAllTypes());
+
+        HttpEntity entity = createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
@@ -430,6 +443,10 @@ public final class Request {
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+    static String endpoint(String[] indices, String endpoint, String type) {
+        return endpoint(String.join(",", indices), endpoint, type);
     }
 
     /**

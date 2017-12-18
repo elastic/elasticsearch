@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -53,7 +54,7 @@ public class SocketSelectorTests extends ESTestCase {
     private TestSelectionKey selectionKey;
     private WriteContext writeContext;
     private ActionListener<Void> listener;
-    private NetworkBytesReference bufferReference = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
+    private BytesReference bufferReference = new BytesArray(new byte[1]);
     private Selector rawSelector;
 
     @Before
@@ -294,8 +295,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
-        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
+        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), new BytesArray(new byte[1]), listener));
         socketSelector.scheduleForRegistration(unRegisteredChannel);
 
         TestSelectionKey testSelectionKey = new TestSelectionKey(0);
@@ -307,5 +307,24 @@ public class SocketSelectorTests extends ESTestCase {
         verify(listener).onFailure(any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channel);
         verify(eventHandler).handleClose(unRegisteredChannel);
+    }
+
+    public void testExecuteListenerWillHandleException() throws Exception {
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onResponse(null);
+
+        socketSelector.executeListener(listener, null);
+
+        verify(eventHandler).listenerException(listener, exception);
+    }
+
+    public void testExecuteFailedListenerWillHandleException() throws Exception {
+        IOException ioException = new IOException();
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onFailure(ioException);
+
+        socketSelector.executeFailedListener(listener, ioException);
+
+        verify(eventHandler).listenerException(listener, exception);
     }
 }

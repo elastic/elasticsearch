@@ -830,9 +830,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testDisabledFieldNamesField() throws Exception {
         assumeTrue("No types", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
-        context.getMapperService().merge("doc",
+        context.getMapperService().merge("_doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("doc",
+                PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);
@@ -843,9 +843,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertThat(query, equalTo(expected));
         } finally {
             // restore mappings as they were before
-            context.getMapperService().merge("doc",
+            context.getMapperService().merge("_doc",
                 new CompressedXContent(
-                    PutMappingRequest.buildFromSimplifiedDef("doc",
+                    PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
                         "_field_names", "enabled=true").string()),
                 MapperService.MergeReason.MAPPING_UPDATE, true);

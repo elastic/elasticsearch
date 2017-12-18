@@ -30,8 +30,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,8 +66,6 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermSuggestionBuilder.class));
 
     private static final String SUGGESTION_NAME = "term";
 
@@ -221,7 +217,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * Damerau-Levenshtein algorithm.
      * <li><code>levenshtein</code> - String distance algorithm based on
      * Levenshtein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -556,7 +552,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER {
+        JARO_WINKLER {
             @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
@@ -581,22 +577,18 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
-            final String distanceVal = str.toLowerCase(Locale.US);
+            final String distanceVal = str.toLowerCase(Locale.ROOT);
             switch (distanceVal) {
                 case "internal":
                     return INTERNAL;
                 case "damerau_levenshtein":
-                case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
-                case "levenstein":
-                    DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
-                    return LEVENSHTEIN;
                 case "levenshtein":
                     return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
-                case "jarowinkler":
-                    return JAROWINKLER;
+                case "jaro_winkler":
+                    return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

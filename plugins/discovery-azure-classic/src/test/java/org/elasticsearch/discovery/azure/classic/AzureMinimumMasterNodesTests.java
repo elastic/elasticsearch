@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.nullValue;
         transportClientRatio = 0.0,
         numClientNodes = 0,
         autoMinMasterNodes = false)
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27554")
 public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTestCase {
 
     public AzureMinimumMasterNodesTests() {

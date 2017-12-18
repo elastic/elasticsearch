@@ -368,9 +368,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeIndexGen(updatedRepositoryData, repositoryStateId);
 
             // delete the snapshot file
-            safeSnapshotBlobDelete(snapshot, snapshotId.getUUID());
+            deleteSnapshotBlobIgnoringErrors(snapshot, snapshotId.getUUID());
             // delete the global metadata file
-            safeGlobalMetaDataBlobDelete(snapshot, snapshotId.getUUID());
+            deleteGlobalMetaDataBlobIgnoringErrors(snapshot, snapshotId.getUUID());
 
             // Now delete all indices
             for (String index : indices) {
@@ -422,37 +422,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void safeSnapshotBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
-        if (snapshotInfo != null) {
-            // we know the version the snapshot was created with
-            try {
-                snapshotFormat.delete(snapshotsBlobContainer, blobId);
-            } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]", snapshotInfo.snapshotId(), blobId), e);
-            }
-        } else {
-            try {
-                snapshotFormat.delete(snapshotsBlobContainer, blobId);
-            } catch (IOException e) {
-                // snapshot file could not be deleted, log the error
+    private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
+        try {
+            snapshotFormat.delete(snapshotsBlobContainer, blobId);
+        } catch (IOException e) {
+            if (snapshotInfo != null) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]",
+                    snapshotInfo.snapshotId(), blobId), e);
+            } else {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Unable to delete snapshot file [{}]", blobId), e);
             }
         }
     }
 
-    private void safeGlobalMetaDataBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
-        if (snapshotInfo != null) {
-            // we know the version the snapshot was created with
-            try {
-                globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
-            } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]", snapshotInfo.snapshotId(), blobId), e);
-            }
-        } else {
-            try {
-                globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
-            } catch (IOException e) {
-                // global metadata file could not be deleted, log the error
+    private void deleteGlobalMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
+        try {
+            globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
+        } catch (IOException e) {
+            if (snapshotInfo != null) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]",
+                    snapshotInfo.snapshotId(), blobId), e);
+            } else {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Unable to delete global metadata file [{}]", blobId), e);
             }
         }
@@ -468,11 +458,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final String failure,
                                          final int totalShards,
                                          final List<SnapshotShardFailure> shardFailures,
-                                         final long repositoryStateId) {
-
+                                         final long repositoryStateId,
+                                         final boolean includeGlobalState) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
+            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
+            includeGlobalState);
         try {
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
@@ -511,9 +502,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // When we delete corrupted snapshots we might not know which version we are dealing with
             // We can try detecting the version based on the metadata file format
             assert ignoreIndexErrors;
-            if (globalMetaDataFormat.exists(snapshotsBlobContainer, snapshotId.getUUID())) {
-                snapshotVersion = Version.CURRENT;
-            } else {
+            if (globalMetaDataFormat.exists(snapshotsBlobContainer, snapshotId.getUUID()) == false) {
                 throw new SnapshotMissingException(metadata.name(), snapshotId);
             }
         }
@@ -616,7 +605,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
                 } catch (NotXContentException e) {
                     logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
@@ -628,7 +617,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {
@@ -1510,7 +1499,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                 }
-                final RecoveryState.Index index = recoveryState.getIndex();
+
                 if (filesToRecover.isEmpty()) {
                     logger.trace("no files to recover, all exists within the local store");
                 }

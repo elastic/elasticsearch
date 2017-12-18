@@ -24,53 +24,53 @@
 
 #### Primitive types
 
-class void -> void {
+class void only_fqn {
 }
 
-class boolean -> boolean {
+class boolean only_fqn {
 }
 
-class byte -> byte {
+class byte only_fqn {
 }
 
-class short -> short {
+class short only_fqn {
 }
 
-class char -> char {
+class char only_fqn {
 }
 
-class int -> int {
+class int only_fqn {
 }
 
-class long -> long {
+class long only_fqn {
 }
 
-class float -> float {
+class float only_fqn {
 }
 
-class double -> double {
+class double only_fqn {
 }
 
 #### Painless debugging API
 
-class Debug -> org.elasticsearch.painless.api.Debug {
+class org.elasticsearch.painless.api.Debug {
   void explain(Object)
 }
 
 #### ES Scripting API
 
-class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint {
+class org.elasticsearch.common.geo.GeoPoint {
   double getLat()
   double getLon()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.Strings -> org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
+class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
   String get(int)
   String getValue()
   List getValues()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
+class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   Long get(int)
   long getValue()
   List getValues()
@@ -78,7 +78,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsear
   List getDates()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.Dates -> org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
+class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   org.joda.time.ReadableDateTime get(int)
   org.joda.time.ReadableDateTime getValue()
   List getValues()
@@ -86,13 +86,13 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Dates -> org.elasticsear
   List getDates()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
+class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()
   List getValues()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
+class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
   org.elasticsearch.common.geo.GeoPoint get(int)
   org.elasticsearch.common.geo.GeoPoint getValue()
   List getValues()
@@ -110,19 +110,19 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elastic
   double geohashDistanceWithDefault(String,double)
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
+class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
   Boolean get(int)
   boolean getValue()
   List getValues()
 }
 
-class org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs -> org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
+class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
   BytesRef get(int)
   BytesRef getValue()
   List getValues()
 }
 
-class BytesRef -> org.apache.lucene.util.BytesRef {
+class org.apache.lucene.util.BytesRef {
   byte[] bytes
   int offset
   int length
@@ -130,7 +130,7 @@ class BytesRef -> org.apache.lucene.util.BytesRef {
   String utf8ToString()
 }
 
-class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues -> org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
+class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
   String get(int)
   String getValue()
   List getValues()
@@ -138,7 +138,7 @@ class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues
 
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
-class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest {
+class org.elasticsearch.painless.FeatureTest only_fqn {
   ()
   (int,int)
   int getX()
@@ -153,28 +153,28 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
 }
 
-class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup {
+class org.elasticsearch.search.lookup.FieldLookup {
   def getValue()
   List getValues()
   boolean isEmpty()
 }
 
-class org.elasticsearch.index.similarity.ScriptedSimilarity.Query -> org.elasticsearch.index.similarity.ScriptedSimilarity$Query {
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Query {
   float getBoost()
 }
 
-class org.elasticsearch.index.similarity.ScriptedSimilarity.Field -> org.elasticsearch.index.similarity.ScriptedSimilarity$Field {
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Field {
   long getDocCount()
   long getSumDocFreq()
   long getSumTotalTermFreq()
 }
 
-class org.elasticsearch.index.similarity.ScriptedSimilarity.Term -> org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
   long getDocFreq()
   long getTotalTermFreq()
 }
 
-class org.elasticsearch.index.similarity.ScriptedSimilarity.Doc -> org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
 }

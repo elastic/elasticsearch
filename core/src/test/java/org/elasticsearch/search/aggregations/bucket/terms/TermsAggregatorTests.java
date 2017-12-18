@@ -38,6 +38,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -72,15 +73,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
 
-    @Override
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
-            IndexSearcher indexSearcher, IndexSettings indexSettings, MappedFieldType... fieldTypes) throws IOException {
+            IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
         try {
             if (randomizeAggregatorImpl) {
                 TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
                 TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
             }
-            return super.createAggregator(aggregationBuilder, indexSearcher, indexSettings, fieldTypes);
+            return super.createAggregator(aggregationBuilder, indexSearcher, fieldTypes);
         } finally {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
@@ -913,7 +913,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 dir.close();
             }
             InternalAggregation.ReduceContext ctx =
-                new InternalAggregation.ReduceContext(new MockBigArrays(Settings.EMPTY,
+                new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
                     new NoneCircuitBreakerService()), null, true);
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);

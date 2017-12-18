@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -56,7 +57,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
@@ -113,7 +115,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
@@ -169,7 +172,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null, null) {
 

@@ -1025,6 +1025,53 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertEquals("expected to find term statistics in exactly one shard!", 2, sumDocFreq);
     }
 
+    public void testWithKeywordAndNormalizer() throws IOException, ExecutionException, InterruptedException {
+        // setup indices
+        String[] indexNames = new String[] {"with_tv", "without_tv"};
+        Settings.Builder builder = Settings.builder()
+            .put(indexSettings())
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
+            .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
+        assertAcked(prepareCreate(indexNames[0]).setSettings(builder.build())
+            .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
+                "field2", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
+        assertAcked(prepareCreate(indexNames[1]).setSettings(builder.build())
+            .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
+        ensureGreen();
+
+        // index documents with and without term vectors
+        String[] content = new String[] { "Hello World", "hello world", "HELLO WORLD" };
+
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+        for (String indexName : indexNames) {
+            for (int id = 0; id < content.length; id++) {
+                indexBuilders.add(client().prepareIndex()
+                    .setIndex(indexName)
+                    .setType("type1")
+                    .setId(String.valueOf(id))
+                    .setSource("field1", content[id], "field2", content[id]));
+            }
+        }
+        indexRandom(true, indexBuilders);
+
+        // request tvs and compare from each index
+        for (int id = 0; id < content.length; id++) {
+            Fields[] fields = new Fields[2];
+            for (int j = 0; j < indexNames.length; j++) {
+                TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
+                    .setOffsets(true)
+                    .setPositions(true)
+                    .setSelectedFields("field1", "field2")
+                    .get();
+                assertThat("doc with index: " + indexNames[j] + ", type1 and id: " + id, resp.isExists(), equalTo(true));
+                fields[j] = resp.getFields();
+            }
+            compareTermVectors("field1", fields[0], fields[1]);
+            compareTermVectors("field2", fields[0], fields[1]);
+        }
+    }
+
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {
         final TermsEnum termsEnum = terms.iterator();
         List<String> bestTerms = new ArrayList<>();

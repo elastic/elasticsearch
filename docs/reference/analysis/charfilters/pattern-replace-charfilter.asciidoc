@@ -125,7 +125,7 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "text": {
           "type": "text",
@@ -205,7 +205,7 @@ the length of the original text:
 
 [source,js]
 ----------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "The fooBarBaz method"
 }
@@ -246,7 +246,7 @@ The output from the above is:
     "hits": [
       {
         "_index": "my_index",
-        "_type": "my_type",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

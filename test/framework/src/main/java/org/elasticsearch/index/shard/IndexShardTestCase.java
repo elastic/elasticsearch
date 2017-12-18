@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -65,6 +66,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -290,9 +293,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
             };
             final Engine.Warmer warmer = searcher -> {
             };
+            ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
             indexShard = new IndexShard(routing, indexSettings, shardPath, store, () -> null, indexCache, mapperService, similarityService,
                 engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer);
+                BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer,
+                breakerService);
             success = true;
         } finally {
             if (success == false) {
@@ -303,7 +309,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param listeners new listerns to use for the newly created shard
      */
@@ -315,7 +321,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
      * @param listeners new listerns to use for the newly created shard

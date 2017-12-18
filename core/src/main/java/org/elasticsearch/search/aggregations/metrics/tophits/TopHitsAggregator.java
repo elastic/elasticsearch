@@ -117,8 +117,10 @@ public class TopHitsAggregator extends MetricsAggregator {
                     if (sort == null) {
                         topDocsCollector = TopScoreDocCollector.create(topN);
                     } else {
+                        // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
+                        // Note that this would require to catch CollectionTerminatedException
                         topDocsCollector = TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(),
-                            subSearchContext.trackScores());
+                            subSearchContext.trackScores(), true);
                     }
                     topDocsCollectors.put(bucket, topDocsCollector);
                 }

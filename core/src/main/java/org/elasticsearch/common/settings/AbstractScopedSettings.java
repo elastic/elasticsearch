@@ -264,17 +264,41 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Validates that all given settings are registered and valid
-     * @param settings the settings to validate
-     * @param validateDependencies if <code>true</code> settings dependencies are validated as well.
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings             the settings to validate
+     * @param validateDependencies true if dependent settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(Settings settings, boolean validateDependencies) {
-        List<RuntimeException> exceptions = new ArrayList<>();
-        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
+    public final void validate(final Settings settings, final boolean validateDependencies) {
+        validate(settings, validateDependencies, false, false);
+    }
+
+    /**
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings               the settings
+     * @param validateDependencies   true if dependent settings should be validated
+     * @param ignorePrivateSettings  true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings true if archived settings should be ignored during validation
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(
+            final Settings settings,
+            final boolean validateDependencies,
+            final boolean ignorePrivateSettings,
+            final boolean ignoreArchivedSettings) {
+        final List<RuntimeException> exceptions = new ArrayList<>();
+        for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
+            if (isPrivateSetting(key) && ignorePrivateSettings) {
+                continue;
+            }
+            if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) && ignoreArchivedSettings) {
+                continue;
+            }
             try {
                 validate(key, settings, validateDependencies);
-            } catch (RuntimeException ex) {
+            } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
         }
@@ -501,6 +525,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Returns <code>true</code> if the given key is a valid delete key
+     */
+    private boolean isValidDelete(String key, boolean onlyDynamic) {
+        return isFinalSetting(key) == false && // it's not a final setting
+            (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+                || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+    }
+
+    /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
      *
      * @param toApply the new settings to apply
@@ -519,21 +553,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final Predicate<String> canUpdate = (key) -> (
             isFinalSetting(key) == false && // it's not a final setting
                 ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
-        final Predicate<String> canRemove = (key) ->(// we can delete if
-            isFinalSetting(key) == false && // it's not a final setting
-                (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
-                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-                || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
         for (String key : toApply.keySet()) {
-            boolean isNull = toApply.get(key) == null;
-            if (isNull && (canRemove.test(key) || key.endsWith("*"))) {
+            boolean isDelete = toApply.hasValue(key) == false;
+            if (isDelete && (isValidDelete(key, onlyDynamic) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(key);
                 // we don't set changed here it's set after we apply deletes below if something actually changed
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
-            } else if (isNull == false && canUpdate.test(key)) {
+            } else if (isDelete == false && canUpdate.test(key)) {
                 validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
@@ -546,7 +575,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             }
         }
-        changed |= applyDeletes(toRemove, target, canRemove);
+        changed |= applyDeletes(toRemove, target, k -> isValidDelete(k, onlyDynamic));
         target.put(settingsBuilder.build());
         return changed;
     }

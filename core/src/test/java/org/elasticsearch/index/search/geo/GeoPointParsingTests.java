@@ -29,8 +29,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.util.function.DoubleSupplier;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.is;
 
 public class GeoPointParsingTests  extends ESTestCase {
@@ -57,32 +59,14 @@ public class GeoPointParsingTests  extends ESTestCase {
     }
 
     public void testEqualsHashCodeContract() {
-        // generate a random geopoint
-        final GeoPoint x = RandomGeoGenerator.randomPoint(random());
-        final GeoPoint y = new GeoPoint(x.lat(), x.lon());
-        final GeoPoint z = new GeoPoint(y.lat(), y.lon());
-        // GeoPoint doesn't care about coordinate system bounds, this simply validates inequality
-        final GeoPoint a = new GeoPoint(x.lat() + randomIntBetween(1, 5), x.lon() + randomIntBetween(1, 5));
-
-        /** equality test */
-        // reflexive
-        assertTrue(x.equals(x));
-        // symmetry
-        assertTrue(x.equals(y));
-        // transitivity
-        assertTrue(y.equals(z));
-        assertTrue(x.equals(z));
-        // inequality
-        assertFalse(x.equals(a));
-
-        /** hashCode test */
-        // symmetry
-        assertTrue(x.hashCode() == y.hashCode());
-        // transitivity
-        assertTrue(y.hashCode() == z.hashCode());
-        assertTrue(x.hashCode() == z.hashCode());
-        // inequality
-        assertFalse(x.hashCode() == a.hashCode());
+        // GeoPoint doesn't care about coordinate system bounds, this simply validates equality and hashCode.
+        final DoubleSupplier randomDelta = () -> randomValueOtherThan(0.0, () -> randomDoubleBetween(-1000000, 1000000, true));
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon()));
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat(), pt.lon() + randomDelta.getAsDouble()));
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon() + randomDelta.getAsDouble()));
     }
 
     public void testGeoPointParsing() throws IOException {

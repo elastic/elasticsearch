@@ -49,7 +49,7 @@ public class XPackLicenseState {
             "Machine learning APIs are disabled"
         });
         messages.put(XPackPlugin.LOGSTASH, new String[] {
-            "Logstash specific APIs are disabled. You can continue to manage and poll stored configurations"
+            "Logstash will continue to poll centrally-managed pipelines"
         });
         messages.put(XPackPlugin.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
@@ -205,8 +205,7 @@ public class XPackLicenseState {
                     case STANDARD:
                     case GOLD:
                     case PLATINUM:
-                        return new String[] { "Logstash specific APIs will be disabled, but you can continue to manage " +
-                            "and poll stored configurations" };
+                        return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
                 }
                 break;
         }

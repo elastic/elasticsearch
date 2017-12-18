@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-job]]
-=== Get Jobs
+=== Get Jobs API
+++++
+<titleabbrev>Get Jobs</titleabbrev>
+++++
 
 The get jobs API enables you to retrieve configuration information for jobs.
 

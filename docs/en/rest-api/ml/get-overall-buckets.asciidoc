@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-overall-buckets]]
-=== Get Overall Buckets
+=== Get Overall Buckets API
+++++
+<titleabbrev>Get Overall Buckets</titleabbrev>
+++++
 
 This API enables you to retrieve overall bucket results
 that summarize the bucket results of multiple jobs.

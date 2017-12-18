@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-category]]
-=== Get Categories
+=== Get Categories API
+++++
+<titleabbrev>Get Categories</titleabbrev>
+++++
 
 The get categories API enables you to retrieve job results for one or more
 categories.

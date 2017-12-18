@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-post-data]]
-=== Post Data to Jobs
+=== Post Data to Jobs API
+++++
+<titleabbrev>Post Data to Jobs</titleabbrev>
+++++
 
 The post data API enables you to send data to an anomaly detection job for analysis.
 

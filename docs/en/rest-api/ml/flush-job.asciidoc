@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-flush-job]]
-=== Flush Jobs
+=== Flush Jobs API
+++++
+<titleabbrev>Flush Jobs</titleabbrev>
+++++
 
 The flush job API forces any buffered data to be processed by the job.
 

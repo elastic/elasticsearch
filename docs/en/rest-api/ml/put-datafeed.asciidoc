@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-put-datafeed]]
-=== Create {dfeeds-cap}
+=== Create {dfeeds-cap} API
+++++
+<titleabbrev>Create {dfeeds-cap}</titleabbrev>
+++++
 
 The create {dfeed} API enables you to instantiate a {dfeed}.
 
@@ -83,6 +86,13 @@ You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 //<<privileges-list-cluster>>.
+
+
+==== Security Integration
+
+When {security} is enabled, your {dfeed} will remember which roles the user who
+created it had at the time of creation, and run the query using those same roles.
+
 
 ==== Examples
 

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-update-datafeed]]
-=== Update {dfeeds-cap}
+=== Update {dfeeds-cap} API
+++++
+<titleabbrev>Update {dfeeds-cap}</titleabbrev>
+++++
 
 The update {dfeed} API enables you to update certain properties of a {dfeed}.
 
@@ -78,6 +81,13 @@ You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 //<<privileges-list-cluster>>.
+
+
+==== Security Integration
+
+When {security} is enabled, your {dfeed} will remember which roles the user who
+updated it had at the time of update, and run the query using those same roles.
+
 
 ==== Examples
 

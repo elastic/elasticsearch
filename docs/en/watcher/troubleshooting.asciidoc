@@ -1,5 +1,8 @@
 [[watcher-troubleshooting]]
-== {watcher} Troubleshooting
+== {xpack} {watcher} Troubleshooting
+++++
+<titleabbrev>{xpack} {watcher}</titleabbrev>
+++++
 
 [float]
 === Dynamic Mapping Error When Trying to Add a Watch

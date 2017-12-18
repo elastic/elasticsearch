@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-open-job]]
-=== Open Jobs
+=== Open Jobs API
+++++
+<titleabbrev>Open Jobs</titleabbrev>
+++++
 
 A job must be opened in order for it to be ready to receive and analyze data.
 A job can be opened and closed multiple times throughout its lifecycle.

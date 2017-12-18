@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-start-datafeed]]
-=== Start {dfeeds-cap}
+=== Start {dfeeds-cap} API
+++++
+<titleabbrev>Start {dfeeds-cap}</titleabbrev>
+++++
 
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
@@ -76,6 +79,13 @@ You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 //<<privileges-list-cluster>>.
+
+
+==== Security Integration
+
+When {security} is enabled, your {dfeed} will remember which roles the last
+user to create or update it had at the time of creation/update, and run the query
+using those same roles.
 
 
 ==== Examples

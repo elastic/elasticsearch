@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-delete-datafeed]]
-=== Delete {dfeeds-cap}
+=== Delete {dfeeds-cap} API
+++++
+<titleabbrev>Delete {dfeeds-cap}</titleabbrev>
+++++
 
 The delete {dfeed} API enables you to delete an existing {dfeed}.
 

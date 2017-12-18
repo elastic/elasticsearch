@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-datafeed]]
-=== Get {dfeeds-cap}
+=== Get {dfeeds-cap} API
+++++
+<titleabbrev>Get {dfeeds-cap}</titleabbrev>
+++++
 
 The get {dfeeds} API enables you to retrieve configuration information for
 {dfeeds}.

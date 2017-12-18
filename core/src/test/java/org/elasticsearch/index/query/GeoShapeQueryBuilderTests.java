@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -256,6 +257,15 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_shape field [unmapped]"));
+    }
+
+    public void testWrongFieldType() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        ShapeType shapeType = ShapeType.randomType(random());
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        final GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

@@ -29,12 +29,15 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -119,7 +123,7 @@ public final class Request {
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -133,6 +137,32 @@ public final class Request {
         parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards(), ActiveShardCount.NONE);
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(createIndexRequest.timeout());
+        parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
+        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
+
+        HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     static Request info() {
@@ -296,7 +326,7 @@ public final class Request {
         parameters.withVersionType(indexRequest.versionType());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(indexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -317,7 +347,7 @@ public final class Request {
         parameters.withParent(updateRequest.parent());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         parameters.withDocAsUpsert(updateRequest.docAsUpsert());
         parameters.withFetchSourceContext(updateRequest.fetchSource());
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
@@ -379,6 +409,18 @@ public final class Request {
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
+        return new Request("GET", "/_msearch", params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -520,6 +562,13 @@ public final class Request {
             return putParam("timeout", timeout);
         }
 
+        Params withUpdateAllTypes(boolean updateAllTypes) {
+            if (updateAllTypes) {
+                return putParam("update_all_types", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
         Params withVersion(long version) {
             if (version != Versions.MATCH_ANY) {
                 return putParam("version", Long.toString(version));
@@ -534,9 +583,9 @@ public final class Request {
             return this;
         }
 
-        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
-            if (activeShardCount != null && activeShardCount != ActiveShardCount.DEFAULT) {
-                return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
+        Params withWaitForActiveShards(ActiveShardCount currentActiveShardCount, ActiveShardCount defaultActiveShardCount) {
+            if (currentActiveShardCount != null && currentActiveShardCount != defaultActiveShardCount) {
+                return putParam("wait_for_active_shards", currentActiveShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
         }

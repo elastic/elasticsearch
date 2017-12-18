@@ -64,7 +64,7 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
   If provided, it will be ignored and issue a deprecation warning.
   The `query_string` query now splits on operator only.
 
-* The `use_dismax` parameter for the `query_string` query has been removed.
+* The `use_dis_max` parameter for the `query_string` query has been removed.
   If provided, it will be ignored and issue a deprecation warning.
   The `tie_breaker` parameter must be used instead.
 
@@ -72,7 +72,7 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
   use an explicit quoted query instead.
   If provided, it will be ignored and issue a deprecation warning.
 
-* The `all_fields` parameter for the `query_string` has been removed.
+* The `all_fields` parameter for the `query_string` and `simple_query_string` has been removed.
   Set `default_field` to *` instead.
   If provided, `default_field` will be automatically set to `*`
 

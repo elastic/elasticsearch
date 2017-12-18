@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -38,6 +40,8 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -281,7 +285,7 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
-    public void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
+    public final void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
     }
 
@@ -375,6 +379,28 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Executes a multi search using the msearch API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     */
+    public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(multiSearchRequest, Request::multiSearch, MultiSearchResponse::fromXContext,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a multi search using the msearch API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     */
+    public final void multiSearchAsync(MultiSearchRequest searchRequest, ActionListener<MultiSearchResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(searchRequest, Request::multiSearch, MultiSearchResponse::fromXContext, listener,
+                emptySet(), headers);
     }
 
     /**

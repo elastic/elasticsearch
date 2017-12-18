@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
+import static org.elasticsearch.mock.orig.Mockito.never;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
@@ -86,8 +87,24 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
+        final Translog.Durability durability = randomFrom(Translog.Durability.ASYNC, Translog.Durability.REQUEST);
+        when(indexShard.getTranslogDurability()).thenReturn(durability);
+
         final Translog translog = mock(Translog.class);
         when(indexShard.getTranslog()).thenReturn(translog);
+
+        final long globalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
+        final long lastSyncedGlobalCheckpoint;
+        if (randomBoolean() && globalCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
+            lastSyncedGlobalCheckpoint =
+                    randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(globalCheckpoint) - 1);
+            assert lastSyncedGlobalCheckpoint < globalCheckpoint;
+        } else {
+            lastSyncedGlobalCheckpoint = globalCheckpoint;
+        }
+
+        when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
+        when(translog.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
             Settings.EMPTY,
@@ -105,7 +122,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
         }
 
-        verify(translog).sync();
+        if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {
+            verify(translog, never()).sync();
+        } else {
+            verify(translog).sync();
+        }
     }
 
 }

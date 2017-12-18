@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
@@ -87,7 +88,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
@@ -107,6 +107,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INIT
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
@@ -190,6 +191,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     protected final ByteSizeValue tcpSendBufferSize;
     protected final ByteSizeValue tcpReceiveBufferSize;
     protected final RecvByteBufAllocator recvByteBufAllocator;
+    private final int readTimeoutMillis;
 
     protected final int maxCompositeBufferComponents;
     private final Dispatcher dispatcher;
@@ -238,6 +240,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
         this.tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
         this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
+        this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         ByteSizeValue receivePredictorMin = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -508,7 +511,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         if (cause instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
-                logger.trace("Connection timeout [{}]", ctx.channel().remoteAddress());
+                logger.trace("Read timeout [{}]", ctx.channel().remoteAddress());
             }
             ctx.channel().close();
         } else {
@@ -552,6 +555,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         @Override
         protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
+            ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 Math.toIntExact(transport.maxInitialLineLength.getBytes()),
                 Math.toIntExact(transport.maxHeaderSize.getBytes()),

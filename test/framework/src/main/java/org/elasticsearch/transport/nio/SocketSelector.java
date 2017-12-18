@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -79,7 +80,7 @@ public class SocketSelector extends ESSelector {
     void cleanup() {
         WriteOperation op;
         while ((op = queuedWrites.poll()) != null) {
-            op.getListener().onFailure(new ClosedSelectorException());
+            executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
         channelsToClose.addAll(newChannels);
     }
@@ -107,7 +108,7 @@ public class SocketSelector extends ESSelector {
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
             if (wasRemoved) {
-                writeOperation.getListener().onFailure(new ClosedSelectorException());
+                executeFailedListener(writeOperation.getListener(), new ClosedSelectorException());
             }
         } else {
             wakeup();
@@ -128,7 +129,39 @@ public class SocketSelector extends ESSelector {
             SelectionKeyUtils.setWriteInterested(channel);
             context.queueWriteOperations(writeOperation);
         } catch (Exception e) {
-            writeOperation.getListener().onFailure(e);
+            executeFailedListener(writeOperation.getListener(), e);
+        }
+    }
+
+    /**
+     * Executes a success listener with consistent exception handling. This can only be called from current
+     * selector thread.
+     *
+     * @param listener to be executed
+     * @param value to provide to listener
+     */
+    public <V> void executeListener(ActionListener<V> listener, V value) {
+        assert isOnCurrentThread() : "Must be on selector thread";
+        try {
+            listener.onResponse(value);
+        } catch (Exception e) {
+            eventHandler.listenerException(listener, e);
+        }
+    }
+
+    /**
+     * Executes a failed listener with consistent exception handling. This can only be called from current
+     * selector thread.
+     *
+     * @param listener to be executed
+     * @param exception to provide to listener
+     */
+    public <V> void executeFailedListener(ActionListener<V> listener, Exception exception) {
+        assert isOnCurrentThread() : "Must be on selector thread";
+        try {
+            listener.onFailure(exception);
+        } catch (Exception e) {
+            eventHandler.listenerException(listener, e);
         }
     }
 
@@ -154,7 +187,7 @@ public class SocketSelector extends ESSelector {
             if (writeOperation.getChannel().isWritable()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
-                writeOperation.getListener().onFailure(new ClosedChannelException());
+                executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
             }
         }
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +39,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry,
                                                           NetworkService networkService) {
@@ -49,6 +51,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
             settings1 = settings;
         }
         return Collections.singletonMap(NIO_TRANSPORT_NAME,
-            () -> new NioTransport(settings1, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService));
+            () -> new NioTransport(settings1, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
+                circuitBreakerService));
     }
 }

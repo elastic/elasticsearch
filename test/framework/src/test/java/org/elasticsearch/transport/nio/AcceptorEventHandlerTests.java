@@ -57,7 +57,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         acceptedChannelCallback = mock(Consumer.class);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, new RoundRobinSelectorSupplier(selectors));
+        handler = new AcceptorEventHandler(logger, new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()])));
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
         channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);

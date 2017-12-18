@@ -325,6 +325,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
+        consumeBucketsAndMaybeBreak(ranges.length);
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; ++i) {
             long bucketOrd = bucket * ranges.length + i;

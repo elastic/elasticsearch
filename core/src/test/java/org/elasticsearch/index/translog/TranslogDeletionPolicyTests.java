@@ -53,6 +53,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             assertMinGenRequired(deletionPolicy, readersAndWriter, 1L);
             final int committedReader = randomIntBetween(0, allGens.size() - 1);
             final long committedGen = allGens.get(committedReader).generation;
+            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGen, Long.MAX_VALUE));
             deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
             assertMinGenRequired(deletionPolicy, readersAndWriter, committedGen);
         } finally {
@@ -109,6 +110,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         allGens.add(readersAndWriter.v2());
         try {
             TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, Long.MAX_VALUE, Long.MAX_VALUE);
+            deletionPolicy.setTranslogGenerationOfLastCommit(Long.MAX_VALUE);
             deletionPolicy.setMinTranslogGenerationForRecovery(Long.MAX_VALUE);
             int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationByAge = allGens.get(selectedReader).generation;
@@ -122,6 +124,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             // make a new policy as committed gen can't go backwards (for now)
             deletionPolicy = new MockDeletionPolicy(now, size, maxAge);
             long committedGen = randomFrom(allGens).generation;
+            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGen, Long.MAX_VALUE));
             deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
             assertMinGenRequired(deletionPolicy, readersAndWriter,
                 Math.min(committedGen, Math.max(selectedGenerationByAge, selectedGenerationBySize)));

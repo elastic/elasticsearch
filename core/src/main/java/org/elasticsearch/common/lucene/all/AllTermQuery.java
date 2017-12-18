@@ -122,6 +122,11 @@ public final class AllTermQuery extends Query {
             }
 
             @Override
+            public boolean isCacheable(LeafReaderContext context) {
+                return true;
+            }
+
+            @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 AllTermScorer scorer = scorer(context);
                 if (scorer != null) {
@@ -213,8 +218,7 @@ public final class AllTermQuery extends Query {
             return payloadBoost() * docScorer.score(postings.docID(), postings.freq());
         }
 
-        @Override
-        public int freq() throws IOException {
+        int freq() throws IOException {
             return postings.freq();
         }
 

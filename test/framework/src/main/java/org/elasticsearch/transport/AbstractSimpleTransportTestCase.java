@@ -109,6 +109,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
+    protected int channelsPerNodeConnection() {
+        return 13;
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -2343,6 +2347,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } finally {
             serviceC.close();
         }
+    }
+
+    public void testAcceptedChannelCount() throws Exception {
+        assertBusy(() -> {
+            TransportStats transportStats = serviceA.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+
+        serviceA.close();
+
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(0, transportStats.getServerOpen());
+        });
     }
 
     public void testTransportStatsWithException() throws Exception {

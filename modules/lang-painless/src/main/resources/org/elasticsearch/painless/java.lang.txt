@@ -24,14 +24,14 @@
 
 #### Interfaces
 
-class Appendable -> java.lang.Appendable {
+class java.lang.Appendable {
   # append(char/CharSequence): skipped. left to subclasses (e.g. StringBuilder).
   Appendable append(CharSequence,int,int)
 }
 
 # AutoCloseable: i/o
 
-class CharSequence -> java.lang.CharSequence {
+class java.lang.CharSequence {
   char charAt(int)
   IntStream chars()
   IntStream codePoints()
@@ -44,11 +44,11 @@ class CharSequence -> java.lang.CharSequence {
 
 # Cloneable: add clone() to subclasses directly.
 
-class Comparable -> java.lang.Comparable {
+class java.lang.Comparable {
   int compareTo(def)
 }
 
-class Iterable -> java.lang.Iterable {
+class java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
   Spliterator spliterator()
@@ -72,7 +72,7 @@ class Iterable -> java.lang.Iterable {
 
 #### Classes
 
-class Boolean -> java.lang.Boolean {
+class java.lang.Boolean {
   Boolean TRUE
   Boolean FALSE
   boolean booleanValue()
@@ -87,7 +87,7 @@ class Boolean -> java.lang.Boolean {
   Boolean valueOf(boolean)
 }
 
-class Byte -> java.lang.Byte {
+class java.lang.Byte {
   int BYTES
   byte MAX_VALUE
   byte MIN_VALUE
@@ -105,7 +105,7 @@ class Byte -> java.lang.Byte {
   Byte valueOf(String,int)
 }
 
-class Character -> java.lang.Character {
+class java.lang.Character {
   int BYTES
   byte COMBINING_SPACING_MARK
   byte CONNECTOR_PUNCTUATION
@@ -226,10 +226,10 @@ class Character -> java.lang.Character {
   Character valueOf(char)
 }
 
-class Character.Subset -> java.lang.Character$Subset {
+class java.lang.Character$Subset {
 }
 
-class Character.UnicodeBlock -> java.lang.Character$UnicodeBlock {
+class java.lang.Character$UnicodeBlock {
   Character.UnicodeBlock AEGEAN_NUMBERS
   Character.UnicodeBlock ALCHEMICAL_SYMBOLS
   Character.UnicodeBlock ALPHABETIC_PRESENTATION_FORMS
@@ -459,7 +459,7 @@ class Character.UnicodeBlock -> java.lang.Character$UnicodeBlock {
 # ClassValue: ...
 # Compiler: ...
 
-class Double -> java.lang.Double {
+class java.lang.Double {
   int BYTES
   int MAX_EXPONENT
   double MAX_VALUE
@@ -490,13 +490,13 @@ class Double -> java.lang.Double {
   Double valueOf(double)
 }
 
-class Enum -> java.lang.Enum {
+class java.lang.Enum {
   int compareTo(Enum)
   String name()
   int ordinal()
 }
 
-class Float -> java.lang.Float {
+class java.lang.Float {
   int BYTES
   int MAX_EXPONENT
   float MAX_VALUE
@@ -529,7 +529,7 @@ class Float -> java.lang.Float {
 
 # InheritableThreadLocal: threads
 
-class Integer -> java.lang.Integer {
+class java.lang.Integer {
   int BYTES
   int MAX_VALUE
   int MIN_VALUE
@@ -569,7 +569,7 @@ class Integer -> java.lang.Integer {
   Integer valueOf(String,int)
 }
 
-class Long -> java.lang.Long {
+class java.lang.Long {
   int BYTES
   long MAX_VALUE
   long MIN_VALUE
@@ -609,7 +609,7 @@ class Long -> java.lang.Long {
   Long valueOf(String,int)
 }
 
-class Math -> java.lang.Math {
+class java.lang.Math {
   double E
   double PI
   double abs(double)
@@ -651,7 +651,7 @@ class Math -> java.lang.Math {
   double ulp(double)
 }
 
-class Number -> java.lang.Number {
+class java.lang.Number {
   byte byteValue()
   short shortValue()
   int intValue()
@@ -660,7 +660,7 @@ class Number -> java.lang.Number {
   double doubleValue()
 }
 
-class Object -> java.lang.Object {
+class java.lang.Object {
   boolean equals(Object)
   int hashCode()
   String toString()
@@ -674,7 +674,7 @@ class Object -> java.lang.Object {
 # RuntimePermission: skipped
 # SecurityManger: skipped
 
-class Short -> java.lang.Short {
+class java.lang.Short {
   int BYTES
   short MAX_VALUE
   short MIN_VALUE
@@ -693,7 +693,7 @@ class Short -> java.lang.Short {
   Short valueOf(String,int)
 }
 
-class StackTraceElement -> java.lang.StackTraceElement {
+class java.lang.StackTraceElement {
   (String,String,String,int)
   String getClassName()
   String getFileName()
@@ -702,7 +702,7 @@ class StackTraceElement -> java.lang.StackTraceElement {
   boolean isNativeMethod()
 }
 
-class StrictMath -> java.lang.StrictMath {
+class java.lang.StrictMath {
   double E
   double PI
   double abs(double)
@@ -744,7 +744,7 @@ class StrictMath -> java.lang.StrictMath {
   double ulp(double)
 }
 
-class String -> java.lang.String {
+class java.lang.String {
   ()
   int codePointAt(int)
   int codePointBefore(int)
@@ -786,7 +786,7 @@ class String -> java.lang.String {
   String valueOf(def)
 }
 
-class StringBuffer -> java.lang.StringBuffer {
+class java.lang.StringBuffer {
   ()
   (CharSequence)
   StringBuffer append(def)
@@ -813,7 +813,7 @@ class StringBuffer -> java.lang.StringBuffer {
   String substring(int,int)
 }
 
-class StringBuilder -> java.lang.StringBuilder {
+class java.lang.StringBuilder {
   ()
   (CharSequence)
   StringBuilder append(def)
@@ -840,7 +840,7 @@ class StringBuilder -> java.lang.StringBuilder {
   String substring(int,int)
 }
 
-class System -> java.lang.System {
+class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
   long currentTimeMillis()
   long nanoTime()
@@ -851,12 +851,12 @@ class System -> java.lang.System {
 # ThreadLocal: skipped
 # Throwable: skipped (reserved for painless, users can only catch Exceptions)
 
-class Void -> java.lang.Void {
+class java.lang.Void {
 }
 
 #### Enums
 
-class Character.UnicodeScript -> java.lang.Character$UnicodeScript {
+class java.lang.Character$UnicodeScript {
   Character.UnicodeScript ARABIC
   Character.UnicodeScript ARMENIAN
   Character.UnicodeScript AVESTAN
@@ -968,41 +968,41 @@ class Character.UnicodeScript -> java.lang.Character$UnicodeScript {
 
 #### Exceptions
 
-class ArithmeticException -> java.lang.ArithmeticException {
+class java.lang.ArithmeticException {
   ()
   (String)
 }
 
-class ArrayIndexOutOfBoundsException -> java.lang.ArrayIndexOutOfBoundsException {
+class java.lang.ArrayIndexOutOfBoundsException {
   ()
   (String)
 }
 
-class ArrayStoreException -> java.lang.ArrayStoreException {
+class java.lang.ArrayStoreException {
   ()
   (String)
 }
 
-class ClassCastException -> java.lang.ClassCastException {
+class java.lang.ClassCastException {
   ()
   (String)
 }
 
-class ClassNotFoundException -> java.lang.ClassNotFoundException {
+class java.lang.ClassNotFoundException {
   ()
   (String)
 }
 
-class CloneNotSupportedException -> java.lang.CloneNotSupportedException {
+class java.lang.CloneNotSupportedException {
   ()
   (String)
 }
 
-class EnumConstantNotPresentException -> java.lang.EnumConstantNotPresentException {
+class java.lang.EnumConstantNotPresentException {
   String constantName()
 }
 
-class Exception -> java.lang.Exception {
+class java.lang.Exception {
   ()
   (String)
   String getLocalizedMessage()
@@ -1010,96 +1010,96 @@ class Exception -> java.lang.Exception {
   StackTraceElement[] getStackTrace()
 }
 
-class IllegalAccessException -> java.lang.IllegalAccessException {
+class java.lang.IllegalAccessException {
   ()
   (String)
 }
 
-class IllegalArgumentException -> java.lang.IllegalArgumentException {
+class java.lang.IllegalArgumentException {
   ()
   (String)
 }
 
-class IllegalMonitorStateException -> java.lang.IllegalMonitorStateException {
+class java.lang.IllegalMonitorStateException {
   ()
   (String)
 }
 
-class IllegalStateException -> java.lang.IllegalStateException {
+class java.lang.IllegalStateException {
   ()
   (String)
 }
 
-class IllegalThreadStateException -> java.lang.IllegalThreadStateException {
+class java.lang.IllegalThreadStateException {
   ()
   (String)
 }
 
-class IndexOutOfBoundsException -> java.lang.IndexOutOfBoundsException {
+class java.lang.IndexOutOfBoundsException {
   ()
   (String)
 }
 
-class InstantiationException -> java.lang.InstantiationException {
+class java.lang.InstantiationException {
   ()
   (String)
 }
 
-class InterruptedException -> java.lang.InterruptedException {
+class java.lang.InterruptedException {
   ()
   (String)
 }
 
-class NegativeArraySizeException -> java.lang.NegativeArraySizeException {
+class java.lang.NegativeArraySizeException {
   ()
   (String)
 }
 
-class NoSuchFieldException -> java.lang.NoSuchFieldException {
+class java.lang.NoSuchFieldException {
   ()
   (String)
 }
 
-class NoSuchMethodException -> java.lang.NoSuchMethodException {
+class java.lang.NoSuchMethodException {
   ()
   (String)
 }
 
-class NullPointerException -> java.lang.NullPointerException {
+class java.lang.NullPointerException {
   ()
   (String)
 }
 
-class NumberFormatException -> java.lang.NumberFormatException {
+class java.lang.NumberFormatException {
   ()
   (String)
 }
 
-class ReflectiveOperationException -> java.lang.ReflectiveOperationException {
+class java.lang.ReflectiveOperationException {
   ()
   (String)
 }
 
-class RuntimeException -> java.lang.RuntimeException {
+class java.lang.RuntimeException {
   ()
   (String)
 }
 
-class SecurityException -> java.lang.SecurityException {
+class java.lang.SecurityException {
   ()
   (String)
 }
 
-class StringIndexOutOfBoundsException -> java.lang.StringIndexOutOfBoundsException {
+class java.lang.StringIndexOutOfBoundsException {
   ()
   (String)
 }
 
-class TypeNotPresentException -> java.lang.TypeNotPresentException {
+class java.lang.TypeNotPresentException {
   String typeName()
 }
 
-class UnsupportedOperationException -> java.lang.UnsupportedOperationException {
+class java.lang.UnsupportedOperationException {
   ()
   (String)
 }

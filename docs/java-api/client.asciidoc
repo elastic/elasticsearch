@@ -8,7 +8,7 @@ You can use the *Java client* in multiple ways:
   existing cluster
 * Perform administrative tasks on a running cluster
 
-Obtaining an elasticsearch `Client` is simple. The most common way to
+Obtaining an Elasticsearch `Client` is simple. The most common way to
 get a client is by creating a <<transport-client,`TransportClient`>>
 that connects to a cluster.
 
@@ -23,10 +23,28 @@ cluster.
 
 ==============================
 
-WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
-Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of Elasticsearch and it
-is advised to use the Java High Level REST Client instead.
+[WARNING]
+===================================
+
+We plan on deprecating the `TransportClient` in Elasticsearch 7.0 and removing
+it completely in 8.0. Instead, you should be using the
+{java-rest}/java-rest-high.html[Java High Level REST Client], which executes
+HTTP requests rather than serialized Java requests. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes
+all the steps needed to migrate.
+
+The Java High Level REST Client currently has support for the more commonly
+used APIs, but there are a lot more that still need to be added.  You can help
+us prioritise by telling us which missing APIs you need for your application
+by adding a comment to this issue:
+https://github.com/elastic/elasticsearch/issues/27205[Java high-level REST
+client completeness].
+
+Any missing APIs can always be implemented today by using the
+link:/guide/en/elasticsearch/client/java-rest/current/java-rest-low.html[low
+level Java REST Client] with JSON request and response bodies.
+
+===================================
 
 [[transport-client]]
 === Transport Client
@@ -69,7 +87,7 @@ After this, the client will call the internal cluster state API on those nodes
 to discover available data nodes. The internal node list of the client will
 be replaced with those data nodes only. This list is refreshed every five seconds by default.
 Note that the IP addresses the sniffer connects to are the ones declared as the 'publish'
-address in those node's elasticsearch config.
+address in those node's Elasticsearch config.
 
 Keep in mind that the list might possibly not include the original node it connected to
 if that node is not a data node. If, for instance, you initially connect to a

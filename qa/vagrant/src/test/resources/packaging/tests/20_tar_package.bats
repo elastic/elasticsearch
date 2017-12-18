@@ -133,6 +133,12 @@ setup() {
     export ES_JAVA_OPTS=$es_java_opts
 }
 
+@test "[TAR] GC logs exist" {
+    start_elasticsearch_service
+    assert_file_exist $ESHOME/logs/gc.log.0.current
+    stop_elasticsearch_service
+}
+
 @test "[TAR] remove tar" {
     rm -rf "/tmp/elasticsearch"
 }

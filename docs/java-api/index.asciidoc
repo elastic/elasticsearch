@@ -5,8 +5,8 @@ include::../Versions.asciidoc[]
 
 [preface]
 == Preface
-This section describes the Java API that elasticsearch provides. All
-elasticsearch operations are executed using a
+This section describes the Java API that Elasticsearch provides. All
+Elasticsearch operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).
@@ -17,10 +17,28 @@ Additionally, operations on a client may be accumulated and executed in
 Note, all the APIs are exposed through the
 Java API (actually, the Java API is used internally to execute them).
 
-WARNING: Starting from version 5.6.0, a new Java client has been
-released: the {java-rest}/java-rest-high.html[Java High Level REST Client].
-This new client is designed to replace the `TransportClient` in Java
-applications which will be deprecated in future versions of Elasticsearch.
+[WARNING]
+===================================
+
+We plan on deprecating the `TransportClient` in Elasticsearch 7.0 and removing
+it completely in 8.0. Instead, you should be using the
+{java-rest}/java-rest-high.html[Java High Level REST Client], which executes
+HTTP requests rather than serialized Java requests. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes
+all the steps needed to migrate.
+
+The Java High Level REST Client currently has support for the more commonly
+used APIs, but there are a lot more that still need to be added.  You can help
+us prioritise by telling us which missing APIs you need for your application
+by adding a comment to this issue:
+https://github.com/elastic/elasticsearch/issues/27205[Java high-level REST
+client completeness].
+
+Any missing APIs can always be implemented today by using the
+link:/guide/en/elasticsearch/client/java-rest/current/java-rest-low.html[low
+level Java REST Client] with JSON request and response bodies.
+
+===================================
 
 == Javadoc
 

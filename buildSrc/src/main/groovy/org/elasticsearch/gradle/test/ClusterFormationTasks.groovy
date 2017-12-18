@@ -166,11 +166,13 @@ class ClusterFormationTasks {
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
             delete node.homeDir
             delete node.cwd
+        }
+        setup = project.tasks.create(name: taskName(prefix, node, 'createCwd'), type: DefaultTask, dependsOn: setup) {
             doLast {
                 node.cwd.mkdirs()
             }
+            outputs.dir node.cwd
         }
-
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
@@ -265,33 +267,6 @@ class ClusterFormationTasks {
                         project.tarTree(project.resources.gzip(configuration.singleFile))
                     }
                     into node.baseDir
-                }
-                break;
-            case 'rpm':
-                File rpmDatabase = new File(node.baseDir, 'rpm-database')
-                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
-                /* Delay reading the location of the rpm file until task execution */
-                Object rpm = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
-                        '--dbpath', rpmDatabase,
-                        '--relocate', "/=${rpmExtracted}",
-                        '-i', rpm
-                    doFirst {
-                        rpmDatabase.deleteDir()
-                        rpmExtracted.deleteDir()
-                    }
-                }
-                break;
-            case 'deb':
-                /* Delay reading the location of the deb file until task execution */
-                File debExtracted = new File(node.baseDir, 'deb-extracted')
-                Object deb = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'dpkg-deb', '-x', deb, debExtracted
-                    doFirst {
-                        debExtracted.deleteDir()
-                    }
                 }
                 break;
             default:

@@ -80,6 +80,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -364,7 +365,8 @@ public class Node implements Closeable {
             modules.add(new GatewayModule());
 
 
-            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
+            PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
+            BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
@@ -408,7 +410,8 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
-                    threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
+                threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
+                networkService, restController);
             Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .map(Plugin::getCustomMetaDataUpgrader)
@@ -453,6 +456,11 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
                 searchTransportService);
+
+            final SearchService searchService = newSearchService(clusterService, indicesService,
+                threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
+                responseCollectorService);
+
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -474,12 +482,10 @@ public class Node implements Closeable {
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
-                    b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
-                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
-                        responseCollectorService));
+                    b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
-                            scriptModule.getScriptService()));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings,
+                        searchService::createReduceContext));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -900,8 +906,16 @@ public class Node implements Closeable {
      * Creates a new {@link BigArrays} instance used for this node.
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
-    BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(settings, circuitBreakerService);
+    BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
+        return new BigArrays(pageCacheRecycler, circuitBreakerService);
+    }
+
+    /**
+     * Creates a new {@link BigArrays} instance used for this node.
+     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
+     */
+    PageCacheRecycler createPageCacheRecycler(Settings settings) {
+        return new PageCacheRecycler(settings);
     }
 
     /**

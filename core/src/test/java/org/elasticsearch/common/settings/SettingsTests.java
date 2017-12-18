@@ -567,6 +567,15 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
 
+    public void testSecureSettingIllegalName() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureString("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+        e = expectThrows(IllegalArgumentException.class, () ->
+            SecureSetting.secureFile("UpperCaseSetting", null));
+        assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+    }
+
     public void testGetAsArrayFailsOnDuplicates() {
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Settings.builder()
             .put("foobar.0", "bar")
@@ -729,7 +738,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadLegacyFromStream() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         output.writeVInt(5);
         output.writeString("foo.bar.1");
         output.writeOptionalString("1");
@@ -742,7 +751,7 @@ public class SettingsTests extends ESTestCase {
         output.writeString("foo.bar.baz");
         output.writeOptionalString("baz");
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.CURRENT));
+        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(2, settings.size());
         assertEquals(Arrays.asList("0", "1", "2", "3"), settings.getAsList("foo.bar"));

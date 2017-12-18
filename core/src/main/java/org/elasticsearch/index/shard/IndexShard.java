@@ -123,6 +123,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -140,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -184,6 +184,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
+    // Package visible for testing
+    final CircuitBreakerService circuitBreakerService;
 
     private final SearchOperationListener searchOperationListener;
 
@@ -252,7 +254,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Warmer warmer,
             List<SearchOperationListener> searchOperationListener,
             List<IndexingOperationListener> listeners,
-            Runnable globalCheckpointSyncer) throws IOException {
+            Runnable globalCheckpointSyncer,
+            CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -283,6 +286,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
+        this.circuitBreakerService = circuitBreakerService;
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -406,9 +410,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 if (newRouting.primary()) {
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
+                    final Engine engine = getEngine();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                        engine.seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                    }
+                    if (currentRouting.isRelocationTarget() == true && recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
+                        // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
+                        // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq#
+                        // (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                        // to create a lucene commit point to an empty translog file.
+                        engine.flush(false, true);
                     }
                 }
 
@@ -473,15 +485,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * subsequently fails before the primary/replica re-sync completes successfully and we are now being
                                  * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed. Rolling the translog generation is
-                                 * not strictly needed here (as we will never have collisions between sequence numbers in a translog
-                                 * generation in a new primary as it takes the last known sequence number as a starting point), but it
-                                 * simplifies reasoning about the relationship between primary terms and translog generations.
+                                 * replaying the translog and marking any operations there are completed.
                                  */
-                                getEngine().rollTranslogGeneration();
-                                getEngine().restoreLocalCheckpointFromTranslog();
-                                getEngine().fillSeqNoGaps(newPrimaryTerm);
-                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                final Engine engine = getEngine();
+                                engine.restoreLocalCheckpointFromTranslog();
+                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1)) {
+                                    // an index that was created before sequence numbers were introduced may contain operations in its
+                                    // translog that do not have a sequence numbers. We want to make sure those operations will never
+                                    // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
+                                    // to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                                    // to create a lucene commit point to an empty translog file.
+                                    engine.flush(false, true);
+                                }
+                                /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
+                                 * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
+                                 * as a starting point), but it simplifies reasoning about the relationship between primary terms and
+                                 * translog generations.
+                                 */
+                                engine.rollTranslogGeneration();
+                                engine.fillSeqNoGaps(newPrimaryTerm);
+                                engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1321,6 +1344,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             active.set(true);
             newEngine.recoverFromTranslog();
         }
+        assertSequenceNumbersInCommit();
+    }
+
+    private boolean assertSequenceNumbersInCommit() throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
+        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
+        assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
+            + userData.get(Engine.HISTORY_UUID_KEY) + "] is different than engine [" + getHistoryUUID() + "]";
+        return true;
     }
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
@@ -1720,11 +1754,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void initiateTracking(final String allocationId) {
         verifyPrimary();
         getEngine().seqNoService().initiateTracking(allocationId);
-        /*
-         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
-         * the replica; mark our self as active to force a future background sync.
-         */
-        active.compareAndSet(false, true);
     }
 
     /**
@@ -2169,8 +2198,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            Collections.singletonList(refreshListeners),
+            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            indexSort, this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**
@@ -2412,7 +2442,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
             threadPool.executor(ThreadPool.Names.LISTENER)::execute,
-            logger);
+            logger, threadPool.getThreadContext());
     }
 
     /**

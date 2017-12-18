@@ -34,10 +34,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 
 public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
+    private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
@@ -45,6 +47,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
+        if (context.aggregations() != null) {
+            multiBucketConsumer = context.aggregations().multiBucketConsumer();
+        } else {
+            multiBucketConsumer = (count) -> {};
+        }
     }
 
     /**
@@ -102,6 +109,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
         } else {
             return docCounts.get(bucketOrd);
         }
+    }
+
+    /**
+     * Adds <tt>count</tt> buckets to the global count for the request and fails if this number is greater than
+     * the maximum number of buckets allowed in a response
+     */
+    protected final void consumeBucketsAndMaybeBreak(int count) {
+        multiBucketConsumer.accept(count);
     }
 
     /**

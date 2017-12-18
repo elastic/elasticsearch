@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -271,9 +272,12 @@ public class FollowingEngineTests extends ESTestCase {
                 translogConfig,
                 TimeValue.timeValueMinutes(5),
                 Collections.emptyList(),
+                Collections.emptyList(),
                 null,
                 new TranslogHandler(
-                        xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())));
+                        xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
+                new NoneCircuitBreakerService()
+        );
     }
 
     private static Store createStore(

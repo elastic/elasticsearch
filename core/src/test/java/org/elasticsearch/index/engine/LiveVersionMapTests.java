@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.StreamSupport;
 
 public class LiveVersionMapTests extends ESTestCase {
 
@@ -87,13 +89,13 @@ public class LiveVersionMapTests extends ESTestCase {
         assertNull(map.getUnderLock(uid("test")));
 
 
-        map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1, Long.MAX_VALUE));
-        assertEquals(new DeleteVersionValue(1,1,1, Long.MAX_VALUE), map.getUnderLock(uid("test")));
+        map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
+        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
         map.beforeRefresh();
-        assertEquals(new DeleteVersionValue(1,1,1, Long.MAX_VALUE), map.getUnderLock(uid("test")));
+        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
         map.afterRefresh(randomBoolean());
-        assertEquals(new DeleteVersionValue(1,1,1, Long.MAX_VALUE), map.getUnderLock(uid("test")));
-        map.removeTombstoneUnderLock(uid("test"));
+        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+        map.pruneTombstones(k -> () -> {}, 2, 0);
         assertNull(map.getUnderLock(uid("test")));
     }
 
@@ -139,6 +141,7 @@ public class LiveVersionMapTests extends ESTestCase {
         CountDownLatch startGun = new CountDownLatch(numThreads);
         CountDownLatch done = new CountDownLatch(numThreads);
         int randomValuesPerThread = randomIntBetween(5000, 20000);
+        AtomicLong clock = new AtomicLong(0);
         for (int j = 0; j < threads.length; j++) {
             threads[j] = new Thread(() -> {
                 startGun.countDown();
@@ -160,12 +163,15 @@ public class LiveVersionMapTests extends ESTestCase {
                             }
                             if (isDelete == false && rarely()) {
                                 versionValue = new DeleteVersionValue(versionValue.version + 1, versionValue.seqNo + 1,
-                                    versionValue.term, Long.MAX_VALUE);
+                                    versionValue.term, clock.incrementAndGet());
                             } else {
                                 versionValue = new VersionValue(versionValue.version + 1, versionValue.seqNo + 1, versionValue.term);
                             }
                             values.put(bytesRef, versionValue);
                             map.putUnderLock(bytesRef, versionValue);
+                        }
+                        if (rarely()) {
+                            map.pruneTombstones(keyedLock::acquire, 0, 0);
                         }
                     }
                 } finally {
@@ -216,6 +222,10 @@ public class LiveVersionMapTests extends ESTestCase {
             assertEquals(e.getValue(), versionValue);
             assertTrue(versionValue instanceof DeleteVersionValue);
         });
+        map.beforeRefresh();
+        map.afterRefresh(false);
+        map.pruneTombstones(keyedLock::acquire, clock.incrementAndGet(), 0);
+        assertEquals(0, StreamSupport.stream(map.getAllTombstones().spliterator(), false).count());
     }
 
     public void testCarryOnSafeAccess() throws IOException {

@@ -4242,8 +4242,14 @@ public class InternalEngineTests extends EngineTestCase {
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);
-                    assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                        lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                    if (lastSyncedGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        // If the global checkpoint is still unassigned, we keep an empty(eg. initial) commit as a safe commit.
+                        assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                            equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+                    } else {
+                        assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                            lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
+                    }
                     for (int i = 1; i < commits.size(); i++) {
                         assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                             greaterThan(lastSyncedGlobalCheckpoint));

@@ -24,8 +24,6 @@ esplugin {
 }
 
 dependencies {
-    // for testing hasChild and hasParent rejections
-    compile project(path: ':modules:mapper-extras', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 

@@ -509,12 +509,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    /**
+     * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
     public static long randomNonNegativeLong() {
-        long randomLong;
-        do {
-            randomLong = randomLong();
-        } while (randomLong == Long.MIN_VALUE);
-        return Math.abs(randomLong);
+        long randomLong = randomLong();
+        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
     public static float randomFloat() {

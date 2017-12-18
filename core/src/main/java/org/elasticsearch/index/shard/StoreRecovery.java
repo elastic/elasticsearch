@@ -436,6 +436,8 @@ final class StoreRecovery {
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

@@ -76,6 +76,7 @@ public class VersionUtils {
         final List<Version> unreleased = new ArrayList<>();
         unreleased.add(current);
         Version prevConsideredVersion = current;
+        boolean foundUnreleasedVersionInCurrentConsideredMajor = false;
 
         for (int i = versions.size() - 1; i >= 0; i--) {
             Version currConsideredVersion = versions.get(i);
@@ -91,12 +92,23 @@ public class VersionUtils {
                  * considered a version of the form 5.n.m (m>0), so this entire branch
                  * is unreleased, so carry on looking for a branch containing releases.
                  */
-            } else if (currConsideredVersion.major != prevConsideredVersion.major
-                || currConsideredVersion.minor != prevConsideredVersion.minor) {
-                /* Have moved to the end of a new minor branch, so this is
-                 * an unreleased version. */
-                unreleased.add(currConsideredVersion);
-                versions.remove(i);
+            } else {
+                if (currConsideredVersion.major != prevConsideredVersion.major) {
+                    foundUnreleasedVersionInCurrentConsideredMajor = false;
+                }
+
+                if (currConsideredVersion.major != prevConsideredVersion.major
+                    || currConsideredVersion.minor != prevConsideredVersion.minor) {
+                    /* Have moved to the end of a new minor branch, so this is
+                     * an unreleased version. */
+
+                    if (foundUnreleasedVersionInCurrentConsideredMajor == false) {
+                        unreleased.add(currConsideredVersion);
+                        foundUnreleasedVersionInCurrentConsideredMajor = true;
+                    }
+
+                    versions.remove(i);
+                }
             }
             prevConsideredVersion = currConsideredVersion;
 

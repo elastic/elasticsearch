@@ -450,7 +450,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return a writer for the new translog
      * @throws IOException if creating the translog failed
      */
-    TranslogWriter createWriter(long fileGeneration) throws IOException {
+    private TranslogWriter createWriter(long fileGeneration) throws IOException {
         return createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong());
     }
 
@@ -463,7 +463,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *                                With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
      * @param initialGlobalCheckpoint the global checkpoint to be written in the first checkpoint.
      */
-    private TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint) throws IOException {
+    TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint) throws IOException {
         final TranslogWriter newFile;
         try {
             newFile = TranslogWriter.create(

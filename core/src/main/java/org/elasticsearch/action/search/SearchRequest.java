@@ -115,17 +115,21 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+        final Scroll scroll = scroll();
+        if (source != null && source.trackTotalHits() == false && scroll != null) {
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
         }
-        if (source != null && source.from() > 0 &&  scroll() != null) {
+        if (source != null && source.from() > 0 && scroll != null) {
             validationException =
                 addValidationError("using [from] is not allowed in a scroll context", validationException);
         }
-        if (requestCache != null && requestCache && scroll() != null) {
+        if (requestCache != null && requestCache && scroll != null) {
             DEPRECATION_LOGGER.deprecated("Explicitly set [request_cache] for a scroll query is deprecated and will return a 400 " +
                 "error in future versions");
+        }
+        if (source != null && source.size() == 0 && scroll != null) {
+            validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
         }
         return validationException;
     }

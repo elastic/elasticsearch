@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
+import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -41,7 +42,7 @@ public class SqlSession {
     private Configuration settings;
 
     public static class SessionContext {
-        
+
         public final Configuration configuration;
         public final GetIndexResult getIndexResult;
 
@@ -50,7 +51,7 @@ public class SqlSession {
             this.getIndexResult = getIndexResult;
         }
     }
-    
+
     // thread-local used for sharing settings across the plan compilation
     // Currently this is used during:
     // 1. parsing - to set the TZ in date time functions (if they are used)
@@ -68,7 +69,7 @@ public class SqlSession {
     };
 
     public SqlSession(SqlSession other) {
-        this(other.settings, other.client, other.functionRegistry, other.parser, other.indexResolver, 
+        this(other.settings, other.client, other.functionRegistry, other.parser, other.indexResolver,
                 other.preAnalyzer, other.analyzer, other.optimizer,other.planner);
     }
 
@@ -173,9 +174,10 @@ public class SqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, Function<GetIndexResult, T> action, ActionListener<T> listener) {
         PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        //TODO why do we have a list if we only support one single element? Seems like it's the wrong data structure?
+        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
-            listener.onFailure(new SqlIllegalArgumentException("Queries with multiple indices are not supported"));
+            // Note: JOINs are not supported but we detect them when
+            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
             indexResolver.asIndex(preAnalysis.indices.get(0),
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));

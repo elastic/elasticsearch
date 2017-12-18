@@ -52,13 +52,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testBasicQuery() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"test\"}",
+            "{\"test\":\"test\"}");
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("test", "text")));
@@ -110,13 +105,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"2017-07-27 00:00:00\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"2017-07-27 01:00:00\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"2017-07-27 00:00:00\"}",
+            "{\"test\":\"2017-07-27 01:00:00\"}");
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonMap("test", singletonMap("type", "text")));
@@ -126,6 +116,24 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         // Default TimeZone is UTC
         assertResponse(expected, runSql(
                 new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
+    }
+
+    public void testSelectWithJoinFails() throws Exception {
+        // Normal join not supported
+        expectBadRequest(() -> runSql("SELECT * FROM test JOIN other"),
+            containsString("line 1:21: Queries with JOIN are not yet supported"));
+        // Neither is a self join
+        expectBadRequest(() -> runSql("SELECT * FROM test JOIN test"),
+            containsString("line 1:21: Queries with JOIN are not yet supported"));
+        // Nor fancy stuff like CTEs
+        expectBadRequest(() -> runSql(
+            "    WITH evil"
+            + "  AS (SELECT *"
+            + "        FROM foo)"
+            + "SELECT *"
+            + "  FROM test"
+            + "  JOIN evil"),
+            containsString("line 1:67: Queries with JOIN are not yet supported"));
     }
 
     @Override
@@ -149,24 +157,24 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     @Override
     public void testSelectMissingField() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"test\":\"test\"}");
         expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unknown column [foo]"));
     }
 
     @Override
     public void testSelectMissingFunction() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql("SELECT missing(foo) FROM test"), containsString("1:8: Unknown function [missing]"));
+    }
+
+    private void index(String... docs) throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        for (String doc : docs) {
+            bulk.append("{\"index\":{}\n");
+            bulk.append(doc + "\n");
+        }
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+            new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
@@ -217,13 +225,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testBasicQueryWithFilter() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"foo\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"bar\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"foo\"}",
+            "{\"test\":\"bar\"}");
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("test", "text")));
@@ -234,13 +237,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"foo\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"bar\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"foo\"}",
+            "{\"test\":\"bar\"}");
 
         Map<String, Object> response = runSql("/translate/",
                 new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
@@ -276,13 +274,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testBasicQueryText() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"test\"}",
+            "{\"test\":\"test\"}");
+
         String expected =
                 "test           \n" +
                         "---------------\n" +

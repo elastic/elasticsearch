@@ -52,7 +52,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitQuery(QueryContext ctx) {
         LogicalPlan body = plan(ctx.queryNoWith());
-        
+
         List<SubQueryAlias> namedQueries = visitList(ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
@@ -78,18 +78,18 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (!ctx.orderBy().isEmpty()) {
             plan = new OrderBy(source(ctx.ORDER()), plan, visitList(ctx.orderBy(), Order.class));
         }
-        
+
         if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
             plan = new Limit(source(ctx.limit), new Literal(source(ctx), Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
         }
-        
+
         return plan;
     }
 
     @Override
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
         LogicalPlan query = (ctx.fromClause() != null)? plan(ctx.fromClause()) : new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
-                
+
         // add WHERE
         if (ctx.where != null) {
             query = new Filter(source(ctx), query, expression(ctx.where));
@@ -138,7 +138,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // check if there are multiple join clauses. ANTLR produces a right nested tree with the left join clause
         // at the top. However the fields previously references might be used in the following clauses.
         // As such, swap/reverse the tree.
-        
+
         LogicalPlan result = plan(ctx.relationPrimary());
         for (JoinRelationContext j : ctx.joinRelation()) {
             result = doJoin(result, j);
@@ -174,7 +174,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        return new Join(source(ctx), left, plan(ctx.right), type, condition);
+        // We would return this if we actually supported JOINs, but we don't yet.
+        // new Join(source(ctx), left, plan(ctx.right), type, condition);
+        throw new ParsingException(source(ctx), "Queries with JOIN are not yet supported");
     }
 
     @Override

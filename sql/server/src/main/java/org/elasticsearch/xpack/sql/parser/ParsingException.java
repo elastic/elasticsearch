@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.RecognitionException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -47,5 +48,10 @@ public class ParsingException extends ClientSqlException {
     @Override
     public String getMessage() {
         return format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 
 public class MappingException extends ClientSqlException {
@@ -15,5 +16,10 @@ public class MappingException extends ClientSqlException {
 
     public MappingException(String message, Throwable ex) {
         super(message, ex);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

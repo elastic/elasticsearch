@@ -344,23 +344,25 @@ public class VersionTests extends ESTestCase {
 
         final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
         final Version currentOrNextMajorVersion;
-        if (Version.CURRENT.after(currentMajorVersion)) {
+        if (Version.CURRENT.minor > 0) {
             currentOrNextMajorVersion = Version.fromId((Version.CURRENT.major + 1) * 1000000 + 99);
         } else {
-            assert Version.CURRENT.minor == 0;
-            currentOrNextMajorVersion = Version.CURRENT;
+            currentOrNextMajorVersion = currentMajorVersion;
         }
-        final List<Version> previousMajorVersions =
+        final Version lastMinorFromPreviousMajor =
                 VersionUtils
                         .allVersions()
                         .stream()
-                        .filter(v -> v.before(currentOrNextMajorVersion))
-                        .collect(Collectors.toList());
-        final Version lastReleasedVersionFromPreviousMajor = previousMajorVersions.get(previousMajorVersions.size() - 1);
+                        .filter(v -> v.major == currentOrNextMajorVersion.major - 1)
+                        .max(Version::compareTo)
+                        .orElseThrow(
+                                () -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
         final Version previousMinorVersion = VersionUtils.getPreviousMinorVersion();
-        assert lastReleasedVersionFromPreviousMajor.major == previousMinorVersion.major;
 
-        boolean isCompatible = previousMinorVersion.minor == lastReleasedVersionFromPreviousMajor.minor;
+        assert previousMinorVersion.major == currentOrNextMajorVersion.major
+                || previousMinorVersion.major == lastMinorFromPreviousMajor.major;
+        boolean isCompatible = previousMinorVersion.major == currentOrNextMajorVersion.major
+                || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
 
         final String message = String.format(
                 Locale.ROOT,

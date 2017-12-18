@@ -352,24 +352,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param out where infoStream messages should go. See {@link CheckIndex#setInfoStream(PrintStream)}
      */
     public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
-        // We don't need to lock the directory here as we are not changing the index files.
-        final Lock noDirectoryLock = new Lock() {
-            @Override
-            public void close() throws IOException {
-
-            }
-
-            @Override
-            public void ensureValid() throws IOException {
-
-            }
-        };
-        metadataLock.readLock().lock();
-        try (CheckIndex checkIndex = new CheckIndex(directory, noDirectoryLock)) {
+        metadataLock.writeLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             return checkIndex.checkIndex();
         } finally {
-            metadataLock.readLock().unlock();
+            metadataLock.writeLock().unlock();
         }
     }
 

@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
@@ -47,8 +46,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -57,7 +54,6 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -79,8 +75,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1073,34 +1067,6 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be too new");
         } catch (IndexFormatTooNewException e) {
-        }
-        store.close();
-    }
-
-    public void testCheckIndex() throws Exception {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        final Store store = new Store(shardId, INDEX_SETTINGS, new LuceneManagedDirectoryService(random()), new DummyShardLock(shardId));
-        try (IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig())) {
-            writer.commit();
-        }
-        // Check index does not need to lock the store directory
-        try (Lock directoryLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
-            assertThat(store.checkIndex(out).clean, equalTo(true));
-        }
-        // exorciseIndex requires directory lock
-        try (Lock directoryLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
-            assertThat(store.checkIndex(out).clean, equalTo(true));
-            final CheckIndex.Status status = store.checkIndex(out);
-            try {
-                store.exorciseIndex(status);
-                fail("exorciseIndex should acquire directory lock");
-            } catch (LockObtainFailedException ignore) {
-
-            }
         }
         store.close();
     }

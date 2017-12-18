@@ -380,6 +380,9 @@ setup:
               }
 
   - do:
+      indices.refresh: {}
+
+  - do:
       search:
         body: { "size" : 0, "query" : { "query_string" : { "query" : "integer_range:[3 TO 4]" } } }
 

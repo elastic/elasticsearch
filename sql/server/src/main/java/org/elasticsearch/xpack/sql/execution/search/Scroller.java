@@ -86,14 +86,12 @@ public class Scroller {
         }
 
         SearchRequest search = client.prepareSearch(index).setSource(sourceBuilder).request();
-        search.scroll(keepAlive).source().timeout(timeout);
-
-        boolean isAggsOnly = query.isAggsOnly();
 
         ScrollerActionListener l;
-        if (isAggsOnly) {
+        if (query.isAggsOnly()) {
             l = new AggsScrollActionListener(listener, client, timeout, schema, query);
         } else {
+            search.scroll(keepAlive).source().timeout(timeout);
             l = new HandshakeScrollActionListener(listener, client, timeout, schema, query);
         }
         client.search(search, l);

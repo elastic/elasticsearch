@@ -6,3 +6,39 @@
 ++++
 
 To be determined...
+////
+[[xes-enhancement-6.1.1]]
+[float]
+=== Enhancements
+
+Watcher::
+* Watcher: Ensure watcher thread pool size is reasonably bound
+// https://github.com/elastic/x-pack-elasticsearch/pull/3056[#3056] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3052[#3052])
+////
+////
+[[xes-bug-6.1.1]]
+[float]
+=== Bug fixes
+////
+////
+Machine learning::
+* Retry named pipe writes if there are interrupted system calls
+// https://github.com/elastic/machine-learning-cpp/pull/466[#466] (issue: https://github.com/elastic/machine-learning-cpp/issues/445[#445])
+* Update Windows dependency bundle with a rebuilt log4cxx
+// https://github.com/elastic/machine-learning-cpp/pull/498[#498] (issue: https://github.com/elastic/machine-learning-cpp/issues/495[#495])
+////
+////
+Monitoring::
+* [Monitoring] Use the same Cluster State for all Collectors
+// https://github.com/elastic/x-pack-elasticsearch/pull/3216[#3216] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3156[#3156])
+////
+////
+Security::
+* Do not enforce TLS if discovery type is single-node
+// https://github.com/elastic/x-pack-elasticsearch/pull/3245[#3245] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2828[#2828])
+////
+////
+Watcher::
+* Watcher: Fix pagerduty action to send context data
+// https://github.com/elastic/x-pack-elasticsearch/pull/3185[#3185] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3184[#3184])
+////

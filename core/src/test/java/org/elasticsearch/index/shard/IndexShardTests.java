@@ -443,7 +443,7 @@ public class IndexShardTests extends IndexShardTestCase {
             while(stop.get() == false) {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPrimaryTerm(), equalTo(promotedTerm));
-                    assertThat(indexShard.getEngine().seqNoService().getReplicationGroup(), notNullValue());
+                    assertThat(indexShard.getReplicationGroup(), notNullValue());
                 }
             }
         });
@@ -839,7 +839,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
-            primaryShard.getEngine().seqNoService().generateSeqNo();
+            primaryShard.getEngine().getLocalCheckpointTracker().generateSeqNo();
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 
@@ -1607,8 +1607,8 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         // check that local checkpoint of new primary is properly tracked after recovery
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(IndexShardTestCase.getEngine(newShard).seqNoService()
-            .getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertThat(newShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
+                .getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(newShard, totalOps);
         closeShards(newShard);
     }
@@ -1626,8 +1626,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // check that local checkpoint of new primary is properly tracked after primary relocation
         assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(IndexShardTestCase.getEngine(primaryTarget).seqNoService()
-            .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertThat(primaryTarget.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+            primaryTarget.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(primaryTarget, totalOps);
         closeShards(primarySource, primaryTarget);
     }
@@ -2246,8 +2246,8 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
-            assertThat(IndexShardTestCase.getEngine(targetShard).seqNoService()
-                .getTrackedLocalCheckpointForShard(targetShard.routingEntry().allocationId().getId()), equalTo(1L));
+            assertThat(targetShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+                targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);
         }
         // now check that it's persistent ie. that the added shards are committed

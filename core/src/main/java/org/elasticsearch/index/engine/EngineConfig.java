@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -78,6 +79,7 @@ public final class EngineConfig {
     private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
+    private final LongSupplier globalCheckpointSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -124,7 +126,8 @@ public final class EngineConfig {
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
+                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
+                        LongSupplier globalCheckpointSupplier) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -155,6 +158,7 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
+        this.globalCheckpointSupplier = globalCheckpointSupplier;
     }
 
     /**
@@ -225,6 +229,13 @@ public final class EngineConfig {
      */
     public Store getStore() {
         return store;
+    }
+
+    /**
+     * Returns the global checkpoint tracker
+     */
+    public LongSupplier getGlobalCheckpointSupplier() {
+        return globalCheckpointSupplier;
     }
 
     /**

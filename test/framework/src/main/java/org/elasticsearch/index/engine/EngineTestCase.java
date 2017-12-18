@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -165,8 +166,6 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier());
-                //new GlobalCheckpointTracker(config.getShardId(), config.getAllocationId(),
-                //config.getIndexSettings(), SequenceNumbers.UNASSIGNED_SEQ_NO));
     }
 
     @Override
@@ -412,7 +411,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
                 new NoneCircuitBreakerService(),
-                globalCheckpointSupplier == null ? () -> SequenceNumbers.UNASSIGNED_SEQ_NO : globalCheckpointSupplier);
+                globalCheckpointSupplier == null ?
+                    new GlobalCheckpointTracker(shardId, allocationId.getId(), indexSettings,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO) : globalCheckpointSupplier);
         return config;
     }
 

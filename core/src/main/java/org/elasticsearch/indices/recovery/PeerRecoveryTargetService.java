@@ -354,7 +354,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
-            final Tuple<Long, Long> seqNoStats = recoveryTarget.store().loadSeqNoStats();
+            final Tuple<Long, Long> seqNoStats = recoveryTarget.store().loadSeqNoInfo();
             long maxSeqNo = seqNoStats.v1();
             long localCheckpoint = seqNoStats.v1();
             if (maxSeqNo <= globalCheckpoint) {

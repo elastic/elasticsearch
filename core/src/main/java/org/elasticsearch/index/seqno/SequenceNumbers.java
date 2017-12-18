@@ -49,7 +49,7 @@ public class SequenceNumbers {
      * @param commitData       the commit data
      * @return the sequence number stats
      */
-    public static Tuple<Long, Long> loadSeqNoStatsFromLuceneCommit(
+    public static Tuple<Long, Long> loadSeqNoInfoFromLuceneCommit(
         final Iterable<Map.Entry<String, String>> commitData) {
         long maxSeqNo = NO_OPS_PERFORMED;
         long localCheckpoint = NO_OPS_PERFORMED;

@@ -457,10 +457,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * creates a new writer
      *
-     * @param fileGeneration        the generation of the write to be written
-     * @param initialMinTranslogGen the minimum translog generation to be written in the first checkpoint. This is
-     *                              needed to solve and initialization problem while constructing an empty translog.
-     *                              With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
+     * @param fileGeneration          the generation of the write to be written
+     * @param initialMinTranslogGen   the minimum translog generation to be written in the first checkpoint. This is
+     *                                needed to solve and initialization problem while constructing an empty translog.
+     *                                With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
+     * @param initialGlobalCheckpoint the global checkpoint to be written in the first checkpoint.
      */
     private TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint) throws IOException {
         final TranslogWriter newFile;

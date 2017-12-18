@@ -1325,6 +1325,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final EngineConfig config = newEngineConfig(openMode);
 
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            // set global checkpoint before opening engine, to ensure that the global checkpoint written to the checkpoint file
+            // is not reset to the default value, which could prevent future sequence-number based recoveries or rolling back of Lucene.
             globalCheckpointTracker.updateGlobalCheckpointOnReplica(
                 Translog.readGlobalCheckpoint(config.getTranslogConfig().getTranslogPath()),
                 "opening index and translog"
@@ -2197,7 +2199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, globalCheckpointTracker::getGlobalCheckpoint);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, globalCheckpointTracker);
     }
 
     /**

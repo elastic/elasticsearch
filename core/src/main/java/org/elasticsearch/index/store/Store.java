@@ -75,7 +75,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -217,9 +216,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return a tuple populated with the maximum sequence number and the local checkpoint
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public Tuple<Long, Long> loadSeqNoStats() throws IOException {
+    public Tuple<Long, Long> loadSeqNoInfo() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
-        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(userData.entrySet());
+        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 
     final void ensureOpen() {

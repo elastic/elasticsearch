@@ -239,14 +239,19 @@ public class InternalEngine extends Engine {
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        if (openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG) {
-            maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-            localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-        } else {
-            final Tuple<Long, Long> seqNoStats = store.loadSeqNoStats();
-            maxSeqNo = seqNoStats.v1();
-            localCheckpoint = seqNoStats.v2();
-            logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+                maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo();
+                maxSeqNo = seqNoStats.v1();
+                localCheckpoint = seqNoStats.v2();
+                logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+                break;
+            default: throw new IllegalArgumentException("unknown type: " + openMode);
         }
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }

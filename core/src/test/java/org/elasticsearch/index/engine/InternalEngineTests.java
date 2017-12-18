@@ -69,6 +69,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -102,6 +106,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -1945,11 +1950,20 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<String> indexedIds = new HashSet<>();
         long localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+        final long globalCheckpoint;
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         InternalEngine initialEngine = null;
 
         try {
             initialEngine = engine;
+            final ShardRouting primary = TestShardRouting.newShardRouting("test", shardId.id(), "node1", null, true,
+                ShardRoutingState.STARTED, allocationId);
+            final ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
+            GlobalCheckpointTracker gcpTracker = (GlobalCheckpointTracker) initialEngine.config().getGlobalCheckpointSupplier();
+            gcpTracker.updateFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
+                replica.allocationId().getId())),
+                new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build(), Collections.emptySet());
+            gcpTracker.activatePrimaryMode(primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -1993,6 +2007,10 @@ public class InternalEngineTests extends EngineTestCase {
                     // only update rarely as we do it every doc
                     replicaLocalCheckpoint = randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
                 }
+                gcpTracker.updateLocalCheckpoint(primary.allocationId().getId(),
+                    initialEngine.getLocalCheckpointTracker().getCheckpoint());
+                gcpTracker.updateLocalCheckpoint(replica.allocationId().getId(), replicaLocalCheckpoint);
+
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
                     maxSeqNo = primarySeqNo;
@@ -2001,14 +2019,19 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             logger.info("localcheckpoint {}, global {}", replicaLocalCheckpoint, primarySeqNo);
+            globalCheckpoint = gcpTracker.getGlobalCheckpoint();
 
             assertEquals(primarySeqNo, initialEngine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(primarySeqNo, initialEngine.getLocalCheckpointTracker().getCheckpoint());
+            assertThat(globalCheckpoint, equalTo(replicaLocalCheckpoint));
 
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
             initialEngine.getTranslog().sync(); // to guarantee the global checkpoint is written to the translog checkpoint
+            assertThat(
+                initialEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
+                equalTo(globalCheckpoint));
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 equalTo(maxSeqNo));
@@ -2026,6 +2049,9 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
+            assertThat(
+                recoveringEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
+                equalTo(globalCheckpoint));
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 // after recovering from translog, all docs have been flushed to Lucene segments, so here we will assert

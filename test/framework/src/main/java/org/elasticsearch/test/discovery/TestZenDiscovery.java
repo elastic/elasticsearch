@@ -59,7 +59,7 @@ public class TestZenDiscovery extends ZenDiscovery {
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
         protected final Settings settings;
-        private final SetOnce<MockUnicastHostProvier> unicastHostProvider = new SetOnce<>();
+        private final SetOnce<MockUncasedHostProvider> unicastHostProvider = new SetOnce<>();
         public TestPlugin(Settings settings) {
             this.settings = settings;
         }
@@ -83,14 +83,14 @@ public class TestZenDiscovery extends ZenDiscovery {
                                                                                 NetworkService networkService) {
             final Supplier<UnicastHostsProvider> supplier;
             if (USE_MOCK_PINGS.get(settings)) {
-                // we have to return something in order for the unicast host provier setting to resolve to something. It will never be used
+                // we have to return something in order for the unicast host provider setting to resolve to something. It will never be used
                 supplier = () -> () -> {
                     throw new UnsupportedOperationException();
                 };
             } else {
                 supplier = () -> {
                     unicastHostProvider.set(
-                        new MockUnicastHostProvier(transportService::getLocalNode, ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                        new MockUncasedHostProvider(transportService::getLocalNode, ClusterName.CLUSTER_NAME_SETTING.get(settings))
                     );
                     return unicastHostProvider.get();
                 };

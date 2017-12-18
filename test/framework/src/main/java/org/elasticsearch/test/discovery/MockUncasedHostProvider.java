@@ -32,19 +32,19 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * A {@link UnicastHostsProvider} implementation which returns results based on an static in-memory map. This allows running
+ * A {@link UnicastHostsProvider} implementation which returns results based on a static in-memory map. This allows running
  * with nodes that only determine their transport address at runtime, which is the default behavior of
  * {@link org.elasticsearch.test.InternalTestCluster}
  */
-public final class MockUnicastHostProvier implements UnicastHostsProvider, Closeable {
+public final class MockUncasedHostProvider implements UnicastHostsProvider, Closeable {
 
-    static final Map<ClusterName, Set<MockUnicastHostProvier>> activeNodesPerCluster = new HashMap<>();
+    static final Map<ClusterName, Set<MockUncasedHostProvider>> activeNodesPerCluster = new HashMap<>();
 
 
     private final Supplier<DiscoveryNode> localNodeSupplier;
     private final ClusterName clusterName;
 
-    public MockUnicastHostProvier(Supplier<DiscoveryNode> localNodeSupplier, ClusterName clusterName) {
+    public MockUncasedHostProvider(Supplier<DiscoveryNode> localNodeSupplier, ClusterName clusterName) {
         this.localNodeSupplier = localNodeSupplier;
         this.clusterName = clusterName;
         synchronized (activeNodesPerCluster) {
@@ -55,9 +55,9 @@ public final class MockUnicastHostProvier implements UnicastHostsProvider, Close
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
         synchronized (activeNodesPerCluster) {
-            Set<MockUnicastHostProvier> activeNodes = getActiveNodesForCurrentCluster();
+            Set<MockUncasedHostProvider> activeNodes = getActiveNodesForCurrentCluster();
             return activeNodes.stream()
-                .map(MockUnicastHostProvier::getNode)
+                .map(MockUncasedHostProvider::getNode)
                 .filter(n -> !localNodeSupplier.get().equals(n))
                 .collect(Collectors.toList());
         }
@@ -67,7 +67,7 @@ public final class MockUnicastHostProvier implements UnicastHostsProvider, Close
         return localNodeSupplier.get();
     }
 
-    private Set<MockUnicastHostProvier> getActiveNodesForCurrentCluster() {
+    private Set<MockUncasedHostProvider> getActiveNodesForCurrentCluster() {
         assert Thread.holdsLock(activeNodesPerCluster);
         return activeNodesPerCluster.computeIfAbsent(clusterName,
             clusterName -> ConcurrentCollections.newConcurrentSet());

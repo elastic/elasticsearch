@@ -163,7 +163,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -4185,12 +4184,24 @@ public class InternalEngineTests extends EngineTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb")));
         indexSettings.updateIndexMetaData(builder.build());
 
+        final Path translogPath = createTempDir();
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
 
-        try (InternalEngine engine
-                 = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpointSupplier)) {
+        final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,
+            globalCheckpointSupplier);
+        try (Engine engine = new InternalEngine(engineConfig) {
+                @Override
+                protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+                    // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
+                    // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
+                    if (rarely()) {
+                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), getLocalCheckpointTracker().getCheckpoint()));
+                    }
+                    super.commitIndexWriter(writer, translog, syncId);
+                }
+            }) {
             globalCheckpoint.set(0L);
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
@@ -4198,20 +4209,19 @@ public class InternalEngineTests extends EngineTestCase {
                 document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
                 engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
                 if (frequently()) {
-                    globalCheckpoint.set(randomIntBetween(
-                        Math.toIntExact(globalCheckpoint.get()),
-                        Math.toIntExact(engine.getLocalCheckpointTracker().getCheckpoint())));
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
                 }
                 if (frequently()) {
+                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
                     engine.flush(randomBoolean(), true);
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);
                     assertThat(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                        lessThanOrEqualTo(globalCheckpoint.get()));
+                        lessThanOrEqualTo(lastSyncedGlobalCheckpoint));
                     for (int i = 1; i < commits.size(); i++) {
                         assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                            greaterThan(globalCheckpoint.get()));
+                            greaterThan(lastSyncedGlobalCheckpoint));
                     }
                     // Make sure we keep all translog operations after the local checkpoint of the safe commit.
                     long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));

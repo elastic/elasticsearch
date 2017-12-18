@@ -1,8 +1,8 @@
 ---
 "Max docs rollover conditions matches only primary shards":
   - skip:
-        version: "all"
-        reason:  "AwaitsFix https://github.com/elastic/elasticsearch/pull/27863"
+        version: "- 5.4.1"
+        reason:  "matching docs changed from all shards to primary shards"
 
   # create index with alias and replica
   - do:

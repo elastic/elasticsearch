@@ -464,7 +464,7 @@ public class InternalEngine extends Engine {
 
     private void commitNewTranslogAndHistoryUUIDs(IndexWriter writer, Translog translog) throws IOException {
         final Map<String, String> commitUserData = commitDataAsMap(writer);
-        assert commitUserData.get(Translog.TRANSLOG_UUID_KEY).equals(translog.getTranslogUUID()) == false :
+        assert translog.getTranslogUUID().equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false :
             "committing a new translog uuid but it's already equal (uuid [" + translog.getTranslogUUID() + "])";
         assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OPEN_INDEX_AND_TRANSLOG must not fresh translogUUID";
         assert historyUUID.equals(commitUserData.get(HISTORY_UUID_KEY)) == false || config().getForceNewHistoryUUID() == false :

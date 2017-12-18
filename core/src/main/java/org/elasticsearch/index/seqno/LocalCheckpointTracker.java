@@ -78,7 +78,7 @@ public class LocalCheckpointTracker {
      *
      * @return the next assigned sequence number
      */
-    synchronized long generateSeqNo() {
+    public synchronized long generateSeqNo() {
         return nextSeqNo++;
     }
 
@@ -109,7 +109,7 @@ public class LocalCheckpointTracker {
      *
      * @param checkpoint the local checkpoint to reset this tracker to
      */
-    synchronized void resetCheckpoint(final long checkpoint) {
+    public synchronized void resetCheckpoint(final long checkpoint) {
         assert checkpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
         assert checkpoint <= this.checkpoint;
         processedSeqNo.clear();
@@ -130,7 +130,7 @@ public class LocalCheckpointTracker {
      *
      * @return the maximum sequence number
      */
-    long getMaxSeqNo() {
+    public long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
 
@@ -138,9 +138,9 @@ public class LocalCheckpointTracker {
     /**
      * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      *
-     * @implNote this is needed to make sure the local checkpoint and max seq no are consistent
+     * This is needed to make sure the local checkpoint and max seq no are consistent
      */
-    synchronized SeqNoStats getStats(final long globalCheckpoint) {
+    public synchronized SeqNoStats getStats(final long globalCheckpoint) {
         return new SeqNoStats(getMaxSeqNo(), getCheckpoint(), globalCheckpoint);
     }
 
@@ -151,7 +151,7 @@ public class LocalCheckpointTracker {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     @SuppressForbidden(reason = "Object#wait")
-    synchronized void waitForOpsToComplete(final long seqNo) throws InterruptedException {
+    public synchronized void waitForOpsToComplete(final long seqNo) throws InterruptedException {
         while (checkpoint < seqNo) {
             // notified by updateCheckpoint
             this.wait();

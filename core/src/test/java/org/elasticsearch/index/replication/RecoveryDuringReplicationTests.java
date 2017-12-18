@@ -247,8 +247,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
             assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
-            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
-                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getGlobalCheckpointTracker(newPrimary)
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()).getLocalCheckpoint(),
+                equalTo(totalDocs - 1L));
 
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));

@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -70,6 +71,12 @@ public class VersionUtils {
             }
         }
         Collections.sort(versions);
+
+
+        if (!Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            return Tuple.tuple(versions, Collections.emptyList());
+        }
+
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";

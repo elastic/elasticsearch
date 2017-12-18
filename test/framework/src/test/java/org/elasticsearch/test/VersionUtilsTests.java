@@ -19,14 +19,16 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -88,11 +90,13 @@ public class VersionUtilsTests extends ESTestCase {
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, null);
         assertEquals(got, Version.CURRENT);
 
-        // max or min can be an unreleased version
-        Version unreleased = randomFrom(VersionUtils.allUnreleasedVersions());
-        assertThat(VersionUtils.randomVersionBetween(random(), null, unreleased), lessThanOrEqualTo(unreleased));
-        assertThat(VersionUtils.randomVersionBetween(random(), unreleased, null), greaterThanOrEqualTo(unreleased));
-        assertEquals(unreleased, VersionUtils.randomVersionBetween(random(), unreleased, unreleased));
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            // max or min can be an unreleased version
+            final Version unreleased = randomFrom(VersionUtils.allUnreleasedVersions());
+            assertThat(VersionUtils.randomVersionBetween(random(), null, unreleased), lessThanOrEqualTo(unreleased));
+            assertThat(VersionUtils.randomVersionBetween(random(), unreleased, null), greaterThanOrEqualTo(unreleased));
+            assertEquals(unreleased, VersionUtils.randomVersionBetween(random(), unreleased, unreleased));
+        }
     }
 
     static class TestReleaseBranch {
@@ -107,9 +111,28 @@ public class VersionUtilsTests extends ESTestCase {
         Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestReleaseBranch.CURRENT, TestReleaseBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestReleaseBranch.V_5_3_0, TestReleaseBranch.V_5_3_1, TestReleaseBranch.V_5_3_2,
-                TestReleaseBranch.V_5_4_0), released);
-        assertEquals(singletonList(TestReleaseBranch.V_5_4_1), unreleased);
+
+        final List<Version> expectedReleased;
+        final List<Version> expectedUnreleased;
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            expectedReleased = Arrays.asList(
+                    TestReleaseBranch.V_5_3_0,
+                    TestReleaseBranch.V_5_3_1,
+                    TestReleaseBranch.V_5_3_2,
+                    TestReleaseBranch.V_5_4_0);
+            expectedUnreleased = Collections.singletonList(TestReleaseBranch.V_5_4_1);
+        } else {
+            expectedReleased = Arrays.asList(
+                    TestReleaseBranch.V_5_3_0,
+                    TestReleaseBranch.V_5_3_1,
+                    TestReleaseBranch.V_5_3_2,
+                    TestReleaseBranch.V_5_4_0,
+                    TestReleaseBranch.V_5_4_1);
+            expectedUnreleased = Collections.emptyList();
+        }
+
+        assertThat(released, equalTo(expectedReleased));
+        assertThat(unreleased, equalTo(expectedUnreleased));
     }
 
     static class TestStableBranch {
@@ -124,8 +147,20 @@ public class VersionUtilsTests extends ESTestCase {
                 TestStableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1), released);
-        assertEquals(Arrays.asList(TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0), unreleased);
+
+        final List<Version> expectedReleased;
+        final List<Version> expectedUnreleased;
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            expectedReleased = Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1);
+            expectedUnreleased = Arrays.asList(TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0);
+        } else {
+            expectedReleased =
+                    Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1, TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0);
+            expectedUnreleased = Collections.emptyList();
+        }
+
+        assertThat(released, equalTo(expectedReleased));
+        assertThat(unreleased, equalTo(expectedUnreleased));
     }
 
     static class TestStableBranchBehindStableBranch {
@@ -141,9 +176,26 @@ public class VersionUtilsTests extends ESTestCase {
                 TestStableBranchBehindStableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_0, TestStableBranchBehindStableBranch.V_5_3_1), released);
-        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_2, TestStableBranchBehindStableBranch.V_5_4_0,
-                TestStableBranchBehindStableBranch.V_5_5_0), unreleased);
+
+        final List<Version> expectedReleased;
+        final List<Version> expectedUnreleased;
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            expectedReleased = Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_0, TestStableBranchBehindStableBranch.V_5_3_1);
+            expectedUnreleased = Arrays.asList(
+                    TestStableBranchBehindStableBranch.V_5_3_2,
+                    TestStableBranchBehindStableBranch.V_5_4_0,
+                    TestStableBranchBehindStableBranch.V_5_5_0);
+        } else {
+            expectedReleased = Arrays.asList(
+                    TestStableBranchBehindStableBranch.V_5_3_0,
+                    TestStableBranchBehindStableBranch.V_5_3_1,
+                    TestStableBranchBehindStableBranch.V_5_3_2,
+                    TestStableBranchBehindStableBranch.V_5_4_0,
+                    TestStableBranchBehindStableBranch.V_5_5_0);
+            expectedUnreleased = Collections.emptyList();
+        }
+        assertThat(released, equalTo(expectedReleased));
+        assertThat(unreleased, equalTo(expectedUnreleased));
     }
 
     static class TestUnstableBranch {
@@ -163,9 +215,30 @@ public class VersionUtilsTests extends ESTestCase {
                 TestUnstableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_0, TestUnstableBranch.V_5_3_1,
-                TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2, TestUnstableBranch.V_6_0_0_beta1), released);
-        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta2), unreleased);
+
+        final List<Version> expectedReleased;
+        final List<Version> expectedUnreleased;
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            expectedReleased = Arrays.asList(
+                    TestUnstableBranch.V_5_3_0,
+                    TestUnstableBranch.V_5_3_1,
+                    TestUnstableBranch.V_6_0_0_alpha1,
+                    TestUnstableBranch.V_6_0_0_alpha2,
+                    TestUnstableBranch.V_6_0_0_beta1);
+            expectedUnreleased = Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta2);
+        } else {
+            expectedReleased = Arrays.asList(
+                    TestUnstableBranch.V_5_3_0,
+                    TestUnstableBranch.V_5_3_1,
+                    TestUnstableBranch.V_5_3_2,
+                    TestUnstableBranch.V_5_4_0,
+                    TestUnstableBranch.V_6_0_0_alpha1,
+                    TestUnstableBranch.V_6_0_0_alpha2,
+                    TestUnstableBranch.V_6_0_0_beta1);
+            expectedUnreleased = Collections.emptyList();
+        }
+        assertThat(released, equalTo(expectedReleased));
+        assertThat(unreleased, equalTo(expectedUnreleased));
     }
 
     static class TestNewMajorRelease {
@@ -186,11 +259,35 @@ public class VersionUtilsTests extends ESTestCase {
             TestNewMajorRelease.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestNewMajorRelease.V_5_6_0, TestNewMajorRelease.V_5_6_1,
-            TestNewMajorRelease.V_6_0_0_alpha1, TestNewMajorRelease.V_6_0_0_alpha2,
-            TestNewMajorRelease.V_6_0_0_beta1, TestNewMajorRelease.V_6_0_0_beta2,
-            TestNewMajorRelease.V_6_0_0), released);
-        assertEquals(Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1), unreleased);
+
+        final List<Version> expectedReleased;
+        final List<Version> expectedUnreleased;
+        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
+            expectedReleased = Arrays.asList(
+                    TestNewMajorRelease.V_5_6_0,
+                    TestNewMajorRelease.V_5_6_1,
+                    TestNewMajorRelease.V_6_0_0_alpha1,
+                    TestNewMajorRelease.V_6_0_0_alpha2,
+                    TestNewMajorRelease.V_6_0_0_beta1,
+                    TestNewMajorRelease.V_6_0_0_beta2,
+                    TestNewMajorRelease.V_6_0_0);
+            expectedUnreleased = Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1);
+        } else {
+            expectedReleased = Arrays.asList(
+                    TestNewMajorRelease.V_5_6_0,
+                    TestNewMajorRelease.V_5_6_1,
+                    TestNewMajorRelease.V_5_6_2,
+                    TestNewMajorRelease.V_6_0_0_alpha1,
+                    TestNewMajorRelease.V_6_0_0_alpha2,
+                    TestNewMajorRelease.V_6_0_0_beta1,
+                    TestNewMajorRelease.V_6_0_0_beta2,
+                    TestNewMajorRelease.V_6_0_0,
+                    TestNewMajorRelease.V_6_0_1);
+            expectedUnreleased = Collections.emptyList();
+        }
+
+        assertThat(released, equalTo(expectedReleased));
+        assertThat(unreleased, equalTo(expectedUnreleased));
     }
 
     /**
@@ -198,10 +295,6 @@ public class VersionUtilsTests extends ESTestCase {
      * agree with the list of wire and index compatible versions we build in gradle.
      */
     public void testGradleVersionsMatchVersionUtils() {
-        if (System.getProperty("build.snapshot", "true").equals("false")) {
-            logger.warn("Skipping testGradleVersionsMatchVersionUtils(): See #27815 for details");
-            return;
-        }
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
 

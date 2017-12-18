@@ -5,7 +5,6 @@
 <titleabbrev>6.1.1 Release Notes</titleabbrev>
 ++++
 
-To be determined...
 ////
 [[xes-enhancement-6.1.1]]
 [float]
@@ -15,11 +14,11 @@ Watcher::
 * Watcher: Ensure watcher thread pool size is reasonably bound
 // https://github.com/elastic/x-pack-elasticsearch/pull/3056[#3056] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3052[#3052])
 ////
-////
+
 [[xes-bug-6.1.1]]
 [float]
 === Bug fixes
-////
+
 ////
 Machine learning::
 * Retry named pipe writes if there are interrupted system calls
@@ -27,11 +26,14 @@ Machine learning::
 * Update Windows dependency bundle with a rebuilt log4cxx
 // https://github.com/elastic/machine-learning-cpp/pull/498[#498] (issue: https://github.com/elastic/machine-learning-cpp/issues/495[#495])
 ////
-////
+
 Monitoring::
-* [Monitoring] Use the same Cluster State for all Collectors
+* Data collectors now all share the same cluster state that existed at the
+beginning of data collection. This removes the extremely rare race condition
+where the cluster state can change between some data collectors, which could
+cause temporary issues in the Monitoring UI. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/3216[#3216] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3156[#3156])
-////
+
 ////
 Security::
 * Do not enforce TLS if discovery type is single-node

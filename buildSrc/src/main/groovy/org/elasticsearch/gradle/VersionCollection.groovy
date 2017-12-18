@@ -128,7 +128,7 @@ class VersionCollection {
      */
     Version getBWCSnapshotForPreviousMajor() {
         Version version = getLastSnapshotWithMajor(currentVersion.major - 1)
-        assert version != null : "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
+        assert version != null: "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
         return version
     }
 
@@ -140,19 +140,47 @@ class VersionCollection {
         return snapshotIndex == -1 ? null : versions[snapshotIndex]
     }
 
-    private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
+    /**
+     * @param minVersion The minimum version to return.
+     * @return A list of versions that are <code>onOrAfter</code> <code>minVersion</code> and
+     * <code>before</code> <code>currentVersion</code>, which includes all released versions, as well as
+     * the latest unreleased version in each major series, but no other unreleased versions.
+     */
+    private List<Version> versionsExceptCurrentAndObsoleteSnapshotsOnOrAfter(Version minVersion) {
         final String minVersionString = minVersion.toString()
-        return Collections.unmodifiableList(versions.findAll {
-            it.onOrAfter(minVersionString) && it != currentVersion
-        })
+        final List<Version> result = []
+        Version prevConsideredVersion = getCurrentVersion()
+        boolean foundUnreleasedVersionInCurrentConsideredMajor = false
+
+        for (final int versionIndex = versions.size() - 2; versionIndex >= 0; versionIndex--) {
+            final Version currConsideredVersion = versions[versionIndex]
+            if (currConsideredVersion.before(minVersionString)) {
+                break
+            }
+            if (currConsideredVersion.major != prevConsideredVersion.major) {
+                foundUnreleasedVersionInCurrentConsideredMajor = false
+            }
+            if (currConsideredVersion.branch != null) {
+                if (foundUnreleasedVersionInCurrentConsideredMajor == false) {
+                    result.add(currConsideredVersion)
+                }
+                foundUnreleasedVersionInCurrentConsideredMajor = true
+            } else {
+                result.add(currConsideredVersion)
+            }
+            prevConsideredVersion = currConsideredVersion
+        }
+
+        result.reverse(true)
+        return Collections.unmodifiableList(result)
     }
 
     /**
      * @return All earlier versions that should be tested for index BWC with the current version.
      */
     List<Version> getVersionsIndexCompatibleWithCurrent() {
-        final Version firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
-        return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
+        final Version firstVersionOfPreviousMajor = versions.find { it.major >= currentVersion.major - 1 }
+        return versionsExceptCurrentAndObsoleteSnapshotsOnOrAfter(firstVersionOfPreviousMajor)
     }
 
     private Version getMinimumWireCompatibilityVersion() {
@@ -168,7 +196,7 @@ class VersionCollection {
      * @return All earlier versions that should be tested for wire BWC with the current version.
      */
     List<Version> getVersionsWireCompatibleWithCurrent() {
-        return versionsOnOrAfterExceptCurrent(minimumWireCompatibilityVersion)
+        return versionsExceptCurrentAndObsoleteSnapshotsOnOrAfter(minimumWireCompatibilityVersion)
     }
 
     /**

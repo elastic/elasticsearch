@@ -250,7 +250,7 @@ public class VersionUtilsTests extends ESTestCase {
             TestNewMinorBranchIn6x.V_6_0_0_alpha1, TestNewMinorBranchIn6x.V_6_0_0_alpha2,
             TestNewMinorBranchIn6x.V_6_0_0_beta1, TestNewMinorBranchIn6x.V_6_0_0_beta2,
             TestNewMinorBranchIn6x.V_6_0_0, TestNewMinorBranchIn6x.V_6_1_0, TestNewMinorBranchIn6x.V_6_1_1), released);
-        assertEquals(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_2, TestNewMinorBranchIn6x.V_6_0_1,
+        assertEquals(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_2,
             TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0), unreleased);
     }
 

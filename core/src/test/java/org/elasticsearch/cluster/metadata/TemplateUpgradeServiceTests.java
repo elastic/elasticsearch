@@ -29,15 +29,19 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -58,7 +62,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.empty;
@@ -192,7 +195,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             Collections.emptyList());
 
         service.updateTemplates(additions, deletions);
-        int updatesInProgress = service.getUpdatesInProgress();
+        final int updatesInProgress = service.getUpdatesInProgress();
+        assertEquals(0, updatesInProgress);
 
         assertThat(putTemplateListeners, hasSize(additionsCount));
         assertThat(deleteTemplateListeners, hasSize(deletionsCount));
@@ -221,6 +225,99 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             }
         }
         assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
+    }
+
+    public void testUpdateChecksForMoreUpdatesAfterCompletion() {
+        final int additionsCount = randomIntBetween(2, 5);
+
+        List<ActionListener<PutIndexTemplateResponse>> putTemplateListeners = new ArrayList<>();
+
+        Client mockClient = mock(Client.class);
+        AdminClient mockAdminClient = mock(AdminClient.class);
+        IndicesAdminClient mockIndicesAdminClient = mock(IndicesAdminClient.class);
+        when(mockClient.admin()).thenReturn(mockAdminClient);
+        when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
+
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            PutIndexTemplateRequest request = (PutIndexTemplateRequest) args[0];
+            assertThat(request.name(), equalTo("add_template_" + request.order()));
+            putTemplateListeners.add((ActionListener) args[1]);
+            return null;
+        }).when(mockIndicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
+
+        final Map<String, IndexTemplateMetaData> additions = new HashMap<>(additionsCount);
+        for (int i = 0; i < additionsCount; i++) {
+            String name = "add_template_" + i;
+            additions.put(name, IndexTemplateMetaData.builder(name)
+                .patterns(Collections.singletonList("*"))
+                .order(i)
+                .build());
+        }
+
+        final List<Tuple<Map<String, BytesReference>, Set<String>>> executeParams = new ArrayList<>();
+        final ClusterService mockClusterService = mock(ClusterService.class);
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))
+            .nodes(DiscoveryNodes.builder()
+                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 0), "id"))
+                .masterNodeId("id")
+                .localNodeId("id")
+                .build())
+            .build();
+        when(mockClusterService.state()).thenReturn(state);
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, mockClusterService, null,
+            Collections.singletonList(templates -> {
+                templates.putAll(additions);
+                return templates;
+            })) {
+
+            @Override
+            void execute(Map<String, BytesReference> changes, Set<String> deletions) {
+                executeParams.add(new Tuple<>(changes, deletions));
+                updateTemplates(changes, deletions); // the real code forks a thread to do this but to simplify testing, just call here
+            }
+        };
+
+        service.clusterChanged(new ClusterChangedEvent("template upgrade test", state, ClusterState.EMPTY_STATE));
+        final int updatesInProgress = service.getUpdatesInProgress();
+        assertEquals(additionsCount, updatesInProgress);
+        assertThat(putTemplateListeners, hasSize(additionsCount));
+        assertEquals(1, executeParams.size());
+        Tuple<Map<String, BytesReference>, Set<String>> initParams = executeParams.get(0);
+        assertEquals(additionsCount, initParams.v1().size());
+        assertEquals(0, initParams.v2().size());
+        executeParams.remove(initParams);
+        assertEquals(0, executeParams.size());
+
+        final int numMissing = randomIntBetween(1, additionsCount - 1);
+        Map<String, IndexTemplateMetaData> mapWithMissing = new HashMap<>(additions);
+        for (int i = 0; i < numMissing; i++) {
+            mapWithMissing.remove("add_template_" + i);
+        }
+        ImmutableOpenMap<String, IndexTemplateMetaData> templatesMetadata = ImmutableOpenMap.<String, IndexTemplateMetaData>builder()
+            .putAll(mapWithMissing)
+            .build();
+        state = ClusterState.builder(state)
+            .metaData(MetaData.builder().templates(templatesMetadata))
+            .build();
+        when(mockClusterService.state()).thenReturn(state);
+
+        for (int i = 0; i < additionsCount; i++) {
+            assertEquals(0, executeParams.size()); // verify execute is not called before all listeners are complete
+            if (randomBoolean()) {
+                putTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
+            } else {
+                putTemplateListeners.get(i).onResponse(new PutIndexTemplateResponse(randomBoolean()) {
+
+                });
+            }
+        }
+
+        assertEquals(1, executeParams.size());
+        Tuple<Map<String, BytesReference>, Set<String>> recheckParams = executeParams.get(0);
+        assertEquals(numMissing, recheckParams.v1().size());
+        assertEquals(0, recheckParams.v2().size());
     }
 
     private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
@@ -338,42 +435,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         // Make sure that update wasn't called this time since the index template metadata didn't change
         assertThat(updateInvocation.get(), equalTo(2));
-    }
-
-    private static final int NODE_TEST_ITERS = 100;
-
-    private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        String masterNodeId = null;
-        for (int i = 0; i < dataAndMasterNodes; i++) {
-            String id = randomAlphaOfLength(10) + "_" + i;
-            Set<DiscoveryNode.Role> roles;
-            if (i == 0) {
-                masterNodeId = id;
-                // The first node has to be master node
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            } else {
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            }
-            String node = "node_" + i;
-            builder.add(new DiscoveryNode(node, id, buildNewFakeTransportAddress(), emptyMap(), roles, randomVersion(random())));
-        }
-        builder.masterNodeId(masterNodeId);  // Node 0 is always a master node
-
-        for (int i = 0; i < clientNodes; i++) {
-            String node = "client_" + i;
-            builder.add(new DiscoveryNode(node, randomAlphaOfLength(10) + "__" + i, buildNewFakeTransportAddress(), emptyMap(),
-                EnumSet.noneOf(DiscoveryNode.Role.class), randomVersion(random())));
-        }
-        return builder.build();
     }
 
     public static MetaData randomMetaData(IndexTemplateMetaData... templates) {

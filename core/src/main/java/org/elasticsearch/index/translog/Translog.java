@@ -450,7 +450,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return a writer for the new translog
      * @throws IOException if creating the translog failed
      */
-    private TranslogWriter createWriter(long fileGeneration) throws IOException {
+    TranslogWriter createWriter(long fileGeneration) throws IOException {
         return createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong());
     }
 

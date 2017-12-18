@@ -234,7 +234,8 @@ public class VersionUtilsTests extends ESTestCase {
                     TestUnstableBranch.V_5_4_0,
                     TestUnstableBranch.V_6_0_0_alpha1,
                     TestUnstableBranch.V_6_0_0_alpha2,
-                    TestUnstableBranch.V_6_0_0_beta1);
+                    TestUnstableBranch.V_6_0_0_beta1,
+                    TestUnstableBranch.V_6_0_0_beta2);
             expectedUnreleased = Collections.emptyList();
         }
         assertThat(released, equalTo(expectedReleased));

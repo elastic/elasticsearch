@@ -1,5 +1,9 @@
 ---
 "Rollover index via API":
+  - skip:
+         version: "all"
+         reason:  "AwaitsFix https://github.com/elastic/elasticsearch/pull/27863"
+
   # create index with alias
   - do:
       indices.create:
@@ -77,7 +81,7 @@
 "Rollover no condition matched":
   - skip:
         version: "all"
-        reason:  "AwaitsFix - Fails complaining of negative BytesSizeValue"
+        reason:  "AwaitsFix https://github.com/elastic/elasticsearch/pull/27863"
 
   # create index with alias
   - do:

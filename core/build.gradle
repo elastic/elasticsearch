@@ -38,6 +38,10 @@ archivesBaseName = 'elasticsearch'
 
 dependencies {
 
+  // nocommit: should be provided?
+  provided project(':libs:plugin-classloader')
+  testRuntime project(':libs:plugin-classloader')
+
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
   compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"

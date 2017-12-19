@@ -47,6 +47,11 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
+grant codeBase "${codebase.plugin-classloader}" {
+  // needed to create the classloader which allows plugins to extend other plugins
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
 //// Everything else:
 
 grant {
@@ -131,7 +136,4 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
-
-  // nocommit: needed by plugin service for extensible plugins, move to a separate jar
-  permission java.lang.RuntimePermission "createClassLoader";
 };

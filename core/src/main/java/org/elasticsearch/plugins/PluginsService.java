@@ -274,32 +274,6 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    /**
-     * A classloader that is a union over the parent core classloader and classloaders of extended plugins.
-     */
-    private static class ExtendedPluginsClassLoader extends ClassLoader {
-
-        /** Loaders of plugins extended by a plugin. */
-        private List<ClassLoader> extendedLoaders;
-
-        ExtendedPluginsClassLoader(ClassLoader parent, List<ClassLoader> extendedLoaders) {
-            super(parent);
-            this.extendedLoaders = extendedLoaders;
-        }
-
-        @Override
-        protected Class<?> findClass(String name) throws ClassNotFoundException {
-            for (ClassLoader loader : extendedLoaders) {
-                try {
-                    return loader.loadClass(name);
-                } catch (ClassNotFoundException e) {
-                    // continue
-                }
-            }
-            throw new ClassNotFoundException(name);
-        }
-    }
-
     // similar in impl to getPluginBundles, but DO NOT try to make them share code.
     // we don't need to inherit all the leniency, and things are different enough.
     static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
@@ -508,7 +482,7 @@ public class PluginsService extends AbstractComponent {
         }
 
         // create a child to load the plugin in this bundle
-        ExtendedPluginsClassLoader parentLoader = new ExtendedPluginsClassLoader(getClass().getClassLoader(), extendedLoaders);
+        ExtendedPluginsClassLoader parentLoader = ExtendedPluginsClassLoader.create(getClass().getClassLoader(), extendedLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
 
         // reload SPI with any new services from the plugin

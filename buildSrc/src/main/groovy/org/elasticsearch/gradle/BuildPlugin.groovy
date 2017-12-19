@@ -126,7 +126,7 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();
 
-            final GradleVersion minGradle = GradleVersion.version('4.1')
+            final GradleVersion minGradle = GradleVersion.version('4.4')
             if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }

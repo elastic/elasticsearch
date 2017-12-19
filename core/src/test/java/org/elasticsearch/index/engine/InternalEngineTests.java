@@ -2514,23 +2514,6 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testTranslogReplay() throws IOException {
-        IOUtils.close(engine, store);
-        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
-            new SequenceNumbersService(
-                config.getShardId(),
-                config.getAllocationId(),
-                config.getIndexSettings(),
-                seqNoStats.getMaxSeqNo(),
-                seqNoStats.getLocalCheckpoint(),
-                seqNoStats.getGlobalCheckpoint()) {
-                @Override
-                public long getGlobalCheckpoint() {
-                    return getLocalCheckpoint();
-                }
-            };
-        store = createStore();
-        engine = new InternalEngine(config(defaultSettings, store, primaryTranslogDir, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier);
-
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
@@ -2544,7 +2527,7 @@ public class InternalEngineTests extends EngineTestCase {
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
-        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG), seqNoServiceSupplier); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)); // we need to reuse the engine config unless the parser.mappingModified won't work
         engine.recoverFromTranslog();
 
         assertVisibleCount(engine, numDocs, false);
@@ -2558,7 +2541,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, primaryTranslogDir, seqNoServiceSupplier);
+        engine = createEngine(store, primaryTranslogDir);
         assertVisibleCount(engine, numDocs, false);
         parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         assertEquals(0, parser.appliedOperations());
@@ -2585,7 +2568,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, primaryTranslogDir, seqNoServiceSupplier);
+        engine = createEngine(store, primaryTranslogDir);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
@@ -2597,7 +2580,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
         } else {
             engine.close();
-            engine = createEngine(store, primaryTranslogDir, seqNoServiceSupplier);
+            engine = createEngine(store, primaryTranslogDir);
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
@@ -2826,19 +2809,6 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testCurrentTranslogIDisCommitted() throws IOException {
-        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
-            new SequenceNumbersService(
-                config.getShardId(),
-                config.getAllocationId(),
-                config.getIndexSettings(),
-                seqNoStats.getMaxSeqNo(),
-                seqNoStats.getLocalCheckpoint(),
-                seqNoStats.getGlobalCheckpoint()) {
-                @Override
-                public long getGlobalCheckpoint() {
-                    return getLocalCheckpoint();
-                }
-            };
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null);
 
@@ -2847,8 +2817,7 @@ public class InternalEngineTests extends EngineTestCase {
                 ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), new BytesArray("{}"), null);
                 Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
 
-                try (InternalEngine engine =
-                         new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG), seqNoServiceSupplier)){
+                try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG))){
                     assertFalse(engine.isRecovering());
                     engine.index(firstIndexRequest);
 

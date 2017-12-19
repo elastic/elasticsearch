@@ -23,11 +23,16 @@ Which returns:
 {
     "size" : 10,
     "docvalue_fields" : [
-        "author",
-        "name",
         "page_count",
         "release_date"
     ],
+    "_source": {
+        "includes": [
+            "author",
+            "name"
+        ],
+        "excludes": []
+    },
     "sort" : [
         {
             "page_count" : {

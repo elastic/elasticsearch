@@ -45,7 +45,14 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("      \"test_field\""));
         assertThat(readLine(), startsWith("    ],"));
         assertThat(readLine(), startsWith("    \"excludes\" : [ ]"));
-        assertThat(readLine(), startsWith("  }"));
+        assertThat(readLine(), startsWith("  },"));
+        assertThat(readLine(), startsWith("  \"sort\" : ["));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_doc\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    }"));
+        assertThat(readLine(), startsWith("  ]"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }
@@ -97,6 +104,13 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("  },"));
         assertThat(readLine(), startsWith("  \"docvalue_fields\" : ["));
         assertThat(readLine(), startsWith("    \"i\""));
+        assertThat(readLine(), startsWith("  ],"));
+        assertThat(readLine(), startsWith("  \"sort\" : ["));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_doc\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  ]"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
@@ -132,7 +146,14 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("EsQueryExec[test,{"));
         assertThat(readLine(), startsWith("  \"size\" : 0,"));
         assertThat(readLine(), startsWith("  \"_source\" : false,"));
-        assertThat(readLine(), startsWith("  \"stored_fields\" : \"_none_\""));
+        assertThat(readLine(), startsWith("  \"stored_fields\" : \"_none_\","));
+        assertThat(readLine(), startsWith("  \"sort\" : ["));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_doc\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    }"));
+        assertThat(readLine(), startsWith("  ]"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }

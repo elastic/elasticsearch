@@ -12,6 +12,11 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * {@link Expression}s that can be converted into Elasticsearch
+ * sorts, aggregations, or queries. They can also be extracted
+ * from the result of a search.
+ */
 public abstract class Attribute extends NamedExpression {
 
     // empty - such as a top level attribute in SELECT cause
@@ -99,7 +104,7 @@ public abstract class Attribute extends NamedExpression {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
-            return Objects.equals(qualifier, other.qualifier) 
+            return Objects.equals(qualifier, other.qualifier)
                     && Objects.equals(nullable, other.nullable);
         }
 

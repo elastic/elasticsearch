@@ -38,10 +38,10 @@ public abstract class ScalarFunction extends Function {
     }
 
     @Override
-    public ScalarFunctionAttribute toAttribute() {
+    public final ScalarFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = new ScalarFunctionAttribute(location(), name(), dataType(), id(), functionId(), asScript(), orderBy(),
-                    asProcessorDefinition());
+                asProcessorDefinition());
         }
         return lazyAttribute;
     }

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.logging.log4j.Logger;
-
+import org.relique.jdbc.csv.CsvResultSet;
 import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -63,11 +63,11 @@ public class JdbcAssert {
                     expectedMeta.getColumnCount(), actualMeta.getColumnCount()),
                     expectedCols.toString(), actualCols.toString());
         }
-        
+
         for (int column = 1; column <= expectedMeta.getColumnCount(); column++) {
-            String expectedName = expectedMeta.getColumnName(column); 
+            String expectedName = expectedMeta.getColumnName(column);
             String actualName = actualMeta.getColumnName(column);
-            
+
             if (!expectedName.equals(actualName)) {
                 // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
@@ -87,6 +87,10 @@ public class JdbcAssert {
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
                 expectedType = Types.TIMESTAMP;
+            }
+            // since csv doesn't support real, we use float instead.....
+            if (expectedType == Types.FLOAT && expected instanceof CsvResultSet) {
+                expectedType = Types.REAL;
             }
             assertEquals("Different column type for column [" + expectedName + "] (" + JDBCType.valueOf(expectedType) + " != "
                     + JDBCType.valueOf(actualType) + ")", expectedType, actualType);

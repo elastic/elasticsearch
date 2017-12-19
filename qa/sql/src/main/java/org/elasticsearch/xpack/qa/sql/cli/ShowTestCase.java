@@ -39,9 +39,10 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         while (scalarFunction.matcher(line).matches()) {
             line = readLine();
         }
-        assertEquals("", line);
+        assertThat(line, RegexMatcher.matches("\\s*SCORE\\s*\\|\\s*SCORE\\s*"));
+        assertEquals("", readLine());
     }
-    
+
     public void testShowFunctionsLikePrefix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE 'L%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
         assertThat(readLine(), containsString("----------"));
@@ -49,7 +50,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }
-    
+
     public void testShowFunctionsLikeInfix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE '%DAY%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
         assertThat(readLine(), containsString("----------"));

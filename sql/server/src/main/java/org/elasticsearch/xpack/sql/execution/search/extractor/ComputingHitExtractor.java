@@ -20,12 +20,16 @@ import java.util.Objects;
  * {@link Processor} tree as a leaf (and thus can effectively parse the
  * {@link SearchHit} while this class is used when scrolling and passing down
  * the results.
- * 
+ *
  * In the future, the processor might be used across the board for all columns
  * to reduce API complexity (and keep the {@link HitExtractor} only as an
  * internal implementation detail).
  */
 public class ComputingHitExtractor implements HitExtractor {
+    /**
+     * Stands for {@code comPuting}. We try to use short names for {@link HitExtractor}s
+     * to save a few bytes when when we send them back to the user.
+     */
     static final String NAME = "p";
     private final Processor processor;
 

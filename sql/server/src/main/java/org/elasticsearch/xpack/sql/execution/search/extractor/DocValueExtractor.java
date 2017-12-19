@@ -17,7 +17,11 @@ import java.io.IOException;
  * Extracts field values from {@link SearchHit#field(String)}.
  */
 public class DocValueExtractor implements HitExtractor {
-    static final String NAME = "f";
+    /**
+     * Stands for {@code doc_value}. We try to use short names for {@link HitExtractor}s
+     * to save a few bytes when when we send them back to the user.
+     */
+    static final String NAME = "d";
     private final String fieldName;
 
     public DocValueExtractor(String name) {

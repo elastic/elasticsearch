@@ -29,3 +29,17 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_na
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10095          |Hilari         |M              |Morton
 ;
+
+score
+SELECT emp_no, first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   SCORE():f
+10076          |Erez           |4.2096553
+;
+
+scoreAsSomething
+SELECT emp_no, first_name, SCORE() as s FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   s:f
+10076          |Erez           |4.2096553
+;

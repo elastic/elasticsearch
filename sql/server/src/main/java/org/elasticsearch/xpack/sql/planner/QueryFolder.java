@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
+import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
+import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
@@ -355,13 +357,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
                                 if (withAgg.v2().innerKey() != null) {
-                                    throw new PlanningException("innerkey/matrix stats not handled (yet)", RestStatus.BAD_REQUEST);
+                                    throw new PlanningException("innerkey/matrix stats not handled (yet)");
                                 }
                             }
                         }
-                    }
-                    // not an Alias or a Function, means it's an Attribute so apply the same logic as above
-                    else {
+                    // not an Alias or Function means it's an Attribute so apply the same logic as above
+                    } else {
                         GroupingAgg matchingGroup = null;
                         if (groupingContext != null) {
                             matchingGroup = groupingContext.groupFor(ne);
@@ -432,7 +433,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
-
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
@@ -464,23 +464,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) attr;
                             // is there an expression to order by?
                             if (sfa.orderBy() != null) {
-                                Expression ob = sfa.orderBy();
-                                if (ob instanceof NamedExpression) {
-                                    Attribute at = ((NamedExpression) ob).toAttribute();
+                                if (sfa.orderBy() instanceof NamedExpression) {
+                                    Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
                                     at = qContainer.aliases().getOrDefault(at, at);
                                     qContainer = qContainer.sort(new AttributeSort(at, direction));
-                                }
-                                // ignore constant
-                                else if (!ob.foldable()) {
-                                    throw new PlanningException("does not know how to order by expression %s", ob);
+                                } else if (!sfa.orderBy().foldable()) {
+                                    // ignore constant
+                                    throw new PlanningException("does not know how to order by expression %s", sfa.orderBy());
                                 }
                             }
                             // nope, use scripted sorting
-                            else {
-                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
-                            }
-                        }
-                        else {
+                            qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
+                        } else if (attr instanceof ScoreAttribute) {
+                            qContainer = qContainer.sort(new ScoreSort(direction));
+                        } else {
                             qContainer = qContainer.sort(new AttributeSort(attr, direction));
                         }
                     }

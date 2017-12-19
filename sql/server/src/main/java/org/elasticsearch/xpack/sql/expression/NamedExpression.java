@@ -19,7 +19,7 @@ public abstract class NamedExpression extends Expression {
     public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id) {
         this(location, name, children, id, false);
     }
-    
+
     public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
         super(location, children);
         this.name = name;
@@ -57,7 +57,7 @@ public abstract class NamedExpression extends Expression {
 
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
-                && Objects.equals(id, other.id) 
+                && Objects.equals(id, other.id)
                 && Objects.equals(name(), other.name())
                 && Objects.equals(children(), other.children());
     }

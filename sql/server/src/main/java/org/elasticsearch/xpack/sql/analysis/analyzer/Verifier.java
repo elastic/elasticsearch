@@ -6,13 +6,16 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
+import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -150,7 +153,6 @@ abstract class Verifier {
 
         // Concrete verifications
 
-            //
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
@@ -182,14 +184,17 @@ abstract class Verifier {
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
-            // everything checks out
-            // mark the plan as analyzed
-            if (localFailures.isEmpty()) {
-                p.setAnalyzed();
-            }
 
-            failures.addAll(localFailures);
-        });
+                checkForScoreInsideFunctions(p, localFailures);
+
+                // everything checks out
+                // mark the plan as analyzed
+                if (localFailures.isEmpty()) {
+                    p.setAnalyzed();
+                }
+
+                failures.addAll(localFailures);
+            });
         }
 
         return failures;
@@ -256,6 +261,8 @@ abstract class Verifier {
         }
         return true;
     }
+
+
     // check whether plain columns specified in an agg are mentioned in the group-by
     private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof Aggregate) {
@@ -265,6 +272,9 @@ abstract class Verifier {
             a.groupings().forEach(e -> e.forEachUp(c -> {
                 if (Functions.isAggregate(c)) {
                     localFailures.add(fail(c, "Cannot use an aggregate [" + c.nodeName().toUpperCase(Locale.ROOT) + "] for grouping"));
+                }
+                if (c instanceof Score) {
+                    localFailures.add(fail(c, "Cannot use [SCORE()] for grouping"));
                 }
             }));
 
@@ -306,24 +316,30 @@ abstract class Verifier {
             // TODO: this should be handled by a different rule
             if (function == null) {
                 return false;
-                }
-            e = function;
             }
+            e = function;
+        }
 
         // scalar functions can be a binary tree
         // first test the function against the grouping
         // and if that fails, start unpacking hoping to find matches
         if (e instanceof ScalarFunction) {
             ScalarFunction sf = (ScalarFunction) e;
+
             // found group for the expression
             if (Expressions.anyMatch(groupings, e::semanticEquals)) {
                 return true;
-        }
+            }
+
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
                 arg.collectFirstChildren(c -> checkGroupMatch(c, source, groupings, missing, functions));
-    }
+            }
 
+            return true;
+        } else if (e instanceof Score) {
+            // Score can't be an aggretate function
+            missing.put(e, source);
             return true;
         }
 
@@ -346,5 +362,15 @@ abstract class Verifier {
             return true;
         }
         return false;
+    }
+
+    private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
+        // Make sure that SCORE is only used in "top level" functions
+        p.forEachExpressions(e ->
+            e.forEachUp((Function f) ->
+                f.arguments().stream()
+                    .filter(exp -> exp.anyMatch(Score.class::isInstance))
+                    .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function"))),
+                Function.class));
     }
 }

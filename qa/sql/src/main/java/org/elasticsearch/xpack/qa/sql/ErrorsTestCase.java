@@ -16,4 +16,9 @@ public interface ErrorsTestCase {
     void testSelectFromIndexWithoutTypes() throws Exception;
     void testSelectMissingField() throws Exception;
     void testSelectMissingFunction() throws Exception;
+    void testSelectProjectScoreInAggContext() throws Exception;
+    void testSelectOrderByScoreInAggContext() throws Exception;
+    void testSelectGroupByScore() throws Exception;
+    void testSelectScoreSubField() throws Exception;
+    void testSelectScoreInScalar() throws Exception;
 }

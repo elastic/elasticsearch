@@ -15,10 +15,12 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AttributeInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
@@ -286,6 +288,9 @@ public class QueryContainer {
         }
         if (attr instanceof LiteralAttribute) {
             return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asProcessorDefinition()));
+        }
+        if (attr instanceof ScoreAttribute) {
+            return new Tuple<>(this, new ComputedRef(new ScoreProcessorDefinition(attr)));
         }
 
         throw new SqlIllegalArgumentException("Unknown output attribute %s", attr);

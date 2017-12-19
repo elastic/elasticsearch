@@ -28,6 +28,7 @@ Frank Herbert    |Dune                |604            |-144720000000
 Alastair Reynolds|Revelation Space    |585            |953078400000
 James S.A. Corey |Leviathan Wakes     |561            |1306972800000
 --------------------------------------------------
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
 You can also choose to get results in a structured format by adding the `format` parameter. Currently supported formats:
@@ -58,8 +59,8 @@ Which returns:
 --------------------------------------------------
 {
     "columns": [
-        {"name": "author",       "type": "keyword"},
-        {"name": "name",         "type": "keyword"},
+        {"name": "author",       "type": "text"},
+        {"name": "name",         "type": "text"},
         {"name": "page_count",   "type": "short"},
         {"name": "release_date", "type": "date"}
     ],
@@ -100,8 +101,8 @@ Which looks like:
         ["Dan Simmons",        "Hyperion",             482,  612144000000],
         ["Iain M. Banks",      "Consider Phlebas",     471,  546134400000],
         ["Neal Stephenson",    "Snow Crash",           470,  707356800000],
-        ["Robert A. Heinlein", "Starship Troopers",    335, -318297600000],
-        ["George Orwell",      "1984",                 328,  486432000000]
+        ["Frank Herbert",      "God Emperor of Dune",  454,  359856000000],
+        ["Frank Herbert",      "Children of Dune",     408,  198892800000]
     ],
     "cursor" : "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWODRMaXBUaVlRN21iTlRyWHZWYUdrdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl9f///w8="
 }
@@ -174,6 +175,7 @@ Which returns:
 ---------------+------------------------------------+---------------+---------------
 Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |308534400000
 --------------------------------------------------
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
 [[sql-rest-fields]]

@@ -46,12 +46,12 @@ public class ParsingException extends ClientSqlException {
     }
 
     @Override
-    public String getMessage() {
-        return format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 
     @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
+    public String getMessage() {
+        return format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
     }
 }

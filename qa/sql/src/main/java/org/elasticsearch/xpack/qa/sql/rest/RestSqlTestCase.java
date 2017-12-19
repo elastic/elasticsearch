@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -71,7 +72,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        String request = "{\"query\":\"SELECT text, number, SIN(number) AS s FROM test ORDER BY number\", \"fetch_size\":2}";
+        String request = "{\"query\":\""
+                + "   SELECT text, number, SIN(number) AS s, SCORE()"
+                + "     FROM test"
+                + " ORDER BY number, SCORE()\", "
+            + "\"fetch_size\":2}";
 
         String cursor = null;
         for (int i = 0; i < 20; i += 2) {
@@ -87,11 +92,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 expected.put("columns", Arrays.asList(
                         columnInfo("text", "text"),
                         columnInfo("number", "long"),
-                        columnInfo("s", "double")));
+                        columnInfo("s", "double"),
+                        columnInfo("SCORE()", "float")));
             }
             expected.put("rows", Arrays.asList(
-                    Arrays.asList("text" + i, i, Math.sin(i)),
-                    Arrays.asList("text" + (i + 1), i + 1, Math.sin(i + 1))));
+                    Arrays.asList("text" + i, i, Math.sin(i), 1.0),
+                    Arrays.asList("text" + (i + 1), i + 1, Math.sin(i + 1), 1.0)));
             expected.put("size", 2);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
@@ -116,6 +122,26 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         // Default TimeZone is UTC
         assertResponse(expected, runSql(
                 new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
+    }
+
+    public void testScoreWithFieldNamedScore() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"name\":\"test\", \"score\":10}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+            new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+            columnInfo("name", "text"),
+            columnInfo("score", "long"),
+            columnInfo("SCORE()", "float")));
+        expected.put("rows", singletonList(Arrays.asList(
+            "test", 10, 1.0)));
+        expected.put("size", 1);
+
+        assertResponse(expected, runSql("SELECT *, SCORE() FROM test ORDER BY SCORE()"));
+        assertResponse(expected, runSql("SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()"));
     }
 
     public void testSelectWithJoinFails() throws Exception {
@@ -177,10 +203,92 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
 
-    private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
-        ResponseException e = expectThrows(ResponseException.class, code);
-        assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), errorMessageMatcher);
+    @Override
+    public void testSelectProjectScoreInAggContext() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql(
+            "     SELECT foo, SCORE(), COUNT(*)"
+            + "     FROM test"
+            + " GROUP BY foo"),
+                containsString("Cannot use non-grouped column [SCORE()], expected [foo]"));
+    }
+
+    @Override
+    public void testSelectOrderByScoreInAggContext() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql(
+            "     SELECT foo, COUNT(*)"
+            + "     FROM test"
+            + " GROUP BY foo"
+            + " ORDER BY SCORE()"),
+                containsString("Cannot order by non-grouped column [SCORE()], expected [foo]"));
+    }
+
+    @Override
+    public void testSelectGroupByScore() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql("SELECT COUNT(*) FROM test GROUP BY SCORE()"),
+                containsString("Cannot use [SCORE()] for grouping"));
+    }
+
+    @Override
+    public void testSelectScoreSubField() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql("SELECT SCORE().bar FROM test"),
+            containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','"));
+    }
+
+    @Override
+    public void testSelectScoreInScalar() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql("SELECT SIN(SCORE()) FROM test"),
+            containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
+    }
+
+    private void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+        try {
+            Map<String, Object> result = code.get();
+            fail("expected ResponseException but got " + result);
+        } catch (ResponseException e) {
+            if (400 != e.getResponse().getStatusLine().getStatusCode()) {
+                String body;
+                try {
+                    body = Streams.copyToString(new InputStreamReader(
+                        e.getResponse().getEntity().getContent(), StandardCharsets.UTF_8));
+                } catch (IOException bre) {
+                    throw new RuntimeException("error reading body after remote sent bad status", bre);
+                }
+                fail("expected [400] response but get [" + e.getResponse().getStatusLine().getStatusCode() + "] with body:\n" +  body);
+            }
+            assertThat(e.getMessage(), errorMessageMatcher);
+        } catch (Exception e) {
+            throw new AssertionError("expected ResponseException but got [" + e.getClass() + "]", e);
+        }
     }
 
     private Map<String, Object> runSql(String sql) throws IOException {
@@ -278,13 +386,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             "{\"test\":\"test\"}");
 
         String expected =
+                "     test      \n" +
+                "---------------\n" +
                 "test           \n" +
-                        "---------------\n" +
-                        "test           \n" +
-                        "test           \n";
+                "test           \n";
         Tuple<String, String> response = runSqlAsText("SELECT * FROM test");
-        logger.warn(expected);
-        logger.warn(response.v1());
+        assertEquals(expected, response.v1());
     }
 
     public void testNextPageText() throws IOException {

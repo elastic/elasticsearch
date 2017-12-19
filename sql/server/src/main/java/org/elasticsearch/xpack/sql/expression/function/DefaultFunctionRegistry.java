@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Correlation;
@@ -56,18 +57,76 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
-
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static java.util.Collections.unmodifiableList;
 
 public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
 
-    private static final Collection<Class<? extends Function>> FUNCTIONS = combine(agg(), scalar());
+    private static final Collection<Class<? extends Function>> FUNCTIONS = unmodifiableList(Arrays.asList(
+        // Aggregate functions
+            Avg.class,
+            Count.class,
+            Max.class,
+            Min.class,
+            Sum.class,
+            // Statistics
+            Mean.class,
+            StddevPop.class,
+            VarPop.class,
+            Percentile.class,
+            PercentileRank.class,
+            SumOfSquares.class,
+            // Matrix aggs
+            MatrixCount.class,
+            MatrixMean.class,
+            MatrixVariance.class,
+            Skewness.class,
+            Kurtosis.class,
+            Covariance.class,
+            Correlation.class,
+        // Scalar functions
+            // Date
+            DayOfMonth.class,
+            DayOfWeek.class,
+            DayOfYear.class,
+            HourOfDay.class,
+            MinuteOfDay.class,
+            MinuteOfHour.class,
+            SecondOfMinute.class,
+            MonthOfYear.class,
+            Year.class,
+            // Math
+            Abs.class,
+            ACos.class,
+            ASin.class,
+            ATan.class,
+            Cbrt.class,
+            Ceil.class,
+            Cos.class,
+            Cosh.class,
+            Degrees.class,
+            E.class,
+            Exp.class,
+            Expm1.class,
+            Floor.class,
+            Log.class,
+            Log10.class,
+            Pi.class,
+            Radians.class,
+            Round.class,
+            Sin.class,
+            Sinh.class,
+            Sqrt.class,
+            Tan.class,
+        // Special
+            Score.class));
 
     private static final Map<String, String> ALIASES;
     static {
@@ -91,76 +150,5 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
     @Override
     protected Map<String, String> aliases() {
         return ALIASES;
-    }
-
-    private static Collection<Class<? extends AggregateFunction>> agg() {
-        return Arrays.asList(
-                Avg.class,
-                Count.class,
-                Max.class,
-                Min.class,
-                Sum.class,
-                // statistics
-                Mean.class,
-                StddevPop.class,
-                VarPop.class,
-                Percentile.class,
-                PercentileRank.class,
-                SumOfSquares.class,
-                // Matrix aggs
-                MatrixCount.class,
-                MatrixMean.class,
-                MatrixVariance.class,
-                Skewness.class,
-                Kurtosis.class,
-                Covariance.class,
-                Correlation.class
-                );
-    }
-    
-    private static Collection<Class<? extends ScalarFunction>> scalar() {
-        return combine(dateTimeFunctions(), 
-                mathFunctions());
-    }
-
-    private static Collection<Class<? extends ScalarFunction>> dateTimeFunctions() {
-        return Arrays.asList(
-                DayOfMonth.class,
-                DayOfWeek.class,
-                DayOfYear.class,
-                HourOfDay.class,
-                MinuteOfDay.class,
-                MinuteOfHour.class,
-                SecondOfMinute.class,
-                MonthOfYear.class,
-                Year.class
-                );
-    }
-
-    private static Collection<Class<? extends ScalarFunction>> mathFunctions() {
-        return Arrays.asList(
-                Abs.class,
-                ACos.class,
-                ASin.class,
-                ATan.class,
-                Cbrt.class,
-                Ceil.class,
-                Cos.class,
-                Cosh.class,
-                Degrees.class,
-                E.class,
-                Exp.class,
-                Expm1.class,
-                Floor.class,
-                Log.class,
-                Log10.class,
-                Pi.class,
-                Radians.class,
-                Round.class,
-                Sin.class,
-                Sinh.class,
-                Sqrt.class,
-                Tan.class
-                );
     }
 }

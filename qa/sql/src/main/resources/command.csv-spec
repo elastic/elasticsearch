@@ -64,6 +64,7 @@ SIN             |SCALAR
 SINH            |SCALAR
 SQRT            |SCALAR
 TAN             |SCALAR
+SCORE           |SCORE
 ;
 
 showFunctionsWithExactMatch

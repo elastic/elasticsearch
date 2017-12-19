@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.util.Map;
 
 public class SourceExtractor implements HitExtractor {
+    /**
+     * Stands for {@code _source}. We try to use short names for {@link HitExtractor}s
+     * to save a few bytes when when we send them back to the user.
+     */
     public static final String NAME = "s";
     private final String fieldName;
 

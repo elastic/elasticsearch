@@ -213,9 +213,15 @@ setups['library'] = '''
               book:
                 properties:
                   name:
-                    type: keyword
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
                   author:
-                    type: keyword
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
                   release_date:
                     type: date
                   page_count:
@@ -232,6 +238,12 @@ setups['library'] = '''
             {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
             {"index":{"_id": "Dune"}}
             {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
             {"index":{"_id": "Consider Phlebas"}}
             {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
             {"index":{"_id": "Pandora's Star"}}

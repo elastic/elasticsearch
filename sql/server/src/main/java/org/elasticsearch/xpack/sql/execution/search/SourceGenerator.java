@@ -26,13 +26,16 @@ import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
+import org.elasticsearch.xpack.sql.querydsl.container.AggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
+import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
@@ -50,6 +53,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
+import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
 public abstract class SourceGenerator {
@@ -77,7 +81,7 @@ public abstract class SourceGenerator {
         Map<String, Script> scriptFields = new LinkedHashMap<>();
 
         for (ColumnReference ref : container.columns()) {
-            collectFields(ref, sourceFields, docFields, scriptFields);
+            collectFields(source, ref, sourceFields, docFields, scriptFields);
         }
 
         if (!sourceFields.isEmpty()) {
@@ -91,8 +95,6 @@ public abstract class SourceGenerator {
         for (Entry<String, Script> entry : scriptFields.entrySet()) {
             source.scriptField(entry.getKey(), entry.getValue());
         }
-
-        sorting(container, source);
 
         // add the aggs
         Aggs aggs = container.aggs();
@@ -115,6 +117,8 @@ public abstract class SourceGenerator {
             source.aggregation(builder);
         }
 
+        sorting(container, source);
+
         // add the pipeline aggs
         for (PipelineAggregationBuilder builder : aggs.asPipelineBuilders()) {
             source.aggregation(builder);
@@ -133,97 +137,110 @@ public abstract class SourceGenerator {
         return source;
     }
 
-    private static void collectFields(ColumnReference ref, Set<String> sourceFields, Set<String> docFields, Map<String, Script> scriptFields) {
+    private static void collectFields(SearchSourceBuilder source, ColumnReference ref,
+            Set<String> sourceFields, Set<String> docFields, Map<String, Script> scriptFields) {
         if (ref instanceof ComputedRef) {
             ProcessorDefinition proc = ((ComputedRef) ref).processor();
-            proc.forEachUp(l -> collectFields(l.context(), sourceFields, docFields, scriptFields), ReferenceInput.class);
-        }
-        else if (ref instanceof SearchHitFieldRef) {
+            if (proc instanceof ScoreProcessorDefinition) {
+                /*
+                 * If we're SELECTing SCORE then force tracking scores just in case
+                 * we're not sorting on them.
+                 */
+                source.trackScores(true);
+            }
+            proc.forEachUp(l -> collectFields(source, l.context(), sourceFields, docFields, scriptFields), ReferenceInput.class);
+        } else if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef sh = (SearchHitFieldRef) ref;
             Set<String> collection = sh.useDocValue() ? docFields : sourceFields;
             collection.add(sh.name());
-        }
-        else if (ref instanceof ScriptFieldRef) {
+        } else if (ref instanceof ScriptFieldRef) {
             ScriptFieldRef sfr = (ScriptFieldRef) ref;
             scriptFields.put(sfr.name(), sfr.script().toPainless());
+        } else if (ref instanceof AggRef) {
+            // Nothing to do
+        } else {
+            throw new IllegalStateException("unhandled field in collectFields [" + ref.getClass() + "][" + ref + "]");
         }
     }
 
     private static void sorting(QueryContainer container, SearchSourceBuilder source) {
-        if (container.sort() != null) {
-
-            for (Sort sortable : container.sort()) {
-                SortBuilder<?> sortBuilder = null;
-
-                if (sortable instanceof AttributeSort) {
-                    AttributeSort as = (AttributeSort) sortable;
-                    Attribute attr = as.attribute();
-
-                    // sorting only works on not-analyzed fields - look for a multi-field replacement
-                    if (attr instanceof FieldAttribute) {
-                        FieldAttribute fa = (FieldAttribute) attr;
-                        attr = fa.isAnalyzed() ? fa.notAnalyzedAttribute() : attr;
-                    }
-
-                    // top-level doc value
-                    if (attr instanceof RootFieldAttribute) {
-                        sortBuilder = fieldSort(((RootFieldAttribute) attr).name());
-                    }
-                    if (attr instanceof NestedFieldAttribute) {
-                        NestedFieldAttribute nfa = (NestedFieldAttribute) attr;
-                        FieldSortBuilder fieldSort = fieldSort(nfa.name());
-
-                        String nestedPath = nfa.parentPath();
-                        NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
-                        NestedSortBuilder nestedSort = fieldSort.getNestedSort();
-
-                        if (nestedSort == null) {
-                            fieldSort.setNestedSort(newSort);
-                        } else {
-                            for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
-                            }
-                            nestedSort.setNestedSort(newSort);
-                        }
-
-                        nestedSort = newSort;
-
-                        List<QueryBuilder> nestedQuery = new ArrayList<>(1);
-
-                        // copy also the nested queries fr(if any)
-                        if (container.query() != null) {
-                            container.query().forEachDown(nq -> {
-                                // found a match
-                                if (nestedPath.equals(nq.path())) {
-                                    // get the child query - the nested wrapping and inner hits are not needed
-                                    nestedQuery.add(nq.child().asBuilder());
-                                }
-                            }, NestedQuery.class);
-                        }
-
-                        if (nestedQuery.size() > 0) {
-                            if (nestedQuery.size() > 1) {
-                                throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
-                            }
-                            nestedSort.setFilter(nestedQuery.get(0));
-                        }
-
-                        sortBuilder = fieldSort;
-                    }
-                }
-                if (sortable instanceof ScriptSort) {
-                    ScriptSort ss = (ScriptSort) sortable;
-                    sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
-                }
-
-                if (sortBuilder != null) {
-                    sortBuilder.order(sortable.direction() == Direction.ASC ? SortOrder.ASC : SortOrder.DESC);
-                    source.sort(sortBuilder);
-                }
-            }
+        if (source.aggregations() != null && source.aggregations().count() > 0) {
+            // Aggs can't be sorted using search sorting. That sorting is handled elsewhere.
+            return;
         }
-        else {
+        if (container.sort() == null || container.sort().isEmpty()) {
             // if no sorting is specified, use the _doc one
             source.sort("_doc");
+            return;
+        }
+        for (Sort sortable : container.sort()) {
+            SortBuilder<?> sortBuilder = null;
+
+            if (sortable instanceof AttributeSort) {
+                AttributeSort as = (AttributeSort) sortable;
+                Attribute attr = as.attribute();
+
+                // sorting only works on not-analyzed fields - look for a multi-field replacement
+                if (attr instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) attr;
+                    attr = fa.isAnalyzed() ? fa.notAnalyzedAttribute() : attr;
+                }
+
+                // top-level doc value
+                if (attr instanceof RootFieldAttribute) {
+                    sortBuilder = fieldSort(((RootFieldAttribute) attr).name());
+                }
+                if (attr instanceof NestedFieldAttribute) {
+                    NestedFieldAttribute nfa = (NestedFieldAttribute) attr;
+                    FieldSortBuilder fieldSort = fieldSort(nfa.name());
+
+                    String nestedPath = nfa.parentPath();
+                    NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
+                    NestedSortBuilder nestedSort = fieldSort.getNestedSort();
+
+                    if (nestedSort == null) {
+                        fieldSort.setNestedSort(newSort);
+                    } else {
+                        for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
+                        }
+                        nestedSort.setNestedSort(newSort);
+                    }
+
+                    nestedSort = newSort;
+
+                    List<QueryBuilder> nestedQuery = new ArrayList<>(1);
+
+                    // copy also the nested queries fr(if any)
+                    if (container.query() != null) {
+                        container.query().forEachDown(nq -> {
+                            // found a match
+                            if (nestedPath.equals(nq.path())) {
+                                // get the child query - the nested wrapping and inner hits are not needed
+                                nestedQuery.add(nq.child().asBuilder());
+                            }
+                        }, NestedQuery.class);
+                    }
+
+                    if (nestedQuery.size() > 0) {
+                        if (nestedQuery.size() > 1) {
+                            throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+                        }
+                        nestedSort.setFilter(nestedQuery.get(0));
+                    }
+
+                    sortBuilder = fieldSort;
+                }
+            } else if (sortable instanceof ScriptSort) {
+                ScriptSort ss = (ScriptSort) sortable;
+                sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+            } else if (sortable instanceof ScoreSort) {
+                sortBuilder = scoreSort();
+            }
+
+            if (sortBuilder != null) {
+                sortBuilder.order(sortable.direction() == Direction.ASC ? SortOrder.ASC : SortOrder.DESC);
+                source.sort(sortBuilder);
+            }
         }
     }
 

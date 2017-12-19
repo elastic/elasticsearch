@@ -17,6 +17,10 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InnerHitExtractor implements HitExtractor {
+    /**
+     * Stands for {@code inner}. We try to use short names for {@link HitExtractor}s
+     * to save a few bytes when when we send them back to the user.
+     */
     static final String NAME = "i";
     private final String hitName, fieldName;
     private final boolean useDocValue;

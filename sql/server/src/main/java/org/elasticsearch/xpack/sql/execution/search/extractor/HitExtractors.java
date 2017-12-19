@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class HitExtractors {
-
     /**
      * All of the named writeables needed to deserialize the instances of
      * {@linkplain HitExtractor}.
@@ -25,6 +24,7 @@ public abstract class HitExtractors {
         entries.add(new Entry(HitExtractor.class, InnerHitExtractor.NAME, InnerHitExtractor::new));
         entries.add(new Entry(HitExtractor.class, SourceExtractor.NAME, SourceExtractor::new));
         entries.add(new Entry(HitExtractor.class, ComputingHitExtractor.NAME, ComputingHitExtractor::new));
+        entries.add(new Entry(HitExtractor.class, ScoreExtractor.NAME, in -> ScoreExtractor.INSTANCE));
         entries.addAll(Processors.getNamedWriteables());
         return entries;
     }

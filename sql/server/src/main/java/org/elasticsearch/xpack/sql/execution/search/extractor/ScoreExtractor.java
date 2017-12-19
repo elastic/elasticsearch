@@ -5,35 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Returns the a constant for every search hit against which it is run.
  */
-public class ConstantExtractor implements HitExtractor {
+public class ScoreExtractor implements HitExtractor {
+    public static final HitExtractor INSTANCE = new ScoreExtractor();
     /**
-     * Stands for {@code constant}. We try to use short names for {@link HitExtractor}s
+     * Stands for {@code score}. We try to use short names for {@link HitExtractor}s
      * to save a few bytes when when we send them back to the user.
      */
-    static final String NAME = "c";
-    private final Object constant;
+    static final String NAME = "sc";
 
-    public ConstantExtractor(Object constant) {
-        this.constant = constant;
-    }
-
-    ConstantExtractor(StreamInput in) throws IOException {
-        constant = in.readGenericValue();
-    }
+    private ScoreExtractor() {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(constant);
+        // Nothing to write
     }
 
     @Override
@@ -43,7 +35,7 @@ public class ConstantExtractor implements HitExtractor {
 
     @Override
     public Object get(SearchHit hit) {
-        return constant;
+        return hit.getScore();
     }
 
     @Override
@@ -56,17 +48,16 @@ public class ConstantExtractor implements HitExtractor {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        ConstantExtractor other = (ConstantExtractor) obj;
-        return Objects.equals(constant, other.constant);
+        return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(constant);
+        return 31;
     }
 
     @Override
     public String toString() {
-        return "^" + constant;
+        return "SCORE";
     }
 }

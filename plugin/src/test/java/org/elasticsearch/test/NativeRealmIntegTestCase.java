@@ -15,6 +15,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.ElasticUser;
@@ -26,6 +28,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
@@ -57,6 +60,13 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
+    }
+
+    @Override
+    public Set<String> excludeTemplates() {
+        Set<String> templates = Sets.newHashSet(super.excludeTemplates());
+        templates.add(SecurityLifecycleService.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        return templates;
     }
 
     private SecureString reservedPassword = SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;

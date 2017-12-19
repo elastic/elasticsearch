@@ -35,5 +35,4 @@ public class RestDeleteCalendarAction extends BaseRestHandler {
         DeleteCalendarAction.Request request = new DeleteCalendarAction.Request(restRequest.param(Calendar.ID.getPreferredName()));
         return channel -> client.execute(DeleteCalendarAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
-
 }

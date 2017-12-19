@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.io.IOException;
@@ -212,16 +213,16 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final Client client;
+        private final JobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                                TransportService transportService, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
-                               Client client) {
+                               JobProvider jobProvider) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.client = client;
+            this.jobProvider = jobProvider;
         }
 
         @Override
@@ -239,76 +240,24 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         }
 
         private void getCalendar(String calendarId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, Calendar.documentId(calendarId));
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
-                @Override
-                public void onResponse(GetResponse getDocResponse) {
 
-                    try {
-                        QueryPage<Calendar> calendars;
-                        if (getDocResponse.isExists()) {
-                            BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-
-                            try (XContentParser parser =
-                                    XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource)) {
-                                Calendar calendar = Calendar.PARSER.apply(parser, null).build();
-                                calendars = new QueryPage<>(Collections.singletonList(calendar), 1, Calendar.RESULTS_FIELD);
-
-                                Response response = new Response(calendars);
-                                listener.onResponse(response);
-                            }
-                        } else {
-                            this.onFailure(QueryPage.emptyQueryPage(Calendar.RESULTS_FIELD));
-                        }
-
-                    } catch (Exception e) {
-                        this.onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            jobProvider.calendar(calendarId, ActionListener.wrap(
+                    calendar -> {
+                        QueryPage<Calendar> page = new QueryPage<>(Collections.singletonList(calendar), 1, Calendar.RESULTS_FIELD);
+                        listener.onResponse(new Response(page));
+                    },
+                    listener::onFailure
+            ));
         }
 
         private void getCalendars(PageParams pageParams, ActionListener<Response> listener) {
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                    .from(pageParams.getFrom())
-                    .size(pageParams.getSize())
-                    .sort(Calendar.ID.getPreferredName())
-                    .query(QueryBuilders.termQuery(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE));
-
-            SearchRequest searchRequest = new SearchRequest(MlMetaIndex.INDEX_NAME)
-                    .indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
-                    .source(sourceBuilder);
-
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    List<Calendar> docs = new ArrayList<>();
-                    for (SearchHit hit : response.getHits().getHits()) {
-                        BytesReference docSource = hit.getSourceRef();
-                        try (XContentParser parser = XContentFactory.xContent(docSource).createParser(
-                                NamedXContentRegistry.EMPTY, docSource)) {
-                            docs.add(Calendar.PARSER.apply(parser, null).build());
-                        } catch (IOException e) {
-                            this.onFailure(e);
-                        }
-                    }
-
-                    Response getResponse = new Response(
-                            new QueryPage<>(docs, docs.size(), Calendar.RESULTS_FIELD));
-                    listener.onResponse(getResponse);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
-            client::search);
+            CalendarQueryBuilder query = new CalendarQueryBuilder().pageParams(pageParams).sort(true);
+            jobProvider.calendars(query, ActionListener.wrap(
+                    calendars -> {
+                        listener.onResponse(new Response(calendars));
+                    },
+                    listener::onFailure
+            ));
         }
     }
 }

@@ -59,6 +59,10 @@ public class GroupOrJobLookup {
         return new GroupOrJobResolver().expand(expression, allowNoJobs);
     }
 
+    public boolean isGroupOrJob(String id) {
+        return groupOrJobLookup.containsKey(id);
+    }
+
     private class GroupOrJobResolver extends NameResolver {
 
         private GroupOrJobResolver() {

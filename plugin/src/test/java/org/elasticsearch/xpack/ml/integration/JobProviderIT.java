@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Connective;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -56,9 +59,21 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.core.Is.is;
 
 
 public class JobProviderIT extends XPackSingleNodeTestCase {
@@ -95,6 +110,160 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
             assertTrue("Timed out waiting for the ML templates to be installed",
                     MachineLearning.allTemplatesInstalled(state));
         });
+    }
+
+    public void testGetCalandarByJobId() throws Exception {
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar("empty calendar", Collections.emptyList()));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo")));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar")));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat")));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo")));
+        indexCalendars(calendars);
+
+        List<Calendar> queryResult = getCalendars("ted");
+        assertThat(queryResult, is(empty()));
+
+        queryResult = getCalendars("foo");
+        assertThat(queryResult, hasSize(3));
+        Long matchedCount = queryResult.stream().filter(
+                c -> c.getId().equals("foo calendar") || c.getId().equals("foo bar calendar") || c.getId().equals("cat foo calendar"))
+                .collect(Collectors.counting());
+        assertEquals(new Long(3), matchedCount);
+
+        queryResult = getCalendars("bar");
+        assertThat(queryResult, hasSize(1));
+        assertEquals("foo bar calendar", queryResult.get(0).getId());
+    }
+
+    public void testUpdateCalendar() throws Exception {
+        String calendarId = "empty calendar";
+        Calendar emptyCal = new Calendar(calendarId, Collections.emptyList());
+        indexCalendars(Collections.singletonList(emptyCal));
+
+        Set<String> addedIds = new HashSet<>();
+        addedIds.add("foo");
+        addedIds.add("bar");
+        updateCalendar(calendarId, addedIds, Collections.emptySet());
+
+        Calendar updated = getCalendar(calendarId);
+        assertEquals(calendarId, updated.getId());
+        assertEquals(addedIds, new HashSet<>(updated.getJobIds()));
+
+        Set<String> removedIds = new HashSet<>();
+        removedIds.add("foo");
+        updateCalendar(calendarId, Collections.emptySet(), removedIds);
+
+        updated = getCalendar(calendarId);
+        assertEquals(calendarId, updated.getId());
+        assertEquals(1, updated.getJobIds().size());
+        assertEquals("bar", updated.getJobIds().get(0));
+    }
+
+    public void testRemoveJobFromCalendar() throws Exception {
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar("empty calendar", Collections.emptyList()));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo")));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar")));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat")));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo")));
+        indexCalendars(calendars);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobProvider.removeJobFromCalendars("bar", ActionListener.wrap(
+                r -> latch.countDown(),
+                exceptionHolder::set));
+
+        latch.await();
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        List<Calendar> updatedCalendars = getCalendars(null);
+        assertEquals(5, updatedCalendars.size());
+        for (Calendar cal: updatedCalendars) {
+            assertThat("bar", not(isIn(cal.getJobIds())));
+        }
+
+        Calendar catFoo = getCalendar("cat foo calendar");
+        assertThat(catFoo.getJobIds(), contains("cat", "foo"));
+
+        CountDownLatch latch2 = new CountDownLatch(1);
+        exceptionHolder = new AtomicReference<>();
+        jobProvider.removeJobFromCalendars("cat", ActionListener.wrap(
+                r -> latch2.countDown(),
+                exceptionHolder::set));
+
+        latch2.await();
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        updatedCalendars = getCalendars(null);
+        assertEquals(5, updatedCalendars.size());
+        for (Calendar cal: updatedCalendars) {
+            assertThat("bar", not(isIn(cal.getJobIds())));
+            assertThat("cat", not(isIn(cal.getJobIds())));
+        }
+    }
+
+    private List<Calendar> getCalendars(String jobId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<Calendar>> result = new AtomicReference<>();
+
+        CalendarQueryBuilder query = new CalendarQueryBuilder();
+
+        if (jobId != null) {
+            query.jobId(jobId);
+        }
+        jobProvider.calendars(query, ActionListener.wrap(
+                r -> {
+                    latch.countDown();
+                    result.set(r);
+                },
+                exceptionHolder::set));
+
+        latch.await();
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        return result.get().results();
+    }
+
+    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove,
+                r -> latch.countDown(),
+                exceptionHolder::set);
+
+        latch.await();
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME).get();
+    }
+
+    private Calendar getCalendar(String calendarId) throws Exception {
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Calendar> calendarHolder = new AtomicReference<>();
+        jobProvider.calendar(calendarId, ActionListener.wrap(
+                    c -> { latch.countDown(); calendarHolder.set(c); },
+                    exceptionHolder::set)
+                );
+
+        latch.await();
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        return  calendarHolder.get();
     }
 
     public void testSpecialEvents() throws Exception {
@@ -321,7 +490,8 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         for (MlFilter filter : filters) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                indexRequest.source(filter.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
         }
@@ -341,7 +511,21 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
     private void indexQuantiles(Quantiles quantiles) {
         JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
         persister.persistQuantiles(quantiles);
+    }
 
+    private void indexCalendars(List<Calendar> calendars) throws IOException {
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (Calendar calendar: calendars) {
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                indexRequest.source(calendar.toXContent(builder, params));
+                bulkRequest.add(indexRequest);
+            }
+        }
+        bulkRequest.execute().actionGet();
     }
 
     private ZonedDateTime createZonedDateTime(long epochMs) {

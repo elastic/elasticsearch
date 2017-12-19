@@ -252,7 +252,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
 
         if (vs instanceof ValuesSource.Bytes) {
-            final BytesRef missing = new BytesRef(missing().toString());
+            final BytesRef missing = format.parseBytesRef(missing().toString());
             if (vs instanceof ValuesSource.Bytes.WithOrdinals) {
                 return (VS) MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) vs, missing);
             } else {

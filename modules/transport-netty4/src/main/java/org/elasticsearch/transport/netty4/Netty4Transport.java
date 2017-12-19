@@ -66,6 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
@@ -393,8 +394,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     @Override
     protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
-        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> {
+        if (channel.eventLoop().isShuttingDown()) {
+            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+        } else {
+            final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
+            future.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(channel);
             } else {
@@ -405,7 +409,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 assert cause instanceof Exception;
                 listener.onFailure((Exception) cause);
             }
-        });
+            });
+        }
     }
 
     @Override

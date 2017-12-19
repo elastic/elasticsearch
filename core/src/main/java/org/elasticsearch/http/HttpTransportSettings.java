@@ -95,6 +95,7 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_HTTP_RESET_COOKIES =
         Setting.boolSetting("http.reset_cookies", false, Property.NodeScope);
 
+    // A default of 0 means that by default there is no read timeout
     public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT =
         Setting.timeSetting("http.read_timeout", new TimeValue(0), new TimeValue(0), Property.NodeScope);
 

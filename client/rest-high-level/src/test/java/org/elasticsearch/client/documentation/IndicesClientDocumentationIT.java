@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,6 +87,32 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             boolean acknowledged = deleteIndexResponse.isAcknowledged(); // <1>
             // end::delete-index-response
             assertTrue(acknowledged);
+        }
+
+        {
+            // tag::delete-index-notfound
+            try {
+                DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
+                client.indices().deleteIndex(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::delete-index-notfound
+        }
+    }
+
+    public void testDeleteIndexAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("posts"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-async
             client.indices().deleteIndexAsync(request, new ActionListener<DeleteIndexResponse>() {
@@ -100,19 +127,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::delete-index-execute-async
-        }
 
-        {
-            // tag::delete-index-notfound
-            try {
-                DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
-                client.indices().deleteIndex(request);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.NOT_FOUND) {
-                    // <1>
-                }
-            }
-            // end::delete-index-notfound
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "posts");
+                assertTrue(RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
     }
 
@@ -174,6 +194,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::create-index-response
             assertTrue(acknowledged);
             assertTrue(shardsAcked);
+        }
+    }
+
+    public void testCreateIndexAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexRequest request = new CreateIndexRequest("twitter");
 
             // tag::create-index-execute-async
             client.indices().createIndexAsync(request, new ActionListener<CreateIndexResponse>() {
@@ -188,6 +216,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::create-index-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "twitter");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
     }
+
 }

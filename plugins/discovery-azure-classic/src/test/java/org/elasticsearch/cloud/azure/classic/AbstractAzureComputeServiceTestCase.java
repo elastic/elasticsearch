@@ -39,6 +39,11 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     }
 
     @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))

@@ -414,7 +414,7 @@ class BuildPlugin implements Plugin<Project> {
                 File gradleJavaHome = Jvm.current().javaHome
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
-                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.javaHome = new File(project.javaHome)
                 options.forkOptions.memoryMaximumSize = "1g"
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default

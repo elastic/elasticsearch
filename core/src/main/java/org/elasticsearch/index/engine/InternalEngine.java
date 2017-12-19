@@ -458,6 +458,15 @@ public class InternalEngine extends Engine {
             if (translogUUID == null) {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
+            // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
+            // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
+                // TODO: Replace the last commit by a starting commit.
+                final Map<String, String> lastCommitUserData = store.readLastCommittedSegmentsInfo().getUserData();
+                final long minRequiredTranslogGen = Long.parseLong(lastCommitUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+                translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
+                translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
+            }
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }

@@ -183,6 +183,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                 long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
                 adjustRam(-(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed));
             }
+            if (old != VersionLookup.EMPTY) {
+                old.remove(uid);
+            }
         }
 
         long getMinDeleteTimestamp() {
@@ -323,7 +326,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /** Adds this uid/version to the pending adds map. */
     private void putUnderLock(BytesRef uid, VersionValue version, Maps maps) {
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        long accountRamTombstones = 0;
         if (version.isDelete() == false) {
             maps.put(uid, version);
             removeTombstoneUnderLock(uid);
@@ -332,14 +334,12 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             maps.remove(uid, versionValue);
             putTombstone(uid, versionValue);
         }
-
-
     }
 
-    private void putTombstone(BytesRef uid, VersionValue version) {
+    private void putTombstone(BytesRef uid, DeleteVersionValue version) {
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
         // Also enroll the delete into tombstones, and account for its RAM too:
-        final VersionValue prevTombstone = tombstones.put(uid, (DeleteVersionValue)version);
+        final VersionValue prevTombstone = tombstones.put(uid, version);
         // We initially account for BytesRef/VersionValue RAM for a delete against the tombstones, because this RAM will not be freed up
         // on refresh. Later, in removeTombstoneUnderLock, if we clear the tombstone entry but the delete remains in current, we shift
         // the accounting to current:

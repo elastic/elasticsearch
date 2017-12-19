@@ -60,6 +60,11 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         return Arrays.asList(mockPlugin);
     }
 
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
     protected void checkNumberOfNodes(int expected) {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         assertNotNull(nodeInfos);

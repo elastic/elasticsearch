@@ -19,13 +19,11 @@
 
 package org.elasticsearch.test.discovery;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -37,6 +35,14 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 /**
  * A alternative zen discovery which allows using mocks for things like pings, as well as
@@ -50,15 +56,40 @@ public class TestZenDiscovery extends ZenDiscovery {
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
         private Settings settings;
+        private final SetOnce<MockUncasedHostProvider> unicastHostProvider = new SetOnce<>();
         public TestPlugin(Settings settings) {
             this.settings = settings;
         }
+
         @Override
         public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   ClusterService clusterService, UnicastHostsProvider hostsProvider) {
             return Collections.singletonMap("test-zen",
-                () -> new TestZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
+                () -> new TestZenDiscovery(
+                    // we don't get the latest setting which were updated by the extra settings for the plugin. TODO: fix.
+                    Settings.builder().put(settings).putArray(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()).build(),
+                    threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
+        }
+
+        @Override
+        public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
+                                                                                NetworkService networkService) {
+            final Supplier<UnicastHostsProvider> supplier;
+            if (USE_MOCK_PINGS.get(settings)) {
+                // we have to return something in order for the unicast host provider setting to resolve to something. It will never be used
+                supplier = () -> () -> {
+                    throw new UnsupportedOperationException();
+                };
+            } else {
+                supplier = () -> {
+                    unicastHostProvider.set(
+                        new MockUncasedHostProvider(transportService::getLocalNode, ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                    );
+                    return unicastHostProvider.get();
+                };
+            }
+            return Collections.singletonMap("test-zen", supplier);
         }
 
         @Override
@@ -68,7 +99,19 @@ public class TestZenDiscovery extends ZenDiscovery {
 
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen").build();
+            return Settings.builder()
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+                .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+                .putArray(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                .build();
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            if (unicastHostProvider.get() != null) {
+                unicastHostProvider.get().close();
+            }
         }
     }
 

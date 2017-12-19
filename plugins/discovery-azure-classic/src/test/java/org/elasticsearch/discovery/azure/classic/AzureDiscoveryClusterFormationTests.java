@@ -98,6 +98,11 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Path resolve = logDir.resolve(Integer.toString(nodeOrdinal));
         try {

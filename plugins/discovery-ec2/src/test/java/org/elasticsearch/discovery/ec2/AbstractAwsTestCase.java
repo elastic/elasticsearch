@@ -69,4 +69,10 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(Ec2DiscoveryPlugin.class);
     }
+
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
 }

@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.greaterThan;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
+
     public void testNoMasterActions() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("action.auto_create_index", true)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
@@ -167,7 +167,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")

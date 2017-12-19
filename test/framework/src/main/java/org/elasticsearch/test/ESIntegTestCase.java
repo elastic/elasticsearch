@@ -1885,6 +1885,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Iff this returns true test zen discovery implementations is used for the test runs.
+     * The default is <tt>true</tt>
+     */
+    protected boolean addTestZenDiscovery() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -1919,7 +1927,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mocks.add(MockTcpTransportPlugin.class);
         }
 
-        mocks.add(TestZenDiscovery.TestPlugin.class);
+        if (addTestZenDiscovery()) {
+            mocks.add(TestZenDiscovery.TestPlugin.class);
+        }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
     }

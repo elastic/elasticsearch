@@ -203,11 +203,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
-        Settings nodeSettings = Settings.builder()
-            .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .build();
-        String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
-        String node1 = internalCluster().startNode(nodeSettings);
+        String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, masterOnlyNode);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         final ClusterState state = clusterService.state();

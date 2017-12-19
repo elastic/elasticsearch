@@ -72,6 +72,11 @@ public class GceDiscoverTests extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
     private static HttpsServer httpsServer;
     private static HttpServer httpServer;
     private static Path logDir;

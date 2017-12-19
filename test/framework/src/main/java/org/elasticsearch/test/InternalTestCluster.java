@@ -162,31 +162,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Logger logger = Loggers.getLogger(getClass());
 
-    /**
-     * The number of ports in the range used for this JVM
-     */
-    public static final int PORTS_PER_JVM = 100;
-
-    /**
-     * The number of ports in the range used for this cluster
-     */
-    public static final int PORTS_PER_CLUSTER = 20;
-
-    private static final int GLOBAL_TRANSPORT_BASE_PORT = 9300;
-    private static final int GLOBAL_HTTP_BASE_PORT = 19200;
-
-    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
-
-    /**
-     * a per-JVM unique offset to be used for calculating unique port ranges.
-     */
-    public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFSET + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
-
-    public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
-    public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
@@ -322,8 +299,8 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
-        builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
+        builder.put(TransportSettings.PORT.getKey(), 0);
+        builder.put("http.port", 0);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));

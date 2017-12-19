@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -52,15 +51,8 @@ import static org.hamcrest.Matchers.greaterThan;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class NoMasterNodeIT extends ESIntegTestCase {
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
-    }
-
     public void testNoMasterActions() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("action.auto_create_index", true)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
@@ -173,7 +165,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")

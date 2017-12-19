@@ -59,6 +59,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -186,6 +188,19 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
+    }
+
+    public void testFieldCapabilities() {
+        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[index][s]";
+        interceptTransportActions(fieldCapabilitiesShardAction);
+
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(randomIndicesOrAliases());
+        fieldCapabilitiesRequest.fields(randomAlphaOfLength(8));
+        internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapabilitiesRequest).actionGet();
+
+        clearInterceptedActions();
+        assertSameIndices(fieldCapabilitiesRequest, fieldCapabilitiesShardAction);
     }
 
     public void testAnalyze() {

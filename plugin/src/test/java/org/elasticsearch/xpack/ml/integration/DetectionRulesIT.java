@@ -61,7 +61,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(condition1, condition2, condition3)).build();
 
         Detector.Builder detector = new Detector.Builder("max", "value");
-        detector.setDetectorRules(Arrays.asList(rule));
+        detector.setRules(Arrays.asList(rule));
         detector.setByFieldName("by_field");
 
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(

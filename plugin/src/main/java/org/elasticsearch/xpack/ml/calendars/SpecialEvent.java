@@ -150,7 +150,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         conditions.add(RuleCondition.createTime(Operator.LT, bucketEndTime));
 
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
-        builder.setRuleAction(RuleAction.SKIP_SAMPLING_AND_FILTER_RESULTS);
+        builder.setActions(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING);
         builder.setConditionsConnective(Connective.AND);
         return builder.build();
     }

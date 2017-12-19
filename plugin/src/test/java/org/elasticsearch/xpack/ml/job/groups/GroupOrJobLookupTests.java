@@ -89,6 +89,20 @@ public class GroupOrJobLookupTests extends ESTestCase {
         assertThat(groupOrJobLookup.expandJobIds("foo-group,*-2", false), contains("bar-2", "foo-1", "foo-2"));
     }
 
+    public void testIsGroupOrJob() {
+        List<Job> jobs = new ArrayList<>();
+        jobs.add(mockJob("foo-1", Arrays.asList("foo-group", "ones")));
+        jobs.add(mockJob("foo-2", Arrays.asList("foo-group", "twos")));
+        jobs.add(mockJob("bar-1", Arrays.asList("bar-group", "ones")));
+        jobs.add(mockJob("nogroup", Collections.emptyList()));
+        GroupOrJobLookup groupOrJobLookup = new GroupOrJobLookup(jobs);
+
+        assertTrue(groupOrJobLookup.isGroupOrJob("foo-1"));
+        assertTrue(groupOrJobLookup.isGroupOrJob("twos"));
+        assertTrue(groupOrJobLookup.isGroupOrJob("nogroup"));
+        assertFalse(groupOrJobLookup.isGroupOrJob("missing"));
+    }
+
     private static Job mockJob(String jobId, List<String> groups) {
         Job job = mock(Job.class);
         when(job.getId()).thenReturn(jobId);

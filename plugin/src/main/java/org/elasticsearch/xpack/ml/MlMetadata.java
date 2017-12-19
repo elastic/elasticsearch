@@ -81,6 +81,10 @@ public class MlMetadata implements MetaData.Custom {
         return jobs;
     }
 
+    public boolean isGroupOrJob(String id) {
+        return groupOrJobLookup.isGroupOrJob(id);
+    }
+
     public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
         return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
     }

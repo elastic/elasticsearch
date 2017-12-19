@@ -315,7 +315,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                     detectorbuilder.setDetectorDescription(dd.getDescription());
                 }
                 if (dd.getRules() != null) {
-                    detectorbuilder.setDetectorRules(dd.getRules());
+                    detectorbuilder.setRules(dd.getRules());
                 }
                 ac.getDetectors().set(dd.getDetectorIndex(), detectorbuilder.build());
             }
@@ -435,13 +435,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 new ConstructingObjectParser<>("detector_update", a -> new DetectorUpdate((int) a[0], (String) a[1],
                         (List<DetectionRule>) a[2]));
 
-        public static final ParseField RULES = new ParseField("rules");
-
         static {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-                    (parser, parseFieldMatcher) -> DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), RULES);
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (parser, parseFieldMatcher) ->
+                    DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), Detector.RULES_FIELD);
         }
 
         private int detectorIndex;
@@ -495,7 +493,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 builder.field(Job.DESCRIPTION.getPreferredName(), description);
             }
             if (rules != null) {
-                builder.field(RULES.getPreferredName(), rules);
+                builder.field(Detector.RULES_FIELD.getPreferredName(), rules);
             }
             builder.endObject();
 

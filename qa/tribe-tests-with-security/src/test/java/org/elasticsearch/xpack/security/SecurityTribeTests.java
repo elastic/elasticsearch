@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -141,7 +142,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     public void tearDownTribeNodeAndWipeCluster() throws Exception {
         if (cluster2 != null) {
             try {
-                cluster2.wipe(Collections.emptySet());
+                cluster2.wipe(Collections.singleton(SecurityLifecycleService.SECURITY_TEMPLATE_NAME));
                 try {
                     // this is a hack to clean up the .security index since only the XPackSecurity user or superusers can delete it
                     final Client cluster2Client = cluster2.client().filterWithHeader(Collections.singletonMap("Authorization",

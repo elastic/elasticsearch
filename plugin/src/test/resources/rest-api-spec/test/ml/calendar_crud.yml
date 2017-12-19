@@ -2,24 +2,51 @@
 "Test calendar CRUD":
 
   - do:
+      xpack.ml.put_job:
+        job_id: cal-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-job" }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: cal-job2
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-job2" }
+
+
+  - do:
       xpack.ml.put_calendar:
         calendar_id: "advent"
         body:  >
           {
-            "job_ids": ["abc", "xyz"]
+            "job_ids": ["cal-job", "cal-job2"]
           }
   - match: { calendar_id: advent }
-  - match: { job_ids.0: abc }
-  - match: { job_ids.1: xyz }
+  - match: { job_ids.0: cal-job }
+  - match: { job_ids.1: cal-job2 }
 
   - do:
       xpack.ml.get_calendars:
         calendar_id: "advent"
-  - match: { count:   1 }
+  - match: { count: 1 }
   - match:
       calendars.0:
         calendar_id: "advent"
-        job_ids: ["abc", "xyz"]
+        job_ids: ["cal-job", "cal-job2"]
   - is_false: type
 
   - do:
@@ -27,7 +54,7 @@
         calendar_id: "Dogs of the Year"
         body:  >
           {
-            "job_ids": ["abc2"]
+            "job_ids": ["cal-job"]
           }
 
   - do:
@@ -51,6 +78,15 @@
       xpack.ml.get_calendars:
         calendar_id: "Dogs of the Year"
 
+  - do:
+      catch: missing
+      xpack.ml.put_calendar:
+        calendar_id: "new cal with unknown job"
+        body:  >
+          {
+            "job_ids": ["cal-job", "unknown-job"]
+          }
+
 ---
 "Test PageParams":
   - do:
@@ -66,14 +102,16 @@
   - do:
       xpack.ml.get_calendars:
         from: 2
-  - match: { count: 1 }
+  - match: { count: 3 }
+  - length: { calendars: 1}
   - match: { calendars.0.calendar_id: Calendar3 }
 
   - do:
       xpack.ml.get_calendars:
         from: 1
         size: 1
-  - match: { count: 1 }
+  - match: { count: 3 }
+  - length: { calendars: 1}
   - match: { calendars.0.calendar_id: Calendar2 }
 
 ---
@@ -90,10 +128,6 @@
   - do:
       xpack.ml.put_calendar:
         calendar_id: "Mayan"
-        body:  >
-          {
-            "job_ids": ["apocalypse"]
-          }
 
   - do:
       catch: /version_conflict_engine_exception/
@@ -106,3 +140,97 @@
       catch: bad_request
       xpack.ml.put_calendar:
         calendar_id: "_all"
+
+---
+"Test deleted job is removed from calendar":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: cal-crud-test-delete
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-crud-test-delete" }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "delete-test"
+        body:  >
+          {
+            "job_ids": ["cal-crud-test-delete"]
+          }
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: cal-crud-test-delete
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "delete-test"
+  - match: { count: 1 }
+  - match: { calendars.0.job_ids: [] }
+
+---
+"Test update calendar":
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "Wildlife"
+
+  - do:
+      xpack.ml.put_job:
+        job_id: tiger
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "tiger" }
+
+  - do:
+      xpack.ml.put_calendar_job:
+        calendar_id: "Wildlife"
+        job_id: "tiger"
+  - match: { calendar_id: "Wildlife" }
+  - match: { job_ids.0: "tiger" }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "Wildlife"
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: "Wildlife" }
+  - length: { calendars.0.job_ids: 1 }
+  - match: { calendars.0.job_ids.0: "tiger" }
+
+  - do:
+      xpack.ml.delete_calendar_job:
+        calendar_id: "Wildlife"
+        job_id: "tiger"
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "Wildlife"
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: "Wildlife" }
+  - length: { calendars.0.job_ids: 0 }
+
+  - do:
+      catch: missing
+      xpack.ml.put_calendar_job:
+        calendar_id: "Wildlife"
+        job_id: "missing job"
+
+  - do:
+      catch: missing
+      xpack.ml.delete_calendar_job:
+        calendar_id: "Wildlife"
+        job_id: "missing job"

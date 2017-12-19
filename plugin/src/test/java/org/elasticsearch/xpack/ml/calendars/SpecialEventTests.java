@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent> {
@@ -60,14 +61,14 @@ public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent>
         DetectionRule rule = event.toDetectionRule(TimeValue.timeValueSeconds(bucketSpanSecs));
 
         assertEquals(Connective.AND, rule.getConditionsConnective());
-        assertEquals(RuleAction.SKIP_SAMPLING_AND_FILTER_RESULTS, rule.getRuleAction());
+        assertEquals(rule.getActions(), EnumSet.of(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING));
         assertNull(rule.getTargetFieldName());
         assertNull(rule.getTargetFieldValue());
 
-        List<RuleCondition> conditions = rule.getRuleConditions();
+        List<RuleCondition> conditions = rule.getConditions();
         assertEquals(2, conditions.size());
-        assertEquals(RuleConditionType.TIME, conditions.get(0).getConditionType());
-        assertEquals(RuleConditionType.TIME, conditions.get(1).getConditionType());
+        assertEquals(RuleConditionType.TIME, conditions.get(0).getType());
+        assertEquals(RuleConditionType.TIME, conditions.get(1).getType());
         assertEquals(Operator.GTE, conditions.get(0).getCondition().getOperator());
         assertEquals(Operator.LT, conditions.get(1).getCondition().getOperator());
 

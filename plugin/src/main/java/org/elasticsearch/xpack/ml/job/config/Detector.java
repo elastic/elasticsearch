@@ -83,7 +83,7 @@ public class Detector implements ToXContentObject, Writeable {
     public static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
     public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
-    public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
+    public static final ParseField RULES_FIELD = new ParseField("rules");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
@@ -110,8 +110,8 @@ public class Detector implements ToXContentObject, Writeable {
                 }
                 throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
             }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
-            parser.declareObjectArray(Builder::setDetectorRules, (p, c) ->
-                    DetectionRule.PARSERS.get(parserType).apply(p, c).build(), DETECTOR_RULES_FIELD);
+            parser.declareObjectArray(Builder::setRules, (p, c) ->
+                    DetectionRule.PARSERS.get(parserType).apply(p, c).build(), RULES_FIELD);
             parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
         }
     }
@@ -329,7 +329,7 @@ public class Detector implements ToXContentObject, Writeable {
     private final String partitionFieldName;
     private final boolean useNull;
     private final ExcludeFrequent excludeFrequent;
-    private final List<DetectionRule> detectorRules;
+    private final List<DetectionRule> rules;
     private final int detectorIndex;
 
     public Detector(StreamInput in) throws IOException {
@@ -341,7 +341,7 @@ public class Detector implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
-        detectorRules = in.readList(DetectionRule::new);
+        rules = in.readList(DetectionRule::new);
         if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             detectorIndex = in.readInt();
         } else {
@@ -365,7 +365,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeList(detectorRules);
+        out.writeList(rules);
         if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeInt(detectorIndex);
         }
@@ -394,7 +394,7 @@ public class Detector implements ToXContentObject, Writeable {
         if (excludeFrequent != null) {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
-        builder.field(DETECTOR_RULES_FIELD.getPreferredName(), detectorRules);
+        builder.field(RULES_FIELD.getPreferredName(), rules);
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
@@ -406,7 +406,7 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     private Detector(String detectorDescription, String function, String fieldName, String byFieldName, String overFieldName,
-                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> detectorRules,
+                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> rules,
                      int detectorIndex) {
         this.function = function;
         this.fieldName = fieldName;
@@ -415,7 +415,7 @@ public class Detector implements ToXContentObject, Writeable {
         this.partitionFieldName = partitionFieldName;
         this.useNull = useNull;
         this.excludeFrequent = excludeFrequent;
-        this.detectorRules = Collections.unmodifiableList(detectorRules);
+        this.rules = Collections.unmodifiableList(rules);
         this.detectorDescription = detectorDescription != null ? detectorDescription : DefaultDetectorDescription.of(this);
         this.detectorIndex = detectorIndex;
     }
@@ -491,8 +491,8 @@ public class Detector implements ToXContentObject, Writeable {
         return excludeFrequent;
     }
 
-    public List<DetectionRule> getDetectorRules() {
-        return detectorRules;
+    public List<DetectionRule> getRules() {
+        return rules;
     }
 
     /**
@@ -514,8 +514,8 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     public Set<String> extractReferencedFilters() {
-        return detectorRules == null ? Collections.emptySet()
-                : detectorRules.stream().map(DetectionRule::extractReferencedFilters)
+        return rules == null ? Collections.emptySet()
+                : rules.stream().map(DetectionRule::extractReferencedFilters)
                 .flatMap(Set::stream).collect(Collectors.toSet());
     }
 
@@ -556,15 +556,14 @@ public class Detector implements ToXContentObject, Writeable {
                 Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
                 Objects.equals(this.useNull, that.useNull) &&
                 Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.detectorRules, that.detectorRules) &&
+                Objects.equals(this.rules, that.rules) &&
                 this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(detectorDescription, function, fieldName, byFieldName,
-                overFieldName, partitionFieldName, useNull, excludeFrequent,
-                detectorRules, detectorIndex);
+        return Objects.hash(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName, useNull,
+                excludeFrequent, rules, detectorIndex);
     }
 
     public static class Builder {
@@ -587,7 +586,7 @@ public class Detector implements ToXContentObject, Writeable {
         private String partitionFieldName;
         private boolean useNull = false;
         private ExcludeFrequent excludeFrequent;
-        private List<DetectionRule> detectorRules = Collections.emptyList();
+        private List<DetectionRule> rules = Collections.emptyList();
         // negative means unknown, and is expected for v5.4 jobs
         private int detectorIndex = -1;
 
@@ -603,8 +602,7 @@ public class Detector implements ToXContentObject, Writeable {
             partitionFieldName = detector.partitionFieldName;
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
-            detectorRules = new ArrayList<>(detector.detectorRules.size());
-            detectorRules.addAll(detector.getDetectorRules());
+            rules = new ArrayList<>(detector.getRules());
             detectorIndex = detector.detectorIndex;
         }
 
@@ -645,8 +643,8 @@ public class Detector implements ToXContentObject, Writeable {
             this.excludeFrequent = excludeFrequent;
         }
 
-        public void setDetectorRules(List<DetectionRule> detectorRules) {
-            this.detectorRules = detectorRules;
+        public void setRules(List<DetectionRule> rules) {
+            this.rules = rules;
         }
 
         public void setDetectorIndex(int detectorIndex) {
@@ -704,12 +702,12 @@ public class Detector implements ToXContentObject, Writeable {
             }
 
             String function = this.function == null ? Detector.METRIC : this.function;
-            if (detectorRules.isEmpty() == false) {
+            if (rules.isEmpty() == false) {
                 if (FUNCTIONS_WITHOUT_RULE_SUPPORT.contains(function)) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
                     throw ExceptionsHelper.badRequestException(msg);
                 }
-                for (DetectionRule rule : detectorRules) {
+                for (DetectionRule rule : rules) {
                     checkScoping(rule);
                 }
             }
@@ -764,7 +762,7 @@ public class Detector implements ToXContentObject, Writeable {
             }
 
             return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                    useNull, excludeFrequent, detectorRules, detectorIndex);
+                    useNull, excludeFrequent, rules, detectorIndex);
         }
 
         public List<String> extractAnalysisFields() {
@@ -802,7 +800,7 @@ public class Detector implements ToXContentObject, Writeable {
             String targetFieldName = rule.getTargetFieldName();
             checkTargetFieldNameIsValid(extractAnalysisFields(), targetFieldName);
             List<String> validOptions = getValidFieldNameOptions(rule);
-            for (RuleCondition condition : rule.getRuleConditions()) {
+            for (RuleCondition condition : rule.getConditions()) {
                 if (!validOptions.contains(condition.getFieldName())) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME, validOptions,
                             condition.getFieldName());

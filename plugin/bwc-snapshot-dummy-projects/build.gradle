@@ -33,6 +33,7 @@ subprojects {
      */
     Object esCheckoutPath = """${->
       if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        esCheckoutDir.mkdirs()
         NodeInfo.getShortPathName(esCheckoutDir.toString())
       } else {
         esCheckoutDir.toString()
@@ -41,6 +42,7 @@ subprojects {
     File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")
     Object xpackCheckoutPath = """${->
       if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        xpackCheckoutDir.mkdirs()
         NodeInfo.getShortPathName(xpackCheckoutDir.toString())
       } else {
         xpackCheckoutDir.toString()

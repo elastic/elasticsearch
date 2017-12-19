@@ -26,7 +26,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +35,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -195,7 +193,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         RuleCondition ruleCondition = RuleCondition.createNumerical
                 (RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricValue", new Condition(Operator.LT, "5"));
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(ruleCondition)).setTargetFieldName("instance").build();
-        detector.setDetectorRules(Arrays.asList(rule));
+        detector.setRules(Arrays.asList(rule));
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig = builder.build();
@@ -251,12 +249,12 @@ public class FieldConfigWriterTests extends ESTestCase {
         createFieldConfigWriter().write();
 
         verify(writer).write("detector.0.clause = count\n" +
-                "detector.0.rules = [{\"rule_action\":\"skip_sampling_and_filter_results\",\"conditions_connective\":\"and\"," +
-                "\"rule_conditions\":[{\"condition_type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1511395200\"}}," +
-                "{\"condition_type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515369600\"}}]}," +
-                "{\"rule_action\":\"skip_sampling_and_filter_results\",\"conditions_connective\":\"and\"," +
-                "\"rule_conditions\":[{\"condition_type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1519603200\"}}," +
-                "{\"condition_type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1519862400\"}}]}]" +
+                "detector.0.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
+                "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1511395200\"}}," +
+                "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515369600\"}}]}," +
+                "{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
+                "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1519603200\"}}," +
+                "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1519862400\"}}]}]" +
                 "\n");
 
         verifyNoMoreInteractions(writer);

@@ -1,0 +1,40 @@
+[[release-notes-6.1.1]]
+== 6.1.1 Release Notes
+
+Also see <<breaking-changes-6.0>>.
+
+[[enhancement-6.1.1]]
+[float]
+=== Enhancements
+
+Snapshot/Restore::
+* Use AmazonS3.doesObjectExist() method in S3BlobContainer {pull}27723[#27723]
+
+
+
+[[bug-6.1.1]]
+[float]
+=== Bug fixes
+
+Inner Hits::
+* Add version support for inner hits in field collapsing (#27822) {pull}27833[#27833] (issue: {issue}27822[#27822])
+
+Java REST Client::
+* Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
+
+Search::
+* Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
+
+Sequence IDs::
+* Recovery from snapshot may leave seq# gaps {pull}27850[#27850]
+* No longer unidle shard during recovery {pull}27757[#27757] (issue: {issue}26591[#26591])
+
+
+
+[[upgrade-6.1.1]]
+[float]
+=== Upgrades
+
+Ingest::
+* update ingest-attachment to use Tika 1.17 and newer deps {pull}27824[#27824]
+

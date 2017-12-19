@@ -107,8 +107,8 @@ public class FieldConfigWriter {
                                     StringBuilder contents) throws IOException {
 
         List<DetectionRule> rules = new ArrayList<>();
-        if (detector.getDetectorRules() != null) {
-            rules.addAll(detector.getDetectorRules());
+        if (detector.getRules() != null) {
+            rules.addAll(detector.getRules());
         }
         rules.addAll(specialEvents);
 

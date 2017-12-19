@@ -165,7 +165,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                     updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getRules(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorRules());
+                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getRules());
         }
     }
 

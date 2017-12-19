@@ -461,9 +461,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 "filter2"))).build();
         Detector.Builder detector1 = new Detector.Builder("count", null);
         detector1.setByFieldName("foo");
-        detector1.setDetectorRules(Collections.singletonList(rule1));
+        detector1.setRules(Collections.singletonList(rule1));
         Detector.Builder detector2 = new Detector.Builder("count", null);
-        detector2.setDetectorRules(Collections.singletonList(rule2));
+        detector2.setRules(Collections.singletonList(rule2));
         detector2.setByFieldName("foo");
         AnalysisConfig config = new AnalysisConfig.Builder(
                 Arrays.asList(detector1.build(), detector2.build(), new Detector.Builder("count", null).build())).build();

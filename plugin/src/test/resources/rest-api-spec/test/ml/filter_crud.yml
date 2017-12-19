@@ -152,12 +152,12 @@ setup:
             "analysis_config" : {
                 "bucket_span": "3600s",
                 "detectors" :[{"function":"mean","field_name":"airline",
-                  "detector_rules": [
+                  "rules": [
                     {
-                      "rule_conditions": [
+                      "conditions": [
                         {
-                          "condition_type": "categorical",
-                          "value_filter": "filter-foo"
+                          "type": "categorical",
+                          "filter_id": "filter-foo"
                         }
                       ]
                     }

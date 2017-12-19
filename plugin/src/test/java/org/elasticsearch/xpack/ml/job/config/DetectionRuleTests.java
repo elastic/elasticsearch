@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 
@@ -63,7 +64,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
 
     public void testEqualsGivenRules() {
         DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().setRuleConditions(createRule("10")).build();
+        DetectionRule rule2 = createFullyPopulated().setConditions(createRule("10")).build();
         assertFalse(rule1.equals(rule2));
         assertFalse(rule2.equals(rule1));
     }
@@ -78,7 +79,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
 
     private static DetectionRule.Builder createFullyPopulated() {
         return new DetectionRule.Builder(createRule("5"))
-                .setRuleAction(RuleAction.FILTER_RESULTS)
+                .setActions(EnumSet.of(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING))
                 .setTargetFieldName("targetField")
                 .setTargetFieldValue("targetValue")
                 .setConditionsConnective(Connective.AND);
@@ -91,26 +92,33 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
 
     @Override
     protected DetectionRule createTestInstance() {
-        RuleAction ruleAction = randomFrom(RuleAction.values());
-        String targetFieldName = null;
-        String targetFieldValue = null;
-        Connective connective = randomFrom(Connective.values());
-        if (randomBoolean()) {
-            targetFieldName = randomAlphaOfLengthBetween(1, 20);
-            targetFieldValue = randomAlphaOfLengthBetween(1, 20);
-        }
         int size = 1 + randomInt(20);
         List<RuleCondition> ruleConditions = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             // no need for random condition (it is already tested)
             ruleConditions.addAll(createRule(Double.toString(randomDouble())));
         }
-        return new DetectionRule.Builder(ruleConditions)
-                .setRuleAction(ruleAction)
-                .setTargetFieldName(targetFieldName)
-                .setTargetFieldValue(targetFieldValue)
-                .setConditionsConnective(connective)
-                .build();
+        DetectionRule.Builder builder = new DetectionRule.Builder(ruleConditions);
+
+        if (randomBoolean()) {
+            EnumSet<RuleAction> actions = EnumSet.noneOf(RuleAction.class);
+            int actionsCount = randomIntBetween(1, RuleAction.values().length);
+            for (int i = 0; i < actionsCount; ++i) {
+                actions.add(randomFrom(RuleAction.values()));
+            }
+            builder.setActions(actions);
+        }
+
+        if (randomBoolean()) {
+            builder.setConditionsConnective(randomFrom(Connective.values()));
+        }
+
+        if (randomBoolean()) {
+            builder.setTargetFieldName(randomAlphaOfLengthBetween(1, 20));
+            builder.setTargetFieldValue(randomAlphaOfLengthBetween(1, 20));
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -125,16 +133,16 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
 
     @Override
     protected DetectionRule mutateInstance(DetectionRule instance) throws IOException {
-        List<RuleCondition> ruleConditions = instance.getRuleConditions();
-        RuleAction ruleAction = instance.getRuleAction();
+        List<RuleCondition> conditions = instance.getConditions();
+        EnumSet<RuleAction> actions = instance.getActions();
         String targetFieldName = instance.getTargetFieldName();
         String targetFieldValue = instance.getTargetFieldValue();
         Connective connective = instance.getConditionsConnective();
 
         switch (between(0, 3)) {
         case 0:
-            ruleConditions = new ArrayList<>(ruleConditions);
-            ruleConditions.addAll(createRule(Double.toString(randomDouble())));
+            conditions = new ArrayList<>(conditions);
+            conditions.addAll(createRule(Double.toString(randomDouble())));
             break;
         case 1:
             targetFieldName = randomAlphaOfLengthBetween(5, 10);
@@ -156,7 +164,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DetectionRule.Builder(ruleConditions).setRuleAction(ruleAction).setTargetFieldName(targetFieldName)
+        return new DetectionRule.Builder(conditions).setActions(actions).setTargetFieldName(targetFieldName)
                 .setTargetFieldValue(targetFieldValue).setConditionsConnective(connective).build();
     }
 }

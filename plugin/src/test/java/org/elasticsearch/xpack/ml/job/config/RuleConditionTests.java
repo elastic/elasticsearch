@@ -52,7 +52,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     public void testConstructor() {
         RuleCondition condition = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueFilter");
-        assertEquals(RuleConditionType.CATEGORICAL, condition.getConditionType());
+        assertEquals(RuleConditionType.CATEGORICAL, condition.getType());
         assertNull(condition.getFieldName());
         assertNull(condition.getFieldValue());
         assertNull(condition.getCondition());
@@ -122,16 +122,16 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a categorical rule_condition does not support field_value", e.getMessage());
     }
 
-    public void testVerify_GivenCategoricalWithoutValueFilter() {
+    public void testVerify_GivenCategoricalWithoutFilterId() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, null));
-        assertEquals("Invalid detector rule: a categorical rule_condition requires value_filter to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a categorical rule_condition requires filter_id to be set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalActualWithValueFilter() {
+    public void testVerify_GivenNumericalActualWithFilterId() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myFilter"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support filter_id", e.getMessage());
     }
 
     public void testVerify_GivenNumericalActualWithoutCondition() {
@@ -146,10 +146,10 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a numerical rule_condition with field_name requires that field_value is set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalTypicalWithValueFilter() {
+    public void testVerify_GivenNumericalTypicalWithFilterId() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myFilter"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support filter_id", e.getMessage());
     }
 
     public void testVerify_GivenNumericalTypicalWithoutCondition() {
@@ -158,10 +158,10 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a numerical rule_condition requires condition to be set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalDiffAbsWithValueFilter() {
+    public void testVerify_GivenNumericalDiffAbsWithFilterId() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, null, null, "myFilter"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support filter_id", e.getMessage());
     }
 
     public void testVerify_GivenNumericalDiffAbsWithoutCondition() {
@@ -220,12 +220,12 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     public void testCreateTimeBased() {
         RuleCondition timeBased = RuleCondition.createTime(Operator.GTE, 100L);
-        assertEquals(RuleConditionType.TIME, timeBased.getConditionType());
+        assertEquals(RuleConditionType.TIME, timeBased.getType());
         assertEquals(Operator.GTE, timeBased.getCondition().getOperator());
         assertEquals("100", timeBased.getCondition().getValue());
         assertNull(timeBased.getFieldName());
         assertNull(timeBased.getFieldValue());
-        assertNull(timeBased.getValueFilter());
+        assertNull(timeBased.getFilterId());
     }
 
     public void testCreateTimeBased_GivenOperatorMatch() {
@@ -237,11 +237,11 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
     public void testCreateNumerical() {
         RuleCondition ruleCondition = RuleCondition.createNumerical(RuleConditionType.NUMERICAL_ACTUAL, "foo", "bar",
                 new Condition(Operator.GTE, "100"));
-        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, ruleCondition.getConditionType());
+        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, ruleCondition.getType());
         assertEquals(Operator.GTE, ruleCondition.getCondition().getOperator());
         assertEquals("100", ruleCondition.getCondition().getValue());
         assertEquals("foo", ruleCondition.getFieldName());
         assertEquals("bar", ruleCondition.getFieldValue());
-        assertNull(ruleCondition.getValueFilter());
+        assertNull(ruleCondition.getFilterId());
     }
 }

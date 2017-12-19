@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -22,13 +21,8 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -202,11 +196,11 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
-                            "rulesJson=[{\"rule_action\":\"filter_results\",\"conditions_connective\":\"and\",\"rule_conditions\":" +
-                "[{\"condition_type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
+                            "rulesJson=[{\"actions\":[\"filter_results\"],\"conditions_connective\":\"and\",\"conditions\":" +
+                "[{\"type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
                 "\"target_field_name\":\"targetField1\",\"target_field_value\":\"targetValue\"}," +
-                "{\"rule_action\":\"filter_results\",\"conditions_connective\":\"and\",\"rule_conditions\":[" +
-                "{\"condition_type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
+                "{\"actions\":[\"filter_results\"],\"conditions_connective\":\"and\",\"conditions\":[" +
+                "{\"type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
                 "\"target_field_name\":\"targetField2\",\"target_field_value\":\"targetValue\"}]");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }

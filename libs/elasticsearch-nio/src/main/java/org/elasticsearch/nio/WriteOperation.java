@@ -89,21 +89,4 @@ public class WriteOperation {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;
     }
-
-//    private static ByteBuffer[] toByteBuffers(BytesReference bytesReference) {
-//        BytesRefIterator byteRefIterator = bytesReference.iterator();
-//        BytesRef r;
-//        try {
-//            // Most network messages are composed of three buffers.
-//            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
-//            while ((r = byteRefIterator.next()) != null) {
-//                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
-//            }
-//            return buffers.toArray(new ByteBuffer[buffers.size()]);
-//
-//        } catch (IOException e) {
-//            // this is really an error since we don't do IO in our bytesreferences
-//            throw new AssertionError("won't happen", e);
-//        }
-//    }
 }

@@ -550,7 +550,8 @@ public class InternalEngine extends Engine {
             SearcherScope scope;
             if (get.realtime()) {
                 VersionValue versionValue = null;
-                try (Releasable ignore = acquireLock(get.uid())) { // we need to lock here to access the version map to do this truly in RT
+                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+                    // we need to lock here to access the version map to do this truly in RT
                     versionValue = getVersionFromMap(get.uid().bytes());
                 }
                 if (versionValue != null) {
@@ -734,7 +735,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
-            try (Releasable ignored = acquireLock(index.uid());
+            try (Releasable ignored = versionMap.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
                 /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
@@ -1060,7 +1061,7 @@ public class InternalEngine extends Engine {
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan;
@@ -1767,10 +1768,6 @@ public class InternalEngine extends Engine {
             default:
                 throw new IllegalStateException("unknown scope: " + scope);
         }
-    }
-
-    private Releasable acquireLock(Term uid) {
-        return versionMap.acquireLock(uid.bytes());
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {

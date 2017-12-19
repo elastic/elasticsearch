@@ -29,13 +29,16 @@ dependencies {
   compile('com.fasterxml.jackson.core:jackson-databind:2.8.2')
   compile('com.maxmind.db:maxmind-db:1.2.1')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20160608'
+  testCompile 'org.elasticsearch:geolite2-databases:20171206'
 }
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
   from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
   into "${project.buildDir}/ingest-geoip"
-  include "*.mmdb.gz"
+
+  // For now, do not include GeoLite2-ASN.mmdb.gz file, because it isn't used yet:
+  include "GeoLite2-City.mmdb.gz"
+  include "GeoLite2-Country.mmdb.gz"
 }
 
 project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)

@@ -64,8 +64,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -567,7 +567,7 @@ public abstract class Engine implements Closeable {
      *
      * @return the sequence number service
      */
-    public abstract SequenceNumbersService seqNoService();
+    public abstract LocalCheckpointTracker getLocalCheckpointTracker();
 
     /**
      * Read the last segments info from the commit pointed to by the searcher manager

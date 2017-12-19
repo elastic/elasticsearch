@@ -3107,7 +3107,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Index index = resolveIndex(indexName);
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(new ShardId(index, 0));
         // create a gap in the sequence numbers
-        getEngineFromShard(primary).seqNoService().generateSeqNo();
+        getEngineFromShard(primary).getLocalCheckpointTracker().generateSeqNo();
 
         for (int i = 5; i < 10; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);

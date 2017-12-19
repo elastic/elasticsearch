@@ -429,6 +429,7 @@ public class VersionUtilsTests extends ESTestCase {
                 .collect(toList());
 
         List<String> releasedIndexCompatible = released.stream()
+                .filter(v -> !Version.CURRENT.equals(v))
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
@@ -436,7 +437,7 @@ public class VersionUtilsTests extends ESTestCase {
         List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> v != Version.CURRENT)
+                .filter(v -> !Version.CURRENT.equals(v))
                 /* Java lists all versions from the 5.x series onwards, but we only want to consider
                  * ones that we're supposed to be compatible with. */
                 .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
@@ -457,6 +458,7 @@ public class VersionUtilsTests extends ESTestCase {
 
         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
+                .filter(v -> !Version.CURRENT.equals(v))
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());
@@ -465,7 +467,7 @@ public class VersionUtilsTests extends ESTestCase {
         List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions().stream()
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> v != Version.CURRENT)
+                .filter(v -> !Version.CURRENT.equals(v))
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());

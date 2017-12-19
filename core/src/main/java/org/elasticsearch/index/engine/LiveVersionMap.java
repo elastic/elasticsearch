@@ -333,8 +333,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             removeTombstoneUnderLock(uid);
         } else {
             DeleteVersionValue versionValue = (DeleteVersionValue) version;
-            maps.remove(uid, versionValue);
             putTombstone(uid, versionValue);
+            maps.remove(uid, versionValue);
         }
     }
 
@@ -423,7 +423,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
-    Iterable<Map.Entry<BytesRef, DeleteVersionValue>> getAllTombstones() {
-        return tombstones.entrySet();
+    Map<BytesRef, DeleteVersionValue> getAllTombstones() {
+        return tombstones;
     }
 }

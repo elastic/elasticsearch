@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.StreamSupport;
 
@@ -181,27 +180,29 @@ public class LiveVersionMapTests extends ESTestCase {
                 }
             });
             threads[j].start();
-
-
         }
         do {
-            Map<BytesRef, VersionValue> valueMap = new HashMap<>(map.getAllCurrent());
+            final Map<BytesRef, VersionValue> valueMap = new HashMap<>(map.getAllCurrent());
             map.beforeRefresh();
             valueMap.forEach((k, v) -> {
-                VersionValue actualValue = map.getUnderLock(k);
-                assertNotNull(actualValue);
-                assertTrue(v.version <= actualValue.version);
+                try (Releasable r = keyedLock.acquire(k)) {
+                    VersionValue actualValue = map.getUnderLock(k);
+                    assertNotNull(actualValue);
+                    assertTrue(v + " vs. " + actualValue, v.version <= actualValue.version);
+                }
             });
             map.afterRefresh(randomBoolean());
             valueMap.forEach((k, v) -> {
-                VersionValue actualValue = map.getUnderLock(k);
-                if (actualValue != null) {
-                    if (actualValue instanceof DeleteVersionValue) {
-                        assertTrue(v.version <= actualValue.version); // deletes can be the same version
-                    } else {
-                        assertTrue(v.version < actualValue.version);
-                    }
+                try (Releasable r = keyedLock.acquire(k)) {
+                    VersionValue actualValue = map.getUnderLock(k);
+                    if (actualValue != null) {
+                        if (actualValue instanceof DeleteVersionValue) {
+                            assertTrue(v.version <= actualValue.version); // deletes can be the same version
+                        } else {
+                            assertTrue(v.version < actualValue.version);
+                        }
 
+                    }
                 }
             });
             if (randomBoolean()) {
@@ -218,7 +219,7 @@ public class LiveVersionMapTests extends ESTestCase {
             assertEquals(v, versionValue);
         });
 
-        map.getAllTombstones().forEach(e -> {
+        map.getAllTombstones().entrySet().forEach(e -> {
             VersionValue versionValue = values.get(e.getKey());
             assertNotNull(versionValue);
             assertEquals(e.getValue(), versionValue);
@@ -227,7 +228,7 @@ public class LiveVersionMapTests extends ESTestCase {
         map.beforeRefresh();
         map.afterRefresh(false);
         map.pruneTombstones(keyedLock::acquire, clock.incrementAndGet(), 0);
-        assertEquals(0, StreamSupport.stream(map.getAllTombstones().spliterator(), false).count());
+        assertEquals(0, StreamSupport.stream(map.getAllTombstones().entrySet().spliterator(), false).count());
     }
 
     public void testCarryOnSafeAccess() throws IOException {
@@ -301,7 +302,11 @@ public class LiveVersionMapTests extends ESTestCase {
                 VersionValue nextVersionValue = initialVersion;
                 for (int i = 0; i < numIters; i++) {
                     VersionValue underLock = map.getUnderLock(uid);
-                    assertEquals(underLock, nextVersionValue);
+                    if (underLock != null) {
+                        assertEquals(underLock, nextVersionValue);
+                    } else {
+                        underLock = nextVersionValue;
+                    }
                     if (underLock.isDelete()) {
                         nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
                     } else if (randomBoolean()) {
@@ -327,7 +332,8 @@ public class LiveVersionMapTests extends ESTestCase {
         t.join();
 
         VersionValue underLock = map.getUnderLock(uid);
-        assertNotNull(underLock);
-        assertEquals(version.get(), underLock.version);
+        if (underLock != null) {
+            assertEquals(version.get(), underLock.version);
+        }
     }
 }

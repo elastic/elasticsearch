@@ -247,6 +247,22 @@ setup:
   - match: { aggregations.the_filter.meta.foo: "bar" }
 
 ---
+"Single anonymous bool query":
+
+  - do:
+      search:
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  - bool: {}
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.0.doc_count: 4 }
+
+---
 "Bad params":
 
   - do:

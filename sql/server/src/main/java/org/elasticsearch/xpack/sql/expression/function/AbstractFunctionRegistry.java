@@ -10,12 +10,12 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
 import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.joda.time.DateTimeZone;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -46,17 +46,17 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
     //TODO: change this to some type of auto discovery or auto creation of the discovery (annotation or the like)
     protected abstract Collection<Class<? extends Function>> functions();
-    
+
     protected abstract Map<String, String> aliases();
 
-    
+
     @Override
-    public Function resolveFunction(UnresolvedFunction ur, Configuration cfg) {
+    public Function resolveFunction(UnresolvedFunction ur, DateTimeZone timeZone) {
         FunctionDefinition def = defs.get(normalize(ur.name()));
         if (def == null) {
             throw new SqlIllegalArgumentException("Cannot find function %s; this should have been caught during analysis", ur.name());
         }
-        return createInstance(def.clazz(), ur, cfg);
+        return createInstance(def.clazz(), ur, timeZone);
     }
 
     @Override
@@ -107,13 +107,13 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
     // If the function has certain 'aware'-ness (based on the interface implemented), the appropriate types are added to the signature
 
     @SuppressWarnings("rawtypes")
-    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, Configuration cfg) {
+    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, DateTimeZone timeZone) {
         NodeInfo info = NodeUtils.info((Class<? extends Node>) clazz);
         Class<?>[] pTypes = info.ctr.getParameterTypes();
 
         boolean distinctAware = DistinctAware.class.isAssignableFrom(clazz);
         boolean timezoneAware = TimeZoneAware.class.isAssignableFrom(clazz);
-        
+
         // constructor types - location - distinct? - timezone?
         int expectedParamCount = pTypes.length - (1 + (distinctAware ? 1 : 0) + (timezoneAware ? 1 : 0));
 
@@ -128,7 +128,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
             throw new ParsingException(ur.location(), "Invalid number of arguments given to function [%s], expected %d argument(s):%s but received %d:%s",
                     ur.name(), expected.size(), expected.toString(), ur.children().size(), ur.children());
         }
-        
+
         // validate distinct ctor
         if (!distinctAware && ur.distinct()) {
             throw new ParsingException(ur.location(), "Function [%s] does not support DISTINCT yet it was specified", ur.name());
@@ -136,7 +136,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
         //        List<Class> ctorSignature = new ArrayList<>();
         //        ctorSignature.add(Location.class);
-        //        
+        //
         //        // might be a constant function
         //        if (expVal instanceof List && ((List) expVal).isEmpty()) {
         //            noExpression = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
@@ -152,11 +152,11 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
         //        if (timezoneAware) {
         //            ctorSignature.add(DateTimeZone.class);
         //        }
-        //        
+        //
         //        // validate
         //        Assert.isTrue(Arrays.equals(ctorSignature.toArray(new Class[ctorSignature.size()]), info.ctr.getParameterTypes()),
         //                "No constructor with signature %s found for [%s], found %s instead", ctorSignature, clazz.getTypeName(), info.ctr);
-        
+
         // now add the actual values
         try {
             List<Object> args = new ArrayList<>();
@@ -171,7 +171,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
                 args.add(ur.distinct());
             }
             if (timezoneAware) {
-                args.add(cfg.timeZone());
+                args.add(timeZone);
             }
 
             return (Function) info.ctr.newInstance(args.toArray());

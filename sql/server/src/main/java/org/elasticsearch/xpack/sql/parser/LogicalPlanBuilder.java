@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.joda.time.DateTimeZone;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +49,9 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
+    protected LogicalPlanBuilder(DateTimeZone timeZone) {
+        super(timeZone);
+    }
 
     @Override
     public LogicalPlan visitQuery(QueryContext ctx) {

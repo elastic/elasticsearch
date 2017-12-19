@@ -45,12 +45,12 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,11 +71,32 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
+    /**
+     * Verify a plan.
+     */
+    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
+        Collection<Failure> failures = Verifier.verify(plan);
+        return failures.stream().collect(toMap(Failure::source, Failure::message));
+    }
 
+    /**
+     * Valid functions.
+     */
     private final FunctionRegistry functionRegistry;
+    /**
+     * Information about the index against which the SQL is being analyzed.
+     */
+    private final GetIndexResult getIndexResult;
+    /**
+     * Time zone in which we're executing this SQL. It is attached to functions
+     * that deal with date and time.
+     */
+    private final DateTimeZone timeZone;
 
-    public Analyzer(FunctionRegistry functionRegistry) {
+    public Analyzer(FunctionRegistry functionRegistry, GetIndexResult getIndexResult, DateTimeZone timeZone) {
         this.functionRegistry = functionRegistry;
+        this.getIndexResult = getIndexResult;
+        this.timeZone = timeZone;
     }
 
     @Override
@@ -121,11 +142,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             throw new VerificationException(failures);
         }
         return plan;
-    }
-
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
     }
 
     @SuppressWarnings("unchecked")
@@ -252,13 +268,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            GetIndexResult index = SqlSession.currentContext().getIndexResult;
-            if (index.isValid() == false) {
-                return plan.unresolvedMessage().equals(index.toString()) ? plan : new UnresolvedRelation(plan.location(), plan.table(),
-                        plan.alias(), index.toString());
+            if (getIndexResult.isValid() == false) {
+                return plan.unresolvedMessage().equals(getIndexResult.toString())
+                        ? plan : new UnresolvedRelation(plan.location(), plan.table(), plan.alias(), getIndexResult.toString());
             }
-            assert index.matches(table.index());
-            LogicalPlan logicalPlan = new EsRelation(plan.location(), index.get());
+            assert getIndexResult.matches(table.index());
+            LogicalPlan logicalPlan = new EsRelation(plan.location(), getIndexResult.get());
             SubQueryAlias sa = new SubQueryAlias(plan.location(), logicalPlan, table.index());
 
             if (plan.alias() != null) {
@@ -756,7 +771,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), true, message);
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    Function f = functionRegistry.resolveFunction(uf, SqlSession.currentContext().configuration);
+                    Function f = functionRegistry.resolveFunction(uf, timeZone);
 
                     list.add(f);
                     return f;

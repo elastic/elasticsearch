@@ -19,14 +19,24 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
 public class SqlParser {
-
     private static final Logger log = Loggers.getLogger(SqlParser.class);
+
+    /**
+     * Time zone in which the SQL is parsed. This is attached to functions
+     * that deal with dates and times.
+     */
+    private DateTimeZone timeZone;
+
+    public SqlParser(DateTimeZone timeZone) {
+        this.timeZone = timeZone;
+    }
 
     public LogicalPlan createStatement(String sql) {
         if (log.isDebugEnabled()) {
@@ -75,7 +85,7 @@ public class SqlParser {
 
             postProcess(lexer, parser, tree);
 
-            return (T) new AstBuilder().visit(tree);
+            return (T) new AstBuilder(timeZone).visit(tree);
         }
 
         catch (StackOverflowError e) {
@@ -130,7 +140,7 @@ public class SqlParser {
 
         @Override
         public void exitNonReserved(SqlBaseParser.NonReservedContext context) {
-            // tree cannot be modified during rule enter/exit _unless_ it's a terminal node 
+            // tree cannot be modified during rule enter/exit _unless_ it's a terminal node
             if (!(context.getChild(0) instanceof TerminalNode)) {
                 int rule = ((ParserRuleContext) context.getChild(0)).getRuleIndex();
                 throw new ParsingException("nonReserved can only contain tokens. Found nested rule: " + ruleNames.get(rule));

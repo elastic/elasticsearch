@@ -10,62 +10,37 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.session.TestingSqlSession;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.junit.After;
-import org.junit.Before;
+import org.joda.time.DateTimeZone;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser;
-    private FunctionRegistry functionRegistry;
-    private GetIndexResult getIndexResult;
-    private Analyzer analyzer;
-    private Optimizer optimizer;
-    private Planner planner;
+    private SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private Optimizer optimizer = new Optimizer();
+    private Planner planner = new Planner();
 
-    public VerifierErrorMessagesTests() {
-        parser = new SqlParser();
-        functionRegistry = new DefaultFunctionRegistry();
-
+    private String verify(String sql) {
         Map<String, DataType> mapping = new LinkedHashMap<>();
         mapping.put("bool", DataTypes.BOOLEAN);
         mapping.put("int", DataTypes.INTEGER);
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        getIndexResult = GetIndexResult.valid(test);
-        analyzer = new Analyzer(functionRegistry);
-        optimizer = new Optimizer();
-        planner = new Planner();
-
-    }
-
-    @Before
-    public void setupContext() {
-        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(getIndexResult));
-    }
-
-    @After
-    public void disposeContext() {
-        TestingSqlSession.removeCurrentContext();
-    }
-
-    private String verify(String sql) {
-        PlanningException e = expectThrows(PlanningException.class,
-                () -> planner.mapPlan(optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true)), true));
+        GetIndexResult getIndexResult = GetIndexResult.valid(test);
+        Analyzer analyzer = new Analyzer(new DefaultFunctionRegistry(), getIndexResult, DateTimeZone.UTC);
+        LogicalPlan plan = optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true));
+        PlanningException e = expectThrows(PlanningException.class, () -> planner.mapPlan(plan, true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
         return e.getMessage().substring(header.length());
     }
-
 
     public void testMultiGroupBy() {
         // TODO: location needs to be updated after merging extend-having

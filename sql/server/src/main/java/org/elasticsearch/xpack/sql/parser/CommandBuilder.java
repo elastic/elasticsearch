@@ -21,10 +21,14 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.joda.time.DateTimeZone;
 
 import java.util.Locale;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
+    protected CommandBuilder(DateTimeZone timeZone) {
+        super(timeZone);
+    }
 
     @Override
     public Command visitDebug(DebugContext ctx) {
@@ -50,8 +54,8 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
         return new Debug(loc, plan(ctx.statement()), type, format);
     }
-    
-    
+
+
     @Override
     public Command visitExplain(ExplainContext ctx) {
         Location loc = source(ctx);

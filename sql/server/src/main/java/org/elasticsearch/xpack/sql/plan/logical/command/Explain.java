@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
@@ -34,7 +35,7 @@ public class Explain extends Command {
 
     public enum Type {
         PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL;
-        
+
         public String printableName() {
             return Strings.capitalize(name().toLowerCase(Locale.ROOT));
         }
@@ -85,15 +86,15 @@ public class Explain extends Command {
             listener.onResponse(Rows.singleton(output(), formatPlan(format, plan)));
             return;
         }
-        
+
         // to avoid duplicating code, the type/verification filtering happens inside the listeners instead of outside using a CASE
         session.analyzedPlan(plan, verify, wrap(analyzedPlan -> {
-            
+
             if (type == Type.ANALYZED) {
                 listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
                 return;
             }
-            
+
             Planner planner = session.planner();
             // verification is on, exceptions can be thrown
             if (verify) {
@@ -102,36 +103,36 @@ public class Explain extends Command {
                         listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
                         return;
                     }
-                    
+
                     PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
                     if (type == Type.MAPPED) {
                         listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
                         return;
                     }
-                    
+
                     PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
                     if (type == Type.EXECUTABLE) {
                         listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
                         return;
                     }
-                    
+
                     // Type.All
                     listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
                 }, listener::onFailure));
             }
-            
+
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
-                if (session.analyzer().verifyFailures(analyzedPlan).isEmpty()) {
+                if (Analyzer.verifyFailures(analyzedPlan).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
                             listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
                             return;
                         }
-                        
+
                         PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
-                        
+
                         if (type == Type.MAPPED) {
                             listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
                             return;
@@ -139,12 +140,12 @@ public class Explain extends Command {
 
                         if (planner.verifyMappingPlanFailures(mappedPlan).isEmpty()) {
                             PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
-                            
+
                             if (type == Type.EXECUTABLE) {
                                 listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
                                 return;
                             }
-                            
+
                             listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
                             return;
                         }
@@ -154,7 +155,7 @@ public class Explain extends Command {
                             return;
                         }
 
-                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)));    
+                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)));
                     }, listener::onFailure));
                 // cannot continue
                 } else {
@@ -162,7 +163,7 @@ public class Explain extends Command {
                         listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
                     }
                     else {
-                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null)));    
+                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null)));
                     }
                 }
             }

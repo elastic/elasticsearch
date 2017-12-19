@@ -9,13 +9,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.joda.time.DateTimeZone;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 public class PreAnalyzerTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
+    private SqlParser parser = new SqlParser(DateTimeZone.UTC);
     private PreAnalyzer preAnalyzer = new PreAnalyzer();
 
     public void testBasicIndex() {

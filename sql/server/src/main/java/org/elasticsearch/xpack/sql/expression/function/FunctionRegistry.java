@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.joda.time.DateTimeZone;
 
 import java.util.Collection;
 
 public interface FunctionRegistry {
 
-    Function resolveFunction(UnresolvedFunction ur, Configuration settings);
+    Function resolveFunction(UnresolvedFunction ur, DateTimeZone timeZone);
 
     String concreteFunctionName(String alias);
 

@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.joda.time.DateTimeZone;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -83,6 +84,15 @@ import java.util.Locale;
 import static java.lang.String.format;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
+    /**
+     * Time zone that we're executing in. Set on functions that deal
+     * with dates and times for use later in the evaluation process.
+     */
+    private final DateTimeZone timeZone;
+
+    protected ExpressionBuilder(DateTimeZone timeZone) {
+        this.timeZone = timeZone;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -186,7 +196,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.predicate() == null) {
             return exp;
         }
-        
+
         PredicateContext pCtx = ctx.predicate();
         Location loc = source(pCtx);
 
@@ -262,7 +272,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     //
     // Full-text search predicates
-    // 
+    //
     @Override
     public Object visitStringQuery(StringQueryContext ctx) {
         return new StringQueryPredicate(source(ctx), string(ctx.queryString), string(ctx.options));
@@ -347,7 +357,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(source, format(Locale.ROOT, "Invalid EXTRACT field %s", fieldString));
         }
-        return extract.toFunction(source, expression(ctx.valueExpression()));
+        return extract.toFunction(source, expression(ctx.valueExpression()), timeZone);
     }
 
     @Override

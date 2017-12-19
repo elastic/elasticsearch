@@ -30,10 +30,8 @@ public class PlanExecutor {
 
     private final FunctionRegistry functionRegistry;
 
-    private final SqlParser parser;
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
-    private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -42,15 +40,13 @@ public class PlanExecutor {
         this.indexResolver = indexResolver;
         this.functionRegistry = new DefaultFunctionRegistry();
 
-        this.parser = new SqlParser();
         this.preAnalyzer = new PreAnalyzer();
-        this.analyzer = new Analyzer(functionRegistry);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     private SqlSession newSession(Configuration cfg) {
-        return new SqlSession(cfg, client, functionRegistry, parser, indexResolver, preAnalyzer, analyzer, optimizer, planner);
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, optimizer, planner);
     }
 
     public void searchSource(String sql, Configuration settings, ActionListener<SearchSourceBuilder> listener) {

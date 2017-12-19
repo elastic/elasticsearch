@@ -11,50 +11,30 @@ import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.session.TestingSqlSession;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.junit.After;
-import org.junit.Before;
+import org.joda.time.DateTimeZone;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class VerifierErrorMessagesTests extends ESTestCase {
+    private SqlParser parser = new SqlParser(DateTimeZone.UTC);
 
-    private SqlParser parser;
-    private GetIndexResult getIndexResult;
-    private FunctionRegistry functionRegistry;
-    private Analyzer analyzer;
-
-    public VerifierErrorMessagesTests() {
-        parser = new SqlParser();
-        functionRegistry = new DefaultFunctionRegistry();
-
+    private String verify(String sql) {
         Map<String, DataType> mapping = new LinkedHashMap<>();
         mapping.put("bool", DataTypes.BOOLEAN);
         mapping.put("int", DataTypes.INTEGER);
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        getIndexResult = GetIndexResult.valid(test);
-        analyzer = new Analyzer(functionRegistry);
+        return verify(GetIndexResult.valid(test), sql);
     }
 
-    @Before
-    public void setupContext() {
-        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(getIndexResult));
-    }
-
-    @After
-    public void disposeContext() {
-        TestingSqlSession.removeCurrentContext();
-    }
-
-    private String verify(String sql) {
+    private String verify(GetIndexResult getIndexResult, String sql) {
+        Analyzer analyzer = new Analyzer(new DefaultFunctionRegistry(), getIndexResult, DateTimeZone.UTC);
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -62,9 +42,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingIndex() {
-        TestingSqlSession.removeCurrentContext();
-        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(GetIndexResult.notFound("missing")));
-        assertEquals("1:17: Unknown index [missing]", verify("SELECT foo FROM missing"));
+        assertEquals("1:17: Unknown index [missing]", verify(GetIndexResult.notFound("missing"), "SELECT foo FROM missing"));
     }
 
     public void testMissingColumn() {
@@ -104,7 +82,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", verify("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
-
 
     public void testMultipleColumns() {
         // xxx offset is that of the order by field

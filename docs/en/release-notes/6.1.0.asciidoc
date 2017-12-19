@@ -147,9 +147,9 @@ Security::
 {xpack-ref}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
 and {xpack-ref}/built-in-roles.html[Built-in Roles].
 // https://github.com/elastic/x-pack-elasticsearch/pull/3009[#3009] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2937[#2937])
-//* Newly created or updated watches execute with the privileges of the user that
-//last modified the watch.
-// https://github.com/elastic/x-pack-elasticsearch/pull/2808[#2808] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2201[#2201])
+* Newly created or updated watches execute with the privileges of the user that
+last modified the watch.
+//https://github.com/elastic/x-pack-elasticsearch/pull/2808[#2808] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2201[#2201])
 * Added log messages when a PEM key is found when a PEM certificate was
 expected (or vice versa) in the `xpack.ssl.key` or `xpack.ssl.certificate` settings.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2670[#2670] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2657[#2657])
@@ -160,21 +160,25 @@ use with the Elastic stack.
 * Added automatic detection of support for AES 256 bit TLS ciphers and enabled
 their use when the JVM supports them.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2137[#2137]
-////
+
 Watcher::
-* Watcher: Return useful error message when no accounts are found
+
+* Improved error messages when there are no accounts configured for {watcher}.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2897[#2897] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2666[#2666])
-* Watcher: Add thread pool rejection to execution state
+* Added thread pool rejection information to execution state, which makes it
+easier to debug execution failures.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2805[#2805]
-* Watcher: Ensure all templates exist before starting watcher
-// https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
-* Watcher: Add execution state to watch status
+* Added execution state information to watch status details. It is stored in the
+`status.execution_state` field.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2699[#2699] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2385[#2385])
-* Watcher: Allow JIRA path to be custom chosen
+* Enabled the account monitoring `url` field in the `xpack.notification.jira`
+setting to support customized paths. For more information about configuring Jira
+accounts for use with watches, see
+{xpack-ref}/actions-jira.html[Jira Action].
 // https://github.com/elastic/x-pack-elasticsearch/pull/2682[#2682]
-* Watcher: Stop swallowing exceptions, always return them instead of message
+* Improved handling of exceptions in {watcher} to make it easier to debug
+problems.
 // https://github.com/elastic/x-pack-elasticsearch/pull/1933[#1933] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1816[#1816])
-////
 
 [[xes-bug-6.1.0]]
 [float]
@@ -211,24 +215,7 @@ Security::
 null pointer exceptions.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2610[#2610]
 
-////
 Watcher::
-* "password" misspelled in action webhook docs [ISSUE]
-// https://github.com/elastic/x-pack-elasticsearch/pull/3094[#3094]
-* Watcher: Create templates on nodes newer than the master
+* Fixed handling of watcher templates. Missing watcher templates can be added by
+any node if that node has a higher version than the master node.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2950[#2950] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2944[#2944])
-* Watcher: Properly url encode room names
-// https://github.com/elastic/x-pack-elasticsearch/pull/2896[#2896] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/2371[#2371], https://github.com/elastic/x-pack-elasticsearch/issues/2429[#2429])
-* Watcher: Only load active watches on load
-// https://github.com/elastic/x-pack-elasticsearch/pull/2408[#2408]
-* Watcher: Ensure emit_stacktraces parameter works
-// https://github.com/elastic/x-pack-elasticsearch/pull/2399[#2399] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2396[#2396])
-* Watcher: Fix restart logic watcher after upgrade
-// https://github.com/elastic/x-pack-elasticsearch/pull/2336[#2336] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2331[#2331])
-* Watcher: Do not update active state during execution
-// https://github.com/elastic/x-pack-elasticsearch/pull/2204[#2204]
-* Watcher: Ignore if template is missing when upgrade is running
-// https://github.com/elastic/x-pack-elasticsearch/pull/2199[#2199]
-* Watcher: Load for watch for execution as late as possible
-// https://github.com/elastic/x-pack-elasticsearch/pull/2151[#2151] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/395[#395])
-////

@@ -18,14 +18,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
 
-    @Override
-    protected Calendar createTestInstance() {
+    public static Calendar testInstance() {
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
         return new Calendar(randomAlphaOfLengthBetween(1, 20), items);
+    }
+
+    @Override
+    protected Calendar createTestInstance() {
+        return testInstance();
     }
 
     @Override

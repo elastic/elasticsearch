@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -118,8 +118,10 @@ import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -467,7 +469,9 @@ public class MachineLearning implements ActionPlugin {
             new RestForecastJobAction(settings, restController),
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),
-            new RestDeleteCalendarAction(settings, restController)
+            new RestDeleteCalendarAction(settings, restController),
+            new RestDeleteCalendarJobAction(settings, restController),
+            new RestPutCalendarJobAction(settings, restController)
         );
     }
 
@@ -516,7 +520,8 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class),
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, GetCalendarsAction.TransportAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, PutCalendarAction.TransportAction.class),
-                new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class)
+                new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class),
+                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class)
         );
     }
 

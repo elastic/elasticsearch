@@ -13,10 +13,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +68,7 @@ public class Calendar implements ToXContentObject, Writeable {
     }
 
     public List<String> getJobIds() {
-        return new ArrayList<>(jobIds);
+        return Collections.unmodifiableList(jobIds);
     }
 
     @Override

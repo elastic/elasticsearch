@@ -313,7 +313,7 @@ public class JobManager extends AbstractComponent {
         String jobId = request.getJobId();
         logger.debug("Deleting job '" + jobId + "'");
 
-        // Step 3. When the job has been removed from the cluster state, return a response
+        // Step 4. When the job has been removed from the cluster state, return a response
         // -------
         CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
             if (jobDeleted) {
@@ -325,7 +325,7 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        // Step 2. When the physical storage has been deleted, remove from Cluster State
+        // Step 3. When the physical storage has been deleted, remove from Cluster State
         // -------
         CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> clusterService.submitStateUpdateTask("delete-job-" + jobId,
                 new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(apiResponseHandler, actionListener::onFailure)) {
@@ -351,11 +351,18 @@ public class JobManager extends AbstractComponent {
                     }
             });
 
+
+        // Step 2. Remove the job from any calendars
+        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> {
+            jobProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
+                    actionListener::onFailure ));
+        };
+
+
         // Step 1. Delete the physical storage
 
         // This task manages the physical deletion of the job state and results
-        task.delete(jobId, client, clusterService.state(), deleteJobStateHandler::accept, actionListener::onFailure);
-
+        task.delete(jobId, client, clusterService.state(), removeFromCalendarsHandler, actionListener::onFailure);
     }
 
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,

@@ -20,7 +20,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,13 +36,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.watcher.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
@@ -162,36 +169,62 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             readAcknowledged(in);
+            calendar = new Calendar(in);
+
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             writeAcknowledged(out);
+            calendar.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return calendar.toXContent(builder, params);
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isAcknowledged(), calendar);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Response other = (Response) obj;
+            return Objects.equals(isAcknowledged(), other.isAcknowledged()) && Objects.equals(calendar, other.calendar);
+        }
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final Client client;
+        private final ClusterService clusterService;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                                TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               Client client, ClusterService clusterService) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.client = client;
+            this.clusterService = clusterService;
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            final Calendar calendar = request.getCalendar();
+            Calendar calendar = request.getCalendar();
+
+            checkJobsExist(calendar.getJobIds(), listener::onFailure);
+
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 indexRequest.source(calendar.toXContent(builder,
@@ -217,6 +250,18 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
                                     ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
                         }
                     });
+        }
+
+        private void checkJobsExist(List<String> jobIds, Consumer<Exception> errorHandler) {
+            ClusterState state = clusterService.state();
+            MlMetadata mlMetadata = state.getMetaData().custom(MlMetadata.TYPE);
+            for (String jobId: jobIds) {
+                Set<String> jobs = mlMetadata.expandJobIds(jobId, true);
+                if (jobs.isEmpty()) {
+                    errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
+                    return;
+                }
+            }
         }
     }    
 }

@@ -20,14 +20,6 @@ watch thread pool size grows to match the number of processors.
 [float]
 === Bug fixes
 
-////
-Machine learning::
-* Retry named pipe writes if there are interrupted system calls
-// https://github.com/elastic/machine-learning-cpp/pull/466[#466] (issue: https://github.com/elastic/machine-learning-cpp/issues/445[#445])
-* Update Windows dependency bundle with a rebuilt log4cxx
-// https://github.com/elastic/machine-learning-cpp/pull/498[#498] (issue: https://github.com/elastic/machine-learning-cpp/issues/495[#495])
-////
-
 Monitoring::
 * Data collectors now all share the same cluster state that existed at the
 beginning of data collection. This removes the extremely rare race condition

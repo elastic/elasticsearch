@@ -44,9 +44,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     LongArray counts;
     DoubleArray sums;
+    DoubleArray compensations;
     DocValueFormat format;
-
-    private DoubleArray compensations;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -84,6 +83,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     counts.increment(bucket, valueCount);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
 

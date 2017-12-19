@@ -77,6 +77,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {

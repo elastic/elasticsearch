@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -73,9 +74,15 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
         double sum = 0;
+        double compensation = 0;
         for (InternalAggregation aggregation : aggregations) {
-            sum += ((InternalSum) aggregation).sum;
+            double corrected = ((InternalSum) aggregation).sum - compensation;
+            double newSum = sum + corrected;
+            compensation = (newSum - sum) - corrected;
+            sum = newSum;
         }
         return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
     }

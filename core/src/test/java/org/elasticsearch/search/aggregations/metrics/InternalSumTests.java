@@ -20,12 +20,15 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +37,7 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
     @Override
     protected InternalSum createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
+        double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.BOOLEAN, DocValueFormat.RAW);
         return new InternalSum(name, value, formatter, pipelineAggregators, metaData);
     }
@@ -46,8 +49,27 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
     @Override
     protected void assertReduced(InternalSum reduced, List<InternalSum> inputs) {
-        double expectedSum = inputs.stream().mapToDouble(InternalSum::getValue).sum();
-        assertEquals(expectedSum, reduced.getValue(), 0.0001d);
+        double expectedSum = 0;
+        double compensation = 0;
+        for (InternalSum aggregation : inputs) {
+            double corrected = aggregation.value() - compensation;
+            double newSum = expectedSum + corrected;
+            compensation = (newSum - expectedSum) - corrected;
+            expectedSum = newSum;
+        }
+        assertEquals(expectedSum, reduced.getValue(), 0.000d);
+    }
+
+    public void testSummationAccuracy() throws IOException {
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        List<InternalAggregation> aggregations = new ArrayList<>(values.length);
+        for (double value : values) {
+            aggregations.add(new InternalSum("dummy1", value, null, null, null));
+        }
+        InternalSum internalSum = new InternalSum("dummy", 0, null, null, null);
+        InternalSum reduced = internalSum.doReduce(aggregations, null);
+        assertEquals(13.5, reduced.value(), 0d);
+        assertEquals("dummy", reduced.getName());
     }
 
     @Override

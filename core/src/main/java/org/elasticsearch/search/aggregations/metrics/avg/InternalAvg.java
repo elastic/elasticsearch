@@ -91,9 +91,15 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double sum = 0;
+        double compensation = 0;
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             count += ((InternalAvg) aggregation).count;
-            sum += ((InternalAvg) aggregation).sum;
+            double corrected = ((InternalAvg) aggregation).sum - compensation;
+            double newSum = sum + corrected;
+            compensation = (newSum - sum) - corrected;
+            sum = newSum;
         }
         return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
     }

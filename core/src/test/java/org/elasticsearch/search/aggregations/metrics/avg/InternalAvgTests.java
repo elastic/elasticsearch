@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +57,20 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         assertEquals(counts, reduced.getCount());
         assertEquals(sum, reduced.getSum(), 0.0000001);
         assertEquals(sum / counts, reduced.value(), 0.0000001);
+    }
+
+    public void testSummationAccuracy() throws IOException {
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        List<InternalAggregation> aggregations = new ArrayList<>(values.length);
+        for (double value : values) {
+            aggregations.add(new InternalAvg("dummy1", value, 1, null, null, null));
+        }
+        InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null, null);
+        InternalAvg reduced = internalAvg.doReduce(aggregations, null);
+        assertEquals(values.length, reduced.getCount());
+        assertEquals(13.5, reduced.getSum(), 0d);
+        assertEquals(0.9, reduced.getValue(), 0d);
+        assertEquals("dummy2", reduced.getName());
     }
 
     @Override

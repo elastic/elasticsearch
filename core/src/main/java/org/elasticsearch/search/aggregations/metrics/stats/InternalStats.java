@@ -152,12 +152,18 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
+        double compensation = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
             count += stats.getCount();
             min = Math.min(min, stats.getMin());
             max = Math.max(max, stats.getMax());
-            sum += stats.getSum();
+            // Compute the sum of double values with Kahan summation algorithm which is more
+            // accurate than naive summation.
+            double corrected = stats.getSum() - compensation;
+            double newSum = sum + corrected;
+            compensation = (newSum - sum) - corrected;
+            sum = newSum;
         }
         return new InternalStats(name, count, sum, min, max, format, pipelineAggregators(), getMetaData());
     }

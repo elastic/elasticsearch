@@ -103,6 +103,8 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
 

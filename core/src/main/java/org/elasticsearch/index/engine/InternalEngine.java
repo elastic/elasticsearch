@@ -187,7 +187,6 @@ public class InternalEngine extends Engine {
                     "OPEN_INDEX_AND_TRANSLOG must have starting commit; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
@@ -247,18 +246,20 @@ public class InternalEngine extends Engine {
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
                 return localCheckpointTrackerSupplier.apply(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
-            case OPEN_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
                 final Tuple<Long, Long> seqNoInfo = store.loadSeqNoInfo(null);
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", seqNoInfo.v1(), seqNoInfo.v2());
                 return localCheckpointTrackerSupplier.apply(seqNoInfo.v1(), seqNoInfo.v2());
-            case OPEN_INDEX_CREATE_TRANSLOG:
+            case OPEN_INDEX_AND_TRANSLOG:
                 // When recovering from a previous commit point, we use the local checkpoint from that commit,
                 // but the max_seqno from the last commit. This allows use to throw away stale operations.
+                assert startingCommit != null;
                 final long localCheckpoint = store.loadSeqNoInfo(startingCommit).v2();
                 final long maxSeqNo = store.loadSeqNoInfo(null).v1();
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
                 return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
-            default: throw new IllegalArgumentException("unknown type: " + openMode);
+            default:
+                throw new IllegalArgumentException("unknown type: " + openMode);
         }
     }
 

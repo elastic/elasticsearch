@@ -26,11 +26,10 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
-    public static final ParseField CONDITION_TYPE_FIELD = new ParseField("condition_type");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
     public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
-    public static final ParseField VALUE_FILTER_FIELD = new ParseField("value_filter");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
@@ -53,60 +52,60 @@ public class RuleCondition implements ToXContentObject, Writeable {
                     return RuleConditionType.fromString(p.text());
                 }
                 throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, CONDITION_TYPE_FIELD, ValueType.STRING);
+            }, TYPE_FIELD, ValueType.STRING);
             parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
             parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
             parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
-            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), VALUE_FILTER_FIELD);
+            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), MlFilter.ID);
         }
     }
 
-    private final RuleConditionType conditionType;
+    private final RuleConditionType type;
     private final String fieldName;
     private final String fieldValue;
     private final Condition condition;
-    private final String valueFilter;
+    private final String filterId;
 
     public RuleCondition(StreamInput in) throws IOException {
-        conditionType = RuleConditionType.readFromStream(in);
+        type = RuleConditionType.readFromStream(in);
         condition = in.readOptionalWriteable(Condition::new);
         fieldName = in.readOptionalString();
         fieldValue = in.readOptionalString();
-        valueFilter = in.readOptionalString();
+        filterId = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        conditionType.writeTo(out);
+        type.writeTo(out);
         out.writeOptionalWriteable(condition);
         out.writeOptionalString(fieldName);
         out.writeOptionalString(fieldValue);
-        out.writeOptionalString(valueFilter);
+        out.writeOptionalString(filterId);
     }
 
-    RuleCondition(RuleConditionType conditionType, String fieldName, String fieldValue, Condition condition, String valueFilter) {
-        this.conditionType = conditionType;
+    RuleCondition(RuleConditionType type, String fieldName, String fieldValue, Condition condition, String filterId) {
+        this.type = type;
         this.fieldName = fieldName;
         this.fieldValue = fieldValue;
         this.condition = condition;
-        this.valueFilter = valueFilter;
+        this.filterId = filterId;
 
         verifyFieldsBoundToType(this);
         verifyFieldValueRequiresFieldName(this);
     }
 
     public RuleCondition(RuleCondition ruleCondition) {
-        this.conditionType = ruleCondition.conditionType;
+        this.type = ruleCondition.type;
         this.fieldName = ruleCondition.fieldName;
         this.fieldValue = ruleCondition.fieldValue;
         this.condition = ruleCondition.condition;
-        this.valueFilter = ruleCondition.valueFilter;
+        this.filterId = ruleCondition.filterId;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONDITION_TYPE_FIELD.getPreferredName(), conditionType);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
         if (condition != null) {
             builder.field(Condition.CONDITION_FIELD.getPreferredName(), condition);
         }
@@ -116,15 +115,15 @@ public class RuleCondition implements ToXContentObject, Writeable {
         if (fieldValue != null) {
             builder.field(FIELD_VALUE_FIELD.getPreferredName(), fieldValue);
         }
-        if (valueFilter != null) {
-            builder.field(VALUE_FILTER_FIELD.getPreferredName(), valueFilter);
+        if (filterId != null) {
+            builder.field(MlFilter.ID.getPreferredName(), filterId);
         }
         builder.endObject();
         return builder;
     }
 
-    public RuleConditionType getConditionType() {
-        return conditionType;
+    public RuleConditionType getType() {
+        return type;
     }
 
     /**
@@ -153,8 +152,8 @@ public class RuleCondition implements ToXContentObject, Writeable {
      * The unique identifier of a filter. Required when the rule type is
      * categorical. Should be null for all other types.
      */
-    public String getValueFilter() {
-        return valueFilter;
+    public String getFilterId() {
+        return filterId;
     }
 
     @Override
@@ -168,14 +167,14 @@ public class RuleCondition implements ToXContentObject, Writeable {
         }
 
         RuleCondition other = (RuleCondition) obj;
-        return Objects.equals(conditionType, other.conditionType) && Objects.equals(fieldName, other.fieldName)
+        return Objects.equals(type, other.type) && Objects.equals(fieldName, other.fieldName)
                 && Objects.equals(fieldValue, other.fieldValue) && Objects.equals(condition, other.condition)
-                && Objects.equals(valueFilter, other.valueFilter);
+                && Objects.equals(filterId, other.filterId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(conditionType, fieldName, fieldValue, condition, valueFilter);
+        return Objects.hash(type, fieldName, fieldValue, condition, filterId);
     }
 
     public static RuleCondition createCategorical(String fieldName, String valueFilter) {
@@ -195,7 +194,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     }
 
     private static void verifyFieldsBoundToType(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        switch (ruleCondition.getConditionType()) {
+        switch (ruleCondition.getType()) {
         case CATEGORICAL:
             verifyCategorical(ruleCondition);
             break;
@@ -215,7 +214,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     private static void verifyCategorical(RuleCondition ruleCondition) throws ElasticsearchParseException {
         checkCategoricalHasNoField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         checkCategoricalHasNoField(RuleCondition.FIELD_VALUE_FIELD.getPreferredName(), ruleCondition.getFieldValue());
-        checkCategoricalHasField(RuleCondition.VALUE_FILTER_FIELD.getPreferredName(), ruleCondition.getValueFilter());
+        checkCategoricalHasField(MlFilter.ID.getPreferredName(), ruleCondition.getFilterId());
     }
 
     private static void checkCategoricalHasNoField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
@@ -233,7 +232,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     }
 
     private static void verifyNumerical(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        checkNumericalHasNoField(RuleCondition.VALUE_FILTER_FIELD.getPreferredName(), ruleCondition.getValueFilter());
+        checkNumericalHasNoField(MlFilter.ID.getPreferredName(), ruleCondition.getFilterId());
         checkNumericalHasField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         if (ruleCondition.getFieldName() != null && ruleCondition.getFieldValue() == null) {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_WITH_FIELD_NAME_REQUIRES_FIELD_VALUE);

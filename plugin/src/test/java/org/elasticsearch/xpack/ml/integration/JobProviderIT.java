@@ -431,10 +431,10 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
             }
 
             DetectionRule.Builder rule = new DetectionRule.Builder(conditions)
-                    .setRuleAction(RuleAction.FILTER_RESULTS)
+                    .setActions(RuleAction.FILTER_RESULTS)
                     .setConditionsConnective(Connective.OR);
 
-            detector.setDetectorRules(Collections.singletonList(rule.build()));
+            detector.setRules(Collections.singletonList(rule.build()));
         }
 
         return new AnalysisConfig.Builder(Collections.singletonList(detector.build()));

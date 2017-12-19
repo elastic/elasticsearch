@@ -14,8 +14,7 @@ import java.util.Locale;
 
 public enum RuleAction implements Writeable {
     FILTER_RESULTS,
-    SKIP_SAMPLING,
-    SKIP_SAMPLING_AND_FILTER_RESULTS;
+    SKIP_SAMPLING;
 
     /**
      * Case-insensitive from string method.

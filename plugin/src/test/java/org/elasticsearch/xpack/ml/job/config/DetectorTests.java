@@ -64,11 +64,11 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         Condition condition = new Condition(Operator.GT, "5");
         DetectionRule rule = new DetectionRule.Builder(
                 Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "by2", "val", condition, null)))
-                .setRuleAction(RuleAction.FILTER_RESULTS).setTargetFieldName("over_field")
+                .setActions(RuleAction.FILTER_RESULTS).setTargetFieldName("over_field")
                 .setTargetFieldValue("targetValue")
                 .setConditionsConnective(Connective.AND)
                 .build();
-        builder.setDetectorRules(Collections.singletonList(rule));
+        builder.setRules(Collections.singletonList(rule));
         detector2 = builder.build();
         assertFalse(detector1.equals(detector2));
     }
@@ -84,22 +84,22 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         Condition condition = new Condition(Operator.GT, "5");
         DetectionRule rule = new DetectionRule.Builder(
                 Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null)))
-                .setRuleAction(RuleAction.FILTER_RESULTS)
+                .setActions(RuleAction.FILTER_RESULTS)
                 .setTargetFieldName("over_field")
                 .setTargetFieldValue("targetValue")
                 .setConditionsConnective(Connective.AND)
                 .build();
-        builder.setDetectorRules(Collections.singletonList(rule));
+        builder.setRules(Collections.singletonList(rule));
         builder.setByFieldName(null);
         detector = builder.build();
         assertEquals(Collections.singletonList("over_field"), detector.extractAnalysisFields());
         builder = new Detector.Builder(detector);
         rule = new DetectionRule.Builder(
                 Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null)))
-                .setRuleAction(RuleAction.FILTER_RESULTS)
+                .setActions(RuleAction.FILTER_RESULTS)
                 .setConditionsConnective(Connective.AND)
                 .build();
-        builder.setDetectorRules(Collections.singletonList(rule));
+        builder.setRules(Collections.singletonList(rule));
         builder.setOverFieldName(null);
         detector = builder.build();
         assertTrue(detector.extractAnalysisFields().isEmpty());
@@ -107,7 +107,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testExtractReferencedLists() {
         Detector.Builder builder = createDetector();
-        builder.setDetectorRules(Arrays.asList(
+        builder.setRules(Arrays.asList(
                 new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("by_field", "list1"))).build(),
                 new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("by_field", "list2"))).build()));
 
@@ -140,12 +140,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         Condition condition = new Condition(Operator.GT, "5");
         DetectionRule rule = new DetectionRule.Builder(
                 Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "by_field", "val", condition, null)))
-                .setRuleAction(RuleAction.FILTER_RESULTS)
+                .setActions(RuleAction.FILTER_RESULTS)
                 .setTargetFieldName("over_field")
                 .setTargetFieldValue("targetValue")
                 .setConditionsConnective(Connective.AND)
                 .build();
-        detector.setDetectorRules(Collections.singletonList(rule));
+        detector.setRules(Collections.singletonList(rule));
         return detector;
     }
 
@@ -176,15 +176,15 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
         if (randomBoolean()) {
             int size = randomInt(10);
-            List<DetectionRule> detectorRules = new ArrayList<>(size);
+            List<DetectionRule> rules = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 // no need for random DetectionRule (it is already tested)
                 Condition condition = new Condition(Operator.GT, "5");
-                detectorRules.add(new DetectionRule.Builder(
+                rules.add(new DetectionRule.Builder(
                         Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null)))
                         .setTargetFieldName(fieldName).build());
             }
-            detector.setDetectorRules(detectorRules);
+            detector.setRules(rules);
         }
         if (randomBoolean()) {
             detector.setUseNull(randomBoolean());
@@ -508,14 +508,14 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
     }
 
-    public void testVerify_GivenInvalidDetectionRuleTargetFieldName() {
+    public void testVerify_GivenInvalidRuleTargetFieldName() {
         Detector.Builder detector = new Detector.Builder("mean", "metricVale");
         detector.setByFieldName("metricName");
         detector.setPartitionFieldName("instance");
         RuleCondition ruleCondition =
                 new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricVale", new Condition(Operator.LT, "5"), null);
         DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(ruleCondition)).setTargetFieldName("instancE").build();
-        detector.setDetectorRules(Collections.singletonList(rule));
+        detector.setRules(Collections.singletonList(rule));
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -524,14 +524,14 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 e.getMessage());
     }
 
-    public void testVerify_GivenValidDetectionRule() {
+    public void testVerify_GivenValidRule() {
         Detector.Builder detector = new Detector.Builder("mean", "metricVale");
         detector.setByFieldName("metricName");
         detector.setPartitionFieldName("instance");
         RuleCondition ruleCondition =
                 new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "metricName", "CPU", new Condition(Operator.LT, "5"), null);
         DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(ruleCondition)).setTargetFieldName("instance").build();
-        detector.setDetectorRules(Collections.singletonList(rule));
+        detector.setRules(Collections.singletonList(rule));
         detector.build();
     }
 

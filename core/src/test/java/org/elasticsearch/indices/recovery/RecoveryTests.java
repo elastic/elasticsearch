@@ -68,6 +68,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27861")
     public void testRetentionPolicyChangeDuringRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();

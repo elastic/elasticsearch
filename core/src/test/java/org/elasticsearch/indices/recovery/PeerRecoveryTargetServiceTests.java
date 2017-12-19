@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27890")
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);
         final AtomicReference<Path> translogLocation = new AtomicReference<>();
@@ -114,7 +115,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 generation,
                 resolve,
                 FileChannel::open,
-                TranslogConfig.DEFAULT_BUFFER_SIZE, () -> globalCheckpoint, generation, () -> generation)) {}
+                TranslogConfig.DEFAULT_BUFFER_SIZE, generation, globalCheckpoint, () -> globalCheckpoint, () -> generation)) {}
         return tempDir;
     }
 

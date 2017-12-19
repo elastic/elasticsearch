@@ -441,6 +441,7 @@ final class StoreRecovery {
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             // this a new primary shard, with a new history id that will force file based recoveries on any copies
             indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             indexShard.postRecovery("restore done");

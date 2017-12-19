@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -29,9 +26,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,11 +38,6 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
 
     private IndexService indexService;
     private DocumentMapperParser parser;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
-    }
 
     @Before
     public void setup() {

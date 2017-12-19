@@ -184,6 +184,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                 adjustRam(-(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed));
             }
             if (old != VersionLookup.EMPTY) {
+                // we also need to remove it from the old map here to make sure we don't read this stale value while
+                // we are in the middle of a refresh. Most of the time the old map is an empty map so we can skip it there.
                 old.remove(uid);
             }
         }

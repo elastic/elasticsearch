@@ -131,4 +131,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  // nocommit: needed by plugin service for extensible plugins, move to a separate jar
+  permission java.lang.RuntimePermission "createClassLoader";
 };

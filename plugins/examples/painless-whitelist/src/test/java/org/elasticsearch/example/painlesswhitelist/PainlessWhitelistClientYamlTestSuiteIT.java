@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugins;
 
-public class DummyPluginInfo extends PluginInfo {
+package org.elasticsearch.example.painlesswhitelist;
 
-    private DummyPluginInfo(String name, String description, String version, String classname) {
-        super(name, description, version, classname, false, false);
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class PainlessWhitelistClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public PainlessWhitelistClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    public static final DummyPluginInfo INSTANCE =
-            new DummyPluginInfo(
-                    "dummy_plugin_name",
-                    "dummy plugin description",
-                    "dummy_plugin_version",
-                    "DummyPluginName");
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
+

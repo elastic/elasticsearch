@@ -39,6 +39,10 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
+    /** Other plugins this plugin extends through SPI */
+    @Input
+    List<String> extendsPlugins = []
+
     @Input
     boolean hasNativeController = false
 

@@ -102,6 +102,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27754")
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {

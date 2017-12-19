@@ -179,6 +179,6 @@ public class ESTestCaseTests extends ESTestCase {
          * like any other value.
          */
         Supplier<Object> usuallyNull = () -> usually() ? null : randomInt();
-        assertNotNull(null, randomValueOtherThan(null, usuallyNull));
+        assertNotNull(randomValueOtherThan(null, usuallyNull));
     }
 }

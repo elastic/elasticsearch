@@ -253,3 +253,43 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+
+---
+"Create indices that have a default mapping":
+
+  - skip:
+      features: warnings
+
+  - do:
+      warnings:
+        - "[_default_] mapping is deprecated since it is not useful anymore now that indexes cannot have more than one type"
+      indices.create:
+        index: index_with_default_mapping
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+          mappings:
+            _default_:
+              properties:
+                foo:
+                  type: long
+            my_type:
+              properties:
+                bar:
+                  type: keyword
+
+  - do:
+      warnings:
+        - "[_default_] mapping is deprecated since it is not useful anymore now that indexes cannot have more than one type"
+      indices.create:
+        index: index_with_default_mapping2
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+          mappings:
+            _default_:
+              properties:
+                foo:
+                  type: long

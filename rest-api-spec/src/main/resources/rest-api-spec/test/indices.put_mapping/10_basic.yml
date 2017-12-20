@@ -67,3 +67,34 @@
             properties:
               "":
                type:     keyword
+
+---
+"Create index with _default_ mappings":
+  - do:
+      catch: /invalid_type_name_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            _default_:
+              properties:
+                foo:
+                  type:     keyword
+
+---
+"POST _default_ mappings":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: /invalid_type_name_exception/
+      indices.put_mapping:
+        index: test_index
+        type: _default_
+        body:
+          _default_:
+            properties:
+              foo:
+                type:     keyword

@@ -234,7 +234,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
             boolean hasNested = false;
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
+            for (DocumentMapper docMapper : mapperService.docMappers()) {
                 if (docMapper.hasNestedObjects()) {
                     hasNested = true;
                     for (ObjectMapper objectMapper : docMapper.objectMappers().values()) {

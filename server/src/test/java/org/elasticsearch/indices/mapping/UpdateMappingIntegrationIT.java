@@ -200,67 +200,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testUpdateDefaultMappingSettings() throws Exception {
-        logger.info("Creating index with _default_ mappings");
-        client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .field("date_detection", false)
-                        .endObject().endObject()
-        ).get();
-
-        GetMappingsResponse getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        Map<String, Object> defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        assertThat(defaultMapping, hasKey("date_detection"));
-
-
-        logger.info("Emptying _default_ mappings");
-        // now remove it
-        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-        logger.info("Done Emptying _default_ mappings");
-
-        getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        assertThat(defaultMapping, not(hasKey("date_detection")));
-
-        // now test you can change stuff that are normally unchangeable
-        logger.info("Creating _default_ mappings with an analyzed field");
-        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "text").field("index", true).endObject().endObject()
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-
-
-        logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
-        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-        logger.info("Done changing _default_ mappings field from analyzed to non-analyzed");
-
-        getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("type", "keyword"));
-
-        // but we still validate the _default_ type
-        logger.info("Confirming _default_ mappings validation");
-        assertThrows(client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "DOESNT_EXIST").endObject().endObject()
-                        .endObject().endObject()
-        ), MapperParsingException.class);
-
-    }
-
     public void testUpdateMappingConcurrently() throws Throwable {
         createIndex("test1", "test2");
 

@@ -5,6 +5,18 @@
 
 The `_all` field deprecated in 6 have now been removed.
 
+==== The `_default_` mapping is removed
+
+The `_default_` mapping has been deprecated in 6.0 and is now removed in 7.0.
+Trying to configure a `_default_` mapping will result in an error.
+
+If an index is created in 6.x with a `_default_` mapping in addition to a
+concrete mappings, the `_default_` mapping will be removed on upgrade.
+
+If an index is created in 6.x and only has a `_default_` mapping, which implies
+this index is empty as otherwise indexed documents would have implicitly added
+a type, then the `_default_` mapping will be renamed to `_doc` on upgrade.
+
 ==== `index_options` for numeric fields has been removed
 
 The `index_options` field for numeric  fields has been deprecated in 6 and has now been removed.

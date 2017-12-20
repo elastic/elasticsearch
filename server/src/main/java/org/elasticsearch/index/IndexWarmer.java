@@ -122,7 +122,7 @@ public final class IndexWarmer extends AbstractComponent {
         public TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
+            for (DocumentMapper docMapper : mapperService.docMappers()) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final MappedFieldType fieldType = fieldMapper.fieldType();
                     final String indexName = fieldType.name();

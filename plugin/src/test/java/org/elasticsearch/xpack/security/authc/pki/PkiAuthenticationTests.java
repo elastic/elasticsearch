@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +33,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
-import java.net.Inet6Address;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -160,12 +160,6 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
                 .boundAddress().boundAddresses());
         final InetSocketAddress inetSocketAddress = transportAddress.address();
-        final String host;
-        if (inetSocketAddress.getAddress() instanceof Inet6Address) {
-            host = "[" + inetSocketAddress.getAddress().getHostAddress() + "]";
-        } else {
-            host = inetSocketAddress.getAddress().getHostAddress();
-        }
-        return String.format(Locale.ROOT, "https://%s:%s/", host, inetSocketAddress.getPort());
+        return String.format(Locale.ROOT, "https://%s/", NetworkAddress.format(inetSocketAddress));
     }
 }

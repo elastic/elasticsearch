@@ -66,7 +66,7 @@ public class SnapshotException extends ElasticsearchException {
     }
 
     public SnapshotException(final String repositoryName, final String snapshotName, final String msg, final Throwable cause) {
-        super("[" + repositoryName + ":" + snapshotName + "]" + msg, cause);
+        super("[" + repositoryName + ":" + snapshotName + "] " + msg, cause);
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
     }

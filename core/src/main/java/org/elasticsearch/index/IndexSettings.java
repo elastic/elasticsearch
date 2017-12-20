@@ -127,7 +127,7 @@ public final class IndexSettings {
      * indexing with offsets or term vectors is recommended.
      */
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
-        Setting.intSetting("index.analyze.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.highlight.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
@@ -439,7 +439,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
-        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
@@ -730,9 +730,9 @@ public final class IndexSettings {
     /**
      *  Returns the maximum number of chars that will be analyzed in a highlight request
      */
-    public int getMaxAnalyzedOffset() { return this.maxAnalyzedOffset; }
+    public int getHighlightMaxAnalyzedOffset() { return this.maxAnalyzedOffset; }
 
-    private void setMaxAnalyzedOffset(int maxAnalyzedOffset) { this.maxAnalyzedOffset = maxAnalyzedOffset; }
+    private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) { this.maxAnalyzedOffset = maxAnalyzedOffset; }
 
     /**
      * Returns the maximum number of allowed script_fields to retrieve in a search request

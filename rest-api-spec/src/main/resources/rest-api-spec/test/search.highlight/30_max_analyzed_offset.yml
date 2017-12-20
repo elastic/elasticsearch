@@ -6,7 +6,7 @@ setup:
           body:
               settings:
                   number_of_shards: 1
-                  index.analyze.max_analyzed_offset: 10
+                  index.highlight.max_analyzed_offset: 10
               mappings:
                   test_type:
                       properties:
@@ -29,10 +29,10 @@ setup:
       indices.refresh: {}
 
 ---
-"Unified highlighter on a field WITHOUT OFFSETS exceeding index.analyze.max_analyzed_offset should FAIL":
+"Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
   - skip:
       version: " - 6.99.99"
-      reason: index.analyze.max_analyzed_offset setting has been added in 7.0.0
+      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:
@@ -42,10 +42,10 @@ setup:
 
 
 ---
-"Plain highlighter on a field WITHOUT OFFSETS exceeding index.analyze.max_analyzed_offset should FAIL":
+"Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
   - skip:
       version: " - 6.99.99"
-      reason: index.analyze.max_analyzed_offset setting has been added in 7.0.0
+      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:
@@ -55,10 +55,10 @@ setup:
 
 
 ---
-"Unified highlighter on a field WITH OFFSETS exceeding index.analyze.max_analyzed_offset should SUCCEED":
+"Unified highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should SUCCEED":
   - skip:
       version: " - 6.99.99"
-      reason: index.analyze.max_analyzed_offset setting has been added in 7.0.0
+      reason: index.highligt.max_analyzed_offset setting has been added in 7.0.0
   - do:
       search:
           index: test1
@@ -67,10 +67,10 @@ setup:
 
 
 ---
-"Plain highlighter on a field WITH OFFSETS exceeding index.analyze.max_analyzed_offset should FAIL":
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
   - skip:
       version: " - 6.99.99"
-      reason: index.analyze.max_analyzed_offset setting has been added in 7.0.0
+      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:

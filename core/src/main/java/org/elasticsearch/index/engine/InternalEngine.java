@@ -1342,6 +1342,9 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             ensureCanFlush();
+            // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
+            // or we also have uncommitted changes and that causes this syncFlush to fail.
+            refresh("sync_flush", SearcherScope.INTERNAL);
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
                 return SyncedFlushResult.PENDING_OPERATIONS;
@@ -1354,8 +1357,6 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter, translog, syncId);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            // we are guaranteed to have no operations in the version map here!
-            versionMap.adjustMapSizeUnderLock();
             return SyncedFlushResult.SUCCESS;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);

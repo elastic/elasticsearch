@@ -93,6 +93,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3382")
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings.Builder builder = Settings.builder();
         addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");

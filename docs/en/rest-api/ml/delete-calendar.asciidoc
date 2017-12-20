@@ -1,0 +1,27 @@
+[role="xpack"]
+[[ml-delete-calendar]]
+=== Delete Calendars
+
+The delete calendar API enables you to delete a calendar.
+
+
+==== Request
+
+`DELETE _xpack/ml/calendars/<calendar_id>`
+
+
+//==== Description
+
+==== Path Parameters
+
+`calendar_id` (required)::
+  (string) Identifier for the calendar.
+
+//===== Query Parameters
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+//==== Examples

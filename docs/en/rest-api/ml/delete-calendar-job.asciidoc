@@ -1,0 +1,35 @@
+[role="xpack"]
+[[ml-delete-calendar-job]]
+=== Delete Jobs from Calendar API
+++++
+<titleabbrev>Delete Jobs from Calendar</titleabbrev>
+++++
+
+The delete jobs from calendar API enables you to remove jobs from a calendar.
+
+
+==== Request
+
+`DELETE _xpack/ml/calendars/<calendar_id>/jobs/<job_id>`
+
+
+//==== Description
+
+
+==== Path Parameters
+
+`calendar_id`(required)::
+  (string) Identifier for the calendar.
+
+`job_id` (required)::
+  (string) Identifier for the job.
+
+//===== Query Parameters
+
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+//==== Examples

@@ -576,6 +576,7 @@ public class MachineLearning implements ActionPlugin {
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .build();
                 templates.put(Auditor.NOTIFICATIONS_INDEX, notificationMessageTemplate);
@@ -590,6 +591,7 @@ public class MachineLearning implements ActionPlugin {
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
                         .putMapping(MlMetaIndex.TYPE, docMapping.string())
@@ -604,6 +606,7 @@ public class MachineLearning implements ActionPlugin {
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
                         // TODO review these settings
                         .settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
@@ -621,6 +624,7 @@ public class MachineLearning implements ActionPlugin {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's

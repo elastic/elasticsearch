@@ -422,12 +422,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPrimitiveDataType(SqlBaseParser.PrimitiveDataTypeContext ctx);
   /**
-   * Visit a parse tree produced by {@link SqlBaseParser#whenClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitWhenClause(SqlBaseParser.WhenClauseContext ctx);
-  /**
    * Visit a parse tree produced by {@link SqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    * @return the visitor result

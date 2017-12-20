@@ -220,10 +220,6 @@ dataType
     : identifier                                                                      #primitiveDataType
     ;
 
-whenClause
-    : WHEN condition=expression THEN result=expression
-    ;
-
 qualifiedName
     : identifier ('.' identifier)*
     ;
@@ -255,21 +251,19 @@ number
 
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
-    : ANALYZE | ANALYZED 
-    | COLUMNS 
-    | DEBUG 
-    | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS | FROM 
-    | GRAPHVIZ 
-    | LOGICAL 
-    | MAPPED 
-    | OPTIMIZED 
-    | PARSED | PHYSICAL | PLAN 
-    | QUERY 
-    | RESET | RLIKE 
-    | SCHEMAS | SESSION | SETS | SHOW 
-    | TABLES | TEXT |  TYPE 
-    | USE 
+    : ANALYZE | ANALYZED
+    | COLUMNS
+    | DEBUG
+    | EXECUTABLE | EXPLAIN
+    | FORMAT | FUNCTIONS | FROM
+    | GRAPHVIZ
+    | MAPPED
+    | OPTIMIZED
+    | PARSED | PHYSICAL | PLAN
+    | QUERY
+    | RLIKE
+    | SCHEMAS | SHOW
+    | TABLES | TEXT
     | VERIFY
     ;
 
@@ -283,9 +277,7 @@ ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
 CAST: 'CAST';
-COLUMN: 'COLUMN';
 COLUMNS: 'COLUMNS';
-CROSS: 'CROSS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -295,35 +287,27 @@ EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
-FOR: 'FOR';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
 FULL: 'FULL';
 FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
-GROUPING: 'GROUPING';
 HAVING: 'HAVING';
 IN: 'IN';
 INNER: 'INNER';
-INTEGER: 'INTEGER';
-INTO: 'INTO';
 IS: 'IS';
 JOIN: 'JOIN';
-LAST: 'LAST';
 LEFT: 'LEFT';
 LIKE: 'LIKE';
 LIMIT: 'LIMIT';
-LOGICAL: 'LOGICAL';
 MAPPED: 'MAPPED';
 MATCH: 'MATCH';
 NATURAL: 'NATURAL';
-NO: 'NO';
 NOT: 'NOT';
 NULL: 'NULL';
 ON: 'ON';
 OPTIMIZED: 'OPTIMIZED';
-OPTION: 'OPTION';
 OR: 'OR';
 ORDER: 'ORDER';
 OUTER: 'OUTER';
@@ -331,23 +315,14 @@ PARSED: 'PARSED';
 PHYSICAL: 'PHYSICAL';
 PLAN: 'PLAN';
 QUERY: 'QUERY';
-RESET: 'RESET';
 RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
 SCHEMAS: 'SCHEMAS';
 SELECT: 'SELECT';
-SESSION: 'SESSION';
-SET: 'SET';
-SETS: 'SETS';
 SHOW: 'SHOW';
-TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
-THEN: 'THEN';
-TO: 'TO';
 TRUE: 'TRUE';
-TYPE: 'TYPE';
-USE: 'USE';
 USING: 'USING';
 VERIFY: 'VERIFY';
 WHEN: 'WHEN';

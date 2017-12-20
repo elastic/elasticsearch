@@ -753,18 +753,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterWhenClause(SqlBaseParser.WhenClauseContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitWhenClause(SqlBaseParser.WhenClauseContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterQualifiedName(SqlBaseParser.QualifiedNameContext ctx) { }
   /**
    * {@inheritDoc}

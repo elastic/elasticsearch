@@ -449,13 +449,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitWhenClause(SqlBaseParser.WhenClauseContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitQualifiedName(SqlBaseParser.QualifiedNameContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

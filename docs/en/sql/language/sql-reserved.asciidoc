@@ -27,8 +27,6 @@ SELECT "AS" FROM index
 |`BETWEEN`                    |reserved      |reserved
 |`BY`                         |reserved      |reserved
 |`CAST`                       |reserved      |reserved
-|`COLUMN`                     |reserved      |reserved
-|`CROSS`                      |reserved      |reserved
 |`DESC`                       |reserved      |reserved
 |`DESCRIBE`                   |reserved      |reserved
 |`DISTINCT`                   |reserved      |reserved
@@ -36,19 +34,14 @@ SELECT "AS" FROM index
 |`EXPLAIN`                    |reserved      |reserved
 |`EXTRACT`                    |reserved      |reserved
 |`FALSE`                      |reserved      |reserved
-|`FOR`                        |reserved      |reserved
 |`FROM`                       |reserved      |reserved
 |`FULL`                       |reserved      |reserved
 |`GROUP`                      |reserved      |reserved
-|`GROUPING`                   |reserved      |reserved
 |`HAVING`                     |reserved      |reserved
 |`IN`                         |reserved      |reserved
 |`INNER`                      |reserved      |reserved
-|`INTEGER`                    |reserved      |reserved
-|`INTO`                       |reserved      |reserved
 |`IS`                         |reserved      |reserved
 |`JOIN`                       |reserved      |reserved
-|`LAST`                       |reserved      |reserved
 |`LEFT`                       |reserved      |reserved
 |`LIKE`                       |reserved      |reserved
 |`LIMIT`                      |reserved      |reserved
@@ -58,14 +51,12 @@ SELECT "AS" FROM index
 |`NOT`                        |reserved      |reserved
 |`NULL`                       |reserved      |reserved
 |`ON`                         |reserved      |reserved
-|`OPTION`                     |reserved      |reserved
 |`OR`                         |reserved      |reserved
 |`ORDER`                      |reserved      |reserved
 |`OUTER`                      |reserved      |reserved
 |`RIGHT`                      |reserved      |reserved
 |`SELECT`                     |reserved      |reserved
 |`SESSION`                    |              |reserved
-|`SET`                        |reserved      |reserved
 |`TABLE`                      |reserved      |reserved
 |`THEN`                       |reserved      |reserved
 |`TO`                         |reserved      |reserved
@@ -75,4 +66,4 @@ SELECT "AS" FROM index
 |`WHERE`                      |reserved      |reserved
 |`WITH`                       |reserved      |reserved
 
-|===                          
+|===

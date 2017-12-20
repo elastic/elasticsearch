@@ -703,16 +703,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitPrimitiveDataType(SqlBaseParser.PrimitiveDataTypeContext ctx);
   /**
-   * Enter a parse tree produced by {@link SqlBaseParser#whenClause}.
-   * @param ctx the parse tree
-   */
-  void enterWhenClause(SqlBaseParser.WhenClauseContext ctx);
-  /**
-   * Exit a parse tree produced by {@link SqlBaseParser#whenClause}.
-   * @param ctx the parse tree
-   */
-  void exitWhenClause(SqlBaseParser.WhenClauseContext ctx);
-  /**
    * Enter a parse tree produced by {@link SqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    */

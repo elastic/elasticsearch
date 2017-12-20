@@ -18,20 +18,22 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.xpack.common.socket.SocketAccess;
-import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
@@ -131,7 +133,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        TransportAddress inetSocketTransportAddress = transportAddress;
-        return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());
+        final InetSocketAddress inetSocketAddress = transportAddress.address();
+        return String.format(Locale.ROOT, "https://%s/", NetworkAddress.format(inetSocketAddress));
     }
 }

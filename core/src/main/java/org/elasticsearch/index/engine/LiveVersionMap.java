@@ -25,18 +25,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 
 /** Maps _uid value to its version information. */
 final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+
+    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     /**
      * Resets the internal map and adjusts it's capacity as if there were no indexing operations.
@@ -53,7 +54,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     private static final class VersionLookup {
 
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
-        private final Map<BytesRef,VersionValue> map;
+        private final Map<BytesRef, VersionValue> map;
 
         // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
         // where we know that documents can't have any duplicates so we can skip the version map entirely. This reduces
@@ -196,22 +197,24 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
-    private final Map<BytesRef,DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef, DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private volatile Maps maps = new Maps();
     // we maintain a second map that only receives the updates that we skip on the actual map (unsafe ops)
     // this map is only maintained if assertions are enabled
     private volatile Maps unsafeKeysMap = new Maps();
 
-    /** Bytes consumed for each BytesRef UID:
+    /**
+     * Bytes consumed for each BytesRef UID:
      * In this base value, we account for the {@link BytesRef} object itself as
      * well as the header of the byte[] array it holds, and some lost bytes due
      * to object alignment. So consumers of this constant just have to add the
      * length of the byte[] (assuming it is not shared between multiple
-     * instances). */
+     * instances).
+     */
     private static final long BASE_BYTES_PER_BYTESREF =
-            // shallow memory usage of the BytesRef object
-            RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +
+        // shallow memory usage of the BytesRef object
+        RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +
             // header of the byte[] array
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
             // with an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default),
@@ -219,8 +222,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             // lost bytes on average
             3;
 
-    /** Bytes used by having CHM point to a key/value. */
+    /**
+     * Bytes used by having CHM point to a key/value.
+     */
     private static final long BASE_BYTES_PER_CHM_ENTRY;
+
     static {
         // use the same impl as the Maps does
         Map<Integer, Integer> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -233,8 +239,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         BASE_BYTES_PER_CHM_ENTRY = chmEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
-
-    /** Tracks bytes used by tombstones (deletes) */
+    /**
+     * Tracks bytes used by tombstones (deletes)
+     */
     final AtomicLong ramBytesUsedTombstones = new AtomicLong();
 
     @Override
@@ -263,12 +270,15 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     }
 
-    /** Returns the live version (add or delete) for this uid. */
+    /**
+     * Returns the live version (add or delete) for this uid.
+     */
     VersionValue getUnderLock(final BytesRef uid) {
         return getUnderLock(uid, maps);
     }
 
     private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
+        assert keyedLock.isHeldByCurrentThread(uid);
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
@@ -303,8 +313,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return maps.isSafeAccessMode();
     }
 
-    /** Adds this uid/version to the pending adds map iff the map needs safe access.  */
+    /**
+     * Adds this uid/version to the pending adds map iff the map needs safe access.
+     */
     void maybePutUnderLock(BytesRef uid, VersionValue version) {
+        assert keyedLock.isHeldByCurrentThread(uid);
         Maps maps = this.maps;
         if (maps.isSafeAccessMode()) {
             putUnderLock(uid, version, maps);
@@ -319,14 +332,19 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return true;
     }
 
-    /** Adds this uid/version to the pending adds map. */
+    /**
+     * Adds this uid/version to the pending adds map.
+     */
     void putUnderLock(BytesRef uid, VersionValue version) {
         Maps maps = this.maps;
         putUnderLock(uid, version, maps);
     }
 
-    /** Adds this uid/version to the pending adds map. */
+    /**
+     * Adds this uid/version to the pending adds map.
+     */
     private void putUnderLock(BytesRef uid, VersionValue version, Maps maps) {
+        assert keyedLock.isHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         if (version.isDelete() == false) {
             maps.put(uid, version);
@@ -356,21 +374,24 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    /** Removes this uid from the pending deletes map. */
+    /**
+     * Removes this uid from the pending deletes map.
+     */
     void removeTombstoneUnderLock(BytesRef uid) {
+        assert keyedLock.isHeldByCurrentThread(uid);
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
         final VersionValue prev = tombstones.remove(uid);
         if (prev != null) {
             assert prev.isDelete();
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
-            assert v >= 0: "bytes=" + v;
+            assert v >= 0 : "bytes=" + v;
         }
     }
 
-    void pruneTombstones(Function<BytesRef, Releasable> acquireLock, long currentTime, long pruneInterval) {
+    void pruneTombstones(long currentTime, long pruneInterval) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = acquireLock.apply(uid)) { // can we do it without this lock on each value? maybe batch to a set and get
+            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get
                 // the lock once per set?
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 DeleteVersionValue versionValue = tombstones.get(uid);
@@ -390,7 +411,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    /** Called when this index is closed. */
+    /**
+     * Caller has a lock, so that this uid will not be concurrently added/deleted by another thread.
+     */
+    DeleteVersionValue getTombstoneUnderLock(BytesRef uid) {
+        assert keyedLock.isHeldByCurrentThread(uid);
+        return tombstones.get(uid);
+    }
+
+    /**
+     * Called when this index is closed.
+     */
     synchronized void clear() {
         maps = new Maps();
         tombstones.clear();
@@ -405,8 +436,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return maps.ramBytesUsed.get() + ramBytesUsedTombstones.get();
     }
 
-    /** Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
-     *  don't clear on refresh. */
+    /**
+     * Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
+     * don't clear on refresh.
+     */
     long ramBytesUsedForRefresh() {
         return maps.ramBytesUsed.get();
     }
@@ -417,7 +450,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return Collections.emptyList();
     }
 
-    /** Returns the current internal versions as a point in time snapshot*/
+    /**
+     * Returns the current internal versions as a point in time snapshot
+     */
     Map<BytesRef, VersionValue> getAllCurrent() {
         return maps.current.map;
     }
@@ -425,5 +460,15 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
     Map<BytesRef, DeleteVersionValue> getAllTombstones() {
         return tombstones;
+    }
+
+    /**
+     * Acquires a releaseable lock for the given uId. All *UnderLock methods require
+     * this lock to be hold by the caller otherwise the visibility guarantees of this version
+     * map are broken. We assert on this lock to be hold when calling these methods.
+     * @see KeyedLock
+     */
+    Releasable acquireLock(BytesRef uid) {
+        return keyedLock.acquire(uid);
     }
 }

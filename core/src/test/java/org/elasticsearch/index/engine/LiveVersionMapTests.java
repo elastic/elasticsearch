@@ -26,7 +26,6 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -50,7 +49,9 @@ public class LiveVersionMapTests extends ESTestCase {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
             VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
-            map.putUnderLock(uid.toBytesRef(), version);
+            try (Releasable r = map.acquireLock(uid.toBytesRef())) {
+                map.putUnderLock(uid.toBytesRef(), version);
+            }
         }
         long actualRamBytesUsed = RamUsageTester.sizeOf(map);
         long estimatedRamBytesUsed = map.ramBytesUsed();
@@ -65,7 +66,9 @@ public class LiveVersionMapTests extends ESTestCase {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
             VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
-            map.putUnderLock(uid.toBytesRef(), version);
+            try (Releasable r = map.acquireLock(uid.toBytesRef())) {
+                map.putUnderLock(uid.toBytesRef(), version);
+            }
         }
         actualRamBytesUsed = RamUsageTester.sizeOf(map);
         estimatedRamBytesUsed = map.ramBytesUsed();
@@ -82,33 +85,39 @@ public class LiveVersionMapTests extends ESTestCase {
 
     public void testBasics() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
-        map.putUnderLock(uid("test"), new VersionValue(1,1,1));
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
-        map.beforeRefresh();
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
-        map.afterRefresh(randomBoolean());
-        assertNull(map.getUnderLock(uid("test")));
+        try (Releasable r = map.acquireLock(uid("test"))) {
+            map.putUnderLock(uid("test"), new VersionValue(1,1,1));
+            assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+            map.beforeRefresh();
+            assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+            map.afterRefresh(randomBoolean());
+            assertNull(map.getUnderLock(uid("test")));
 
 
-        map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
-        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
-        map.beforeRefresh();
-        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
-        map.afterRefresh(randomBoolean());
-        assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
-        map.pruneTombstones(k -> () -> {}, 2, 0);
-        assertNull(map.getUnderLock(uid("test")));
+            map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
+            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.beforeRefresh();
+            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.afterRefresh(randomBoolean());
+            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.pruneTombstones(2, 0);
+            assertNull(map.getUnderLock(uid("test")));
+        }
     }
 
 
     public void testAdjustMapSizeUnderLock() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
-        map.putUnderLock(uid("test"), new VersionValue(1,1,1));
+        try (Releasable r = map.acquireLock(uid("test"))) {
+            map.putUnderLock(uid("test"), new VersionValue(1, 1, 1));
+        }
         boolean withinRefresh = randomBoolean();
         if (withinRefresh) {
             map.beforeRefresh();
         }
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+        try (Releasable r = map.acquireLock(uid("test"))) {
+            assertEquals(new VersionValue(1, 1, 1), map.getUnderLock(uid("test")));
+        }
         final String msg;
         if (Assertions.ENABLED) {
             msg = expectThrows(AssertionError.class, map::adjustMapSizeUnderLock).getMessage();
@@ -116,7 +125,9 @@ public class LiveVersionMapTests extends ESTestCase {
             msg = expectThrows(IllegalStateException.class, map::adjustMapSizeUnderLock).getMessage();
         }
         assertEquals("map must be empty", msg);
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+        try (Releasable r = map.acquireLock(uid("test"))) {
+            assertEquals(new VersionValue(1, 1, 1), map.getUnderLock(uid("test")));
+        }
         if (withinRefresh == false) {
             map.beforeRefresh();
         }
@@ -134,7 +145,6 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         List<BytesRef> keyList = new ArrayList<>(keySet);
         ConcurrentHashMap<BytesRef, VersionValue> values = new ConcurrentHashMap<>();
-        KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
         LiveVersionMap map = new LiveVersionMap();
         int numThreads = randomIntBetween(2, 5);
 
@@ -155,7 +165,7 @@ public class LiveVersionMapTests extends ESTestCase {
                 try {
                     for (int i = 0; i < randomValuesPerThread; ++i) {
                         BytesRef bytesRef = randomFrom(random(), keyList);
-                        try (Releasable r = keyedLock.acquire(bytesRef)) {
+                        try (Releasable r = map.acquireLock(bytesRef)) {
                             VersionValue versionValue = values.computeIfAbsent(bytesRef,
                                 v -> new VersionValue(randomLong(), randomLong(), randomLong()));
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
@@ -172,7 +182,7 @@ public class LiveVersionMapTests extends ESTestCase {
                             map.putUnderLock(bytesRef, versionValue);
                         }
                         if (rarely()) {
-                            map.pruneTombstones(keyedLock::acquire, 0, 0);
+                            map.pruneTombstones(0, 0);
                         }
                     }
                 } finally {
@@ -185,15 +195,15 @@ public class LiveVersionMapTests extends ESTestCase {
             final Map<BytesRef, VersionValue> valueMap = new HashMap<>(map.getAllCurrent());
             map.beforeRefresh();
             valueMap.forEach((k, v) -> {
-                try (Releasable r = keyedLock.acquire(k)) {
+                try (Releasable r = map.acquireLock(k)) {
                     VersionValue actualValue = map.getUnderLock(k);
                     assertNotNull(actualValue);
-                    assertTrue(v + " vs. " + actualValue, v.version <= actualValue.version);
+                    assertTrue(v.version <= actualValue.version);
                 }
             });
             map.afterRefresh(randomBoolean());
             valueMap.forEach((k, v) -> {
-                try (Releasable r = keyedLock.acquire(k)) {
+                try (Releasable r = map.acquireLock(k)) {
                     VersionValue actualValue = map.getUnderLock(k);
                     if (actualValue != null) {
                         if (actualValue instanceof DeleteVersionValue) {
@@ -227,7 +237,7 @@ public class LiveVersionMapTests extends ESTestCase {
         });
         map.beforeRefresh();
         map.afterRefresh(false);
-        map.pruneTombstones(keyedLock::acquire, clock.incrementAndGet(), 0);
+        map.pruneTombstones(clock.incrementAndGet(), 0);
         assertEquals(0, StreamSupport.stream(map.getAllTombstones().entrySet().spliterator(), false).count());
     }
 
@@ -245,7 +255,9 @@ public class LiveVersionMapTests extends ESTestCase {
             assertTrue("failed in iter: " + i, map.isSafeAccessRequired());
         }
 
-        map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        try (Releasable r = map.acquireLock(uid(""))) {
+            map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        }
         assertFalse(map.isUnsafe());
         assertEquals(1, map.getAllCurrent().size());
 
@@ -253,8 +265,9 @@ public class LiveVersionMapTests extends ESTestCase {
         map.afterRefresh(randomBoolean());
         assertFalse(map.isUnsafe());
         assertFalse(map.isSafeAccessRequired());
-
-        map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        try (Releasable r = map.acquireLock(uid(""))) {
+            map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+        }
         assertTrue(map.isUnsafe());
         assertFalse(map.isSafeAccessRequired());
         assertEquals(0, map.getAllCurrent().size());
@@ -262,28 +275,30 @@ public class LiveVersionMapTests extends ESTestCase {
 
     public void testRefreshTransition() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
-        map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
-        assertTrue(map.isUnsafe());
-        assertNull(map.getUnderLock(uid("1")));
-        map.beforeRefresh();
-        assertTrue(map.isUnsafe());
-        assertNull(map.getUnderLock(uid("1")));
-        map.afterRefresh(randomBoolean());
-        assertNull(map.getUnderLock(uid("1")));
-        assertFalse(map.isUnsafe());
+        try (Releasable r = map.acquireLock(uid("1"))) {
+            map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+            assertTrue(map.isUnsafe());
+            assertNull(map.getUnderLock(uid("1")));
+            map.beforeRefresh();
+            assertTrue(map.isUnsafe());
+            assertNull(map.getUnderLock(uid("1")));
+            map.afterRefresh(randomBoolean());
+            assertNull(map.getUnderLock(uid("1")));
+            assertFalse(map.isUnsafe());
 
-        map.enforceSafeAccess();
-        map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
-        assertFalse(map.isUnsafe());
-        assertNotNull(map.getUnderLock(uid("1")));
-        map.beforeRefresh();
-        assertFalse(map.isUnsafe());
-        assertTrue(map.isSafeAccessRequired());
-        assertNotNull(map.getUnderLock(uid("1")));
-        map.afterRefresh(randomBoolean());
-        assertNull(map.getUnderLock(uid("1")));
-        assertFalse(map.isUnsafe());
-        assertTrue(map.isSafeAccessRequired());
+            map.enforceSafeAccess();
+            map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+            assertFalse(map.isUnsafe());
+            assertNotNull(map.getUnderLock(uid("1")));
+            map.beforeRefresh();
+            assertFalse(map.isUnsafe());
+            assertTrue(map.isSafeAccessRequired());
+            assertNotNull(map.getUnderLock(uid("1")));
+            map.afterRefresh(randomBoolean());
+            assertNull(map.getUnderLock(uid("1")));
+            assertFalse(map.isUnsafe());
+            assertTrue(map.isSafeAccessRequired());
+        }
     }
 
     public void testAddAndDeleteRefreshConcurrently() throws IOException, InterruptedException {

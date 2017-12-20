@@ -259,7 +259,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private void logIfThereAreRunningTasks() throws InterruptedException, IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest("GET", "_tasks"));
-        // Ignore the task list API - it doens't count against us
+        // Ignore the task list API - it doesn't count against us
         runningTasks.remove(ListTasksAction.NAME);
         runningTasks.remove(ListTasksAction.NAME + "[n]");
         if (runningTasks.isEmpty()) {

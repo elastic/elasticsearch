@@ -9,6 +9,9 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * Addition function ({@code a + b}).
+ */
 public class Add extends ArithmeticFunction {
 
     public Add(Location location, Expression left, Expression right) {

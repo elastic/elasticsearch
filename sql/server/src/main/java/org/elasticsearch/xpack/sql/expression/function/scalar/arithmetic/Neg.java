@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * Negation function (@{code -x}).
+ */
 public class Neg extends UnaryScalarFunction {
 
     public Neg(Location location, Expression field) {

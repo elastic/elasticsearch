@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Hyperbolic_function">Hyperbolic cosine</a>
+ * function.
+ */
 public class Cosh extends MathFunction {
     public Cosh(Location location, Expression field) {
         super(location, field);

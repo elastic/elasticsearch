@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Modulo_operation">Modulo</a>
+ * function ({@code a % b}).
+ */
 public class Mod extends ArithmeticFunction {
 
     public Mod(Location location, Expression left, Expression right) {

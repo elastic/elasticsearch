@@ -10,6 +10,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Absolute_value">Absolute value</a>
+ * function.
+ */
 public class Abs extends MathFunction {
     public Abs(Location location, Expression field) {
         super(location, field);

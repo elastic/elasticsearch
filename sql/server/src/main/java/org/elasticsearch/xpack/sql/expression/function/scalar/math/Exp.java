@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Exponential_function">e<sup>x</sup></a>
+ * function.
+ */
 public class Exp extends MathFunction {
     public Exp(Location location, Expression field) {
         super(location, field);

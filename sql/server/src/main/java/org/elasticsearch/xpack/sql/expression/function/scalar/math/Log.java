@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Natural_logarithm">Natural logarithm</a>
+ * function.
+ */
 public class Log extends MathFunction {
     public Log(Location location, Expression field) {
         super(location, field);

@@ -11,6 +11,13 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Rounding#Round_half_up">Round</a>
+ * function.
+ *
+ * Note that this uses {@link Math#round(double)} which uses "half up" rounding
+ * for `ROUND(-1.5)` rounds to `-1`.
+ */
 public class Round extends MathFunction {
     public Round(Location location, Expression field) {
         super(location, field);

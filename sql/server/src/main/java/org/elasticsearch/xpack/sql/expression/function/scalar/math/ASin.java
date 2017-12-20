@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc sine</a>
+ * fuction.
+ */
 public class ASin extends MathFunction {
     public ASin(Location location, Expression field) {
         super(location, field);

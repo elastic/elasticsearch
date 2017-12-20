@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-">e<sup>x</sup> + 1</a>
+ * function.
+ */
 public class Expm1 extends MathFunction {
     public Expm1(Location location, Expression field) {
         super(location, field);

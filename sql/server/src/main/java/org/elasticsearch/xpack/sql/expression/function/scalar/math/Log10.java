@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Logarithm">Logarithm</a>
+ * base 10 function.
+ */
 public class Log10 extends MathFunction {
     public Log10(Location location, Expression field) {
         super(location, field);

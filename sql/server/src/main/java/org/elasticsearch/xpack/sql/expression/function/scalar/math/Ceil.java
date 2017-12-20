@@ -11,6 +11,10 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Floor_and_ceiling_functions">Ceiling</a>
+ * function.
+ */
 public class Ceil extends MathFunction {
     public Ceil(Location location, Expression field) {
         super(location, field);

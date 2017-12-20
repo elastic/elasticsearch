@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * Convert from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
+ * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
+ */
 public class Degrees extends MathFunction {
     public Degrees(Location location, Expression field) {
         super(location, field);

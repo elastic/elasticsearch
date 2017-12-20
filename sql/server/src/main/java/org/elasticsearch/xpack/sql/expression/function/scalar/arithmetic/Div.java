@@ -11,6 +11,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
+/**
+ * Division function ({@code a / b}).
+ */
 public class Div extends ArithmeticFunction {
 
     public Div(Location location, Expression left, Expression right) {

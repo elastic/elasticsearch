@@ -9,6 +9,9 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * Multiplication function ({@code a * b}).
+ */
 public class Mul extends ArithmeticFunction {
 
     public Mul(Location location, Expression left, Expression right) {

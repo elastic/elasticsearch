@@ -7,7 +7,7 @@ Each entry might get its own file and code snippet
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-spec}/select.sql-spec[wildcardWithOrder]
+include-tagged::{sql-specs}/select.sql-spec[wildcardWithOrder]
 --------------------------------------------------
 
 

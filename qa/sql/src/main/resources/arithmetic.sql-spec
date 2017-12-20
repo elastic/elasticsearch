@@ -3,17 +3,29 @@
 //
 
 unaryMinus
+// tag::unaryMinus
 SELECT - 1 AS x;
+// end::unaryMinus
 plus
+// tag::plus
 SELECT 1 + 1 AS x;
+// end::plus
 minus
+// tag::minus
 SELECT 1 - 1 AS x;
+// end::minus
 divide
+// tag::divide
 SELECT 6 / 3 AS x;
+// end::divide
 multiply
+// tag::multiply
 SELECT 2 * 3 AS x;
+// end::multiply
 mod
+// tag::mod
 SELECT 5 % 2 AS x;
+// end::mod
 operatorsPriority
 SELECT 1 + 3 * 4 / 2 - 2 AS x;
 operatorsPriorityWithParanthesis

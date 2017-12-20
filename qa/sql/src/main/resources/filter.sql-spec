@@ -1,22 +1,35 @@
 //
-// Filter 
-// 
+// Filter
+//
 
 whereFieldEquality
+// tag::whereFieldEquality
 SELECT last_name l FROM "test_emp" WHERE emp_no = 10000 LIMIT 5;
+// end::whereFieldEquality
 whereFieldNonEquality
+// tag::whereFieldNonEquality
 SELECT last_name l FROM "test_emp" WHERE emp_no <> 10000 ORDER BY emp_no LIMIT 5;
+// end::whereFieldNonEquality
 whereFieldNonEqualityJavaSyntax
 SELECT last_name l FROM "test_emp" WHERE emp_no != 10000 ORDER BY emp_no LIMIT 5;
 whereFieldLessThan
+// tag::whereFieldLessThan
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 ORDER BY emp_no LIMIT 5;
+// end::whereFieldLessThan
 whereFieldAndComparison
+// tag::whereFieldAndComparison
 SELECT last_name l FROM "test_emp" WHERE emp_no > 10000 AND emp_no < 10005 ORDER BY emp_no LIMIT 5;
+// end::whereFieldAndComparison
 whereFieldOrComparison
+// tag::whereFieldOrComparison
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 OR emp_no = 10005 ORDER BY emp_no LIMIT 5;
+// end::whereFieldOrComparison
+
 
 whereFieldEqualityNot
+// tag::whereFieldEqualityNot
 SELECT last_name l FROM "test_emp" WHERE NOT emp_no = 10000 LIMIT 5;
+// end::whereFieldEqualityNot
 whereFieldNonEqualityNot
 SELECT last_name l FROM "test_emp" WHERE NOT emp_no <> 10000 ORDER BY emp_no LIMIT 5;
 whereFieldNonEqualityJavaSyntaxNot
@@ -56,8 +69,12 @@ SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 O
 whereIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL;
 whereIsNotNullAndIsNull
+// tag::whereIsNotNullAndIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND gender IS NULL;
+// end::whereIsNotNullAndIsNull
 whereBetween
+// tag::whereBetween
 SELECT last_name l FROM "test_emp" WHERE emp_no BETWEEN 9990 AND 10003 ORDER BY emp_no;
+// end::whereBetween
 whereNotBetween
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDER BY emp_no LIMIT 5;

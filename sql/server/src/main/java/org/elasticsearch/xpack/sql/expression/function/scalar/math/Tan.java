@@ -9,6 +9,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#sine">Tangent</a>
+ * fuction.
+ */
 public class Tan extends MathFunction {
     public Tan(Location location, Expression field) {
         super(location, field);

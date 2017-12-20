@@ -174,6 +174,13 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             containsString("line 1:32: GROUP BY ALL is not supported"));
     }
 
+    public void testSelectWhereExistsFails() throws Exception {
+        index("{\"foo\":1}", "{\"foo\":2}");
+        expectBadRequest(() -> runSql("SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)"),
+            containsString("line 1:28: EXISTS is not yet supported"));
+    }
+
+
     @Override
     public void testSelectInvalidSql() {
         expectBadRequest(() -> runSql("SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));

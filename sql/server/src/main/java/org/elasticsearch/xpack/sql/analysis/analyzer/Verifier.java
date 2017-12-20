@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -146,6 +147,8 @@ abstract class Verifier {
                         // type resolution
                         if (ae.typeResolved().unresolved()) {
                             localFailures.add(fail(ae, ae.typeResolved().message()));
+                        } else if (ae instanceof Exists) {
+                            localFailures.add(fail(ae, "EXISTS is not yet supported"));
                         }
                     });
                 });

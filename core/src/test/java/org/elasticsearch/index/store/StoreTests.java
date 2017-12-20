@@ -1070,4 +1070,5 @@ public class StoreTests extends ESTestCase {
         }
         store.close();
     }
+
 }

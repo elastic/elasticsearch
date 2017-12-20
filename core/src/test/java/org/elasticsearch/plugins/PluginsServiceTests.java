@@ -370,6 +370,19 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle4, bundle2, bundle3));
     }
 
+    public void testSortBundlesAlreadyOrdered() throws Exception {
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
+        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        bundles.add(bundle1);
+        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        bundles.add(bundle2);
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
+        assertThat(sortedBundles, Matchers.contains(bundle1, bundle2));
+    }
+
     public static class DummyClass1 {}
 
     public static class DummyClass2 {}
@@ -537,8 +550,11 @@ public class PluginsServiceTests extends ESTestCase {
             "version", "1.0.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "extends", "nonextensible",
-            "classname", "test.DummyClass1");
+            "extends.plugins", "nonextensible",
+            "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, mypluginDir.resolve("plugin.jar"));
+        }
         Path nonextensibleDir = pluginsDir.resolve("nonextensible");
         PluginTestUtil.writeProperties(
             nonextensibleDir,

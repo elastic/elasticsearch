@@ -131,8 +131,13 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
-                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);
+                Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
+                if (System.getProperty("tests.gradle") == null) {
+                    // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
+                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+                }
+                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -158,6 +163,16 @@ public class BootstrapForTesting {
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);
             }
+        }
+    }
+
+    /** Add the codebase url of the given classname to the codebases map, if the class exists. */
+    private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
+        try {
+            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation());
+        } catch (ClassNotFoundException e) {
+            // no class, fall through to not add
         }
     }
 
@@ -191,7 +206,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, codebases));
+            policies.add(Security.readPolicy(policyFile, Security.getCodebaseJarMap(codebases)));
         }
 
         // consult each policy file for those codebases

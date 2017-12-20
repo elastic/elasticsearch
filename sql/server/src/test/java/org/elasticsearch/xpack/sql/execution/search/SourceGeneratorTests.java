@@ -45,7 +45,7 @@ public class SourceGeneratorTests extends ESTestCase {
     public void testQueryNoFilter() {
         QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(new MatchQueryBuilder("foo", "bar").operator(Operator.AND), sourceBuilder.query());
+        assertEquals(new MatchQueryBuilder("foo", "bar").operator(Operator.OR), sourceBuilder.query());
     }
 
     public void testNoQueryFilter() {
@@ -59,7 +59,7 @@ public class SourceGeneratorTests extends ESTestCase {
         QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
         QueryBuilder filter = new MatchQueryBuilder("bar", "baz");
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, filter, randomIntBetween(1, 10));
-        assertEquals(new BoolQueryBuilder().must(new MatchQueryBuilder("foo", "bar").operator(Operator.AND))
+        assertEquals(new BoolQueryBuilder().must(new MatchQueryBuilder("foo", "bar").operator(Operator.OR))
                 .filter(new MatchQueryBuilder("bar", "baz")), sourceBuilder.query());
     }
 

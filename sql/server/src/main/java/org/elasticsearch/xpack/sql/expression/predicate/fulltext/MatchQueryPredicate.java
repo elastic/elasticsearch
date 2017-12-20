@@ -15,21 +15,14 @@ import static java.util.Collections.singletonList;
 public class MatchQueryPredicate extends FullTextPredicate {
 
     private final Expression field;
-    private final Operator operator;
-    
+
     public MatchQueryPredicate(Location location, Expression field, String query, String options) {
         super(location, query, options, singletonList(field));
         this.field = field;
-
-        this.operator = FullTextUtils.operator(optionMap(), "operator");
     }
 
     public Expression field() {
         return field;
-    }
-
-    public Operator operator() {
-        return operator;
     }
 
     @Override

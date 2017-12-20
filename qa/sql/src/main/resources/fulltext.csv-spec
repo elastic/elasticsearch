@@ -23,6 +23,13 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_nam
 10076          |Erez           |F              |Ritzmann
 ;
 
+matchQueryWithOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;cutoff_frequency=2;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
 multiMatchQuery
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;operator=OR');
 

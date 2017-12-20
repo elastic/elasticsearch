@@ -61,14 +61,52 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts"); // <1>
             // end::delete-index-request
 
+            // tag::delete-index-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::delete-index-request-timeout
+            // tag::delete-index-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::delete-index-request-masterTimeout
+            // tag::delete-index-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::delete-index-request-indicesOptions
+
             // tag::delete-index-execute
             DeleteIndexResponse deleteIndexResponse = client.indices().deleteIndex(request);
             // end::delete-index-execute
-            assertTrue(deleteIndexResponse.isAcknowledged());
 
             // tag::delete-index-response
             boolean acknowledged = deleteIndexResponse.isAcknowledged(); // <1>
             // end::delete-index-response
+            assertTrue(acknowledged);
+        }
+
+        {
+            // tag::delete-index-notfound
+            try {
+                DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
+                client.indices().deleteIndex(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::delete-index-notfound
+        }
+    }
+
+    public void testDeleteIndexAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            Response createIndexResponse = client().performRequest("PUT", "/posts");
+            assertEquals(200, createIndexResponse.getStatusLine().getStatusCode());
+        }
+
+        {
+            DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-async
             client.indices().deleteIndexAsync(request, new ActionListener<DeleteIndexResponse>() {
@@ -83,34 +121,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::delete-index-execute-async
-        }
 
-        {
-            DeleteIndexRequest request = new DeleteIndexRequest("posts");
-            // tag::delete-index-request-timeout
-            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
-            request.timeout("2m"); // <2>
-            // end::delete-index-request-timeout
-            // tag::delete-index-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.timeout("1m"); // <2>
-            // end::delete-index-request-masterTimeout
-            // tag::delete-index-request-indicesOptions
-            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-            // end::delete-index-request-indicesOptions
-        }
-
-        {
-            // tag::delete-index-notfound
-            try {
-                DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
-                DeleteIndexResponse deleteIndexResponse = client.indices().deleteIndex(request);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.NOT_FOUND) {
-                    // <1>
-                }
-            }
-            // end::delete-index-notfound
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "posts");
+                assertTrue(RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
     }
 }

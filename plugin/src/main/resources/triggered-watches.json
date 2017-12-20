@@ -3,6 +3,7 @@
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,
+    "index.auto_expand_replicas": "0-1",
     "index.refresh_interval" : "-1",
     "index.format": 6,
     "index.priority": 900

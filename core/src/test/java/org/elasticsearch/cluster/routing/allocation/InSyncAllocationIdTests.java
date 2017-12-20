@@ -58,7 +58,8 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     @Before
     public void setupAllocationService() {
         allocation = createAllocationService();
-        failedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
+        failedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null,
+            AllocationRetryBackoffPolicy.noBackOffPolicy(), logger);
     }
 
     public void testInSyncAllocationIdsUpdated() {
@@ -164,7 +165,8 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         logger.info("fail replica (for which there is no shard routing in the CS anymore)");
         assertNull(clusterState.getRoutingNodes().getByAllocationId(replicaShard.shardId(), replicaShard.allocationId().getId()));
         ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
+            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null,
+                AllocationRetryBackoffPolicy.noBackOffPolicy(), logger);
         long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, Arrays.asList(
                 new ShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null))

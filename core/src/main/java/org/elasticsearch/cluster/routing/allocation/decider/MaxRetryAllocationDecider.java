@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationRetryBackoffPolicy;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +38,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
-    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries",
+        AllocationRetryBackoffPolicy.SETTING_ALLOCATION_DEFAULT_MAX_RETRIES, 0, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public static final String NAME = "max_retry";
 

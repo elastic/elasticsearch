@@ -36,6 +36,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationRetryBackoffPolicy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
@@ -88,8 +91,13 @@ public class ShardStateAction extends AbstractComponent {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME,
+            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+        AllocationRetryBackoffPolicy backoffPolicy = AllocationRetryBackoffPolicy.policyForSettings(settings);
+        ShardFailedClusterStateTaskExecutor shardFailedExecutor =
+            new ShardFailedClusterStateTaskExecutor(allocationService, routingService, backoffPolicy, logger);
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME,
+            new ShardFailedTransportHandler(clusterService, shardFailedExecutor, logger));
     }
 
     private void sendShardAction(final String actionName, final ClusterState currentState, final ShardEntry shardEntry, final Listener listener) {
@@ -251,11 +259,14 @@ public class ShardStateAction extends AbstractComponent {
     public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
+        private final AllocationRetryBackoffPolicy backoffPolicy;
         private final Logger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, Logger logger) {
+        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService,
+                                                   AllocationRetryBackoffPolicy backoffPolicy, Logger logger) {
             this.allocationService = allocationService;
             this.routingService = routingService;
+            this.backoffPolicy = backoffPolicy;
             this.logger = logger;
         }
 
@@ -341,14 +352,15 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-            int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
-            if (numberOfUnassignedShards > 0) {
-                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("{}, scheduling a reroute", reason);
-                }
-                routingService.reroute(reason);
-            }
+            List<ShardRouting> unassigned = clusterChangedEvent.state().getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
+            unassigned.stream()
+                .mapToInt(s -> s.unassignedInfo().getNumFailedAllocations())
+                .min()
+                .ifPresent(numberOfFailures -> {
+                    String reason = String.format(Locale.ROOT, "Schedule rerouting after [%s] failures", numberOfFailures);
+                    TimeValue delay = backoffPolicy.delayInterval(numberOfFailures);
+                    routingService.scheduleReroute(reason, delay);
+                });
         }
     }
 

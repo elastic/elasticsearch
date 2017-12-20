@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.action.shard;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -30,20 +31,29 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationRetryBackoffPolicy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -54,8 +64,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
 
@@ -65,7 +77,10 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     private MetaData metaData;
     private RoutingTable routingTable;
     private ClusterState clusterState;
+    private CapturingRetryBackoffPolicy retryBackoffPolicy;
+    private TestRoutingService routingService;
     private ShardStateAction.ShardFailedClusterStateTaskExecutor executor;
+    private ThreadPool threadPool;
 
     @Before
     public void setUp() throws Exception {
@@ -83,7 +98,19 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             .addAsNew(metaData.index(INDEX))
             .build();
         clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
-        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
+        retryBackoffPolicy = new CapturingRetryBackoffPolicy(Settings.EMPTY);
+        threadPool = new TestThreadPool(getClass().getName());
+        routingService = new TestRoutingService(Settings.EMPTY, allocationService, threadPool);
+        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, routingService, retryBackoffPolicy,logger);
+    }
+
+    @After
+    public void shutDownThreadPool() throws Exception {
+        super.tearDown();
+        if (threadPool != null){
+            threadPool.shutdown();
+        }
+        threadPool = null;
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
@@ -114,7 +141,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState currentState = createClusterStateWithStartedShards(reason);
         List<ShardStateAction.ShardEntry> failingTasks = createExistingShards(currentState, reason);
         List<ShardStateAction.ShardEntry> nonExistentTasks = createNonExistentShards(currentState, reason);
-        ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger) {
+        ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, AllocationRetryBackoffPolicy.noBackOffPolicy(), logger) {
             @Override
             ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {
                 throw new RuntimeException("simulated applyFailedShards failure");
@@ -148,6 +175,32 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]"))));
         ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
+    }
+
+    public void testScheduleRetryWithBackoffDelay() throws Exception {
+        String reason = "test retry failed shard with backoff delay";
+        ClusterState startedClusterState = createClusterStateWithStartedShards(reason);
+        int numOfFailures = randomIntBetween(1, 100);
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "Analyzer not found",
+            new UnsupportedOperationException(""), numOfFailures,
+            System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(INDEX, 0, null, "node-0", false, UNASSIGNED, unassignedInfo);
+        IndexRoutingTable routingTable = IndexRoutingTable.builder(clusterState.metaData().index(INDEX).getIndex())
+            .addShard(shardRouting)
+            .build();
+        ClusterState unassignedClusterState = ClusterState.builder(startedClusterState)
+            .routingTable(RoutingTable.builder().add(routingTable).build())
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("failed shard", unassignedClusterState, startedClusterState);
+        executor.clusterStatePublished(event);
+
+        assertThat(retryBackoffPolicy.generatedDelays, hasSize(1));
+        assertThat(routingService.schedules, hasSize(1));
+
+        Tuple<Integer, TimeValue> backoffDelay = retryBackoffPolicy.generatedDelays.get(0);
+        TimeValue reroutingDelay = routingService.schedules.get(0);
+        assertThat(backoffDelay.v1(), equalTo(numOfFailures));
+        assertThat(reroutingDelay, equalTo(backoffDelay.v2()));
     }
 
     private ClusterState createClusterStateWithStartedShards(String reason) {
@@ -277,5 +330,34 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 message,
                 new CorruptIndexException("simulated", indexUUID)))
             .collect(Collectors.toList());
+    }
+
+    static class CapturingRetryBackoffPolicy extends AllocationRetryBackoffPolicy {
+        final AllocationRetryBackoffPolicy delegate;
+        final List<Tuple<Integer, TimeValue>> generatedDelays = new ArrayList<>(10);
+
+        CapturingRetryBackoffPolicy(Settings settings) {
+            this.delegate = AllocationRetryBackoffPolicy.policyForSettings(settings);
+        }
+
+        @Override
+        public TimeValue delayInterval(int numOfFailures) {
+            TimeValue delay = delegate.delayInterval(numOfFailures);
+            generatedDelays.add(Tuple.tuple(numOfFailures, delay));
+            return delay;
+        }
+    }
+
+    static class TestRoutingService extends RoutingService {
+        final List<TimeValue> schedules = new ArrayList<>();
+
+        TestRoutingService(Settings settings, AllocationService allocationService, ThreadPool threadPool) {
+            super(settings, null, allocationService, threadPool);
+        }
+
+        @Override
+        public void scheduleReroute(String reason, TimeValue delay) {
+            schedules.add(delay);
+        }
     }
 }

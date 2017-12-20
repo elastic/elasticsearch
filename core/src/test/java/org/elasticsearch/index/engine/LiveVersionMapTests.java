@@ -101,38 +101,6 @@ public class LiveVersionMapTests extends ESTestCase {
         }
     }
 
-
-    public void testAdjustMapSizeUnderLock() throws IOException {
-        LiveVersionMap map = new LiveVersionMap();
-        try (Releasable r = map.acquireLock(uid("test"))) {
-            map.putUnderLock(uid("test"), new VersionValue(1, 1, 1));
-        }
-        boolean withinRefresh = randomBoolean();
-        if (withinRefresh) {
-            map.beforeRefresh();
-        }
-        try (Releasable r = map.acquireLock(uid("test"))) {
-            assertEquals(new VersionValue(1, 1, 1), map.getUnderLock(uid("test")));
-        }
-        final String msg;
-        if (Assertions.ENABLED) {
-            msg = expectThrows(AssertionError.class, map::adjustMapSizeUnderLock).getMessage();
-        } else {
-            msg = expectThrows(IllegalStateException.class, map::adjustMapSizeUnderLock).getMessage();
-        }
-        assertEquals("map must be empty", msg);
-        try (Releasable r = map.acquireLock(uid("test"))) {
-            assertEquals(new VersionValue(1, 1, 1), map.getUnderLock(uid("test")));
-        }
-        if (withinRefresh == false) {
-            map.beforeRefresh();
-        }
-        map.afterRefresh(randomBoolean());
-        Map<BytesRef, VersionValue> allCurrent = map.getAllCurrent();
-        map.adjustMapSizeUnderLock();
-        assertNotSame(allCurrent, map.getAllCurrent());
-    }
-
     public void testConcurrently() throws IOException, InterruptedException {
         HashSet<BytesRef> keySet = new HashSet<>();
         int numKeys = randomIntBetween(50, 200);

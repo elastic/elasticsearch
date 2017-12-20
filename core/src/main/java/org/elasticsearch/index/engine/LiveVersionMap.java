@@ -38,18 +38,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
-    /**
-     * Resets the internal map and adjusts it's capacity as if there were no indexing operations.
-     * This must be called under write lock in the engine
-     */
-    void adjustMapSizeUnderLock() {
-        if (maps.current.isEmpty() == false || maps.old.isEmpty() == false) {
-            assert false : "map must be empty"; // fail hard if not empty and fail with assertion in tests to ensure we never swallow it
-            throw new IllegalStateException("map must be empty");
-        }
-        maps = new Maps();
-    }
-
     private static final class VersionLookup {
 
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());

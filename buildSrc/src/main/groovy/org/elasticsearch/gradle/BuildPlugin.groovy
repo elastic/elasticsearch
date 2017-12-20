@@ -126,7 +126,7 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();
 
-            final GradleVersion minGradle = GradleVersion.version('3.3')
+            final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -444,13 +444,6 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
-                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
-                        doFirst {
-                            sourceCompatibility = null
-                            targetCompatibility = null
-                        }
-                    }
                 }
             }
         }

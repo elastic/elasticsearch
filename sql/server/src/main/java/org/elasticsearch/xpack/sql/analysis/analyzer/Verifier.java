@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
@@ -107,8 +108,9 @@ abstract class Verifier {
 
             if (p instanceof Unresolvable) {
                 localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
-            }
-            else {
+            } else if (p instanceof Distinct) {
+                localFailures.add(fail(p, "SELECT DISTINCT is not yet supported"));
+            } else {
                 // then take a look at the expressions
                 p.forEachExpressions(e -> {
                     // everything is fine, skip expression

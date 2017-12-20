@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinCriteriaContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinTypeContext;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryNoWithContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuerySpecificationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.RelationContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SetQuantifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableNameContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -109,9 +112,15 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         // GROUP BY
-        if (ctx.groupBy() != null) {
-            List<Expression> groupBy = expressions(ctx.groupBy().groupingElement());
-            query = new Aggregate(source(ctx.groupBy()), query, groupBy, selectTarget);
+        GroupByContext groupByCtx = ctx.groupBy();
+        if (groupByCtx != null) {
+            SetQuantifierContext setQualifierContext = groupByCtx.setQuantifier();
+            TerminalNode groupByAll = setQualifierContext == null ? null : setQualifierContext.ALL();
+            if (groupByAll != null) {
+                throw new ParsingException(source(groupByAll), "GROUP BY ALL is not supported");
+            }
+            List<Expression> groupBy = expressions(groupByCtx.groupingElement());
+            query = new Aggregate(source(groupByCtx), query, groupBy, selectTarget);
         }
         else if (!selectTarget.isEmpty()) {
             query = new Project(source(ctx.selectItem(0)), query, selectTarget);

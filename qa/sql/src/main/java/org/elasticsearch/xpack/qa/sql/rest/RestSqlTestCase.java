@@ -162,6 +162,18 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             containsString("line 1:67: Queries with JOIN are not yet supported"));
     }
 
+    public void testSelectDistinctFails() throws Exception {
+        index("{\"name\":\"test\"}");
+        expectBadRequest(() -> runSql("SELECT DISTINCT name FROM test"),
+            containsString("line 1:8: SELECT DISTINCT is not yet supported"));
+    }
+
+    public void testSelectGroupByAllFails() throws Exception {
+        index("{\"foo\":1}", "{\"foo\":2}");
+        expectBadRequest(() -> runSql("SELECT foo FROM test GROUP BY ALL foo"),
+            containsString("line 1:32: GROUP BY ALL is not supported"));
+    }
+
     @Override
     public void testSelectInvalidSql() {
         expectBadRequest(() -> runSql("SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));

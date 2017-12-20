@@ -45,24 +45,24 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     @Override
     public void setPhase(String phase, Listener listener) {
         writeSettings(idxMeta.getIndex().getName(),
-                Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), phase)
-                .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build(), listener);
+                Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase)
+                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build(), listener);
     }
 
     @Override
     public String getPhase() {
-        return IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
+        return IndexLifecycle.LIFECYCLE_PHASE_SETTING.get(idxMeta.getSettings());
     }
 
     @Override
     public void setAction(String action, Listener listener) {
         writeSettings(idxMeta.getIndex().getName(),
-                Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), action).build(), listener);
+                Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build(), listener);
     }
 
     @Override
     public String getAction() {
-        return IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings());
+        return IndexLifecycle.LIFECYCLE_ACTION_SETTING.get(idxMeta.getSettings());
     }
 
     @Override

@@ -32,8 +32,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Client client = Mockito.mock(Client.class);
@@ -49,8 +49,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), newPhase)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
@@ -90,8 +90,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Client client = Mockito.mock(Client.class);
@@ -107,8 +107,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), newPhase)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
                 return null;
@@ -149,8 +149,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Exception exception = new RuntimeException();
@@ -168,8 +168,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), newPhase)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onFailure(exception);
                 return null;
@@ -209,7 +209,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String phase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder("test")
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), phase).build())
+                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {
@@ -237,7 +237,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Client client = Mockito.mock(Client.class);
@@ -253,7 +253,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), newAction)
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction)
                         .build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
@@ -294,7 +294,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Client client = Mockito.mock(Client.class);
@@ -310,7 +310,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), newAction)
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction)
                         .build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
@@ -352,7 +352,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String indexName = "test";
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         Exception exception = new RuntimeException();
@@ -370,7 +370,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), newAction)
+                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction)
                         .build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
                 listener.onFailure(exception);
@@ -411,7 +411,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String action = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder("test")
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), action).build())
+                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(idxMeta, null, null, () -> {

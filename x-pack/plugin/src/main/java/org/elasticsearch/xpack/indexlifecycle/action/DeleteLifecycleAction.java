@@ -208,7 +208,7 @@ public class DeleteLifecycleAction
                             }
                             SortedMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(currentMetadata.getPolicies());
                             newPolicies.remove(request.getPolicyName());
-                            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getPollInterval());
+                            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
                             newState.metaData(MetaData.builder(currentState.getMetaData())
                                     .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                             return newState.build();

@@ -58,8 +58,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
             String policyName = randomAlphaOfLength(10);
             policies.put(policyName, new TestLifecyclePolicy(policyName, phases));
         }
-        long pollInterval = randomNonNegativeLong();
-        return new IndexLifecycleMetadata(policies, pollInterval);
+        return new IndexLifecycleMetadata(policies);
     }
 
     @Override
@@ -84,20 +83,10 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     protected MetaData.Custom mutateInstance(MetaData.Custom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         SortedMap<String, LifecyclePolicy> policies = metadata.getPolicies();
-        long pollInterval = metadata.getPollInterval();
-        switch (between(0, 1)) {
-        case 0:
-            pollInterval = pollInterval + randomIntBetween(1, 1000);
-            break;
-        case 1:
-            policies = new TreeMap<>(policies);
-            String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new TestLifecyclePolicy(policyName, Collections.emptyList()));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
-        }
-        return new IndexLifecycleMetadata(policies, pollInterval);
+        policies = new TreeMap<>(policies);
+        String policyName = randomAlphaOfLength(10);
+        policies.put(policyName, new TestLifecyclePolicy(policyName, Collections.emptyList()));
+        return new IndexLifecycleMetadata(policies);
     }
 
     @Override

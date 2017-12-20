@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -86,6 +87,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -339,6 +341,33 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.writeLock().unlock();
         }
 
+    }
+
+    /**
+     * Checks and returns the status of the existing index in this store.
+     *
+     * @param out where infoStream messages should go. See {@link CheckIndex#setInfoStream(PrintStream)}
+     */
+    public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
+        metadataLock.writeLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            checkIndex.setInfoStream(out);
+            return checkIndex.checkIndex();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
+     */
+    public void exorciseIndex(CheckIndex.Status status) throws IOException {
+        metadataLock.writeLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            checkIndex.exorciseIndex(status);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
     }
 
     public StoreStats stats() throws IOException {

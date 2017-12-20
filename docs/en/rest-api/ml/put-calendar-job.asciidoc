@@ -5,7 +5,7 @@
 <titleabbrev>Add Jobs to Calendar</titleabbrev>
 ++++
 
-The add jobs to calendar API enables you to remove jobs from a calendar.
+The add jobs to calendar API enables you to add jobs to a calendar.
 
 ==== Request
 

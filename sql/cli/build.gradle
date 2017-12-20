@@ -46,9 +46,6 @@ jar {
   }
 }
 
-// Needed so we can launch graphviz if it is installed
-project.compactProfile = 'full'
-
 thirdPartyAudit.excludes = [
   'org.apache.sshd.client.SshClient',
   'org.apache.sshd.client.auth.keyboard.UserInteraction',

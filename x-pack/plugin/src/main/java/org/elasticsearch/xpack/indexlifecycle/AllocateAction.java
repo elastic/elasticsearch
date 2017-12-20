@@ -56,7 +56,7 @@ public class AllocateAction implements LifecycleAction {
 
     @Override
     public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        // nocommit: stub
+        // NORELEASE: stub
         listener.onSuccess(true);
     }
 

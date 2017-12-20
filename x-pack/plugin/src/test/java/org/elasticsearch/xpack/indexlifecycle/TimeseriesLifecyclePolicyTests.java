@@ -58,7 +58,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse));
         registry = new NamedXContentRegistry(entries);
-        lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
+        lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
     }
 
@@ -303,7 +303,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             LifecycleAction current = provider.next(null);
             assertThat(current, not(equalTo(TEST_REPLICAS_ACTION)));
             while (true) {
-                // NOCOMMIT This loop never exits as there is no break condition
+                // NORELEASE This loop never exits as there is no break condition
                 // also provider.next(current) never evaluates to null because
                 // when called with the replicas action it always returns a
                 // non-null action. We should avoid using while true here

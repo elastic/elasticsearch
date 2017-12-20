@@ -117,7 +117,7 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
      *          - {@link ForceMergeAction}
      *          - {@link ReplicasAction} (if action.number_of_replicas gt idxMeta.number_of_replicas)
      *
-     *      NOCOMMIT: there may exist further optimizations to this when {@link ShrinkAction} is specified.
+     *      NORELEASE: there may exist further optimizations to this when {@link ShrinkAction} is specified.
      *
      * @param context the index lifecycle context for this phase at the time of execution
      * @param phase the current phase for which to provide an action provider

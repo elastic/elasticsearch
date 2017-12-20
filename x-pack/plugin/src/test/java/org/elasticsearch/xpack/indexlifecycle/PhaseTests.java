@@ -33,7 +33,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         List<NamedXContentRegistry.Entry> entries = Arrays
                 .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
         registry = new NamedXContentRegistry(entries);
-        phaseName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the phase name rather 
+        phaseName = randomAlphaOfLength(20); // NORELEASE we need to randomise the phase name rather 
                                              // than use the same name for all instances
     }
 

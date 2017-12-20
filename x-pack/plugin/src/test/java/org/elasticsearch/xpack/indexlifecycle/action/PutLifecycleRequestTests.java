@@ -40,7 +40,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
                     new NamedXContentRegistry.Entry(LifecyclePolicy.class,
                         new ParseField(TestLifecyclePolicy.TYPE), TestLifecyclePolicy::parse));
         registry = new NamedXContentRegistry(entries);
-        lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
+        lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
     }
 

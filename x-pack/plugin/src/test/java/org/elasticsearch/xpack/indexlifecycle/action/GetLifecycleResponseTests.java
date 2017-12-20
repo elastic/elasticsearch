@@ -29,7 +29,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     @Before
     public void setup() {
-        lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
+        lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
     }
 

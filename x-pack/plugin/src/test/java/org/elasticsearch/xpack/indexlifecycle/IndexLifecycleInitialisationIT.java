@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;

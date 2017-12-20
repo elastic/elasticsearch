@@ -482,7 +482,7 @@ public class PluginsService extends AbstractComponent {
         }
 
         // create a child to load the plugin in this bundle
-        ExtendedPluginsClassLoader parentLoader = ExtendedPluginsClassLoader.create(getClass().getClassLoader(), extendedLoaders);
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
 
         // reload SPI with any new services from the plugin

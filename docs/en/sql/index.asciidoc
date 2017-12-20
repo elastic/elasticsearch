@@ -25,7 +25,6 @@ indices and return tabular results. There are four main components:
     A JDBC driver for Elasticsearch.
 --
 
-include::sql-overview.asciidoc[]
 include::sql-getting-started.asciidoc[]
 include::endpoints/sql-endpoints.asciidoc[]
 include::functions/sql-functions.asciidoc[]

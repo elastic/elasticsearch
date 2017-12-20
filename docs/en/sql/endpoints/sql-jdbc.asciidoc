@@ -3,7 +3,11 @@
 == SQL JDBC
 
 Elasticsearch's SQL jdbc driver is a fully featured JDBC driver
-for Elasticsearch. You can connect to it using the two APIs offered
+for Elasticsearch.
+
+TODO add example of resolving the artifact in maven and gradle.
+
+You can connect to it using the two APIs offered
 by JDBC, namely `java.sql.Driver` and `DriverManager`:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -15,7 +19,7 @@ HTTP traffic. The port is usually 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
-or `javax.sql.DataSource` through 
+or `javax.sql.DataSource` through
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{jdbc-tests}/JdbcIntegrationTestCase.java[connect-ds]

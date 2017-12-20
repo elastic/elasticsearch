@@ -2,24 +2,24 @@
 [[sql-cli]]
 == SQL CLI
 
-The SQL CLI is a stand alone Java application for quick interaction
-with X-Pack SQL. You can run it like this:
+X-Pack ships with a script to run the SQL CLI in its bin directory:
 
-["source","bash",subs="attributes,callouts"]
+[source,bash]
 --------------------------------------------------
-$ java -jar cli-{version}.jar
+$ ./bin/x-pack/sql-cli
 --------------------------------------------------
+
+The jar containing the SQL CLI is a stand alone Java application and
+the scripts just launch it. You can move it around to other machines
+without having to install Elasticsearch or X-Pack on them.
 
 You can pass the URL of the Elasticsearch instance to connect to as
 the first parameter:
 
-["source","bash",subs="attributes,callouts"]
+[source,bash]
 --------------------------------------------------
-$ java -jar cli-{version}.jar https://some.server:9200
+$ ./bin/x-pack/sql-cli https://some.server:9200
 --------------------------------------------------
-
-The cli jar is entirely stand alone and can be moved whereever it is
-needed.
 
 Once the CLI is running you can use any <<sql-spec,query>> that
 Elasticsearch supports:
@@ -27,13 +27,13 @@ Elasticsearch supports:
 [source,sqlcli]
 --------------------------------------------------
 sql> SELECT * FROM library WHERE page_count > 500 ORDER BY page_count DESC;
-           author           |         name          |  page_count
-----------------------------+-----------------------+---------------
-Victor Hugo                 |Les Misérables         |1463
-Miguel De Cervantes Saavedra|Don Quixote            |1072
-Miguel De Cervantes Saavedra|Don Quixote            |1072
-Herman Melville             |Moby-Dick or, The Whale|720
-Charles Dickens             |Oliver Twist           |608
+     author      |        name        |  page_count   | release_date
+-----------------+--------------------+---------------+---------------
+Peter F. Hamilton|Pandora's Star      |768            |1078185600000
+Vernor Vinge     |A Fire Upon the Deep|613            |707356800000
+Frank Herbert    |Dune                |604            |-144720000000
+Alastair Reynolds|Revelation Space    |585            |953078400000
+James S.A. Corey |Leviathan Wakes     |561            |1306972800000
 --------------------------------------------------
 // TODO it'd be lovely to be able to assert that this is correct but
 // that is probably more work then it is worth right now.

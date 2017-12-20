@@ -117,6 +117,10 @@ public class AutodetectParams {
             return this;
         }
 
+        public DataCounts getDataCounts() {
+            return dataCounts;
+        }
+
         public Builder setModelSizeStats(ModelSizeStats modelSizeStats) {
             this.modelSizeStats = modelSizeStats;
             return this;

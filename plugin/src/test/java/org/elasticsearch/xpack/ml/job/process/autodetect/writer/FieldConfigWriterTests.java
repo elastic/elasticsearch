@@ -238,12 +238,14 @@ public class FieldConfigWriterTests extends ESTestCase {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
         analysisConfig = builder.build();
 
-        specialEvents.add(
-                new SpecialEvent("1", "The Ashes", ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC), Collections.emptyList()));
-        specialEvents.add(
-                new SpecialEvent("2", "elasticon", ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC), Collections.emptyList()));
+        specialEvents.add(new SpecialEvent.Builder().description("The Ashes")
+                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
+                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
+                .calendarId("calendar_id").build());
+        specialEvents.add(new SpecialEvent.Builder().description("elasticon")
+                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
+                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
+                .calendarId("calendar_id").build());
 
         writer = mock(OutputStreamWriter.class);
         createFieldConfigWriter().write();

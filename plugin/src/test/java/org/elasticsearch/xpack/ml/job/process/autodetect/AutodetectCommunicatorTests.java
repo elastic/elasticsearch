@@ -91,7 +91,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                         Collections.singletonList(new DetectionRule.Builder(conditions).build())));
 
         UpdateParams updateParams = new UpdateParams(null, detectorUpdates, true);
-        List<SpecialEvent> events = Collections.singletonList(SpecialEventTests.createSpecialEvent());
+        List<SpecialEvent> events = Collections.singletonList(SpecialEventTests.createSpecialEvent(randomAlphaOfLength(10)));
 
         communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
 

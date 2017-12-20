@@ -24,6 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -261,24 +263,24 @@ public class AutodetectProcessManager extends AbstractComponent {
             return;
         }
 
-        Consumer<List<SpecialEvent>> eventConsumer = specialEvents -> {
-            communicator.writeUpdateProcessMessage(updateParams, specialEvents, (aVoid, e) -> {
-                if (e == null) {
-                    handler.accept(null);
-                } else {
-                    handler.accept(e);
-                }
-            });
-        };
-
+        ActionListener<QueryPage<SpecialEvent>> eventsListener = ActionListener.wrap(
+                specialEvents -> {
+                    communicator.writeUpdateProcessMessage(updateParams, specialEvents.results(), (aVoid, e) -> {
+                        if (e == null) {
+                            handler.accept(null);
+                        } else {
+                            handler.accept(e);
+                        }
+                    });
+                },
+                handler::accept);
 
         if (updateParams.isUpdateSpecialEvents()) {
-            jobProvider.specialEvents(jobTask.getJobId(), eventConsumer, handler::accept);
+            SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder().after(Long.toString(new Date().getTime()));
+            jobProvider.specialEventsForJob(jobTask.getJobId(), query, eventsListener);
         } else {
-            eventConsumer.accept(Collections.emptyList());
+            eventsListener.onResponse(new QueryPage<SpecialEvent>(Collections.emptyList(), 0, SpecialEvent.RESULTS_FIELD));
         }
-
-
     }
 
     public void openJob(JobTask jobTask, Consumer<Exception> handler) {

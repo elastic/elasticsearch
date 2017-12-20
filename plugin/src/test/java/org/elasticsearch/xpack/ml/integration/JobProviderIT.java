@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
@@ -63,12 +64,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
@@ -267,40 +266,73 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
     }
 
     public void testSpecialEvents() throws Exception {
+        Job.Builder jobA = createJob("job_a");
+        Job.Builder jobB = createJob("job_b");
+        Job.Builder jobC = createJob("job_c");
+
+        String calendarAId = "maintenance_a";
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar(calendarAId, Collections.singletonList("job_a")));
+
+        ZonedDateTime now = ZonedDateTime.now();
         List<SpecialEvent> events = new ArrayList<>();
-        events.add(new SpecialEvent("A_and_B_downtime", "downtime", createZonedDateTime(1000L), createZonedDateTime(2000L),
-                        Arrays.asList("job_a", "job_b")));
-        events.add(new SpecialEvent("A_downtime", "downtime", createZonedDateTime(5000L), createZonedDateTime(10000L),
-                        Collections.singletonList("job_a")));
+        events.add(buildSpecialEvent("downtime", now.plusDays(1), now.plusDays(2), calendarAId));
+        events.add(buildSpecialEvent("downtime_AA", now.plusDays(8), now.plusDays(9), calendarAId));
+        events.add(buildSpecialEvent("downtime_AAA", now.plusDays(15), now.plusDays(16), calendarAId));
+
+        String calendarABId = "maintenance_a_and_b";
+        calendars.add(new Calendar(calendarABId, Arrays.asList("job_a", "job_b")));
+
+        events.add(buildSpecialEvent("downtime_AB", now.plusDays(12), now.plusDays(13), calendarABId));
+
+        indexCalendars(calendars);
         indexSpecialEvents(events);
 
-
-        Job.Builder job = createJob("job_b");
-        List<SpecialEvent> returnedEvents = getSpecialEvents(job.getId());
-        assertEquals(1, returnedEvents.size());
-        assertEquals(events.get(0), returnedEvents.get(0));
-
-        job = createJob("job_a");
-        returnedEvents = getSpecialEvents(job.getId());
-        assertEquals(2, returnedEvents.size());
+        SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder();
+        List<SpecialEvent> returnedEvents = getSpecialEventsForJob(jobA.getId(), query);
+        assertEquals(4, returnedEvents.size());
         assertEquals(events.get(0), returnedEvents.get(0));
         assertEquals(events.get(1), returnedEvents.get(1));
+        assertEquals(events.get(3), returnedEvents.get(2));
+        assertEquals(events.get(2), returnedEvents.get(3));
 
-        job = createJob("job_c");
-        returnedEvents = getSpecialEvents(job.getId());
+        returnedEvents = getSpecialEventsForJob(jobB.getId(), query);
+        assertEquals(1, returnedEvents.size());
+        assertEquals(events.get(3), returnedEvents.get(0));
+
+        returnedEvents = getSpecialEventsForJob(jobC.getId(), query);
         assertEquals(0, returnedEvents.size());
+
+        // Test time filters
+        // Lands halfway through the second event which should be returned
+        query.after(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
+        // Lands halfway through the 3rd event which should be returned
+        query.before(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
+        returnedEvents = getSpecialEventsForJob(jobA.getId(), query);
+        assertEquals(2, returnedEvents.size());
+        assertEquals(events.get(1), returnedEvents.get(0));
+        assertEquals(events.get(3), returnedEvents.get(1));
+    }
+
+    private SpecialEvent buildSpecialEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
+        return new SpecialEvent.Builder().description(description).startTime(start).endTime(end).calendarId(calendarId).build();
     }
 
     public void testGetAutodetectParams() throws Exception {
         String jobId = "test_get_autodetect_params";
         Job.Builder job = createJob(jobId, Arrays.asList("fruit", "tea"));
 
+        String calendarId = "downtime";
+        Calendar calendar = new Calendar(calendarId, Collections.singletonList(jobId));
+        indexCalendars(Collections.singletonList(calendar));
+
         // index the param docs
+        ZonedDateTime now = ZonedDateTime.now();
         List<SpecialEvent> events = new ArrayList<>();
-        events.add(new SpecialEvent("A_downtime", "downtime", createZonedDateTime(5000L), createZonedDateTime(10000L),
-                Collections.singletonList(jobId)));
-        events.add(new SpecialEvent("A_downtime2", "downtime", createZonedDateTime(20000L), createZonedDateTime(21000L),
-                Collections.singletonList(jobId)));
+        // events in the past should be filtered out
+        events.add(buildSpecialEvent("In the past", now.minusDays(7), now.minusDays(6), calendarId));
+        events.add(buildSpecialEvent("A_downtime", now.plusDays(1), now.plusDays(2), calendarId));
+        events.add(buildSpecialEvent("A_downtime2", now.plusDays(8), now.plusDays(9), calendarId));
         indexSpecialEvents(events);
 
         List<MlFilter> filters = new ArrayList<>();
@@ -335,9 +367,10 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         // special events
         assertNotNull(params.specialEvents());
-        assertEquals(2, params.specialEvents().size());
+        assertEquals(3, params.specialEvents().size());
         assertEquals(events.get(0), params.specialEvents().get(0));
         assertEquals(events.get(1), params.specialEvents().get(1));
+        assertEquals(events.get(2), params.specialEvents().get(2));
 
         // filters
         assertNotNull(params.filters());
@@ -382,24 +415,25 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         return searchResultHolder.get();
     }
 
-    private List<SpecialEvent> getSpecialEvents(String jobId) throws Exception {
+    private List<SpecialEvent> getSpecialEventsForJob(String jobId, SpecialEventsQueryBuilder query) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        AtomicReference<List<SpecialEvent>> searchResultHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<SpecialEvent>> searchResultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.specialEvents(jobId, params -> {
+        jobProvider.specialEventsForJob(jobId, query, ActionListener.wrap(
+                params -> {
             searchResultHolder.set(params);
             latch.countDown();
         }, e -> {
             errorHolder.set(e);
             latch.countDown();
-        });
+        }));
 
         latch.await();
         if (errorHolder.get() != null) {
             throw errorHolder.get();
         }
 
-        return searchResultHolder.get();
+        return searchResultHolder.get().results();
     }
 
     private Job.Builder createJob(String jobId) {
@@ -445,7 +479,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (SpecialEvent event : events) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, event.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(event.toXContent(builder, params));

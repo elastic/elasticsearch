@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
@@ -119,7 +121,9 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
@@ -471,7 +475,9 @@ public class MachineLearning implements ActionPlugin {
             new RestPutCalendarAction(settings, restController),
             new RestDeleteCalendarAction(settings, restController),
             new RestDeleteCalendarJobAction(settings, restController),
-            new RestPutCalendarJobAction(settings, restController)
+            new RestPutCalendarJobAction(settings, restController),
+            new RestGetCalendarEventsAction(settings, restController),
+            new RestPostCalendarEventAction(settings, restController)
         );
     }
 
@@ -521,7 +527,9 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, GetCalendarsAction.TransportAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, PutCalendarAction.TransportAction.class),
                 new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class),
-                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class)
+                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class),
+                new ActionHandler<>(GetCalendarEventsAction.INSTANCE, GetCalendarEventsAction.TransportAction.class),
+                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, PostCalendarEventsAction.TransportAction.class)
         );
     }
 

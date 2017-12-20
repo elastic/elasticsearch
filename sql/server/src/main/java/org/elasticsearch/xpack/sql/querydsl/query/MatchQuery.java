@@ -24,7 +24,7 @@ public class MatchQuery extends LeafQuery {
     private static final Map<String, BiConsumer<MatchQueryBuilder, String>> BUILDER_APPLIERS;
 
     static {
-        HashMap<String, BiConsumer<MatchQueryBuilder, String>> appliers = new HashMap<>(14);
+        HashMap<String, BiConsumer<MatchQueryBuilder, String>> appliers = new HashMap<>(11);
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
         // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
         // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));

@@ -38,12 +38,6 @@ In previous versions of Elasticsearch, Analyze API is requiring a `tokenizer` or
 In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with custom normalizer
 or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
 
-==== Indices exists API
-
-The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
-as they could cause undesired results when their values differed from their
-defaults.
-
 ==== `timestamp` and `ttl` in index requests
 
 `timestamp` and `ttl` are not accepted anymore as parameters of index/update

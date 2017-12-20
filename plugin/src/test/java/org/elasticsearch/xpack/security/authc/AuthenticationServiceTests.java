@@ -845,7 +845,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 success.set(true);
                 latch.countDown();
             }, this::logAndFail));
-        } catch (IllegalArgumentException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), containsString("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: "));
             latch.countDown();
         } catch (NegativeArraySizeException ex) {

@@ -170,7 +170,9 @@ public class BootstrapForTesting {
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
             Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
-            codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation());
+            if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
+                throw new IllegalStateException("Already added " + name + " codebase for testing");
+            }
         } catch (ClassNotFoundException e) {
             // no class, fall through to not add
         }

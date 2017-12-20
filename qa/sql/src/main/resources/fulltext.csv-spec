@@ -24,7 +24,14 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_nam
 ;
 
 multiMatchQuery
-SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;default_operator=OR');
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;operator=OR');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+multiMatchQueryAllOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true;cutoff_frequency=2;tie_breaker=0.1;use_dis_max=true;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
 
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10095          |Hilari         |M              |Morton

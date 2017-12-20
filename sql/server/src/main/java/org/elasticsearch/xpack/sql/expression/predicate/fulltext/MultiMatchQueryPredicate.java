@@ -16,15 +16,12 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
 
     private final String fieldString;
     private final Map<String, Float> fields;
-    private final Operator operator;
 
     public MultiMatchQueryPredicate(Location location, String fieldString, String query, String options) {
         super(location, query, options, emptyList());
         this.fieldString = fieldString;
-
         // inferred
         this.fields = FullTextUtils.parseFields(fieldString, location);
-        this.operator = FullTextUtils.operator(optionMap(), "operator");
     }
 
     public String fieldString() {
@@ -33,10 +30,6 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
     
     public Map<String, Float> fields() {
         return fields;
-    }
-
-    public Operator operator() {
-        return operator;
     }
 
     @Override

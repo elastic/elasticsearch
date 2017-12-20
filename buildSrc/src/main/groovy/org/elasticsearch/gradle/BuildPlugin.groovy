@@ -408,7 +408,11 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        project.ext.compactProfile = 'compact3'
+        if (project.javaVersion < JavaVersion.VERSION_1_10) {
+            project.ext.compactProfile = 'compact3'
+        } else {
+            project.ext.compactProfile = 'full'
+        }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome

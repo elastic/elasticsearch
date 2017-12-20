@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -130,8 +131,9 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             if (rect.crossesDateline()) {
                 indexXDL(context, rect);
+            } else if (rect.minLon == -180D && rect.maxLon == 180D) {
+                indexFullLonRange(context, rect);
             } else {
-                //context.doc().add(new StringField(name() + FIELD_XDL_SUFFIX, "F", Field.Store.NO));
                 context.doc().add(new LatLonBoundingBox(name(), rect.minLat, rect.minLon, rect.maxLat, rect.maxLon));
             }
         }
@@ -154,9 +156,17 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
     private void indexXDL(final ParseContext context, final Rectangle rect) throws IOException {
         // index western bbox:
         context.doc().add(new LatLonBoundingBox(name() + FIELD_XDL_SUFFIX,
-            rect.minLat, -180D, rect.maxLat, rect.maxLon));
-        // index easter bbox:
-        context.doc().add(new LatLonBoundingBox(name(), rect.minLat, rect.minLon, rect.maxLat, 180D));
+            rect.minLat, GeoUtils.MIN_LON, rect.maxLat, rect.maxLon));
+        // index eastern bbox:
+        context.doc().add(new LatLonBoundingBox(name(), rect.minLat, rect.minLon, rect.maxLat, GeoUtils.MAX_LON));
+    }
+
+    private void indexFullLonRange(final ParseContext context, final Rectangle rect) throws IOException {
+        // index western bbox:
+        context.doc().add(new LatLonBoundingBox(name() + FIELD_XDL_SUFFIX,
+            rect.minLat, GeoUtils.MIN_LON, rect.maxLat, GeoUtils.MAX_LON));
+        // index eastern bbox:
+        context.doc().add(new LatLonBoundingBox(name(), rect.minLat, GeoUtils.MIN_LON, rect.maxLat, GeoUtils.MAX_LON));
     }
 
     @Override

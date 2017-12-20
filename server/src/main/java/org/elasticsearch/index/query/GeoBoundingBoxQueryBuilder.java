@@ -445,7 +445,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return bottomRight.lon() < topLeft.lon();
     }
 
-    private Query newIntersectsQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight, BooleanClause.Occur occur) {
+    private Query newIntersectsQuery(GeoPoint topLeft, GeoPoint bottomRight, BooleanClause.Occur occur) {
         if (crossesDateline()) {
             return newXDLQuery(occur, occur);
         }
@@ -455,9 +455,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return bqb.build();
     }
 
-    private Query newIntersectsQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
-        //return ExistsQueryBuilder.newFilter(context, fieldName);
-        return newIntersectsQuery(context, topLeft, bottomRight, BooleanClause.Occur.SHOULD);
+    private Query newIntersectsQuery(GeoPoint topLeft, GeoPoint bottomRight) {
+        return newIntersectsQuery(topLeft, bottomRight, BooleanClause.Occur.SHOULD);
     }
 
     private Query newDisjointQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
@@ -468,7 +467,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return bqb.build();
     }
 
-    private Query newContainsQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
+    private Query newContainsQuery(GeoPoint topLeft, GeoPoint bottomRight) {
         BooleanQuery.Builder bqb = new BooleanQuery.Builder();
         if (crossesDateline()) {
             bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D), BooleanClause.Occur.MUST);
@@ -480,7 +479,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return bqb.build();
     }
 
-    private Query newWithinQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
+    private Query newWithinQuery(GeoPoint topLeft, GeoPoint bottomRight) {
         String west = fieldName + GeoBoundingBoxFieldMapper.FIELD_XDL_SUFFIX;
         BooleanQuery.Builder bqb = new BooleanQuery.Builder();
         if (crossesDateline()) {
@@ -506,9 +505,9 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private Query newLatLonBBoxQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
         switch (relation) {
-            case INTERSECTS: return newIntersectsQuery(context, topLeft, bottomRight);
-            case CONTAINS: return newContainsQuery(context, topLeft, bottomRight);
-            case WITHIN: return newWithinQuery(context, topLeft, bottomRight);
+            case INTERSECTS: return newIntersectsQuery(topLeft, bottomRight);
+            case CONTAINS: return newContainsQuery(topLeft, bottomRight);
+            case WITHIN: return newWithinQuery(topLeft, bottomRight);
             case DISJOINT: return newDisjointQuery(context, topLeft, bottomRight);
             default: throw new ElasticsearchException("[{}] query does not support relation [{}]", NAME, relation);
         }
@@ -543,6 +542,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        builder.field(RELATION_FIELD.getPreferredName(), relation);
 
         printBoostAndQueryName(builder);
 

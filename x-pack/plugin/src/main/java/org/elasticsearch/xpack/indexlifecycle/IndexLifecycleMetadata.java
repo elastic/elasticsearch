@@ -34,27 +34,22 @@ import java.util.TreeMap;
 public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
-    public static final ParseField POLL_INTERVAL_FIELD = new ParseField("poll_interval");
 
-    public static final IndexLifecycleMetadata EMPTY_METADATA = new IndexLifecycleMetadata(Collections.emptySortedMap(), 3);
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, NamedXContentRegistry> PARSER = new ConstructingObjectParser<>(
             TYPE, a -> new IndexLifecycleMetadata(
-                ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0]), (long) a[1]));
+                ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0])));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicy.parse(p, new Tuple<>(n, c)),
                 v -> {
                     throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
                 }, POLICIES_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), POLL_INTERVAL_FIELD);
     }
 
     private final SortedMap<String, LifecyclePolicy> policies;
-    private final long pollInterval;
 
-    public IndexLifecycleMetadata(SortedMap<String, LifecyclePolicy> policies, long pollInterval) {
+    public IndexLifecycleMetadata(SortedMap<String, LifecyclePolicy> policies) {
         this.policies = Collections.unmodifiableSortedMap(policies);
-        this.pollInterval = pollInterval;
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
@@ -64,7 +59,6 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             policies.put(in.readString(), in.readNamedWriteable(LifecyclePolicy.class));
         }
         this.policies = policies;
-        this.pollInterval = in.readVLong();
     }
 
     @Override
@@ -74,15 +68,10 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             out.writeString(entry.getKey());
             out.writeNamedWriteable(entry.getValue());
         }
-        out.writeVLong(pollInterval);
     }
 
     public SortedMap<String, LifecyclePolicy> getPolicies() {
         return policies;
-    }
-
-    public long getPollInterval() {
-        return pollInterval;
     }
 
     @Override
@@ -93,7 +82,6 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(POLICIES_FIELD.getPreferredName(), policies);
-        builder.field(POLL_INTERVAL_FIELD.getPreferredName(), pollInterval);
         return builder;
     }
 
@@ -114,7 +102,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(policies, pollInterval);
+        return Objects.hash(policies);
     }
 
     @Override
@@ -126,8 +114,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             return false;
         }
         IndexLifecycleMetadata other = (IndexLifecycleMetadata) obj;
-        return Objects.equals(policies, other.policies) && 
-                Objects.equals(pollInterval, other.pollInterval);
+        return Objects.equals(policies, other.policies);
     }
 
     @Override
@@ -138,7 +125,6 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, LifecyclePolicy>> policies;
-        final Long pollIntervalDiff;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
             this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer(),
@@ -174,26 +160,22 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
                     }
 
                 });
-            this.pollIntervalDiff = after.pollInterval - before.pollInterval;
         }
 
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
             this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
                 (i) -> i.readNamedWriteable(LifecyclePolicy.class), IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
-            this.pollIntervalDiff = in.readZLong();
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(policies.apply(((IndexLifecycleMetadata) part).policies));
-            long pollInterval = ((IndexLifecycleMetadata) part).pollInterval + pollIntervalDiff;
-            return new IndexLifecycleMetadata(newPolicies, pollInterval);
+            return new IndexLifecycleMetadata(newPolicies);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             policies.writeTo(out);
-            out.writeZLong(pollIntervalDiff);
         }
 
         @Override

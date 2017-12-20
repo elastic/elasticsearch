@@ -235,7 +235,7 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
                             }
                             SortedMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(currentMetadata.getPolicies());
                             newPolicies.put(request.getPolicy().getName(), request.getPolicy());
-                            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getPollInterval());
+                            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
                             newState.metaData(MetaData.builder(currentState.getMetaData())
                                     .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                             return newState.build();

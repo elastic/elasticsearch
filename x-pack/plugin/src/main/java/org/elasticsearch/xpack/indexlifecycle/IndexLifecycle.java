@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.Plugin;
@@ -58,11 +59,14 @@ public class IndexLifecycle extends Plugin {
     private boolean enabled;
     private boolean transportClientMode;
 
-    public static final Setting<String> LIFECYCLE_TIMESERIES_NAME_SETTING = Setting.simpleString("index.lifecycle.name",
+    // NORELEASE: we should probably change the default to something other than three seconds for initial release
+    public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.lifecycle.poll_interval",
+        TimeValue.timeValueSeconds(3), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString("index.lifecycle.name",
         Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> LIFECYCLE_TIMESERIES_PHASE_SETTING = Setting.simpleString("index.lifecycle.phase",
+    public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString("index.lifecycle.phase",
         Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> LIFECYCLE_TIMESERIES_ACTION_SETTING = Setting.simpleString("index.lifecycle.action",
+    public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString("index.lifecycle.action",
             Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public IndexLifecycle(Settings settings) {
@@ -86,9 +90,10 @@ public class IndexLifecycle extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-                LIFECYCLE_TIMESERIES_NAME_SETTING, 
-                LIFECYCLE_TIMESERIES_PHASE_SETTING,
-                LIFECYCLE_TIMESERIES_ACTION_SETTING);
+                LIFECYCLE_POLL_INTERVAL_SETTING,
+            LIFECYCLE_NAME_SETTING,
+                LIFECYCLE_PHASE_SETTING,
+            LIFECYCLE_ACTION_SETTING);
     }
 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, Clock clock,
@@ -97,7 +102,7 @@ public class IndexLifecycle extends Plugin {
             return emptyList();
         }
         indexLifecycleInitialisationService
-                .set(new IndexLifecycleService(settings, client, clusterService, clock, threadPool));
+                .set(new IndexLifecycleService(settings, client, clusterService, clock, threadPool, System::currentTimeMillis));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

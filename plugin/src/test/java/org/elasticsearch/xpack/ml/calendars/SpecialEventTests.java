@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.calendars;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,28 +22,22 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent> {
 
-    public static SpecialEvent createSpecialEvent() {
-        int size = randomInt(10);
-        List<String> jobIds = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            jobIds.add(randomAlphaOfLengthBetween(1, 20));
-        }
-
-        return new SpecialEvent(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC),
-                ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC),
-                jobIds);
+    public static SpecialEvent createSpecialEvent(String calendarId) {
+        ZonedDateTime start = ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC);
+        return new SpecialEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
+                calendarId);
     }
 
     @Override
     protected SpecialEvent createTestInstance() {
-        return createSpecialEvent();
+        return createSpecialEvent(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
@@ -52,7 +47,7 @@ public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent>
 
     @Override
     protected SpecialEvent doParseInstance(XContentParser parser) throws IOException {
-        return SpecialEvent.PARSER.apply(parser, null);
+        return SpecialEvent.PARSER.apply(parser, null).build();
     }
 
     public void testToDetectionRule() {
@@ -80,6 +75,36 @@ public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent>
 
         long conditionEndTime = Long.parseLong(conditions.get(1).getCondition().getValue());
         assertEquals(0, conditionEndTime % bucketSpanSecs);
-        assertEquals(bucketSpanSecs * (bucketCount + 1), conditionEndTime);
+
+        long eventTime = event.getEndTime().toEpochSecond() - conditionStartTime;
+        long numbBucketsInEvent = (eventTime + bucketSpanSecs -1) / bucketSpanSecs;
+        assertEquals(bucketSpanSecs * (bucketCount + numbBucketsInEvent), conditionEndTime);
+    }
+
+    public void testBuild() {
+        SpecialEvent.Builder builder = new SpecialEvent.Builder();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertEquals("Field [description] cannot be null", e.getMessage());
+        builder.description("foo");
+        e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertEquals("Field [start_time] cannot be null", e.getMessage());
+        ZonedDateTime now = ZonedDateTime.now();
+        builder.startTime(now);
+        e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertEquals("Field [end_time] cannot be null", e.getMessage());
+        builder.endTime(now.plusHours(1));
+        e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertEquals("Field [calendar_id] cannot be null", e.getMessage());
+        builder.calendarId("foo");
+        builder.build();
+
+
+        builder = new SpecialEvent.Builder().description("f").calendarId("c");
+        builder.startTime(now);
+        builder.endTime(now.minusHours(2));
+
+        e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), containsString("must come before end time"));
     }
 }

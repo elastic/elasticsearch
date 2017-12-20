@@ -15,37 +15,36 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
+import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response,
+        GetCalendarEventsAction.RequestBuilder> {
+    public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
+    public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 
-public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCalendarsAction.Response, GetCalendarsAction.RequestBuilder> {
-
-    public static final GetCalendarsAction INSTANCE = new GetCalendarsAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";
-
-    private GetCalendarsAction() {
+    private GetCalendarEventsAction() {
         super(NAME);
     }
 
@@ -61,10 +60,15 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
+        public static final ParseField AFTER = new ParseField("after");
+        public static final ParseField BEFORE = new ParseField("before");
+
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString(Request::setCalendarId, Calendar.ID);
+            PARSER.declareString(Request::setAfter, AFTER);
+            PARSER.declareString(Request::setBefore, BEFORE);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
         }
 
@@ -77,17 +81,38 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         }
 
         private String calendarId;
-        private PageParams pageParams;
+        private String after;
+        private String before;
+        private PageParams pageParams = PageParams.defaultParams();
 
-        public Request() {
+        Request() {
         }
 
-        public void setCalendarId(String calendarId) {
-            this.calendarId = calendarId;
+        public Request(String calendarId) {
+            setCalendarId(calendarId);
         }
 
         public String getCalendarId() {
             return calendarId;
+        }
+
+        private void setCalendarId(String calendarId) {
+            this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
+        }
+
+        public String getAfter() {
+            return after;
+        }
+        public void setAfter(String after) {
+            this.after = after;
+        }
+
+        public String getBefore() {
+            return before;
+        }
+
+        public void setBefore(String before) {
+            this.before = before;
         }
 
         public PageParams getPageParams() {
@@ -95,39 +120,35 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         }
 
         public void setPageParams(PageParams pageParams) {
-            this.pageParams = pageParams;
+            this.pageParams = Objects.requireNonNull(pageParams);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-
-            if (calendarId != null && pageParams != null) {
-                validationException = addValidationError("Params [" + PageParams.FROM.getPreferredName()
-                                + ", " + PageParams.SIZE.getPreferredName() + "] are incompatible with ["
-                                + Calendar.ID.getPreferredName() + "].",
-                        validationException);
-            }
-            return validationException;
+            return null;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            calendarId = in.readOptionalString();
-            pageParams = in.readOptionalWriteable(PageParams::new);
+            calendarId = in.readString();
+            after = in.readOptionalString();
+            before = in.readOptionalString();
+            pageParams = new PageParams(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(calendarId);
-            out.writeOptionalWriteable(pageParams);
+            out.writeString(calendarId);
+            out.writeOptionalString(after);
+            out.writeOptionalString(before);
+            pageParams.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, pageParams);
+            return Objects.hash(calendarId, after, before, pageParams);
         }
 
         @Override
@@ -139,18 +160,21 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(after, other.after)
+                    && Objects.equals(before, other.before) && Objects.equals(pageParams, other.pageParams);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (calendarId != null) {
-                builder.field(Calendar.ID.getPreferredName(), calendarId);
+            builder.field(Calendar.ID.getPreferredName(), calendarId);
+            if (after != null) {
+                builder.field(AFTER.getPreferredName(), after);
             }
-            if (pageParams != null) {
-                builder.field(PageParams.PAGE.getPreferredName(), pageParams);
+            if (before != null) {
+                builder.field(BEFORE.getPreferredName(), before);
             }
+            builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             builder.endObject();
             return builder;
         }
@@ -163,49 +187,38 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
-        private QueryPage<Calendar> calendars;
-
-        public Response(QueryPage<Calendar> calendars) {
-            this.calendars = calendars;
-        }
+        private QueryPage<SpecialEvent> specialEvents;
 
         Response() {
         }
 
-        public QueryPage<Calendar> getCalendars() {
-            return calendars;
+        public Response(QueryPage<SpecialEvent> specialEvents) {
+            this.specialEvents = specialEvents;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            calendars = new QueryPage<>(in, Calendar::new);
+            specialEvents = new QueryPage<>(in, SpecialEvent::new);
+
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            calendars.writeTo(out);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
+            specialEvents.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            calendars.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
+            return specialEvents.toXContent(builder, params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendars);
+            return Objects.hash(specialEvents);
         }
 
         @Override
@@ -217,12 +230,7 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(calendars, other.calendars);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+            return Objects.equals(specialEvents, other.specialEvents);
         }
     }
 
@@ -242,35 +250,30 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            final String calendarId = request.getCalendarId();
-            if (request.getCalendarId() != null) {
-                getCalendar(calendarId, listener);
-            } else {
-                PageParams pageParams = request.getPageParams();
-                if (pageParams == null) {
-                    pageParams = PageParams.defaultParams();
-                }
-                getCalendars(pageParams, listener);
-            }
+            ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
+                    r -> {
+                        SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder()
+                                .calendarIds(Collections.singletonList(request.getCalendarId()))
+                                .after(request.getAfter())
+                                .before(request.getBefore())
+                                .from(request.getPageParams().getFrom())
+                                .size(request.getPageParams().getSize());
+
+                        jobProvider.specialEvents(query, ActionListener.wrap(
+                                events -> {
+                                    listener.onResponse(new Response(events));
+                                },
+                                listener::onFailure
+                        ));
+                    },
+                    listener::onFailure);
+
+            checkCalendarExists(request.getCalendarId(), calendarExistsListener);
         }
 
-        private void getCalendar(String calendarId, ActionListener<Response> listener) {
-
+        private void checkCalendarExists(String calendarId, ActionListener<Boolean> listener) {
             jobProvider.calendar(calendarId, ActionListener.wrap(
-                    calendar -> {
-                        QueryPage<Calendar> page = new QueryPage<>(Collections.singletonList(calendar), 1, Calendar.RESULTS_FIELD);
-                        listener.onResponse(new Response(page));
-                    },
-                    listener::onFailure
-            ));
-        }
-
-        private void getCalendars(PageParams pageParams, ActionListener<Response> listener) {
-            CalendarQueryBuilder query = new CalendarQueryBuilder().pageParams(pageParams).sort(true);
-            jobProvider.calendars(query, ActionListener.wrap(
-                    calendars -> {
-                        listener.onResponse(new Response(calendars));
-                    },
+                    c -> listener.onResponse(true),
                     listener::onFailure
             ));
         }

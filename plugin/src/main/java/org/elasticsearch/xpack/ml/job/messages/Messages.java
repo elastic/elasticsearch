@@ -172,6 +172,8 @@ public final class Messages {
     public static final String REST_NO_SUCH_MODEL_SNAPSHOT = "No model snapshot with id [{0}] exists for job [{1}]";
     public static final String REST_START_AFTER_END = "Invalid time range: end time ''{0}'' is earlier than start time ''{1}''.";
 
+    public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
+
     private Messages() {
     }
 

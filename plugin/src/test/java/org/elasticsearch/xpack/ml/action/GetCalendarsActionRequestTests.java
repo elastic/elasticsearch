@@ -5,15 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
 
-public class GetCalendarsActionRequestTests extends AbstractStreamableTestCase<GetCalendarsAction.Request> {
-
+public class GetCalendarsActionRequestTests extends AbstractStreamableXContentTestCase<GetCalendarsAction.Request> {
 
     @Override
     protected GetCalendarsAction.Request createTestInstance() {
         GetCalendarsAction.Request request = new GetCalendarsAction.Request();
-        request.setCalendarId(randomAlphaOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            request.setCalendarId(randomAlphaOfLengthBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            request.setPageParams(PageParams.defaultParams());
+        }
         return request;
     }
 
@@ -22,4 +28,13 @@ public class GetCalendarsActionRequestTests extends AbstractStreamableTestCase<G
         return new GetCalendarsAction.Request();
     }
 
+    @Override
+    protected GetCalendarsAction.Request doParseInstance(XContentParser parser) {
+        return GetCalendarsAction.Request.parseRequest(null, parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

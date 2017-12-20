@@ -376,8 +376,6 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class DummyClass3 {}
 
-    public static class NonExtensible extends Plugin {}
-
     void makeJar(Path jarFile, Class... classes) throws Exception {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
             for (Class clazz : classes) {
@@ -527,7 +525,6 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
     }
 
-    /* nocommit: make this test work, need to create a jar with a real class that does not already exist on the test classpath
     public void testNonExtensibleDep() throws Exception {
         Path homeDir = createTempDir();
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
@@ -542,17 +539,19 @@ public class PluginsServiceTests extends ESTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "extends", "nonextensible",
             "classname", "test.DummyClass1");
-        Path notextensibleDir = pluginsDir.resolve("nonextensible");
+        Path nonextensibleDir = pluginsDir.resolve("nonextensible");
         PluginTestUtil.writeProperties(
-            notextensibleDir,
+            nonextensibleDir,
             "description", "whatever",
             "name", "nonextensible",
             "version", "1.0.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "classname", "test.NonExtensible");
-        makeJar(notextensibleDir.resolve("plugin.jar"), NonExtensible.class);
+            "classname", "test.NonExtensiblePlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
+            Files.copy(jar, nonextensibleDir.resolve("plugin.jar"));
+        }
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
-    }*/
+    }
 }

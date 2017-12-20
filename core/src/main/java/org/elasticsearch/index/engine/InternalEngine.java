@@ -117,8 +117,6 @@ public class InternalEngine extends Engine {
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap = new LiveVersionMap();
 
-    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
-
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
@@ -551,7 +549,11 @@ public class InternalEngine extends Engine {
             ensureOpen();
             SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = getVersionFromMap(get.uid().bytes());
+                VersionValue versionValue = null;
+                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+                    // we need to lock here to access the version map to do this truly in RT
+                    versionValue = getVersionFromMap(get.uid().bytes());
+                }
                 if (versionValue != null) {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
@@ -733,7 +735,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
-            try (Releasable ignored = acquireLock(index.uid());
+            try (Releasable ignored = versionMap.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
                 /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
@@ -1059,7 +1061,7 @@ public class InternalEngine extends Engine {
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan;
@@ -1520,7 +1522,8 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+            try (Releasable ignored = versionMap.acquireLock(uid)) {
+                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
@@ -1765,14 +1768,6 @@ public class InternalEngine extends Engine {
             default:
                 throw new IllegalStateException("unknown scope: " + scope);
         }
-    }
-
-    private Releasable acquireLock(BytesRef uid) {
-        return keyedLock.acquire(uid);
-    }
-
-    private Releasable acquireLock(Term uid) {
-        return acquireLock(uid.bytes());
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {

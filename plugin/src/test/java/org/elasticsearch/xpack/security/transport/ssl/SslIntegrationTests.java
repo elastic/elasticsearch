@@ -32,6 +32,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStreamReader;
+import java.net.Inet6Address;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -132,7 +133,13 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        final InetSocketAddress inetAddress = transportAddress.address();
-        return String.format(Locale.ROOT, "https://%s:%s/", inetAddress.getHostString(), inetAddress.getPort());
+        final InetSocketAddress inetSocketAddress = transportAddress.address();
+        final String host;
+        if (inetSocketAddress.getAddress() instanceof Inet6Address) {
+            host = "[" + inetSocketAddress.getAddress().getHostAddress() + "]";
+        } else {
+            host = inetSocketAddress.getAddress().getHostAddress();
+        }
+        return String.format(Locale.ROOT, "https://%s:%s/", host, inetSocketAddress.getPort());
     }
 }

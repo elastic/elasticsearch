@@ -32,6 +32,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
+import java.net.Inet6Address;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -158,9 +159,13 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
                 .boundAddress().boundAddresses());
-        final InetSocketAddress inetAddress = transportAddress.address();
-        final String format = String.format(Locale.ROOT, "https://%s:%s/", inetAddress.getHostString(), inetAddress.getPort());
-        logger.info("calling {}", format);
-        return format;
+        final InetSocketAddress inetSocketAddress = transportAddress.address();
+        final String host;
+        if (inetSocketAddress.getAddress() instanceof Inet6Address) {
+            host = "[" + inetSocketAddress.getAddress().getHostAddress() + "]";
+        } else {
+            host = inetSocketAddress.getAddress().getHostAddress();
+        }
+        return String.format(Locale.ROOT, "https://%s:%s/", host, inetSocketAddress.getPort());
     }
 }

@@ -100,6 +100,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3382")
     public void testRestAuthenticationViaPki() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {

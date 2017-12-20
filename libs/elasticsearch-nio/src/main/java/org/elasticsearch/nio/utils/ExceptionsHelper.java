@@ -21,6 +21,7 @@ package org.elasticsearch.nio.utils;
 
 import java.util.List;
 
+// TODO: This should eventually be removed once ExceptionsHelper is moved to a core library jar
 public class ExceptionsHelper {
 
     /**

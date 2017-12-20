@@ -136,7 +136,7 @@ information, including the updated property values. For example:
         "detector_description": "Unusual message counts",
         "function": "count",
         "by_field_name": "mlcategory",
-        "detector_rules": [],
+        "rules": [],
         "detector_index": 0
       }
     ],

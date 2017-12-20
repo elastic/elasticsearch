@@ -249,7 +249,7 @@ is different from one named 'bytes'.
 
 ////
 LEAVE UNDOCUMENTED
- `detector_rules`::
+ `rules`::
   (array) TBD
 ////
 

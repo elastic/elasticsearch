@@ -18,26 +18,26 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.TestXPackTransportClient;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
-import java.util.Map.Entry;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
@@ -100,7 +100,6 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3382")
     public void testRestAuthenticationViaPki() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
@@ -112,7 +111,6 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3382")
     public void testRestAuthenticationFailure() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
@@ -160,6 +158,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
                 .boundAddress().boundAddresses());
-        return String.format(Locale.ROOT, "https://localhost:%s/", transportAddress.address().getPort());
+        final InetSocketAddress inetAddress = transportAddress.address();
+        return String.format(Locale.ROOT, "https://%s:%s/", inetAddress.getHostString(), inetAddress.getPort());
     }
 }

@@ -57,7 +57,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -85,7 +84,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
-    @TestLogging("org.elasticsearch.index.engine:TRACE,org.elasticsearch.index.translog:TRACE")
     public void testCorruptTranslogTruncation() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 

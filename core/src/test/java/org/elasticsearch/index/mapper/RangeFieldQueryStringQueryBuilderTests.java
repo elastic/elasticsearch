@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
@@ -29,22 +28,17 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -57,11 +51,6 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     private static final String DOUBLE_RANGE_FIELD_NAME = "mapped_double_range";
     private static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
     private static final String IP_RANGE_FIELD_NAME = "mapped_ip_range";
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(MapperExtrasPlugin.class);
-    }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {

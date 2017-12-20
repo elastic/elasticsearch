@@ -2084,7 +2084,8 @@ public class TranslogTests extends ESTestCase {
         try {
             new Translog(config, translog.getTranslogUUID(), createTranslogDeletionPolicy(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 @Override
-                protected TranslogWriter createWriter(long fileGeneration) throws IOException {
+                protected TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint)
+                    throws IOException {
                     throw new MockDirectoryWrapper.FakeIOException();
                 }
             };

@@ -7,6 +7,14 @@ See <<ml-api-definitions, Definitions>> for the resource definitions used by the
 machine learning APIs and in advanced job configuration options in Kibana.
 
 [float]
+[[ml-api-calendar-endpoint]]
+=== Calendars
+
+* <<ml-put-calendar,Create calendar>>, <<ml-delete-calendar,Delete calendar>>
+* <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
+* <<ml-get-calendar,Get calendars>>
+
+[float]
 [[ml-api-datafeed-endpoint]]
 === {dfeeds-cap}
 
@@ -24,6 +32,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 //* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
 * <<ml-put-job,Create job>>, <<ml-delete-job,Delete job>>
+* <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
 * <<ml-open-job,Open job>>, <<ml-close-job,Close job>>
 * <<ml-get-job,Get job info>>, <<ml-get-job-stats,Get job statistics>>
 * <<ml-flush-job,Flush job>>
@@ -51,21 +60,26 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
 
-
+//ADD
+include::ml/put-calendar-job.asciidoc[]
 //CLOSE
 include::ml/close-job.asciidoc[]
 //CREATE
+include::ml/put-calendar.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/put-job.asciidoc[]
 //DELETE
+include::ml/delete-calendar.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/delete-job.asciidoc[]
+include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-snapshot.asciidoc[]
 //FLUSH
 include::ml/flush-job.asciidoc[]
 //FORECAST
 include::ml/forecast.asciidoc[]
 //GET
+include::ml/get-calendar.asciidoc[]
 include::ml/get-bucket.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-category.asciidoc[]

@@ -48,9 +48,8 @@ Those that must be stored in the keystore are marked as `Secure`.
 
 `endpoint`::
 
-    The ec2 service endpoint to connect to. This will be automatically
-    figured out by the ec2 client based on the instance location, but
-    can be specified explicitly. See http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region.
+    The ec2 service endpoint to connect to. See http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region.
+    This will default to `ec2.us-east-1.amazonaws.com`.
 
 `protocol`::
 

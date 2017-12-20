@@ -19,33 +19,36 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Random;
-
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
+import com.amazonaws.regions.InstanceMetadataRegionProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2Client;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Random;
+
+import static com.amazonaws.util.AwsHostNameUtils.parseRegion;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
-    private AmazonEC2Client client;
+    private AmazonEC2 client;
 
     AwsEc2ServiceImpl(Settings settings) {
         super(settings);
@@ -57,13 +60,34 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
             return client;
         }
 
-        this.client = new AmazonEC2Client(buildCredentials(logger, settings), buildConfiguration(logger, settings));
+        AmazonEC2ClientBuilder builder = AmazonEC2ClientBuilder.standard()
+            .withCredentials(buildCredentials(logger, settings))
+            .withClientConfiguration(buildConfiguration(logger, settings));
+
         String endpoint = findEndpoint(logger, settings);
         if (endpoint != null) {
-            client.setEndpoint(endpoint);
+            String region = buildRegion(endpoint);
+            // TODO according to the documentation we should set the region instead of setting a endpoint
+            // See https://github.com/elastic/elasticsearch/issues/27924
+            logger.debug("Setting endpoint to [{}] with region [{}]", endpoint, region);
+            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+        } else {
+            logger.debug("No endpoint defined. We are falling back to [ec2.us-east-1.amazonaws.com].");
         }
 
+        this.client = builder.build();
+
         return this.client;
+    }
+
+    protected static String buildRegion(String endpoint) {
+        // We try to get the region from the metadata instance information
+        String region = new InstanceMetadataRegionProvider().getRegion();
+        if (region == null) {
+            // Or we try to get it from the endpoint itself
+            region = parseRegion(endpoint, null);
+        }
+        return region;
     }
 
     protected static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings) {

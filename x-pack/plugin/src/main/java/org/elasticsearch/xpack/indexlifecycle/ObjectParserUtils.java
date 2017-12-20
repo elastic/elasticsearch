@@ -13,7 +13,8 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
- * NOCOMMIT: these utility methods should be brought into the core API for parsing namedWriteables
+ * NORELEASE: these utility methods should be brought into the core API for
+ * parsing namedWriteables
  */
 public class ObjectParserUtils {
     public static <V extends NamedWriteable> SortedMap<String, V>  convertListToMapValues(Function<V, String> keyFunction,

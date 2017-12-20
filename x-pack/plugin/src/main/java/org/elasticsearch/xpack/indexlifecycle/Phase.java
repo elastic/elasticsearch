@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
 import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.indexlifecycle.ObjectParserUtils.convertListToMapValues;
@@ -170,7 +169,7 @@ public class Phase implements ToXContentObject, Writeable {
                 @Override
                 public void onFailure(Exception e) {
                     // Something went wrong so log the error and hopefully it will succeed next time execute
-                    // is called. NOCOMMIT can we do better here?
+                    // is called. NORELEASE can we do better here?
                     logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
                 }
             });

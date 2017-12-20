@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -73,7 +72,7 @@ public class ReplicasAction implements LifecycleAction {
 
     @Override
     public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        // nocommit: stub
+        // NORELEASE: stub
         listener.onSuccess(true);
     }
 

@@ -90,7 +90,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     /** How the query should be run. */
     private GeoExecType type = DEFAULT_TYPE;
     /** For GeoBoundingBoxFieldType queries, how the query should relate: */
-    private ShapeRelation relation = ShapeRelation.INTERSECTS;
+    private ShapeRelation relation = null;
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
@@ -348,12 +348,19 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private GeoFieldType getGeoFieldType(MappedFieldType fieldType, QueryShardContext context) {
         if (fieldType instanceof GeoPointFieldType) {
+            if (relation != null) {
+                throw new QueryShardException(context, "field [" + fieldName +
+                    "] is a geo_point type which do not support relational queries");
+            }
             return GeoFieldType.POINT;
         } else if (context.indexVersionCreated().onOrAfter(GeoBoundingBoxFieldMapper.SUPPORTED_IN_VERSION)
             && fieldType instanceof GeoBoundingBoxFieldType) {
-            return GeoFieldType.BBOX;
+            if (fieldType instanceof GeoBoundingBoxFieldType) {
+                return GeoFieldType.BBOX;
+            }
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point or geo_bounding_box field");
         }
-        throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point or geo_bounding_box field");
+        throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
     }
 
     @Override
@@ -423,13 +430,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     private Query eastQuery(final double minLat, final double minLon, final double maxLat, final double maxLon) {
-        ShapeRelation r = relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
+        ShapeRelation r = relation == null || relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
         return newBBoxQuery(fieldName, minLat, minLon, maxLat, maxLon, r);
     }
 
     private Query westQuery(final double minLat, final double minLon, final double maxLat, final double maxLon) {
         String west = fieldName + GeoBoundingBoxFieldMapper.FIELD_XDL_SUFFIX;
-        ShapeRelation r = relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
+        ShapeRelation r = relation == null || relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
         return newBBoxQuery(west, minLat, minLon, maxLat, maxLon, r);
     }
 
@@ -504,6 +511,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     private Query newLatLonBBoxQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
+        ShapeRelation relation = this.relation == null ? ShapeRelation.INTERSECTS : this.relation;
         switch (relation) {
             case INTERSECTS: return newIntersectsQuery(topLeft, bottomRight);
             case CONTAINS: return newContainsQuery(topLeft, bottomRight);
@@ -542,7 +550,9 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        builder.field(RELATION_FIELD.getPreferredName(), relation);
+        if (relation != null) {
+            builder.field(RELATION_FIELD.getPreferredName(), relation);
+        }
 
         printBoostAndQueryName(builder);
 

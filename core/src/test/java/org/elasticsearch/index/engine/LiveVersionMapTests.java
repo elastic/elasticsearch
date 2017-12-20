@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -95,32 +94,6 @@ public class LiveVersionMapTests extends ESTestCase {
         assertEquals(new DeleteVersionValue(1,1,1, Long.MAX_VALUE), map.getUnderLock(uid("test")));
         map.removeTombstoneUnderLock(uid("test"));
         assertNull(map.getUnderLock(uid("test")));
-    }
-
-
-    public void testAdjustMapSizeUnderLock() throws IOException {
-        LiveVersionMap map = new LiveVersionMap();
-        map.putUnderLock(uid("test"), new VersionValue(1,1,1));
-        boolean withinRefresh = randomBoolean();
-        if (withinRefresh) {
-            map.beforeRefresh();
-        }
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
-        final String msg;
-        if (Assertions.ENABLED) {
-            msg = expectThrows(AssertionError.class, map::adjustMapSizeUnderLock).getMessage();
-        } else {
-            msg = expectThrows(IllegalStateException.class, map::adjustMapSizeUnderLock).getMessage();
-        }
-        assertEquals("map must be empty", msg);
-        assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
-        if (withinRefresh == false) {
-            map.beforeRefresh();
-        }
-        map.afterRefresh(randomBoolean());
-        Map<BytesRef, VersionValue> allCurrent = map.getAllCurrent();
-        map.adjustMapSizeUnderLock();
-        assertNotSame(allCurrent, map.getAllCurrent());
     }
 
     public void testConcurrently() throws IOException, InterruptedException {

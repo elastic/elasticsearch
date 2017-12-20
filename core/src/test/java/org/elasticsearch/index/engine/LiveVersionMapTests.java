@@ -309,27 +309,31 @@ public class LiveVersionMapTests extends ESTestCase {
         CountDownLatch start = new CountDownLatch(2);
         BytesRef uid = uid("1");
         VersionValue initialVersion = new VersionValue(version.incrementAndGet(), 1, 1);
-        map.putUnderLock(uid, initialVersion);
+        try (Releasable ignore = map.acquireLock(uid)) {
+            map.putUnderLock(uid, initialVersion);
+        }
         Thread t = new Thread(() -> {
             start.countDown();
             try {
                 start.await();
                 VersionValue nextVersionValue = initialVersion;
                 for (int i = 0; i < numIters; i++) {
-                    VersionValue underLock = map.getUnderLock(uid);
-                    if (underLock != null) {
-                        assertEquals(underLock, nextVersionValue);
-                    } else {
-                        underLock = nextVersionValue;
+                    try (Releasable ignore = map.acquireLock(uid)) {
+                        VersionValue underLock = map.getUnderLock(uid);
+                        if (underLock != null) {
+                            assertEquals(underLock, nextVersionValue);
+                        } else {
+                            underLock = nextVersionValue;
+                        }
+                        if (underLock.isDelete()) {
+                            nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
+                        } else if (randomBoolean()) {
+                            nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
+                        } else {
+                            nextVersionValue = new DeleteVersionValue(version.incrementAndGet(), 1, 1, 0);
+                        }
+                        map.putUnderLock(uid, nextVersionValue);
                     }
-                    if (underLock.isDelete()) {
-                        nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
-                    } else if (randomBoolean()) {
-                        nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
-                    } else {
-                        nextVersionValue = new DeleteVersionValue(version.incrementAndGet(), 1, 1, 0);
-                    }
-                    map.putUnderLock(uid, nextVersionValue);
                 }
             } catch (Exception e) {
                 throw new AssertionError(e);
@@ -346,9 +350,11 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         t.join();
 
-        VersionValue underLock = map.getUnderLock(uid);
-        if (underLock != null) {
-            assertEquals(version.get(), underLock.version);
+        try (Releasable ignore = map.acquireLock(uid)) {
+            VersionValue underLock = map.getUnderLock(uid);
+            if (underLock != null) {
+                assertEquals(version.get(), underLock.version);
+            }
         }
     }
 }

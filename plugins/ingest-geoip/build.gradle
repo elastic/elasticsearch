@@ -29,7 +29,7 @@ dependencies {
   compile('com.fasterxml.jackson.core:jackson-databind:2.8.2')
   compile('com.maxmind.db:maxmind-db:1.2.1')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20160608'
+  testCompile 'org.elasticsearch:geolite2-databases:20170713'
 }
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {

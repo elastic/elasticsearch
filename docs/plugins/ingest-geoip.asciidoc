@@ -6,7 +6,7 @@ This processor adds this information by default under the `geoip` field. The `ge
 IPv6 addresses.
 
 The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
-under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
+under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
 The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory,
 and the `database_file` option should be used to specify the filename of the custom database. Custom database files must be compressed
@@ -76,9 +76,7 @@ Which returns:
     "geoip": {
       "continent_name": "North America",
       "country_iso_code": "US",
-      "region_name": "California",
-      "city_name": "Mountain View",
-      "location": { "lat": 37.386, "lon": -122.0838 }
+      "location": { "lat": 37.751, "lon": -97.822 }
     }
   }
 }
@@ -137,7 +135,7 @@ returns this:
 Not all IP addresses find geo information from the database, When this
 occurs, no `target_field` is inserted into the document.
 
-Here is an example of what documents will be indexed as when information for "93.114.45.13"
+Here is an example of what documents will be indexed as when information for "80.231.5.0"
 cannot be found:
 
 [source,js]
@@ -155,7 +153,7 @@ PUT _ingest/pipeline/geoip
 }
 PUT my_index/my_type/my_id?pipeline=geoip
 {
-  "ip": "93.114.45.13"
+  "ip": "80.231.5.0"
 }
 GET my_index/my_type/my_id
 --------------------------------------------------
@@ -172,7 +170,7 @@ Which returns:
   "_id": "my_id",
   "_version": 1,
   "_source": {
-    "ip": "93.114.45.13"
+    "ip": "80.231.5.0"
   }
 }
 --------------------------------------------------

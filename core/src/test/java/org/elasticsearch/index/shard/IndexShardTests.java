@@ -444,7 +444,7 @@ public class IndexShardTests extends IndexShardTestCase {
             while(stop.get() == false) {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPrimaryTerm(), equalTo(promotedTerm));
-                    assertThat(indexShard.getEngine().seqNoService().getReplicationGroup(), notNullValue());
+                    assertThat(indexShard.getReplicationGroup(), notNullValue());
                 }
             }
         });
@@ -841,7 +841,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
-            primaryShard.getEngine().seqNoService().generateSeqNo();
+            primaryShard.getEngine().getLocalCheckpointTracker().generateSeqNo();
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 
@@ -1609,8 +1609,8 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         // check that local checkpoint of new primary is properly tracked after recovery
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(IndexShardTestCase.getEngine(newShard).seqNoService()
-            .getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertThat(newShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
+                .getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(newShard, totalOps);
         closeShards(newShard);
     }
@@ -1628,8 +1628,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // check that local checkpoint of new primary is properly tracked after primary relocation
         assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(IndexShardTestCase.getEngine(primaryTarget).seqNoService()
-            .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertThat(primaryTarget.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+            primaryTarget.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(primaryTarget, totalOps);
         closeShards(primarySource, primaryTarget);
     }
@@ -2248,8 +2248,8 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
-            assertThat(IndexShardTestCase.getEngine(targetShard).seqNoService()
-                .getTrackedLocalCheckpointForShard(targetShard.routingEntry().allocationId().getId()), equalTo(1L));
+            assertThat(targetShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+                targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);
         }
         // now check that it's persistent ie. that the added shards are committed
@@ -2448,6 +2448,71 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertTrue(stop.compareAndSet(false, true));
         thread.join();
+        closeShards(newShard);
+    }
+
+    /**
+     * Simulates a scenario that happens when we are async fetching snapshot metadata from GatewayService
+     * and checking index concurrently. This should always be possible without any exception.
+     */
+    public void testReadSnapshotAndCheckIndexConcurrently() throws Exception {
+        final boolean isPrimary = randomBoolean();
+        IndexShard indexShard = newStartedShard(isPrimary);
+        final long numDocs = between(10, 100);
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "doc", Long.toString(i), "{\"foo\" : \"bar\"}");
+            if (randomBoolean()) {
+                indexShard.refresh("test");
+            }
+        }
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            isPrimary ? RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings.getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
+            .build();
+        final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
+            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer());
+
+        Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
+        assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
+        AtomicBoolean stop = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread snapshotter = new Thread(() -> {
+            latch.countDown();
+            while (stop.get() == false) {
+                try {
+                    Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
+                    assertThat(readMeta.getNumDocs(), equalTo(numDocs));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).different.size(), equalTo(0));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetaDatas.size()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        snapshotter.start();
+
+        if (isPrimary) {
+            newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(),
+                getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null));
+        } else {
+            newShard.markAsRecovering("peer", new RecoveryState(newShard.routingEntry(),
+                getFakeDiscoNode(newShard.routingEntry().currentNodeId()), getFakeDiscoNode(newShard.routingEntry().currentNodeId())));
+        }
+        int iters = iterations(10, 100);
+        latch.await();
+        for (int i = 0; i < iters; i++) {
+            newShard.checkIndex();
+        }
+        assertTrue(stop.compareAndSet(false, true));
+        snapshotter.join();
         closeShards(newShard);
     }
 

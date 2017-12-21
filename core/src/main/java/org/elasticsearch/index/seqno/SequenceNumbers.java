@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import java.util.Map;
 
 /**
@@ -42,15 +44,12 @@ public class SequenceNumbers {
     public static final long NO_OPS_PERFORMED = -1L;
 
     /**
-     * Reads the sequence number stats from the commit data (maximum sequence number and local checkpoint) and uses the specified global
-     * checkpoint.
+     * Reads the sequence number stats from the commit data (maximum sequence number and local checkpoint).
      *
-     * @param globalCheckpoint the global checkpoint to use
      * @param commitData       the commit data
      * @return the sequence number stats
      */
-    public static SeqNoStats loadSeqNoStatsFromLuceneCommit(
-        final long globalCheckpoint,
+    public static Tuple<Long, Long> loadSeqNoInfoFromLuceneCommit(
         final Iterable<Map.Entry<String, String>> commitData) {
         long maxSeqNo = NO_OPS_PERFORMED;
         long localCheckpoint = NO_OPS_PERFORMED;
@@ -66,7 +65,7 @@ public class SequenceNumbers {
             }
         }
 
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+        return new Tuple<>(maxSeqNo, localCheckpoint);
     }
 
     /**

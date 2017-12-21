@@ -48,6 +48,8 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -123,7 +125,8 @@ public class RefreshListenersTests extends ESTestCase {
                 indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
                 eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null, null,
-                new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

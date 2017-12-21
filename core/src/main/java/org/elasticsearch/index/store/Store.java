@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -52,6 +53,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +76,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -86,6 +87,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -211,17 +213,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
-     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
-     * externally as it is not stored in the commit point.
+     * Loads the maximum sequence number and local checkpoint from the latest Lucene commit point.
      *
-     * @param globalCheckpoint the provided global checkpoint
-     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @return a tuple populated with the maximum sequence number and the local checkpoint
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+    public Tuple<Long, Long> loadSeqNoInfo() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
-        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
+        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 
     final void ensureOpen() {
@@ -342,6 +341,33 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.writeLock().unlock();
         }
 
+    }
+
+    /**
+     * Checks and returns the status of the existing index in this store.
+     *
+     * @param out where infoStream messages should go. See {@link CheckIndex#setInfoStream(PrintStream)}
+     */
+    public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
+        metadataLock.writeLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            checkIndex.setInfoStream(out);
+            return checkIndex.checkIndex();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
+     */
+    public void exorciseIndex(CheckIndex.Status status) throws IOException {
+        metadataLock.writeLock().lock();
+        try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            checkIndex.exorciseIndex(status);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
     }
 
     public StoreStats stats() throws IOException {

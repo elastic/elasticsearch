@@ -20,7 +20,8 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.nio.SocketEventHandler;
+import org.elasticsearch.nio.NioSocketChannel;
 
 import java.io.IOException;
 import java.util.Collections;

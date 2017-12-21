@@ -20,8 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.TcpNioSocketChannel;
+import org.elasticsearch.nio.NioSocketChannel;
 
 import java.io.IOException;
 

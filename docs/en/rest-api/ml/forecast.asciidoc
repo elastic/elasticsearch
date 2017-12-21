@@ -15,7 +15,7 @@ a time series.
 
 ==== Description
 
-See {xpack-ref}/ml-forecasting.html[Forecasting the Future].
+See {xpack-ref}/ml-overview.html#ml-forecasting[Forecasting the Future].
 
 [NOTE]
 ===============================

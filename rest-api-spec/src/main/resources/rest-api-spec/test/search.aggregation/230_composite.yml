@@ -196,7 +196,7 @@ setup:
 ---
 "Invalid Composite aggregation":
   - skip:
-      version: " - 6.1.99"
+      version: " - 6.0.99"
       reason:  this uses a new API that has been added in 6.1
 
   - do:

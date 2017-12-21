@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -132,15 +131,6 @@ public interface SearchPlugin {
      * The next {@link Rescorer}s added by this plugin.
      */
     default List<RescorerSpec<?>> getRescorers() {
-        return emptyList();
-    }
-    /**
-     * The new search response listeners in the form of {@link BiConsumer}s added by this plugin.
-     * The listeners are invoked on the coordinating node, at the very end of the search request.
-     * This provides a convenient location if you wish to inspect/modify the final response (took time, etc).
-     * The BiConsumers are passed the original {@link SearchRequest} and the final {@link SearchResponse}
-     */
-    default List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
         return emptyList();
     }
 

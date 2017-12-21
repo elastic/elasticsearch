@@ -367,7 +367,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) {
+    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
         indexShard().finalizeRecovery(globalCheckpoint);
     }
 

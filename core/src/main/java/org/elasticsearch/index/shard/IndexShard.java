@@ -1427,10 +1427,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param globalCheckpoint a global checkpoint to boostrap the shard with
      */
-    public void finalizeRecovery(long globalCheckpoint) {
+    public void finalizeRecovery(long globalCheckpoint) throws IOException {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         Engine engine = getEngine();
+        // persist the global checkpoint
+        engine.getTranslog().sync();
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }

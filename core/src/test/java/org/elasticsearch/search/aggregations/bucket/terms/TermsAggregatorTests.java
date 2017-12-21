@@ -46,16 +46,20 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -71,6 +75,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
@@ -961,7 +966,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .field("keyword")
                                 .order(BucketOrder.key(true))
                                 .subAggregation(
-                                    new TermsAggregationBuilder("_name2", ValueType.STRING)
+                                    new TermsAggregationBuilder("sub_terms", ValueType.STRING)
                                         .executionHint(executionHint)
                                         .collectMode(collectionMode)
                                         .field("keyword").order(BucketOrder.key(true))
@@ -977,8 +982,18 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     fieldType.setHasDocValues(true);
 
                     InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
-                    Terms terms = result.getAggregations().get("terms");
+                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(3));
+                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
+                        assertThat(subTerms.getBuckets().size(), equalTo(1));
+                        MultiBucketsAggregation.Bucket subBucket  = subTerms.getBuckets().get(0);
+                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
+                        assertThat(topHits.getHits().getHits().length, equalTo(1));
+                        for (SearchHit hit : topHits.getHits()) {
+                            assertThat(hit.getScore(), greaterThan(0f));
+                        }
+                    }
                 }
             }
         }

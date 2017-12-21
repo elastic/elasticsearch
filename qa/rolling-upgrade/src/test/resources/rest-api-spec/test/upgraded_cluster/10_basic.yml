@@ -158,7 +158,7 @@
           dest:
             index: reindexed_index_another_copy
   - match: { task: '/.+:\d+/' }
-  - set: { task: $task_id }
+  - set: { task: task_id }
 
   - do:
       tasks.get:

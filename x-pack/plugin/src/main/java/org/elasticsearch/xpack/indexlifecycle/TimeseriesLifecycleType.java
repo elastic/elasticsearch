@@ -124,17 +124,21 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case "warm":
                 return (action) -> {
                     ReplicasAction replicasAction = (ReplicasAction) actions.getOrDefault(ReplicasAction.NAME, null);
+                    boolean replicaActionFirst = replicasAction != null
+                        && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas();
                     if (action == null) {
-                        if (replicasAction != null && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas()) {
+                        if (replicaActionFirst) {
                             return replicasAction;
                         }
                         return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
                             .map(a -> actions.getOrDefault(a, null))
                             .filter(Objects::nonNull).findFirst().orElse(null);
                     } else if (action instanceof ReplicasAction) {
-                        return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME)
-                            .map(a -> actions.getOrDefault(a, null))
-                            .filter(Objects::nonNull).findFirst().orElse(null);
+                        if (replicaActionFirst) {
+                            return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME)
+                                .map(a -> actions.getOrDefault(a, null))
+                                .filter(Objects::nonNull).findFirst().orElse(null);
+                        }
                     } else if (action instanceof AllocateAction) {
                         return Stream.of(ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
                             .map(a -> actions.getOrDefault(a, null))

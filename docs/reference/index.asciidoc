@@ -2,3 +2,4 @@
 = Elasticsearch Reference
 
 include::index-shared.asciidoc[]
+

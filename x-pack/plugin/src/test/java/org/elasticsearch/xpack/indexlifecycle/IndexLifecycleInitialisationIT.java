@@ -57,6 +57,11 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
     protected Settings transportClientSettings() {
         Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
         settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);

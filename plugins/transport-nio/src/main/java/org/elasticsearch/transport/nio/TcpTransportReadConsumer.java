@@ -42,7 +42,7 @@ public class TcpTransportReadConsumer implements ReadContext.ReadConsumer {
     private final TcpReadHandler handler;
     private final TcpNioSocketChannel channel;
 
-    public TcpTransportReadConsumer(TcpReadHandler handler, TcpNioSocketChannel channel) {
+    TcpTransportReadConsumer(TcpReadHandler handler, TcpNioSocketChannel channel) {
         this.handler = handler;
         this.channel = channel;
     }

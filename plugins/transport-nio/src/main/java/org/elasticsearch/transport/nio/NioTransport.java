@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesReadContext;
+import org.elasticsearch.nio.BytesWriteContext;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -153,7 +154,7 @@ public class NioTransport extends TcpTransport {
             };
             TcpTransportReadConsumer readConsumer = new TcpTransportReadConsumer(new TcpReadHandler(profileName, this), c);
             BytesReadContext readContext = new BytesReadContext(c, readConsumer, new InboundChannelBuffer(pageSupplier));
-            c.setContexts(readContext, new TcpWriteContext(c), this::exceptionCaught);
+            c.setContexts(readContext, new BytesWriteContext(c), this::exceptionCaught);
         };
     }
 

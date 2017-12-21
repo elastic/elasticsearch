@@ -29,7 +29,7 @@ public class TcpReadHandler {
     private final String profile;
     private final NioTransport transport;
 
-    public TcpReadHandler(String profile, NioTransport transport) {
+    TcpReadHandler(String profile, NioTransport transport) {
         this.profile = profile;
         this.transport = transport;
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,6 +40,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesReadContext;
+import org.elasticsearch.nio.BytesWriteContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
@@ -57,6 +60,7 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
@@ -159,6 +163,23 @@ public class MockNioTransport extends TcpTransport {
         return new CompositeBytesReference(references);
     }
 
+    private static ByteBuffer[] toByteBuffers(BytesReference bytesReference) {
+        BytesRefIterator byteRefIterator = bytesReference.iterator();
+        BytesRef r;
+        try {
+            // Most network messages are composed of three buffers.
+            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
+            while ((r = byteRefIterator.next()) != null) {
+                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
+            }
+            return buffers.toArray(new ByteBuffer[buffers.size()]);
+
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
+    }
+
     private class MockTcpChannelFactory extends ChannelFactory<MockServerChannel, MockSocketChannel> {
 
         private final String profileName;
@@ -207,7 +228,7 @@ public class MockNioTransport extends TcpTransport {
 
             };
             BytesReadContext readContext = new BytesReadContext(nioChannel, readConsumer, new InboundChannelBuffer(pageSupplier));
-            TcpWriteContext2 writeContext = new TcpWriteContext2(nioChannel);
+            BytesWriteContext writeContext = new BytesWriteContext(nioChannel);
             nioChannel.setContexts(readContext, writeContext, MockNioTransport.this::exceptionCaught);
             return nioChannel;
         }
@@ -264,7 +285,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            getWriteContext().sendMessage(reference, ActionListener.toBiConsumer(listener));
+            getWriteContext().sendMessage(toByteBuffers(reference), ActionListener.toBiConsumer(listener));
         }
     }
 }

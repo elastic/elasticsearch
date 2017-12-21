@@ -9,7 +9,7 @@ fields to an existing type:
 PUT twitter <1>
 {}
 
-PUT twitter/_mapping/user <2>
+PUT twitter/_mapping/_doc <2>
 {
   "properties": {
     "name": {
@@ -18,7 +18,7 @@ PUT twitter/_mapping/user <2>
   }
 }
 
-PUT twitter/_mapping/user <3>
+PUT twitter/_mapping/_doc <3>
 {
   "properties": {
     "email": {
@@ -48,7 +48,7 @@ PUT twitter-1
 PUT twitter-2
 
 # Update both mappings
-PUT /twitter-1,twitter-2/_mapping/my_type <1>
+PUT /twitter-1,twitter-2/_mapping/_doc <1>
 {
   "properties": {
     "user_name": {
@@ -84,7 +84,7 @@ For example:
 PUT my_index <1>
 {
   "mappings": {
-    "user": {
+    "_doc": {
       "properties": {
         "name": {
           "properties": {
@@ -101,7 +101,7 @@ PUT my_index <1>
   }
 }
 
-PUT my_index/_mapping/user
+PUT my_index/_mapping/_doc
 {
   "properties": {
     "name": {

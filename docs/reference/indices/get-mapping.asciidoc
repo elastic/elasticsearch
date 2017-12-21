@@ -6,7 +6,7 @@ index/type.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_mapping/tweet
+GET /twitter/_mapping/_doc
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -23,9 +23,9 @@ following are some examples:
 
 [source,js]
 --------------------------------------------------
-GET /_mapping/tweet
+GET /_mapping/_doc
 
-GET /_all/_mapping/tweet
+GET /_all/_mapping/_doc
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

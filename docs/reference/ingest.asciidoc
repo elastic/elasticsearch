@@ -26,7 +26,7 @@ tell the ingest node which pipeline to use. For example:
 
 [source,js]
 --------------------------------------------------
-PUT my-index/my-type/my-id?pipeline=my_pipeline_id
+PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 {
   "foo": "bar"
 }

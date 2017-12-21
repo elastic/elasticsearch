@@ -57,12 +57,6 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "integer_range:[3 TO 4]" } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
         body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
 
   - match: { hits.total: 3 }
@@ -110,12 +104,6 @@ setup:
   - do:
       search:
         body: { "size" : 0, "query" : { "range" : { "long_range" : { "gte": 3, "lte" : 4 } } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "long_range:[3 TO 4]" } } }
 
   - match: { hits.total: 3 }
 
@@ -173,12 +161,6 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "float_range:[3 TO 4]" } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
         body: { "size" : 0, "query" : { "range" : { "float_range" : { "gte": 3, "lte" : 4, "relation": "intersects" } } } }
 
   - match: { hits.total: 3 }
@@ -226,12 +208,6 @@ setup:
   - do:
       search:
         body: { "size" : 0, "query" : { "range" : { "double_range" : { "gte": 3, "lte" : 4 } } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "double_range:[3 TO 4]" } } }
 
   - match: { hits.total: 3 }
 
@@ -289,12 +265,6 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "ip_range:[192.168.0.3 TO 192.168.0.4]" } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
         body: { "size" : 0, "query" : { "range" : { "ip_range" : { "gte": "192.168.0.3", "lte" : "192.168.0.4", "relation": "intersects" } } } }
 
   - match: { hits.total: 3 }
@@ -347,12 +317,6 @@ setup:
 
   - do:
       search:
-        body: { "size" : 0, "query" : { "query_string" : { "query" : "date_range:[2017-09-03 TO 2017-09-04]" } } }
-
-  - match: { hits.total: 3 }
-
-  - do:
-      search:
         body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "intersects" } } } }
 
   - match: { hits.total: 3 }
@@ -368,3 +332,88 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "within" } } } }
 
   - match: { hits.total: 0 }
+
+---
+"Query on range fields in query_string":
+
+  - skip:
+      version:  " - 6.0.99"
+      reason: "Support for range field in query_string was introduced in 6.1 (#26552)"
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 1
+        body: { "integer_range" : { "gte": 1, "lte": 5 },
+                "long_range" : { "gte": 1, "lte": 5 },
+                "float_range" : { "gte": 1, "lte": 5 },
+                "double_range" : { "gte": 1, "lte": 5 },
+                "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.5" },
+                "date_range" : { "gte": "2017-09-01", "lte": "2017-09-05" }
+              }
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 2
+        body: { "integer_range" : { "gte": 1, "lte": 3 },
+                "long_range" : { "gte": 1, "lte": 3 },
+                "float_range" : { "gte": 1, "lte": 3 },
+                "double_range" : { "gte": 1, "lte":3 },
+                "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.3" },
+                "date_range" : { "gte": "2017-09-01", "lte": "2017-09-03" } 
+              }
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 3
+        body: { "integer_range" : { "gte": 4, "lte": 5 },
+                "long_range" : { "gte": 4, "lte": 5 },
+                "float_range" : { "gte": 4, "lte": 5 },
+                "double_range" : { "gte": 4, "lte":5 },
+                "ip_range" : { "gte": "192.168.0.4", "lte": "192.168.0.5" },
+                "date_range" : { "gte": "2017-09-04", "lte": "2017-09-05" } 
+              }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "integer_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "long_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+  
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "float_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+  
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "double_range:[3 TO 4]" } } }
+
+  - match: { hits.total: 3 }
+  
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "ip_range:[192.168.0.3 TO 192.168.0.4]" } } }
+
+  - match: { hits.total: 3 }
+  
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "query_string" : { "query" : "date_range:[2017-09-03 TO 2017-09-04]" } } }
+
+  - match: { hits.total: 3 }

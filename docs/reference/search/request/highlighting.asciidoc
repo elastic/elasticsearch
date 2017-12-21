@@ -813,7 +813,7 @@ When using the `plain` highlighter, you can choose between the `simple` and
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -845,7 +845,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -869,7 +869,7 @@ Response:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -901,7 +901,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {

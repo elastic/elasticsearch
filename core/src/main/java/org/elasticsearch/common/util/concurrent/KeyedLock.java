@@ -32,28 +32,34 @@ import java.util.concurrent.locks.ReentrantLock;
  * created the first time they are acquired and removed if no thread hold the
  * lock. The latter is important to assure that the list of locks does not grow
  * infinitely.
- *
+ * Note: this lock is reentrant
  *
  * */
-public class KeyedLock<T> {
+public final class KeyedLock<T> {
 
+    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final boolean fair;
 
     /**
+     * Creates a new lock
      * @param fair Use fair locking, ie threads get the lock in the order they requested it
      */
     public KeyedLock(boolean fair) {
         this.fair = fair;
     }
 
+    /**
+     * Creates a non-fair lock
+     */
     public KeyedLock() {
         this(false);
     }
 
-    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
+    /**
+     * Acquires a lock for the given key. The key is compared by it's equals method not by object identity. The lock can be acquired
+     * by the same thread multiple times. The lock is released by closing the returned {@link Releasable}.
+     */
     public Releasable acquire(T key) {
-        assert isHeldByCurrentThread(key) == false : "lock for " + key + " is already heald by this thread";
         while (true) {
             KeyLock perNodeLock = map.get(key);
             if (perNodeLock == null) {
@@ -73,6 +79,9 @@ public class KeyedLock<T> {
         }
     }
 
+    /**
+     * Returns <code>true</code> iff the caller thread holds the lock for the given key
+     */
     public boolean isHeldByCurrentThread(T key) {
         KeyLock lock = map.get(key);
         if (lock == null) {
@@ -81,7 +90,7 @@ public class KeyedLock<T> {
         return lock.isHeldByCurrentThread();
     }
 
-    void release(T key, KeyLock lock) {
+    private void release(T key, KeyLock lock) {
         assert lock == map.get(key);
         lock.unlock();
         int decrementAndGet = lock.count.decrementAndGet();
@@ -118,8 +127,11 @@ public class KeyedLock<T> {
         private final AtomicInteger count = new AtomicInteger(1);
     }
 
+    /**
+     * Returns <code>true</code> if this lock has at least one locked key.
+     */
     public boolean hasLockedKeys() {
-        return !map.isEmpty();
+        return map.isEmpty() == false;
     }
 
 }

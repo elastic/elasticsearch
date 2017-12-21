@@ -57,6 +57,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
+import org.elasticsearch.index.rankeval.EvaluationMetric;
+import org.elasticsearch.index.rankeval.MeanReciprocalRank;
+import org.elasticsearch.index.rankeval.PrecisionAtK;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
@@ -648,7 +652,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(2, namedXContents.size());
+        assertEquals(5, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -658,10 +662,14 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals(1, categories.size());
+        assertEquals(2, categories.size());
         assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
+        assertEquals(Integer.valueOf(3), categories.get(EvaluationMetric.class));
+        assertTrue(names.contains(PrecisionAtK.NAME));
+        assertTrue(names.contains(DiscountedCumulativeGain.NAME));
+        assertTrue(names.contains(MeanReciprocalRank.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

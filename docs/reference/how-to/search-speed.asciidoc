@@ -49,7 +49,7 @@ For instance, if documents look like:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13
@@ -88,7 +88,7 @@ should be mapped as a <<keyword,`keyword`>>:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "price_range": {
           "type": "keyword"
@@ -98,7 +98,7 @@ PUT index
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13,
@@ -152,7 +152,7 @@ For instance the below query:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "my_date": "2016-05-11T16:30:55.328Z"
 }
@@ -284,7 +284,7 @@ eagerly at refresh-time by configuring mappings as described below:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "keyword",

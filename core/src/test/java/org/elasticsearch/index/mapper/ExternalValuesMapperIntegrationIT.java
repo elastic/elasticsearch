@@ -131,8 +131,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        prepareCreate("test-idx").addMapping("doc",
-                XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+        prepareCreate("test-idx").addMapping("_doc",
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("f")
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
@@ -150,7 +150,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().endObject()).execute().get();
 
-        index("test-idx", "doc", "1", "f", "This is my text");
+        index("test-idx", "_doc", "1", "f", "This is my text");
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")

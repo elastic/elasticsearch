@@ -41,6 +41,24 @@ public class DocsStatsTests extends ESTestCase {
         assertThat(stats.getTotalSizeInBytes(), equalTo(600L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(12L));
     }
+    
+    public void testUninitialisedShards() {
+        DocsStats stats = new DocsStats(0, 0, -1);
+        assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(0L));
+        stats.add(new DocsStats(0, 0, -1));
+        assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(0L));
+        stats.add(new DocsStats(1, 0, 10));
+        assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
+        stats.add(new DocsStats(0, 0, -1));
+        assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
+        stats.add(new DocsStats(1, 0, 20));
+        assertThat(stats.getTotalSizeInBytes(), equalTo(30L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(15L));
+    }
 
     public void testSerialize() throws Exception {
         DocsStats originalStats = new DocsStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());

@@ -1,5 +1,7 @@
 ---
 "Rollover index via API":
+
+
   # create index with alias
   - do:
       indices.create:
@@ -76,8 +78,8 @@
 ---
 "Rollover no condition matched":
   - skip:
-        version: "all"
-        reason:  "AwaitsFix - Fails complaining of negative BytesSizeValue"
+        version: " - 5.0.0"
+        reason:  bug fixed in 5.0.1
 
   # create index with alias
   - do:

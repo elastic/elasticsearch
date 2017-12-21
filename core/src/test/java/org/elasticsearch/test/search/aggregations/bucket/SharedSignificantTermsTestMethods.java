@@ -44,7 +44,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 
 public class SharedSignificantTermsTestMethods {
     public static final String INDEX_NAME = "testidx";
-    public static final String DOC_TYPE = "doc";
+    public static final String DOC_TYPE = "_doc";
     public static final String TEXT_FIELD = "text";
     public static final String CLASS_FIELD = "class";
 
@@ -82,7 +82,7 @@ public class SharedSignificantTermsTestMethods {
             textMappings += ",fielddata=true";
         }
         assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
+                .addMapping("_doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")

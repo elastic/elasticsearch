@@ -39,13 +39,13 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("test-idx")
-                        .addMapping("doc", createDynamicTemplateMapping())
+                        .addMapping("_doc", createDynamicTemplateMapping())
         );
 
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx", "doc", Integer.toString(i))
+            client().prepareIndex("test-idx", "_doc", Integer.toString(i))
                     .setSource("test_field", "test " + i, "even", i % 2 == 0)
                     .get();
         }
@@ -69,7 +69,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDynamicObjectCopyTo() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        String mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("foo")
                 .field("type", "text")
                 .field("copy_to", "root.top.child")
@@ -77,9 +77,9 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
             .endObject().endObject().endObject().string();
         assertAcked(
             client().admin().indices().prepareCreate("test-idx")
-                .addMapping("doc", mapping, XContentType.JSON)
+                .addMapping("_doc", mapping, XContentType.JSON)
         );
-        client().prepareIndex("test-idx", "doc", "1")
+        client().prepareIndex("test-idx", "_doc", "1")
             .setSource("foo", "bar")
             .get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
@@ -89,7 +89,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("doc")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startArray("dynamic_templates")
 
                 .startObject().startObject("template_raw")

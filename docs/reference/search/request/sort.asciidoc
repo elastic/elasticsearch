@@ -12,7 +12,7 @@ Assuming the following index mapping:
 PUT /my_index
 {
     "mappings": {
-        "my_type": {
+        "_doc": {
             "properties": {
                 "post_date": { "type": "date" },
                 "user": {
@@ -31,7 +31,7 @@ PUT /my_index
 
 [source,js]
 --------------------------------------------------
-GET /my_index/my_type/_search
+GET /my_index/_search
 {
     "sort" : [
         { "post_date" : {"order" : "asc"}},
@@ -92,7 +92,7 @@ the average price per document.
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/my_type/1?refresh
+PUT /my_index/_doc/1?refresh
 {
    "product": "chocolate",
    "price": [20, 4]

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -29,9 +27,7 @@ import org.elasticsearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.net.StandardSocketOptions;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 
 public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
 
@@ -40,7 +36,7 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getWriteContext().sendMessage(toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        getWriteContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
     }
 
     @Override
@@ -61,22 +57,5 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
             "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + getRemoteAddress() +
             '}';
-    }
-
-    private static ByteBuffer[] toByteBuffers(BytesReference bytesReference) {
-        BytesRefIterator byteRefIterator = bytesReference.iterator();
-        BytesRef r;
-        try {
-            // Most network messages are composed of three buffers.
-            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
-            while ((r = byteRefIterator.next()) != null) {
-                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
-            }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
-
-        } catch (IOException e) {
-            // this is really an error since we don't do IO in our bytesreferences
-            throw new AssertionError("won't happen", e);
-        }
     }
 }

@@ -77,9 +77,9 @@ public class MockNioTransport extends TcpTransport {
     private volatile NioGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    public MockNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                            CircuitBreakerService circuitBreakerService) {
+    MockNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                     PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                     CircuitBreakerService circuitBreakerService) {
         super("mock-nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
     }
@@ -145,7 +145,7 @@ public class MockNioTransport extends TcpTransport {
         profileToChannelFactory.clear();
     }
 
-    final void exceptionCaught(NioSocketChannel channel, Exception exception) {
+    private void exceptionCaught(NioSocketChannel channel, Exception exception) {
         onException((TcpChannel) channel, exception);
     }
 
@@ -161,23 +161,6 @@ public class MockNioTransport extends TcpTransport {
         }
 
         return new CompositeBytesReference(references);
-    }
-
-    private static ByteBuffer[] toByteBuffers(BytesReference bytesReference) {
-        BytesRefIterator byteRefIterator = bytesReference.iterator();
-        BytesRef r;
-        try {
-            // Most network messages are composed of three buffers.
-            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
-            while ((r = byteRefIterator.next()) != null) {
-                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
-            }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
-
-        } catch (IOException e) {
-            // this is really an error since we don't do IO in our bytesreferences
-            throw new AssertionError("won't happen", e);
-        }
     }
 
     private class MockTcpChannelFactory extends ChannelFactory<MockServerChannel, MockSocketChannel> {
@@ -285,7 +268,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            getWriteContext().sendMessage(toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+            getWriteContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
         }
     }
 }

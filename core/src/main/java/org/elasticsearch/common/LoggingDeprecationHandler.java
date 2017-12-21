@@ -22,6 +22,15 @@ import org.elasticsearch.common.ParseField.DeprecationHandler;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+/**
+ * Logs deprecations to the {@link DeprecationLogger}.
+ * <p>
+ * This is core's primary implementation of {@link DeprecationHandler} and
+ * should <stong>absolutely</strong> be used everywhere where it parses
+ * requests. It is much less appropriate when parsing responses from external
+ * sources because it will report deprecated fields back to the user as
+ * though the user sent them.
+ */
 public class LoggingDeprecationHandler implements DeprecationHandler {
     public static LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));

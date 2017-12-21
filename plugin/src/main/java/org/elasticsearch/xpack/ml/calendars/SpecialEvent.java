@@ -173,8 +173,18 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         }
 
         SpecialEvent other = (SpecialEvent) obj;
-        return description.equals(other.description) && startTime.isEqual(other.startTime)
-                && endTime.isEqual(other.endTime) && calendarId.equals(other.calendarId);
+        // In Java 8 the tests pass with ZonedDateTime.isEquals() or ZonedDateTime.toInstant.equals()
+        // but in Java 9 & 10 the same tests fail.
+        // Both isEquals() and toInstant.equals() work the same; convert to epoch seconds and
+        // compare seconds and nanos are equal. For some reason the nanos are different in Java 9 & 10.
+        // It's sufficient to compare just the epoch seconds for the purpose of establishing equality
+        // which only occurs in testing.
+        // Note ZonedDataTime.equals() fails because the time zone and date-time must be the same
+        // which isn't the case in tests where the time zone is randomised.
+        return description.equals(other.description)
+                && Objects.equals(startTime.toInstant().getEpochSecond(), other.startTime.toInstant().getEpochSecond())
+                && Objects.equals(endTime.toInstant().getEpochSecond(), other.endTime.toInstant().getEpochSecond())
+                && calendarId.equals(other.calendarId);
     }
 
     @Override

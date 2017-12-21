@@ -399,7 +399,7 @@ final class StoreRecovery {
                 }
                 indexShard.performTranslogRecovery(indexShouldExists);
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
-                indexShard.finalizeRecovery(indexShard.getGlobalCheckpoint());
+                indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             }
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {

@@ -18,8 +18,6 @@
  */
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
@@ -82,17 +80,3 @@ thirdPartyAudit.excludes = [
         'org/osgi/framework/wiring/BundleWire',
         'org/osgi/framework/wiring/BundleWiring'
 ]
-
-if (isEclipse == false || project.path == ":libs:elasticsearch-nio-tests") {
-  task integTest(type: RandomizedTestingTask,
-                 group: JavaBasePlugin.VERIFICATION_GROUP,
-                 description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
-    classpath = project.test.classpath
-    testClassesDir = project.test.testClassesDir
-    include '**/*IT.class'
-  }
-  check.dependsOn integTest
-  integTest.mustRunAfter test
-}

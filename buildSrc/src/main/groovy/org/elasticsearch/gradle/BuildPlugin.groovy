@@ -458,6 +458,10 @@ class BuildPlugin implements Plugin<Project> {
             executable = new File(project.javaHome, 'bin/javadoc')
         }
         configureJavadocJar(project)
+        if (project.javaVersion == JavaVersion.VERSION_1_10) {
+            project.tasks.withType(Javadoc) { it.enabled = false }
+            project.tasks.getByName('javadocJar').each { it.enabled = false }
+        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */

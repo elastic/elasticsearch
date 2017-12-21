@@ -757,7 +757,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        Builder setCreateTime(Date createTime) {
+        public Builder setCreateTime(Date createTime) {
             this.createTime = createTime;
             return this;
         }

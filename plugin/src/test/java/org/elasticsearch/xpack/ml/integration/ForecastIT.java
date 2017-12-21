@@ -153,7 +153,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,() -> forecast(job.getId(),
                 TimeValue.timeValueMinutes(10), null));
         assertThat(e.getMessage(),
-                equalTo("java.lang.IllegalArgumentException: [duration] must be greater or equal to the bucket span: [10m/1h]"));
+                equalTo("[duration] must be greater or equal to the bucket span: [10m/1h]"));
     }
 
     private static Map<String, Object> createRecord(long timestamp, double value) {

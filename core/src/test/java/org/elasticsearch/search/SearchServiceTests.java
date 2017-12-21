@@ -213,11 +213,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     SearchPhaseResult searchPhaseResult = service.executeQueryPhase(
                             new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
                                     new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
-                        new SearchTask(123L, "", "", "", null));
+                        new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
                     ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getRequestId(), intCursors, null /* not a scroll */);
-                    service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null));
+                    service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
                 } catch (AlreadyClosedException ex) {
                     throw ex;
                 } catch (IllegalStateException ex) {

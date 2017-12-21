@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -392,8 +393,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override

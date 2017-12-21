@@ -35,12 +35,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -51,6 +54,10 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  */
 public class TaskManager extends AbstractComponent implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
+
+    /** Rest headers that are copied to the task */
+    private final Set<String> taskHeaders;
+    private final ThreadPool threadPool;
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -65,8 +72,10 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
-    public TaskManager(Settings settings) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         super(settings);
+        this.threadPool = threadPool;
+        this.taskHeaders = taskHeaders;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -80,7 +89,15 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TaskAwareRequest request) {
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
+        Map<String, String> headers = new HashMap<>();
+        ThreadContext threadContext = threadPool.getThreadContext();
+        for (String key : taskHeaders) {
+            String httpHeader = threadContext.getHeader(key);
+            if (httpHeader != null) {
+                headers.put(key, httpHeader);
+            }
+        }
+        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
         if (task == null) {
             return null;
         }

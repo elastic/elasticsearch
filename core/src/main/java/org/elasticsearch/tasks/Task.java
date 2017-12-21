@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Current task information
@@ -43,6 +44,8 @@ public class Task {
 
     private final TaskId parentTask;
 
+    private final Map<String, String> headers;
+
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
@@ -53,11 +56,12 @@ public class Task {
      */
     private final long startTimeNanos;
 
-    public Task(long id, String type, String action, String description, TaskId parentTask) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime());
+    public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
     }
 
-    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos) {
+    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos,
+                Map<String, String> headers) {
         this.id = id;
         this.type = type;
         this.action = action;
@@ -65,6 +69,7 @@ public class Task {
         this.parentTask = parentTask;
         this.startTime = startTime;
         this.startTimeNanos = startTimeNanos;
+        this.headers = headers;
     }
 
     /**
@@ -92,7 +97,7 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
         return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
-                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask);
+                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers);
     }
 
     /**
@@ -148,6 +153,14 @@ public class Task {
     }
 
     public interface Status extends ToXContentObject, NamedWriteable {}
+
+
+    /**
+     * Returns stored task header associated with the task
+     */
+    public String getHeader(String header) {
+        return headers.get(header);
+    }
 
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         return new TaskResult(taskInfo(node.getId(), true), error);

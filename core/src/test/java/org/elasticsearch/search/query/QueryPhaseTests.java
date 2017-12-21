@@ -63,6 +63,7 @@ import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -96,7 +97,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
 
         IndexSearcher searcher = new IndexSearcher(reader);
         final AtomicBoolean collected = new AtomicBoolean();
@@ -166,7 +167,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
 
         final AtomicBoolean collected = new AtomicBoolean();
         IndexSearcher contextSearcher = new IndexSearcher(new MultiReader()) {
@@ -190,7 +191,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
 
         final AtomicBoolean collected = new AtomicBoolean();
         IndexSearcher contextSearcher = new IndexSearcher(new MultiReader()) {
@@ -212,7 +213,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testQueryCapturesThreadPoolStats() throws Exception {
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         Directory dir = newDirectory();
@@ -261,7 +262,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = -1;
         context.scrollContext(scrollContext);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.setSize(10);
 
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, null);
@@ -300,7 +301,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.terminateAfter(1);
 
@@ -411,7 +412,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
-        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW}));
 
         final IndexReader reader = DirectoryReader.open(dir);
@@ -498,7 +499,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             scrollContext.maxScore = Float.NaN;
             scrollContext.totalHits = -1;
             context.scrollContext(scrollContext);
-            context.setTask(new SearchTask(123L, "", "", "", null));
+            context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
             context.setSize(10);
             context.sort(searchSortAndFormat);
 

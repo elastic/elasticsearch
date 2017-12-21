@@ -22,13 +22,15 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.Map;
+
 /**
  * Task storing information about a currently running search request.
  */
 public class SearchTask extends CancellableTask {
 
-    public SearchTask(long id, String type, String action, String description, TaskId parentTaskId) {
-        super(id, type, action, description, parentTaskId);
+    public SearchTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+        super(id, type, action, description, parentTaskId, headers);
     }
 
     @Override

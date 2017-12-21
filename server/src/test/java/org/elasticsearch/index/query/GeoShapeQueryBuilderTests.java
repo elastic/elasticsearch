@@ -94,7 +94,9 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             }
             builder.strategy(strategy);
             if (strategy != SpatialStrategy.TERM) {
-                builder.relation(randomFrom(ShapeRelation.values()));
+                // CROSSES not supported
+                builder.relation(randomFrom(ShapeRelation.INTERSECTS, ShapeRelation.WITHIN,
+                    ShapeRelation.CONTAINS, ShapeRelation.DISJOINT));
             }
         }
 

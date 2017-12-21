@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1114,7 +1115,9 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
-            try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, source)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we do not have deprecated fields
+            try (XContentParser parser =  XContentFactory.xContent(xContentType)
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1143,7 +1146,9 @@ public final class Settings implements ToXContentFragment {
             } else {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
-            try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, is)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we do not have deprecated fields
+            try (XContentParser parser =  XContentFactory.xContent(xContentType).createParser(
+                    NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file

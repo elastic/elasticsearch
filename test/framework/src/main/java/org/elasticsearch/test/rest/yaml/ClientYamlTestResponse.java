@@ -22,6 +22,7 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -114,7 +115,9 @@ public class ClientYamlTestResponse {
             } else {
                 //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
                 try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-                    try (XContentParser parser = bodyContentType.xContent().createParser(NamedXContentRegistry.EMPTY, body)) {
+                    // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with the deprecation logic
+                    try (XContentParser parser = bodyContentType.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, body)) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
                     bodyAsString = jsonBuilder.string();

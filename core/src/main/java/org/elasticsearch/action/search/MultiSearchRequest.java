@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -206,7 +207,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(registry, data.slice(from, nextMarker - from))) {
+                // LoggingDeprecationHandler is fine here because this is always run on the server
+                try (XContentParser parser = xContent
+                        .createParser(registry, LoggingDeprecationHandler.INSTANCE, data.slice(from, nextMarker - from))) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -240,7 +243,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, bytes)) {
+            // LoggingDeprecationHandler is fine here because this is always run on the server
+            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

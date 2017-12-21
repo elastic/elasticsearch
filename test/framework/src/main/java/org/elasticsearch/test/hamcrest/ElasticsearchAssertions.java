@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -835,9 +836,12 @@ public class ElasticsearchAssertions {
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with deprecation
+        try (XContentParser actualParser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, actual)) {
             actualMap = actualParser.map();
-            try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
+            try (XContentParser expectedParser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, expected)) {
                 expectedMap = expectedParser.map();
                 try {
                     assertMapEquals(expectedMap, actualMap);

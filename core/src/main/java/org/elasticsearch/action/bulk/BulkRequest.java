@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -304,7 +305,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
             // now parse the action
             // EMPTY is safe here because we never call namedObject
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
+            // TODO LoggingDeprecationHandler is probably not appropriate here because this is a request
+            // because LoggingDeprecationHandler is a server side thing but this is a request
+            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -428,8 +432,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .routing(routing)
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject
+                        // TODO LoggingDeprecationHandler is probably not appropriate here because this is a request
+                        // because LoggingDeprecationHandler is a server side thing but this is a request
                         try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                                        sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
+                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {

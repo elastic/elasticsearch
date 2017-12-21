@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
@@ -1106,7 +1107,9 @@ public class Setting<T> implements ToXContentObject {
 
     private static List<String> parseableStringToList(String parsableString) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, parsableString)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with deprecation
+        try (XContentParser xContentParser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, parsableString)) {
             XContentParser.Token token = xContentParser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException("expected START_ARRAY but got " + token);

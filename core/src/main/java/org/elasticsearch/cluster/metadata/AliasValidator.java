@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -120,7 +121,9 @@ public class AliasValidator extends AbstractComponent {
     public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext,
             NamedXContentRegistry xContentRegistry) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter).createParser(xContentRegistry, filter)) {
+        // LoggingDeprecationHandler is fine here because this is always executed on the server
+        try (XContentParser parser = XContentFactory.xContent(filter)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
@@ -135,7 +138,9 @@ public class AliasValidator extends AbstractComponent {
     public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext,
             NamedXContentRegistry xContentRegistry) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter).createParser(xContentRegistry, filter)) {
+        // LoggingDeprecationHandler is fine here because this is always executed on the server
+        try (XContentParser parser = XContentFactory.xContent(filter)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);

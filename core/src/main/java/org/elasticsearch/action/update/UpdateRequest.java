@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -863,7 +864,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc != null) {
             XContentType xContentType = doc.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, doc.source(), xContentType)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because copyCurrentStructure does not interact with deprecations
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, doc.source(), xContentType)) {
                 builder.field("doc");
                 builder.copyCurrentStructure(parser);
             }
@@ -873,7 +876,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (upsertRequest != null) {
             XContentType xContentType = upsertRequest.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, upsertRequest.source(), xContentType)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because copyCurrentStructure does not interact with deprecations
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, upsertRequest.source(), xContentType)) {
                 builder.field("upsert");
                 builder.copyCurrentStructure(parser);
             }

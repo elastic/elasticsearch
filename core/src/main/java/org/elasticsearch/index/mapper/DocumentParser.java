@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -61,7 +62,9 @@ final class DocumentParser {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source(), xContentType)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because this parsing doesn't interact with deprecated fields
+        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, source.source(), xContentType)) {
             context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);

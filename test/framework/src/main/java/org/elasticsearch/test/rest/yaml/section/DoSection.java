@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -128,7 +129,9 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body);
+                                // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with deprecation
+                                XContentParser bodyParser = JsonXContent.jsonXContent
+                                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());

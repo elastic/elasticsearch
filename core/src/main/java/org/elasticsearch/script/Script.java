@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -281,7 +282,9 @@ public final class Script implements ToXContentObject, Writeable {
             builder.startObject();
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes()));
+            // LoggingDeprecationHandler *should* be ok here because this should only be on the server.
+            return parse(JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, builder.bytes()));
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]
             throw new IllegalStateException(e);

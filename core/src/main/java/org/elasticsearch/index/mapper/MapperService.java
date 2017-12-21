@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -200,7 +201,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses the mappings (formatted as JSON) into a map
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, mappingSource)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because map doesn't use the deprecation handler
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, mappingSource)) {
             return parser.map();
         }
     }

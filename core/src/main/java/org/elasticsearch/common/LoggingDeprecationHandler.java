@@ -26,7 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
  * Logs deprecations to the {@link DeprecationLogger}.
  * <p>
  * This is core's primary implementation of {@link DeprecationHandler} and
- * should <stong>absolutely</strong> be used everywhere where it parses
+ * should <strong>absolutely</strong> be used everywhere where it parses
  * requests. It is much less appropriate when parsing responses from external
  * sources because it will report deprecated fields back to the user as
  * though the user sent them.

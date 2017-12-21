@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -158,8 +159,9 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getXContentRegistry(), source)) {
-
+        // LoggingDeprecationHandler is correct here because query rewrites are alway executed on the server
+        try (XContentParser qSourceParser = XContentFactory.xContent(source)
+                .createParser(context.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, source)) {
             final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();

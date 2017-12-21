@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -184,7 +185,9 @@ public final class XContentTestUtils {
         List<String> insertPaths;
 
         // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don't use it
-        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with deprecation
+        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY,
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, xContent, contentType)) {
             parser.nextToken();
             List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             if (excludeFilter == null) {

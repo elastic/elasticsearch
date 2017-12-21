@@ -46,6 +46,18 @@ public class ParseField {
          */
         void usedDeprecatedField(String usedName, String replacedWith);
     }
+    public static final DeprecationHandler UNSUPPORTED_OPERATION_DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+            + usedName + "] which is a deprecated name for [" + replacedWith + "]");
+        }
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which has been replaced with [" + modernName + "]");
+        }
+    };
 
     private final String name;
     private final String[] deprecatedNames;
@@ -112,8 +124,24 @@ public class ParseField {
     }
 
     /**
+     * Does {@code fieldName} match this field? Uses {@link LoggingDeprecationHandler}
+     * to prevent us from having to touch every call to {@code match} in the change
+     * that introduced {@linkplain LoggingDeprecationHandler}. In a followup this will
+     * be removed.
      * @param fieldName
      *            the field name to match against this {@link ParseField}
+     * @return true if <code>fieldName</code> matches any of the acceptable
+     *         names for this {@link ParseField}.
+     */
+    public boolean match(String fieldName) {
+        return match(fieldName, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    /**
+     * Does {@code fieldName} match this field?
+     * @param fieldName
+     *            the field name to match against this {@link ParseField}
+     * @param deprecationHandler called if {@code fieldName} is deprecated
      * @return true if <code>fieldName</code> matches any of the acceptable
      *         names for this {@link ParseField}.
      */

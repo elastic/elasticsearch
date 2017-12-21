@@ -20,6 +20,7 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -109,7 +110,9 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     }
 
     protected T read(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, bytes)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine because we don't have deprecated fields in the blob store
+        try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry,
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
             T obj = reader.apply(parser);
             return obj;
         }

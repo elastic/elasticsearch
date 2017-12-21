@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -604,8 +605,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(snapshotsIndexBlobName)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
+                // EMPTY is safe here because RepositoryData#fromXContent never calls namedObject
+                // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we never interact with the deprecation handler
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                        ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, out.bytes(), XContentType.JSON)) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
                 } catch (NotXContentException e) {
                     logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
@@ -617,7 +620,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
+                // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we never interact with the deprecation handler
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                        ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, out.bytes(), XContentType.JSON)) {
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {

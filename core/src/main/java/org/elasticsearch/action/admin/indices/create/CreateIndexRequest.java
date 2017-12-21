@@ -320,7 +320,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        // TODO LoggingDeprecationHandler probably should be visible to a request
+        // because the requests might be in a separate jar from core
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -373,9 +376,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        // TODO LoggingDeprecationHandler probably should be visible to a request
-        // because the requests might be in a separate jar from core
-        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
+        source(XContentHelper.convertToMap(source, false, xContentType).v2());
         return this;
     }
 
@@ -383,7 +384,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
+    public CreateIndexRequest source(Map<String, ?> source) {
+        // TODO LoggingDeprecationHandler probably should be visible to a request
+        // because the requests might be in a separate jar from core
+        DeprecationHandler deprecationHandler = ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {

@@ -401,7 +401,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                     int currentPathSlot = 0;
 
                     // It is safe to use EMPTY here because this never uses namedObject
-                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, response.getSourceAsBytesRef())) {
+                    // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we don't interact with deprecations here
+                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                            ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, response.getSourceAsBytesRef())) {
                         XContentParser.Token currentToken;
                         while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (currentToken == XContentParser.Token.FIELD_NAME) {

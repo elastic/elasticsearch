@@ -30,7 +30,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseField.DeprecationHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -371,7 +373,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2());
+        // TODO LoggingDeprecationHandler probably should be visible to a request
+        // because the requests might be in a separate jar from core
+        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 
@@ -379,17 +383,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, ?> source) {
+    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (SETTINGS.match(name)) {
+            if (SETTINGS.match(name, deprecationHandler)) {
                 settings((Map<String, Object>) entry.getValue());
-            } else if (MAPPINGS.match(name)) {
+            } else if (MAPPINGS.match(name, deprecationHandler)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
-            } else if (ALIASES.match(name)) {
+            } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?

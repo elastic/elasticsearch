@@ -58,7 +58,6 @@ import static java.time.temporal.ChronoField.YEAR;
  * A logger that logs deprecation notices.
  */
 public class DeprecationLogger {
-
     private final Logger logger;
 
     /**

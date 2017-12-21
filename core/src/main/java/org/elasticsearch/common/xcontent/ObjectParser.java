@@ -165,7 +165,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
                     parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
                 } else {
-                    fieldParser.assertSupports(name, token, currentFieldName, parser.getTokenLocation());
+                    fieldParser.assertSupports(name, token, currentFieldName, parser);
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
@@ -361,12 +361,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             this.type = type;
         }
 
-        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, XContentLocation location) {
-            if (parseField.match(currentFieldName) == false) {
-                throw new ParsingException(location, "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, XContentParser parser) {
+            if (parseField.match(currentFieldName, parser.deprecationHandler()) == false) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(token) == false) {
-                throw new ParsingException(location, 
+                throw new ParsingException(parser.getTokenLocation(),
                         "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + token);
             }
         }

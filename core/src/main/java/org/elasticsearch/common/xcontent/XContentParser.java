@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField.DeprecationHandler;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -275,6 +276,11 @@ public interface XContentParser extends Releasable {
      * The registry used to resolve {@link #namedObject(Class, String, Object)}. Use this when building a sub-parser from this parser.
      */
     NamedXContentRegistry getXContentRegistry();
+
+    /**
+     * The place to send deprecation warnings.
+     */
+    DeprecationHandler deprecationHandler();
 
     boolean isClosed();
 }

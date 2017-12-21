@@ -169,20 +169,20 @@ public class CollectorResult implements ToXContentObject, Writeable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (NAME.match(currentFieldName)) {
+                if (NAME.match(currentFieldName, parser.deprecationHandler())) {
                     name = parser.text();
-                } else if (REASON.match(currentFieldName)) {
+                } else if (REASON.match(currentFieldName, parser.deprecationHandler())) {
                     reason = parser.text();
-                } else if (TIME.match(currentFieldName)) {
+                } else if (TIME.match(currentFieldName, parser.deprecationHandler())) {
                     // we need to consume this value, but we use the raw nanosecond value
                     parser.text();
-                } else if (TIME_NANOS.match(currentFieldName)) {
+                } else if (TIME_NANOS.match(currentFieldName, parser.deprecationHandler())) {
                     time = parser.longValue();
                 } else {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (CHILDREN.match(currentFieldName)) {
+                if (CHILDREN.match(currentFieldName, parser.deprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         children.add(CollectorResult.fromXContent(parser));
                     }

@@ -391,30 +391,30 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (INDEX.match(currentFieldName)) {
+                    if (INDEX.match(currentFieldName, parser.deprecationHandler())) {
                         if (!allowExplicitIndex) {
                             throw new IllegalArgumentException("explicit index in multi get is not allowed");
                         }
                         index = parser.text();
-                    } else if (TYPE.match(currentFieldName)) {
+                    } else if (TYPE.match(currentFieldName, parser.deprecationHandler())) {
                         type = parser.text();
-                    } else if (ID.match(currentFieldName)) {
+                    } else if (ID.match(currentFieldName, parser.deprecationHandler())) {
                         id = parser.text();
-                    } else if (ROUTING.match(currentFieldName)) {
+                    } else if (ROUTING.match(currentFieldName, parser.deprecationHandler())) {
                         routing = parser.text();
-                    } else if (PARENT.match(currentFieldName)) {
+                    } else if (PARENT.match(currentFieldName, parser.deprecationHandler())) {
                         parent = parser.text();
-                    } else if (FIELDS.match(currentFieldName)) {
+                    } else if (FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
-                    } else if (STORED_FIELDS.match(currentFieldName)) {
+                    } else if (STORED_FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                         storedFields = new ArrayList<>();
                         storedFields.add(parser.text());
-                    } else if (VERSION.match(currentFieldName)) {
+                    } else if (VERSION.match(currentFieldName, parser.deprecationHandler())) {
                         version = parser.longValue();
-                    } else if (VERSION_TYPE.match(currentFieldName)) {
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.deprecationHandler())) {
                         versionType = VersionType.fromString(parser.text());
-                    } else if (SOURCE.match(currentFieldName)) {
+                    } else if (SOURCE.match(currentFieldName, parser.deprecationHandler())) {
                         // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
                         if (parser.isBooleanValueLenient()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
@@ -429,15 +429,15 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                         throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (FIELDS.match(currentFieldName)) {
+                    if (FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
-                    } else if (STORED_FIELDS.match(currentFieldName)) {
+                    } else if (STORED_FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                         storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             storedFields.add(parser.text());
                         }
-                    } else if (SOURCE.match(currentFieldName)) {
+                    } else if (SOURCE.match(currentFieldName, parser.deprecationHandler())) {
                         ArrayList<String> includes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             includes.add(parser.text());
@@ -447,7 +447,7 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     }
 
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (SOURCE.match(currentFieldName)) {
+                    if (SOURCE.match(currentFieldName, parser.deprecationHandler())) {
                         List<String> currentList = null, includes = null, excludes = null;
 
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -276,7 +277,8 @@ public class FollowingEngineTests extends ESTestCase {
                 null,
                 new TranslogHandler(
                         xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
-                new NoneCircuitBreakerService()
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.UNASSIGNED_SEQ_NO
         );
     }
 

@@ -212,7 +212,7 @@ public class PluginInfoTests extends ESTestCase {
         }
     }
 
-    public void testExtendsPluginsSingleExtension() throws Exception {
+    public void testExtendedPluginsSingleExtension() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writeProperties(pluginDir,
             "description", "fake desc",
@@ -221,12 +221,12 @@ public class PluginInfoTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
-            "extends.plugins", "foo");
+            "extended.plugins", "foo");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), contains("foo"));
     }
 
-    public void testExtendsPluginsMultipleExtensions() throws Exception {
+    public void testExtendedPluginsMultipleExtensions() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writeProperties(pluginDir,
             "description", "fake desc",
@@ -235,12 +235,12 @@ public class PluginInfoTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
-            "extends.plugins", "foo,bar,baz");
+            "extended.plugins", "foo,bar,baz");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
     }
 
-    public void testExtendsPluginsEmpty() throws Exception {
+    public void testExtendedPluginsEmpty() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writeProperties(pluginDir,
             "description", "fake desc",
@@ -249,7 +249,7 @@ public class PluginInfoTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
-            "extends.plugins", "");
+            "extended.plugins", "");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), empty());
     }

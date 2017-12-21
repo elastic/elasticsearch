@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import javax.annotation.processing.Processor;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.SimpleJavaFileObject;
-import javax.tools.ToolProvider;
-
 import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
@@ -37,11 +31,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -550,7 +542,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version", "1.0.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "extends.plugins", "nonextensible",
+            "extended.plugins", "nonextensible",
             "classname", "test.DummyPlugin");
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, mypluginDir.resolve("plugin.jar"));

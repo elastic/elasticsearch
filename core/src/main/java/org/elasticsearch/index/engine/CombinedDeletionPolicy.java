@@ -39,7 +39,7 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-final class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
@@ -101,7 +101,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @param globalCheckpoint       the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
      * @param minRetainedTranslogGen the minimum translog generation is retained, see {@link Translog#readMinReferencedTranslogGen(Path)}
      */
-    static IndexCommit startingCommitPoint(List<IndexCommit> commits, long globalCheckpoint, long minRetainedTranslogGen)
+    public static IndexCommit startingCommitPoint(List<IndexCommit> commits, long globalCheckpoint, long minRetainedTranslogGen)
         throws IOException {
         if (commits.isEmpty()) {
             throw new IllegalArgumentException("Commit list must not empty");

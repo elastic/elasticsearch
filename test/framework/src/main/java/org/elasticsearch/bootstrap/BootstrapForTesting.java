@@ -174,7 +174,8 @@ public class BootstrapForTesting {
                 throw new IllegalStateException("Already added " + name + " codebase for testing");
             }
         } catch (ClassNotFoundException e) {
-            // no class, fall through to not add
+            // no class, fall through to not add. this can happen for any tests that do not include
+            // the given class. eg only core tests include plugin-classloader
         }
     }
 

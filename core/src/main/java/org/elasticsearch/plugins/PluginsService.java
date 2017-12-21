@@ -388,7 +388,7 @@ public class PluginsService extends AbstractComponent {
         }
 
         dependencyStack.add(name);
-        for (String dependency : bundle.plugin.getExtendsPlugins()) {
+        for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
                 throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
@@ -421,7 +421,7 @@ public class PluginsService extends AbstractComponent {
     // the plugin cli does it, but we do it again, in case lusers mess with jar files manually
     static void checkBundleJarHell(Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
-        List<String> exts = bundle.plugin.getExtendsPlugins();
+        List<String> exts = bundle.plugin.getExtendedPlugins();
 
         try {
             Set<URL> urls = new HashSet<>();
@@ -472,7 +472,7 @@ public class PluginsService extends AbstractComponent {
 
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();
-        for (String extendedPluginName : bundle.plugin.getExtendsPlugins()) {
+        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
@@ -487,7 +487,7 @@ public class PluginsService extends AbstractComponent {
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
-        for (String extendedPluginName : bundle.plugin.getExtendsPlugins()) {
+        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             // note: already asserted above that extended plugins are loaded and extensible
             ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).reloadSPI(loader);
         }

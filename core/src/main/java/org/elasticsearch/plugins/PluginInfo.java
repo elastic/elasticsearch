@@ -51,7 +51,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String description;
     private final String version;
     private final String classname;
-    private final List<String> extendsPlugins;
+    private final List<String> extendedPlugins;
     private final boolean hasNativeController;
     private final boolean requiresKeystore;
 
@@ -62,17 +62,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param description         a description of the plugin
      * @param version             the version of Elasticsearch the plugin is built for
      * @param classname           the entry point to the plugin
-     * @param extendsPlugins      other plugins this plugin extends through SPI
+     * @param extendedPlugins     other plugins this plugin extends through SPI
      * @param hasNativeController whether or not the plugin has a native controller
      * @param requiresKeystore    whether or not the plugin requires the elasticsearch keystore to be created
      */
     public PluginInfo(String name, String description, String version, String classname,
-                      List<String> extendsPlugins, boolean hasNativeController, boolean requiresKeystore) {
+                      List<String> extendedPlugins, boolean hasNativeController, boolean requiresKeystore) {
         this.name = name;
         this.description = description;
         this.version = version;
         this.classname = classname;
-        this.extendsPlugins = Collections.unmodifiableList(extendsPlugins);
+        this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
         this.requiresKeystore = requiresKeystore;
     }
@@ -88,10 +88,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.description = in.readString();
         this.version = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            extendsPlugins = Collections.unmodifiableList(Arrays.asList(in.readStringArray()));
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            extendedPlugins = Collections.unmodifiableList(Arrays.asList(in.readStringArray()));
         } else {
-            extendsPlugins = Collections.emptyList();
+            extendedPlugins = Collections.emptyList();
         }
         if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             hasNativeController = in.readBoolean();
@@ -111,8 +111,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeString(version);
         out.writeString(classname);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeStringList(extendsPlugins);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeStringList(extendedPlugins);
         }
         if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeBoolean(hasNativeController);
@@ -181,8 +181,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [classname] is missing for plugin [" + name + "]");
         }
 
-        final String extendsString = props.getProperty("extends.plugins", "");
-        final List<String> extendsPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendsString, ","));
+        final String extendedString = props.getProperty("extended.plugins", "");
+        final List<String> extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
 
         final String hasNativeControllerValue = props.getProperty("has.native.controller");
         final boolean hasNativeController;
@@ -217,7 +217,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                                                " but was [" + requiresKeystoreValue + "]", e);
         }
 
-        return new PluginInfo(name, description, version, classname, extendsPlugins, hasNativeController, requiresKeystore);
+        return new PluginInfo(name, description, version, classname, extendedPlugins, hasNativeController, requiresKeystore);
     }
 
     /**
@@ -252,8 +252,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
      *
      * @return the names of the plugins extended
      */
-    public List<String> getExtendsPlugins() {
-        return extendsPlugins;
+    public List<String> getExtendedPlugins() {
+        return extendedPlugins;
     }
 
     /**
@@ -291,7 +291,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("version", version);
             builder.field("description", description);
             builder.field("classname", classname);
-            builder.array("extended_plugins", extendsPlugins);
+            builder.array("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
             builder.field("requires_keystore", requiresKeystore);
         }
@@ -328,7 +328,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 .append("Native Controller: ").append(hasNativeController).append("\n")
                 .append("Requires Keystore: ").append(requiresKeystore).append("\n")
                 .append(" * Classname: ").append(classname).append("\n")
-                .append(" * Extended Plugins: ").append(extendsPlugins);
+                .append(" * Extended Plugins: ").append(extendedPlugins);
         return information.toString();
     }
 

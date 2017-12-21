@@ -88,7 +88,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         List<String> usedBy = new ArrayList<>();
         Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
         for (PluginsService.Bundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendsPlugins()) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
                 if (extendedPlugin.equals(pluginName)) {
                     usedBy.add(bundle.plugin.getName());
                 }

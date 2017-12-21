@@ -25,11 +25,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PluginInfoTests extends ESTestCase {
 
@@ -47,7 +51,7 @@ public class PluginInfoTests extends ESTestCase {
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
-        assertTrue(info.getExtendsPlugins().isEmpty());
+        assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesNameMissing() throws Exception {
@@ -219,7 +223,7 @@ public class PluginInfoTests extends ESTestCase {
             "classname", "FakePlugin",
             "extends.plugins", "foo");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getExtendsPlugins(), contains("foo"));
+        assertThat(info.getExtendedPlugins(), contains("foo"));
     }
 
     public void testExtendsPluginsMultipleExtensions() throws Exception {
@@ -233,7 +237,7 @@ public class PluginInfoTests extends ESTestCase {
             "classname", "FakePlugin",
             "extends.plugins", "foo,bar,baz");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getExtendsPlugins(), contains("foo", "bar", "baz"));
+        assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
     }
 
     public void testExtendsPluginsEmpty() throws Exception {
@@ -247,7 +251,7 @@ public class PluginInfoTests extends ESTestCase {
             "classname", "FakePlugin",
             "extends.plugins", "");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertTrue(info.getExtendsPlugins().isEmpty());
+        assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testPluginListSorted() {

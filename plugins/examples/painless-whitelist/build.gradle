@@ -23,7 +23,7 @@ esplugin {
   name 'painless-whitelist'
   description 'An example whitelisting additional classes and methods in painless'
   classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
-  extendsPlugins = ['lang-painless']
+  extendedPlugins = ['lang-painless']
 }
 
 integTestCluster {

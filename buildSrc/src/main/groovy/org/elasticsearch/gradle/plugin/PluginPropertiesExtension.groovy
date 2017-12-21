@@ -41,7 +41,7 @@ class PluginPropertiesExtension {
 
     /** Other plugins this plugin extends through SPI */
     @Input
-    List<String> extendsPlugins = []
+    List<String> extendedPlugins = []
 
     @Input
     boolean hasNativeController = false

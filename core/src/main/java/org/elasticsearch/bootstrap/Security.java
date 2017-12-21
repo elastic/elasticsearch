@@ -137,6 +137,7 @@ final class Security {
     /**
      * Return a map from codebase name to codebase url of jar codebases used by ES core.
      */
+    @SuppressForbidden(reason = "find URL path")
     static Map<String, URL> getCodebaseJarMap(Set<URL> urls) {
         Map<String, URL> codebases = new LinkedHashMap<>(); // maintain order
         for (URL url : urls) {

@@ -28,5 +28,5 @@ compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 dependencies {
-    compile project(path: ':libs:elasticsearch-nio', configuration: 'runtime')
+    compile "org.elasticsearch:elasticsearch-nio:${version}"
 }

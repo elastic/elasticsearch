@@ -342,6 +342,7 @@ final class StoreRecovery {
     private void internalRecoverFromStore(IndexShard indexShard) throws IndexShardRecoveryException {
         final RecoveryState recoveryState = indexShard.recoveryState();
         final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
+        assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
         indexShard.prepareForIndexRecovery();
         long version = -1;
         SegmentInfos si = null;
@@ -382,6 +383,10 @@ final class StoreRecovery {
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
                 indexShard.skipTranslogRecovery();
+                assert indexShard.getLocalCheckpoint() == indexShard.seqNoStats().getMaxSeqNo() :
+                    "recovered from local shard but local checkpoint is not equal to the maxmimum sequence number";
+                // this is the only copy of a new shard group. Bootstrap the global checkpoint from it's local checkpoint
+                indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             } else {
                 // since we recover from local, just fill the files and size
                 try {
@@ -393,10 +398,9 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 }
                 indexShard.performTranslogRecovery(indexShouldExists);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
+                indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             }
-            indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
@@ -438,7 +442,8 @@ final class StoreRecovery {
             indexShard.skipTranslogRecovery();
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
-            indexShard.finalizeRecovery();
+            // this a new primary shard, with a new history id that will force file based recoveries on any copies
+            indexShard.finalizeRecovery(indexShard.getLocalCheckpoint());
             indexShard.postRecovery("restore done");
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(shardId, "restore failed", e);

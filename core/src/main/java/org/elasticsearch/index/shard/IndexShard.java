@@ -1205,6 +1205,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
+            // shards recovering from an old primary are an exception
+            assert (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0) &&
+                (shardRouting.primary() == false || shardRouting.isRelocationTarget())
+            ) || getGlobalCheckpoint() > SequenceNumbers.UNASSIGNED_SEQ_NO : "a recovered shard must have it's global checkpoint set";
         }
         return this;
     }
@@ -1420,10 +1424,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * perform the last stages of recovery once all translog operations are done.
      * note that you should still call {@link #postRecovery(String)}.
+     *
+     * @param globalCheckpoint a global checkpoint to boostrap the shard with
      */
-    public void finalizeRecovery() {
+    public void finalizeRecovery(long globalCheckpoint) throws IOException {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
+        updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         Engine engine = getEngine();
+        // persist the global checkpoint
+        engine.getTranslog().sync();
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }

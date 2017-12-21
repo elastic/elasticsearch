@@ -43,7 +43,7 @@ public interface RecoveryTargetHandler {
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
      */
-    void finalizeRecovery(long globalCheckpoint);
+    void finalizeRecovery(long globalCheckpoint) throws IOException;
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available

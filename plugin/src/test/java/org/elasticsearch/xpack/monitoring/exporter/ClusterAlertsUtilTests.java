@@ -8,14 +8,19 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
@@ -56,7 +61,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
         assertThat(uniqueWatchId, equalTo(clusterUuid + "_" + watchId));
     }
 
-    public void testLoadWatch() throws IOException {
+    public void testLoadWatch() {
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String watch = ClusterAlertsUtil.loadWatch(clusterService, watchId);
 
@@ -72,6 +77,48 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
     public void testLoadWatchFails() {
         expectThrows(RuntimeException.class, () -> ClusterAlertsUtil.loadWatch(clusterService, "watch-does-not-exist"));
+    }
+
+    public void testGetClusterAlertsBlacklistThrowsForUnknownWatchId() {
+        final List<String> watchIds = Arrays.asList(ClusterAlertsUtil.WATCH_IDS);
+        final List<String> blacklist = randomSubsetOf(watchIds);
+
+        blacklist.add("fake1");
+
+        if (randomBoolean()) {
+            blacklist.add("fake2");
+
+            if (rarely()) {
+                blacklist.add("fake3");
+            }
+        }
+
+        final Set<String> unknownIds = blacklist.stream().filter(id -> watchIds.contains(id) == false).collect(Collectors.toSet());
+        final String unknownIdsString = String.join(", ", unknownIds);
+
+        final SettingsException exception =
+                expectThrows(SettingsException.class,
+                             () -> ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("_random", blacklist)));
+
+        assertThat(exception.getMessage(),
+                   equalTo("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
+                           "Alert IDs [" + unknownIdsString + "]"));
+    }
+
+    public void testGetClusterAlertsBlacklist() {
+        final List<String> blacklist = randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
+
+        assertThat(blacklist, equalTo(ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("any", blacklist))));
+    }
+
+    private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {
+        final Settings settings = Settings.builder()
+                .putList(Exporter.CLUSTER_ALERTS_BLACKLIST_SETTING, blacklist)
+                .build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        return new Exporter.Config(name, "fake", Settings.EMPTY, settings, clusterService, licenseState);
     }
 
 }

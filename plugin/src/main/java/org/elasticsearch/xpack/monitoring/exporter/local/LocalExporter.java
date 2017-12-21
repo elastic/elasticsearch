@@ -93,6 +93,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final CleanerService cleanerService;
     private final boolean useIngest;
     private final DateTimeFormatter dateTimeFormatter;
+    private final List<String> clusterAlertBlacklist;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
@@ -105,6 +106,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.clusterService = config.clusterService();
         this.licenseState = config.licenseState();
         this.useIngest = config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true);
+        this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
         clusterService.addListener(this);
@@ -436,10 +438,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
+            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false;
 
             // we aren't sure if no watches exist yet, so add them
             if (indexExists) {
-                if (canAddWatches) {
+                if (addWatch) {
                     logger.trace("checking monitoring watch [{}]", uniqueWatchId);
 
                     asyncActions.add(() -> watcher.getWatch(new GetWatchRequest(uniqueWatchId),
@@ -451,7 +454,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     asyncActions.add(() -> watcher.deleteWatch(new DeleteWatchRequest(uniqueWatchId),
                                                                new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)));
                 }
-            } else if (canAddWatches) {
+            } else if (addWatch) {
                 asyncActions.add(() -> putWatch(watcher, watchId, uniqueWatchId, pendingResponses));
             }
         }

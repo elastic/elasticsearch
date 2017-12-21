@@ -27,6 +27,12 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final String CLUSTER_ALERTS_MANAGEMENT_SETTING = "cluster_alerts.management.enabled";
     /**
+     * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
+     * <p>
+     * When cluster alerts management is enabled, this should delete anything blacklisted here in addition to not creating it.
+     */
+    public static final String CLUSTER_ALERTS_BLACKLIST_SETTING = "cluster_alerts.management.blacklist";
+    /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
@@ -75,7 +81,7 @@ public abstract class Exporter implements AutoCloseable {
         return Exporters.EXPORTERS_SETTINGS.getKey() + config.name;
     }
 
-    protected static String settingFQN(final Config config, final String setting) {
+    public static String settingFQN(final Config config, final String setting) {
         return Exporters.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
     }
 

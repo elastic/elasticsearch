@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -43,6 +45,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,6 +59,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexActionTests extends ESTestCase {
+
+    private RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(RefreshPolicy.values());
 
     private final Client client = mock(Client.class);
 
@@ -122,18 +127,28 @@ public class IndexActionTests extends ESTestCase {
                 .startObject()
                 .field("unknown", 1234)
                 .endObject());
+
+        // unknown refresh policy
+        expectFailure(IllegalArgumentException.class, jsonBuilder()
+                .startObject()
+                .field(IndexAction.Field.REFRESH.getPreferredName(), "unknown")
+                .endObject());
     }
 
     private void expectParseFailure(XContentBuilder builder) throws Exception {
+        expectFailure(ElasticsearchParseException.class, builder);
+    }
+
+    private void expectFailure(Class clazz, XContentBuilder builder) throws Exception {
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        expectThrows(ElasticsearchParseException.class, () ->
+        expectThrows(clazz, () ->
                 actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser));
     }
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
-        final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null);
+        final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
@@ -183,7 +198,7 @@ public class IndexActionTests extends ESTestCase {
         final IndexAction action = new IndexAction(configureIndexDynamically ? null : "my_index",
                 configureTypeDynamically ? null : "my_type",
                 configureIdDynamically ? null : "my_id",
-                null, null, null);
+                null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -204,7 +219,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testThatIndexActionCanBeConfiguredWithDynamicIndexNameAndBulk() throws Exception {
-        final IndexAction action = new IndexAction(null, "my-type", null, null, null, null);
+        final IndexAction action = new IndexAction(null, "my-type", null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -237,7 +252,7 @@ public class IndexActionTests extends ESTestCase {
         String fieldName = randomFrom("_index", "_type");
         final IndexAction action = new IndexAction(fieldName.equals("_index") ? "my_index" : null,
                 fieldName.equals("_type") ? "my_type" : null,
-                null,null, null, null);
+                null,null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -257,7 +272,8 @@ public class IndexActionTests extends ESTestCase {
         String docId = randomAlphaOfLength(5);
         String timestampField = randomFrom("@timestamp", null);
 
-        IndexAction action = new IndexAction("test-index", "test-type", docIdAsParam ? docId : null, timestampField, null, null);
+        IndexAction action = new IndexAction("test-index", "test-type", docIdAsParam ? docId : null, timestampField, null, null,
+                refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
         DateTime executionTime = DateTime.now(UTC);
@@ -295,6 +311,9 @@ public class IndexActionTests extends ESTestCase {
             assertThat(indexRequest.id(), is(docId));
         }
 
+        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE: refreshPolicy;
+        assertThat(indexRequest.getRefreshPolicy(), is(expectedRefreshPolicy));
+
         if (timestampField != null) {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(2)));
             assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, executionTime.toString()));
@@ -304,7 +323,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testFailureResult() throws Exception {
-        IndexAction action = new IndexAction("test-index", "test-type", null, "@timestamp", null, null);
+        IndexAction action = new IndexAction("test-index", "test-type", null, "@timestamp", null, null, refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -335,6 +354,8 @@ public class IndexActionTests extends ESTestCase {
         listener.onResponse(bulkResponse);
         when(client.bulk(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, payload);
+        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE: refreshPolicy;
+        assertThat(captor.getValue().getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (isPartialFailure) {
             assertThat(result.status(), is(Status.PARTIAL_FAILURE));
@@ -342,5 +363,4 @@ public class IndexActionTests extends ESTestCase {
             assertThat(result.status(), is(Status.FAILURE));
         }
     }
-
 }

@@ -175,26 +175,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
     }
 
-    public void testExcludeCommitWithoutTranslog() throws Exception {
-        final long globalCheckpoint = between(1, 1000);
-        final UUID translogUUID = UUID.randomUUID();
-        final long retainedTranslogGen = between(2, 1000);
-        List<IndexCommit> commitList = new ArrayList<>();
-        // Commit without full translog.
-        commitList.add(mockIndexCommit(randomNonNegativeLong(), translogUUID, randomLongBetween(0, retainedTranslogGen - 1)));
-        long lastMaxSeqNo = randomLongBetween(0, globalCheckpoint * 2);
-        commitList.add(mockIndexCommit(lastMaxSeqNo, translogUUID, randomLongBetween(retainedTranslogGen, Long.MAX_VALUE)));
-        lastMaxSeqNo += between(1, 1000);
-        commitList.add(mockIndexCommit(lastMaxSeqNo, translogUUID, randomLongBetween(retainedTranslogGen, Long.MAX_VALUE)));
-
-        IndexCommit startingCommit = CombinedDeletionPolicy.startingCommitPoint(commitList, globalCheckpoint, retainedTranslogGen);
-        if (lastMaxSeqNo <= globalCheckpoint){
-            assertThat(startingCommit, equalTo(commitList.get(2)));
-        }else{
-            assertThat(startingCommit, equalTo(commitList.get(1)));
-        }
-    }
-
     IndexCommit mockIndexCommit(long maxSeqNo, UUID translogUUID, long translogGen) throws IOException {
         final Map<String, String> userData = new HashMap<>();
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));

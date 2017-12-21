@@ -81,6 +81,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -139,7 +140,6 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
-    private final IndexCommit startingCommit;
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -180,17 +180,17 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                this.startingCommit = getStartingCommitPoint();
+                final IndexCommit startingCommit = getStartingCommitPoint();
                 assert startingCommit == null || openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG :
                     "OPEN_INDEX_AND_TRANSLOG must have starting commit; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
                     new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
                 );
-                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
                     || openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG
@@ -240,25 +240,30 @@ public class InternalEngine extends Engine {
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier, IndexCommit startingCommit) throws IOException {
+        final long maxSeqNo;
+        final long localCheckpoint;
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
-                return localCheckpointTrackerSupplier.apply(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
-            case OPEN_INDEX_CREATE_TRANSLOG:
-                final Tuple<Long, Long> seqNoInfo = store.loadSeqNoInfo(null);
-                logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", seqNoInfo.v1(), seqNoInfo.v2());
-                return localCheckpointTrackerSupplier.apply(seqNoInfo.v1(), seqNoInfo.v2());
+                maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                break;
             case OPEN_INDEX_AND_TRANSLOG:
                 // When recovering from a previous commit point, we use the local checkpoint from that commit,
                 // but the max_seqno from the last commit. This allows use to throw away stale operations.
-                assert startingCommit != null;
-                final long localCheckpoint = store.loadSeqNoInfo(startingCommit).v2();
-                final long maxSeqNo = store.loadSeqNoInfo(null).v1();
+                maxSeqNo = store.loadSeqNoInfo(null).v1();
+                localCheckpoint = store.loadSeqNoInfo(startingCommit).v2();
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
-                return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
-            default:
-                throw new IllegalArgumentException("unknown type: " + openMode);
+                break;
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo(null);
+                maxSeqNo = seqNoStats.v1();
+                localCheckpoint = seqNoStats.v2();
+                logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+                break;
+            default: throw new IllegalArgumentException("unknown type: " + openMode);
         }
+        return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
 
     /**
@@ -386,9 +391,6 @@ public class InternalEngine extends Engine {
             if (openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
                 throw new IllegalStateException("Can't recover from translog with open mode: " + openMode);
             }
-            if (startingCommit == null) {
-                throw new IllegalStateException("Can't recover from translog without starting commit ");
-            }
             if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
             }
@@ -412,17 +414,36 @@ public class InternalEngine extends Engine {
     private IndexCommit getStartingCommitPoint() throws IOException {
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            return CombinedDeletionPolicy.startingCommitPoint(existingCommits,
-                Translog.readGlobalCheckpoint(translogPath),
-                Translog.readMinReferencedTranslogGen(translogPath));
+            // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose full translog
+            // files are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
+            // To avoid this issue, we only select index commits whose translog files are fully retained.
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
+                final List<IndexCommit> recoverableCommits = new ArrayList<>();
+                final long minRetainedTranslogGen = Translog.readMinReferencedTranslogGen(translogPath);
+                for (IndexCommit commit : existingCommits) {
+                    if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
+                        recoverableCommits.add(commit);
+                    }
+                }
+                assert recoverableCommits.isEmpty() == false : "Unable to select a proper safe commit point; " +
+                    "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
+                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, globalCheckpoint);
+            } else {
+                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
+            }
         }
         return null;
     }
 
     private void recoverFromTranslogInternal() throws IOException {
-        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        final Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
+        final IndexCommit startingCommit = indexWriter.getConfig().getIndexCommit();
+        if (startingCommit == null) {
+            throw new IllegalStateException("Can't recover from translog without a starting commit");
+        }
         final long translogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
@@ -1799,7 +1820,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(boolean create) throws IOException {
+    private IndexWriter createWriter(boolean create, IndexCommit startingCommit) throws IOException {
         try {
             final IndexWriterConfig iwc = getIndexWriterConfig(create);
             assert startingCommit == null || create == false : "Starting commit makes sense only when create=false";

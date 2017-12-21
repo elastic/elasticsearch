@@ -27,7 +27,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -93,30 +92,18 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Selects a starting commit point from a list of existing commits based on the persisted global checkpoint from translog
-     * and the retained translog generations. All the required translog files of a starting commit point must exist,
-     * and its max seqno should be at most the global checkpoint from the translog checkpoint.
+     * Find a safe commit point from a list of existing commits based on the persisted global checkpoint from translog.
+     * The max seqno of a safe commit point should be at most the global checkpoint from the translog checkpoint.
      *
-     * @param commits                a list of existing commit points
-     * @param globalCheckpoint       the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
-     * @param minRetainedTranslogGen the minimum translog generation is retained, see {@link Translog#readMinReferencedTranslogGen(Path)}
+     * @param commits          a list of existing commit points
+     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
      */
-    public static IndexCommit startingCommitPoint(List<IndexCommit> commits, long globalCheckpoint, long minRetainedTranslogGen)
-        throws IOException {
+    public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {
         if (commits.isEmpty()) {
             throw new IllegalArgumentException("Commit list must not empty");
         }
-        // Snapshotted commits may not have all its required translog.
-        final List<IndexCommit> recoverableCommits = new ArrayList<>();
-        for (IndexCommit commit : commits) {
-            if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
-                recoverableCommits.add(commit);
-            }
-        }
-        assert recoverableCommits.isEmpty() == false : "Unable to select a proper starting commit point; " +
-            "commits [" + commits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-        final int keptPosition = indexOfKeptCommits(recoverableCommits, globalCheckpoint);
-        return recoverableCommits.get(keptPosition);
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpoint);
+        return commits.get(keptPosition);
     }
 
     /**

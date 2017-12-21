@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-delete-calendar]]
-=== Delete Calendars
+=== Delete Calendar API
+++++
+<titleabbrev>Delete Calendar</titleabbrev>
+++++
 
 The delete calendar API enables you to delete a calendar.
 

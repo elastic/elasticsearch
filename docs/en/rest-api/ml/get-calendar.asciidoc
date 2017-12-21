@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-get-calendar]]
-=== Get Calendars
+=== Get Calendars API
+++++
+<titleabbrev>Get Calendars</titleabbrev>
+++++
 
 The get calendars API enables you to retrieve configuration information for
 calendars.

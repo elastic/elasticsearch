@@ -1,6 +1,9 @@
 [role="xpack"]
 [[ml-put-calendar]]
-=== Create Calendars
+=== Create Calendar API
+++++
+<titleabbrev>Create Calendar</titleabbrev>
+++++
 
 The create calendar API enables you to instantiate a calendar.
 

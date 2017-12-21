@@ -140,7 +140,8 @@ public class XContentParserUtilsTests extends ESTestCase {
 
         BytesReference bytes = toXContent((builder, params) -> builder.startObject("name").field("field", 0).endObject(), xContentType,
                 randomBoolean());
-        try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(namedXContentRegistry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
@@ -155,7 +156,8 @@ public class XContentParserUtilsTests extends ESTestCase {
 
         bytes = toXContent((builder, params) -> builder.startObject("type" + delimiter + "name").field("bool", true).endObject(),
                 xContentType, randomBoolean());
-        try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(namedXContentRegistry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
@@ -174,7 +176,8 @@ public class XContentParserUtilsTests extends ESTestCase {
             return builder;
         }, xContentType, randomBoolean());
 
-        try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(namedXContentRegistry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
@@ -200,7 +203,8 @@ public class XContentParserUtilsTests extends ESTestCase {
         {
             BytesReference bytes = toXContent((builder, params) -> builder.startObject("name").field("field", 0).endObject(), xContentType,
                     randomBoolean());
-            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+            try (XContentParser parser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
                 ParsingException exception = expectThrows(ParsingException.class,
@@ -212,7 +216,8 @@ public class XContentParserUtilsTests extends ESTestCase {
         {
             BytesReference bytes = toXContent((builder, params) -> builder.startObject("").field("field", 0).endObject(), xContentType,
                     randomBoolean());
-            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+            try (XContentParser parser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytes)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);

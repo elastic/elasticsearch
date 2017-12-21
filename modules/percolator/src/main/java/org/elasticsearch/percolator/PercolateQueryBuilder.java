@@ -46,6 +46,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -345,7 +346,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (documents.isEmpty() == false) {
             builder.startArray(DOCUMENTS_FIELD.getPreferredName());
             for (BytesReference document : documents) {
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, document)) {
+                // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because copyCurrentStructure doesn't use deprecation
+                try (XContentParser parser = XContentHelper
+                        .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, document)) {
                     parser.nextToken();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
                 }
@@ -731,8 +734,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         BytesRef qbSource = binaryDocValues.binaryValue();
                         if (qbSource.length > 0) {
                             XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                            try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,
-                                qbSource.offset, qbSource.length)) {
+                            // LoggingDeprecationHandler is appropriate here because this is called on the server
+                            try (XContentParser sourceParser = xContent.createParser(
+                                    context.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+                                    qbSource.bytes, qbSource.offset, qbSource.length)) {
                                 return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
                             }
                         } else {

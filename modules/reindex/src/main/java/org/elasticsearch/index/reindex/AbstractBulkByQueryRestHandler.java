@@ -89,7 +89,8 @@ public abstract class AbstractBulkByQueryRestHandler<
                     consumer.getValue().accept(value);
                 }
             }
-            return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
+            return parser.contentType().xContent()
+                .createParser(parser.getXContentRegistry(), parser.deprecationHandler(), builder.map(body).bytes());
         }
     }
 }

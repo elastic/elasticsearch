@@ -159,7 +159,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     public QueryBuilder aliasFilter(IndexMetaData indexMetaData, String... aliasNames) {
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry(), bytes)) {
+            try (XContentParser parser = createParser(XContentFactory.xContent(bytes), bytes)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

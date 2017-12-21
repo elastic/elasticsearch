@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+
 /**
  * Holds a field that can be found in a request while parsing and its different
  * variants, which may be deprecated.
@@ -46,6 +48,11 @@ public class ParseField {
          */
         void usedDeprecatedField(String usedName, String replacedWith);
     }
+    /**
+     * Throws an exception when we hit a deprecated field. Use this when creating an
+     * {@link XContentParser} that won't interact with deprecation logic at all or that
+     * doesn't support deprecated fields.
+     */
     public static final DeprecationHandler UNSUPPORTED_OPERATION_DEPRECATION_HANDLER = new DeprecationHandler() {
         @Override
         public void usedDeprecatedField(String usedName, String replacedWith) {
@@ -57,6 +64,18 @@ public class ParseField {
             throw new UnsupportedOperationException("deprecated fields not supported here but got ["
                 + usedName + "] which has been replaced with [" + modernName + "]");
         }
+    };
+    /**
+     * {@link DeprecationHandler} that does nothing when it is notified
+     * of a deprecated field. Use this when there is no user to notify
+     * but deprecated fields are possible.
+     */
+    public static final DeprecationHandler IGNORING_DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
     };
 
     private final String name;

@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.common;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -76,7 +77,9 @@ public final class JsonProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) throws Exception {
         Object fieldValue = document.getFieldValue(field, Object.class);
         BytesReference bytesRef = (fieldValue == null) ? new BytesArray("null") : new BytesArray(fieldValue.toString());
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, bytesRef)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with the depraction handler
+        try (XContentParser parser = JsonXContent.jsonXContent
+                .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, bytesRef)) {
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -134,4 +137,3 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 }
-

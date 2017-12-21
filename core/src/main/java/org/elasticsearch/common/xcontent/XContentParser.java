@@ -34,7 +34,8 @@ import java.util.Map;
  *
  * <pre>
  *     XContentType xContentType = XContentType.JSON;
- *     XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, "{\"key\" : \"value\"}");
+ *     XContentParser parser = xContentType.xContent()
+ *          .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER"{\"key\" : \"value\"}");
  * </pre>
  */
 public interface XContentParser extends Releasable {

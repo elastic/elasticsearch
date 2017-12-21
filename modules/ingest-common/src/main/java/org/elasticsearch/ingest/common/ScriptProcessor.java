@@ -21,6 +21,8 @@ package org.elasticsearch.ingest.common;
 
 import com.fasterxml.jackson.core.JsonFactory;
 
+import org.elasticsearch.common.LoggingDeprecationHandler;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -95,8 +97,9 @@ public final class ScriptProcessor extends AbstractProcessor {
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+            // LoggingDeprecationHandler is fine here because we are running on the server
             JsonXContentParser parser = new JsonXContentParser(NamedXContentRegistry.EMPTY,
-                JSON_FACTORY.createParser(builder.bytes().streamInput()));
+                LoggingDeprecationHandler.INSTANCE, JSON_FACTORY.createParser(builder.bytes().streamInput()));
             Script script = Script.parse(parser);
 
             Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);

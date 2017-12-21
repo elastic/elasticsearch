@@ -51,7 +51,7 @@ public final class QueryParsers {
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
                                                                   @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
-        // NOCOMMIT verify this is only ever called on the server
+        // TODO LoggingDeprecationHandler should be fine here because it looks like this is only called on the server
         DeprecationHandler deprecationHandler = LoggingDeprecationHandler.INSTANCE;
         if (rewriteMethod == null) {
             return defaultRewriteMethod;

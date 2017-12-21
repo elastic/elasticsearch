@@ -60,7 +60,7 @@ public class PipelineConfigurationTests extends ESTestCase {
             bytes = builder.bytes();
         }
 
-        XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes);
+        XContentParser xContentParser = createParser(xContentType.xContent(), bytes);
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
         assertEquals(xContentType, parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));

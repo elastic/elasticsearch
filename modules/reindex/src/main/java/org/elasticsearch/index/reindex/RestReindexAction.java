@@ -73,7 +73,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
+            try (XContentParser innerParser = parser.contentType().xContent()
+                    .createParser(parser.getXContentRegistry(), parser.deprecationHandler(), builder.bytes())) {
                 request.getSearchRequest().source().parseXContent(innerParser);
             }
         };

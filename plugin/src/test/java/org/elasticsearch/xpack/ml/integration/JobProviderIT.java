@@ -169,10 +169,13 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         indexCalendars(calendars);
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         jobProvider.removeJobFromCalendars("bar", ActionListener.wrap(
                 r -> latch.countDown(),
-                exceptionHolder::set));
+                e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                }));
 
         latch.await();
         if (exceptionHolder.get() != null) {
@@ -189,10 +192,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         assertThat(catFoo.getJobIds(), contains("cat", "foo"));
 
         CountDownLatch latch2 = new CountDownLatch(1);
-        exceptionHolder = new AtomicReference<>();
         jobProvider.removeJobFromCalendars("cat", ActionListener.wrap(
                 r -> latch2.countDown(),
-                exceptionHolder::set));
+                e -> {
+                    exceptionHolder.set(e);
+                    latch2.countDown();
+                }));
 
         latch2.await();
         if (exceptionHolder.get() != null) {
@@ -219,10 +224,13 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         }
         jobProvider.calendars(query, ActionListener.wrap(
                 r -> {
-                    latch.countDown();
                     result.set(r);
+                    latch.countDown();
                 },
-                exceptionHolder::set));
+                e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                }));
 
         latch.await();
         if (exceptionHolder.get() != null) {
@@ -237,7 +245,10 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove,
                 r -> latch.countDown(),
-                exceptionHolder::set);
+                e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                });
 
         latch.await();
         if (exceptionHolder.get() != null) {
@@ -253,8 +264,14 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<Calendar> calendarHolder = new AtomicReference<>();
         jobProvider.calendar(calendarId, ActionListener.wrap(
-                    c -> { latch.countDown(); calendarHolder.set(c); },
-                    exceptionHolder::set)
+                    c -> {
+                        calendarHolder.set(c);
+                        latch.countDown();
+                        },
+                    e -> {
+                        exceptionHolder.set(e);
+                        latch.countDown();
+                    })
                 );
 
         latch.await();

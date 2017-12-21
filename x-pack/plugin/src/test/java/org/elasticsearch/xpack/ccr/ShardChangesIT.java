@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
@@ -73,7 +74,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Collections.singleton(TestSeedPlugin.class);
+        return Arrays.asList(TestSeedPlugin.class, TestZenDiscovery.TestPlugin.class);
     }
 
     @Override

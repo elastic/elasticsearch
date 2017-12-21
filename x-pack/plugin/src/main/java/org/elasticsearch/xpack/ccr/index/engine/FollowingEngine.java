@@ -6,12 +6,9 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;

@@ -158,7 +158,7 @@ public class BytesWriteContextTests extends ESTestCase {
     public void testMultipleWritesPartialFlushes() throws IOException {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        BiConsumer listener2 = mock(BiConsumer.class);
+        BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
         WriteOperation writeOperation1 = mock(WriteOperation.class);
         WriteOperation writeOperation2 = mock(WriteOperation.class);
         when(writeOperation1.getListener()).thenReturn(listener);

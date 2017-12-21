@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1016,7 +1017,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
         XContentParser p = xcontentType().xContent()
-            .createParser(registry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, b.bytes());
+            .createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));

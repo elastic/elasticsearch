@@ -79,7 +79,7 @@ public class SearchAfterSortedDocQuery extends Query {
                     throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }
                 final int afterDoc = after.doc - context.docBase;
-                TopComparator comparator= getTopComparator(fieldComparators, reverseMuls, context, afterDoc);
+                TopComparator comparator = getTopComparator(fieldComparators, reverseMuls, context, afterDoc);
                 final int maxDoc = context.reader().maxDoc();
                 final int firstDoc = searchAfterDoc(comparator, 0, context.reader().maxDoc());
                 if (firstDoc >= maxDoc) {
@@ -143,7 +143,7 @@ public class SearchAfterSortedDocQuery extends Query {
                 }
             }
 
-            if (topDoc <= doc) {
+            if (doc <= topDoc) {
                 return false;
             }
             return true;

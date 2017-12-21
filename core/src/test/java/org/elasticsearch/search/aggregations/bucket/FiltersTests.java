@@ -23,14 +23,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuilder> {
 
@@ -112,5 +118,39 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         filters = FiltersAggregationBuilder.parse("agg_name", parser);
         // unless the other bucket is explicitly disabled
         assertFalse(filters.otherBucket());
+    }
+
+    public void testRewrite() throws IOException {
+        // test non-keyed filter that doesn't rewrite
+        AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
+        AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
+        assertSame(original, rewritten);
+
+        // test non-keyed filter that does rewrite
+        original = new FiltersAggregationBuilder("my-agg", new BoolQueryBuilder());
+        rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
+        assertNotSame(original, rewritten);
+        assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
+        assertEquals("my-agg", ((FiltersAggregationBuilder) rewritten).getName());
+        assertEquals(1, ((FiltersAggregationBuilder) rewritten).filters().size());
+        assertEquals("0", ((FiltersAggregationBuilder) rewritten).filters().get(0).key());
+        assertThat(((FiltersAggregationBuilder) rewritten).filters().get(0).filter(), instanceOf(MatchAllQueryBuilder.class));
+        assertFalse(((FiltersAggregationBuilder) rewritten).isKeyed());
+
+        // test keyed filter that doesn't rewrite
+        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new MatchAllQueryBuilder()));
+        rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
+        assertSame(original, rewritten);
+
+        // test non-keyed filter that does rewrite
+        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()));
+        rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
+        assertNotSame(original, rewritten);
+        assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
+        assertEquals("my-agg", ((FiltersAggregationBuilder) rewritten).getName());
+        assertEquals(1, ((FiltersAggregationBuilder) rewritten).filters().size());
+        assertEquals("my-filter", ((FiltersAggregationBuilder) rewritten).filters().get(0).key());
+        assertThat(((FiltersAggregationBuilder) rewritten).filters().get(0).filter(), instanceOf(MatchAllQueryBuilder.class));
+        assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
     }
 }

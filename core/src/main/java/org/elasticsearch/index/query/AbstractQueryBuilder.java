@@ -352,7 +352,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
      * should use this method.
      */
-    static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
+    protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
         parser.declareFloat(QueryBuilder::boost, AbstractQueryBuilder.BOOST_FIELD);
         parser.declareString(QueryBuilder::queryName, AbstractQueryBuilder.NAME_FIELD);
     }

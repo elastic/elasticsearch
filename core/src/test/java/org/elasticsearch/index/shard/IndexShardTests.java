@@ -2449,6 +2449,71 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    /**
+     * Simulates a scenario that happens when we are async fetching snapshot metadata from GatewayService
+     * and checking index concurrently. This should always be possible without any exception.
+     */
+    public void testReadSnapshotAndCheckIndexConcurrently() throws Exception {
+        final boolean isPrimary = randomBoolean();
+        IndexShard indexShard = newStartedShard(isPrimary);
+        final long numDocs = between(10, 100);
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "doc", Long.toString(i), "{\"foo\" : \"bar\"}");
+            if (randomBoolean()) {
+                indexShard.refresh("test");
+            }
+        }
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            isPrimary ? RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings.getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
+            .build();
+        final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
+            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer());
+
+        Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
+        assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
+        AtomicBoolean stop = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread snapshotter = new Thread(() -> {
+            latch.countDown();
+            while (stop.get() == false) {
+                try {
+                    Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
+                    assertThat(readMeta.getNumDocs(), equalTo(numDocs));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).different.size(), equalTo(0));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
+                    assertThat(storeFileMetaDatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetaDatas.size()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        snapshotter.start();
+
+        if (isPrimary) {
+            newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(),
+                getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null));
+        } else {
+            newShard.markAsRecovering("peer", new RecoveryState(newShard.routingEntry(),
+                getFakeDiscoNode(newShard.routingEntry().currentNodeId()), getFakeDiscoNode(newShard.routingEntry().currentNodeId())));
+        }
+        int iters = iterations(10, 100);
+        latch.await();
+        for (int i = 0; i < iters; i++) {
+            newShard.checkIndex();
+        }
+        assertTrue(stop.compareAndSet(false, true));
+        snapshotter.join();
+        closeShards(newShard);
+    }
+
     class Result {
         private final int localCheckpoint;
         private final int maxSeqNo;

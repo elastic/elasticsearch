@@ -54,6 +54,9 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -67,6 +70,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
@@ -929,6 +933,53 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected * 2, buckets.get(2).getDocCount());
                 assertEquals("1000.0", buckets.get(3).getKeyAsString());
                 assertEquals(expected, buckets.get(3).getDocCount());
+            }
+        }
+    }
+
+    public void testGlobalAggregationWithScore() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
+                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
+                        .subAggregation(
+                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                                .executionHint(executionHint)
+                                .collectMode(collectionMode)
+                                .field("keyword")
+                                .order(BucketOrder.key(true))
+                                .subAggregation(
+                                    new TermsAggregationBuilder("_name2", ValueType.STRING)
+                                        .executionHint(executionHint)
+                                        .collectMode(collectionMode)
+                                        .field("keyword").order(BucketOrder.key(true))
+                                        .subAggregation(
+                                            new TopHitsAggregationBuilder("top_hits")
+                                                .storedField("_none_")
+                                        )
+                                )
+                        );
+
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+                    fieldType.setName("keyword");
+                    fieldType.setHasDocValues(true);
+
+                    InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
+                    Terms terms = result.getAggregations().get("terms");
+                    assertThat(terms.getBuckets().size(), equalTo(3));
+                }
             }
         }
     }

@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
@@ -59,6 +61,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     final List<Entry> entries = new ArrayList<>();
     BucketCollector collector;
     final SearchContext searchContext;
+    final boolean isGlobal;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
     PackedLongValues.Builder buckets;
@@ -66,9 +69,14 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     boolean finished = false;
     LongHash selectedBuckets;
 
-    /** Sole constructor. */
-    public BestBucketsDeferringCollector(SearchContext context) {
+    /**
+     * Sole constructor.
+     * @param context The search context
+     * @param isGlobal Whether this collector visits all documents (global context)
+     */
+    public BestBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
         this.searchContext = context;
+        this.isGlobal = isGlobal;
     }
 
     @Override
@@ -144,11 +152,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        boolean needsScores = collector.needsScores();
+        boolean needsScores = needsScores();
         Weight weight = null;
         if (needsScores) {
-            weight = searchContext.searcher()
-                        .createNormalizedWeight(searchContext.query(), true);
+            Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
+            weight = searchContext.searcher().createNormalizedWeight(query, true);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

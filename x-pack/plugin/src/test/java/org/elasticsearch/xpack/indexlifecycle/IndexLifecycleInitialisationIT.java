@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -88,9 +89,14 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     public void init() {
         settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.lifecycle.name", "test").build();
+        Map<String, Phase> phases = new HashMap<>();
+
+        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME,
+            new ForceMergeAction(-1));
+        phases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(2), warmPhaseActions));
+
         Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
-        Map<String, Phase> phases = Collections.singletonMap("delete", new Phase("delete",
-            TimeValue.timeValueSeconds(3), deletePhaseActions));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3), deletePhaseActions));
         lifecyclePolicy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, "test", phases);
     }
 

@@ -182,6 +182,11 @@ specific index module:
     Maximum number of refresh listeners available on each shard of the index.
     These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
+ `index.highlight.max_analyzed_offset`::
+
+     The maximum number of characters that will be analyzed for a highlight request.
+     This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
+     Defaults to `10000`.
 
 [float]
 === Settings in other index modules

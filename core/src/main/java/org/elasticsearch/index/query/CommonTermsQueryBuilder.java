@@ -271,15 +271,15 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                        if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             String innerFieldName = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     innerFieldName = parser.currentName();
                                 } else if (token.isValue()) {
-                                    if (LOW_FREQ_FIELD.match(innerFieldName)) {
+                                    if (LOW_FREQ_FIELD.match(innerFieldName, parser.deprecationHandler())) {
                                         lowFreqMinimumShouldMatch = parser.text();
-                                    } else if (HIGH_FREQ_FIELD.match(innerFieldName)) {
+                                    } else if (HIGH_FREQ_FIELD.match(innerFieldName, parser.deprecationHandler())) {
                                         highFreqMinimumShouldMatch = parser.text();
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
@@ -297,23 +297,23 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                                     "] query does not support [" + currentFieldName + "]");
                         }
                     } else if (token.isValue()) {
-                        if (QUERY_FIELD.match(currentFieldName)) {
+                        if (QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             text = parser.objectText();
-                        } else if (ANALYZER_FIELD.match(currentFieldName)) {
+                        } else if (ANALYZER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             analyzer = parser.text();
-                        } else if (DISABLE_COORD_FIELD.match(currentFieldName)) {
+                        } else if (DISABLE_COORD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             // ignore
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (HIGH_FREQ_OPERATOR_FIELD.match(currentFieldName)) {
+                        } else if (HIGH_FREQ_OPERATOR_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             highFreqOperator = Operator.fromString(parser.text());
-                        } else if (LOW_FREQ_OPERATOR_FIELD.match(currentFieldName)) {
+                        } else if (LOW_FREQ_OPERATOR_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             lowFreqOperator = Operator.fromString(parser.text());
-                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             lowFreqMinimumShouldMatch = parser.text();
-                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName)) {
+                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             cutoffFrequency = parser.floatValue();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +

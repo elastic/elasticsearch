@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -342,7 +343,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return xContentType.get().xContent().createParser(xContentRegistry, content);
+        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content);
     }
 
     /**
@@ -371,7 +372,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(xContentRegistry, tuple.v2());
+        return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2());
     }
 
     /**
@@ -384,7 +385,8 @@ public abstract class RestRequest implements ToXContent.Params {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
             BytesReference content = tuple.v2();
             XContentType xContentType = tuple.v1();
-            try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, content)) {
+            try (XContentParser parser = xContentType.xContent()
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content)) {
                 withParser.accept(parser);
             }
         } else {

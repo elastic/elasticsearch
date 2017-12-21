@@ -272,23 +272,23 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (TERM_FIELD.match(currentFieldName)) {
+                        if (TERM_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.objectBytes();
-                        } else if (VALUE_FIELD.match(currentFieldName)) {
+                        } else if (VALUE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.objectBytes();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (Fuzziness.FIELD.match(currentFieldName)) {
+                        } else if (Fuzziness.FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             fuzziness = Fuzziness.parse(parser);
-                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             prefixLength = parser.intValue();
-                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             maxExpansions = parser.intValue();
-                        } else if (TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                        } else if (TRANSPOSITIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             transpositions = parser.booleanValue();
-                        } else if (REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             rewrite = parser.textOrNull();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

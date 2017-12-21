@@ -404,30 +404,30 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if (FIELD_FIELD.match(currentFieldName)) {
+                        if (FIELD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             fieldName = parser.text();
-                        } else if (TOP_FIELD.match(currentFieldName)) {
+                        } else if (TOP_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             top = parser.doubleValue();
-                        } else if (BOTTOM_FIELD.match(currentFieldName)) {
+                        } else if (BOTTOM_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             bottom = parser.doubleValue();
-                        } else if (LEFT_FIELD.match(currentFieldName)) {
+                        } else if (LEFT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             left = parser.doubleValue();
-                        } else if (RIGHT_FIELD.match(currentFieldName)) {
+                        } else if (RIGHT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             right = parser.doubleValue();
                         } else {
-                            if (TOP_LEFT_FIELD.match(currentFieldName)) {
+                            if (TOP_LEFT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 top = sparse.getLat();
                                 left = sparse.getLon();
-                            } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName)) {
+                            } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 bottom = sparse.getLat();
                                 right = sparse.getLon();
-                            } else if (TOP_RIGHT_FIELD.match(currentFieldName)) {
+                            } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 top = sparse.getLat();
                                 right = sparse.getLon();
-                            } else if (BOTTOM_LEFT_FIELD.match(currentFieldName)) {
+                            } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 bottom = sparse.getLat();
                                 left = sparse.getLon();
@@ -442,15 +442,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     }
                 }
             } else if (token.isValue()) {
-                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (TYPE_FIELD.match(currentFieldName)) {
+                } else if (TYPE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     type = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",

@@ -178,13 +178,13 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (INCLUDE_FIELD.match(currentFieldName)) {
+                if (INCLUDE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [include] must be of type span query");
                     }
                     include = (SpanQueryBuilder) query;
-                } else if (EXCLUDE_FIELD.match(currentFieldName)) {
+                } else if (EXCLUDE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [exclude] must be of type span query");
@@ -194,15 +194,15 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
                     throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (DIST_FIELD.match(currentFieldName)) {
+                if (DIST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     dist = parser.intValue();
-                } else if (PRE_FIELD.match(currentFieldName)) {
+                } else if (PRE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     pre = parser.intValue();
-                } else if (POST_FIELD.match(currentFieldName)) {
+                } else if (POST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     post = parser.intValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");

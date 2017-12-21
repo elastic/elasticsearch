@@ -454,7 +454,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     if (query != null) {
                         throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. [query] is already defined.",
                                 NAME);
@@ -479,7 +479,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FUNCTIONS_FIELD.match(currentFieldName)) {
+                if (FUNCTIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     if (singleFunctionFound) {
                         String errorString = "already found [" + singleFunctionName + "], now encountering [functions].";
                         handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);
@@ -492,17 +492,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 }
 
             } else if (token.isValue()) {
-                if (SCORE_MODE_FIELD.match(currentFieldName)) {
+                if (SCORE_MODE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     scoreMode = FunctionScoreQuery.ScoreMode.fromString(parser.text());
-                } else if (BOOST_MODE_FIELD.match(currentFieldName)) {
+                } else if (BOOST_MODE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     combineFunction = CombineFunction.fromString(parser.text());
-                } else if (MAX_BOOST_FIELD.match(currentFieldName)) {
+                } else if (MAX_BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     maxBoost = parser.floatValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     queryName = parser.text();
-                } else if (MIN_SCORE_FIELD.match(currentFieldName)) {
+                } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     minScore = parser.floatValue();
                 } else {
                     if (singleFunctionFound) {
@@ -515,7 +515,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
                         handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);
                     }
-                    if (WEIGHT_FIELD.match(currentFieldName)) {
+                    if (WEIGHT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                         filterFunctionBuilders.add(
                                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(parser.floatValue())));
                         singleFunctionFound = true;
@@ -569,7 +569,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (FILTER_FIELD.match(currentFieldName)) {
+                        if (FILTER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             filter = parseInnerQueryBuilder(parser);
                         } else {
                             if (scoreFunction != null) {
@@ -580,7 +580,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                             scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
                         }
                     } else if (token.isValue()) {
-                        if (WEIGHT_FIELD.match(currentFieldName)) {
+                        if (WEIGHT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             functionWeight = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported",

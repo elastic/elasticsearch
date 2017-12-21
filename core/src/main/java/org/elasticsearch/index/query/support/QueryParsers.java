@@ -20,8 +20,10 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseField.DeprecationHandler;
 
 public final class QueryParsers {
 
@@ -49,16 +51,18 @@ public final class QueryParsers {
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
                                                                   @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
+        // NOCOMMIT verify this is only ever called on the server
+        DeprecationHandler deprecationHandler = LoggingDeprecationHandler.INSTANCE;
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
-        if (CONSTANT_SCORE.match(rewriteMethod)) {
+        if (CONSTANT_SCORE.match(rewriteMethod, deprecationHandler)) {
             return MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        if (SCORING_BOOLEAN.match(rewriteMethod)) {
+        if (SCORING_BOOLEAN.match(rewriteMethod, deprecationHandler)) {
             return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
         }
-        if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod)) {
+        if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod, deprecationHandler)) {
             return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
         }
 
@@ -74,13 +78,13 @@ public final class QueryParsers {
             final int size = Integer.parseInt(rewriteMethod.substring(firstDigit));
             String rewriteMethodName = rewriteMethod.substring(0, firstDigit);
 
-            if (TOP_TERMS.match(rewriteMethodName)) {
+            if (TOP_TERMS.match(rewriteMethodName, deprecationHandler)) {
                 return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
             }
-            if (TOP_TERMS_BOOST.match(rewriteMethodName)) {
+            if (TOP_TERMS_BOOST.match(rewriteMethodName, deprecationHandler)) {
                 return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
             }
-            if (TOP_TERMS_BLENDED_FREQS.match(rewriteMethodName)) {
+            if (TOP_TERMS_BLENDED_FREQS.match(rewriteMethodName, deprecationHandler)) {
                 return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(size);
             }
         }

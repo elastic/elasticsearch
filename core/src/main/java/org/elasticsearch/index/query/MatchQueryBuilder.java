@@ -481,31 +481,31 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (QUERY_FIELD.match(currentFieldName)) {
+                        if (QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.objectText();
-                        } else if (ANALYZER_FIELD.match(currentFieldName)) {
+                        } else if (ANALYZER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             analyzer = parser.text();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (Fuzziness.FIELD.match(currentFieldName)) {
+                        } else if (Fuzziness.FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             fuzziness = Fuzziness.parse(parser);
-                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             prefixLength = parser.intValue();
-                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             maxExpansion = parser.intValue();
-                        } else if (OPERATOR_FIELD.match(currentFieldName)) {
+                        } else if (OPERATOR_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             operator = Operator.fromString(parser.text());
-                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             minimumShouldMatch = parser.textOrNull();
-                        } else if (FUZZY_REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (FUZZY_REWRITE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             fuzzyRewrite = parser.textOrNull();
-                        } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                        } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             fuzzyTranspositions = parser.booleanValue();
-                        } else if (LENIENT_FIELD.match(currentFieldName)) {
+                        } else if (LENIENT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             lenient = parser.booleanValue();
-                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName)) {
+                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             cutOffFrequency = parser.floatValue();
-                        } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName)) {
+                        } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             String zeroTermsDocs = parser.text();
                             if ("none".equalsIgnoreCase(zeroTermsDocs)) {
                                 zeroTermsQuery = MatchQuery.ZeroTermsQuery.NONE;
@@ -515,9 +515,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                             }
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             queryName = parser.text();
-                        } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                        } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.deprecationHandler())) {
                             autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

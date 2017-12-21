@@ -153,15 +153,15 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (WILDCARD_FIELD.match(currentFieldName)) {
+                        if (WILDCARD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.text();
-                        } else if (VALUE_FIELD.match(currentFieldName)) {
+                        } else if (VALUE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.text();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             rewrite = parser.textOrNull();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

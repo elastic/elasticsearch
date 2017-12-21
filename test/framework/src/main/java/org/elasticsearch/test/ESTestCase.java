@@ -48,6 +48,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -1093,35 +1094,36 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent().createParser(xContentRegistry(), builder.bytes());
+        return builder.generator().contentType().xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, builder.bytes());
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**

@@ -2,6 +2,7 @@
 == Overview
 
 include::analyzing.asciidoc[]
+include::forecasting.asciidoc[]
 
 [[ml-concepts]]
 === Basic Machine Learning Terms

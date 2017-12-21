@@ -192,7 +192,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNull(provider.next(TEST_ROLLOVER_ACTION));
     }
 
-    @AwaitsFix(bugUrl = "This gets into an infinite loop if there are other actions as well as the replicas action")
     public void testWarmActionProviderReplicasActionSortOrder() {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
@@ -222,20 +221,14 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         };
         provider = policy.getActionProvider(context, warmPhase);
         if (actions.size() > 1) {
+            int actionCount = 1;
             LifecycleAction current = provider.next(null);
             assertThat(current, not(equalTo(TEST_REPLICAS_ACTION)));
-            while (true) {
-                // NORELEASE This loop never exits as there is no break condition
-                // also provider.next(current) never evaluates to null because
-                // when called with the replicas action it always returns a
-                // non-null action. We should avoid using while true here
-                // because it means if there is a bug we will hang the build
-                if (provider.next(current) == null) {
-                    assertThat(current, equalTo(TEST_REPLICAS_ACTION));
-                } else {
-                    current = provider.next(current);
-                }
+            while (actionCount++ < actions.size()) {
+                current = provider.next(current);
             }
+            assertNull(provider.next(current));
+            assertThat(current, equalTo(TEST_REPLICAS_ACTION));
         } else {
             assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         }

@@ -2184,7 +2184,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint) {
+                public void finalizeRecovery(long globalCheckpoint) throws IOException {
                     super.finalizeRecovery(globalCheckpoint);
                     assertListenerCalled.accept(replica);
                 }

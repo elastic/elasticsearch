@@ -438,13 +438,9 @@ public class InternalEngine extends Engine {
     }
 
     private void recoverFromTranslogInternal() throws IOException {
-        final Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        final IndexCommit startingCommit = indexWriter.getConfig().getIndexCommit();
-        if (startingCommit == null) {
-            throw new IllegalStateException("Can't recover from translog without a starting commit");
-        }
-        final long translogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
@@ -563,7 +559,11 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
+                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                    lastCommittedSegmentInfos = Lucene.readSegmentInfos(indexWriter.getConfig().getIndexCommit());
+                } else {
+                    lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
+                }
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;

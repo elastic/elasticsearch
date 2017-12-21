@@ -35,7 +35,8 @@ Eventually if the confidence levels are too low, the forecast stops.
 
 You can also optionally specify when the forecast expires. By default, it
 expires in 14 days and is deleted automatically thereafter. You can specify a
-different expiration period by using the `expires_in` parameter in the  {xpack-ref}/ml-forecast.html[Forecast Jobs API].
+different expiration period by using the `expires_in` parameter in the
+{ref}/ml-forecast.html[Forecast Jobs API].
 
 //Add examples of forecast_request_stats and forecast documents?
 

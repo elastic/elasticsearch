@@ -5,18 +5,10 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.junit.Before;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,92 +18,22 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_COLD_ACTIONS;
-import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_DELETE_ACTIONS;
-import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_HOT_ACTIONS;
-import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_PHASES;
-import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_WARM_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecycleType.VALID_PHASES;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
+public class TimeseriesLifecycleTypeTests extends ESTestCase {
     
-    private NamedXContentRegistry registry;
-    private String lifecycleName;
     private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction();
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction();
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
-    private static final List<String> VALID_PHASE_NAMES = Arrays.asList();
-
-    @Before
-    public void setup() {
-        List<NamedXContentRegistry.Entry> entries = Arrays
-            .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE),
-                    TimeseriesLifecyclePolicy::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReplicasAction.NAME), ReplicasAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse));
-        registry = new NamedXContentRegistry(entries);
-        lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
-                                                 // than use the same name for all instances
-    }
-
-    @Override
-    protected LifecyclePolicy createTestInstance() {
-        Map<String, Phase> phases = TimeseriesLifecyclePolicy.VALID_PHASES.stream()
-                .map(phaseName -> new Phase(phaseName,
-                        TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after"), Collections.emptyMap()))
-                .collect(Collectors.toMap(Phase::getName, Function.identity()));
-        return new TimeseriesLifecyclePolicy(lifecycleName, phases);
-    }
-
-    @Override
-    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
-        String name = instance.getName();
-        Map<String, Phase> phases = instance.getPhases();
-        switch (between(0, 1)) {
-        case 0:
-            name = name + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 1:
-            phases = randomValueOtherThan(phases,
-                    () -> TimeseriesLifecyclePolicy.VALID_PHASES.stream()
-                            .map(phaseName -> new Phase(phaseName,
-                                    TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after"),
-                                    Collections.emptyMap()))
-                            .collect(Collectors.toMap(Phase::getName, Function.identity())));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
-        }
-        return new TimeseriesLifecyclePolicy(name, phases);
-    }
-
-    @Override
-    protected LifecyclePolicy doParseInstance(XContentParser parser) throws IOException {
-        return LifecyclePolicy.parse(parser, new Tuple<>(lifecycleName, registry));
-    }
-
-    @Override
-    protected Reader<LifecyclePolicy> instanceReader() {
-        return TimeseriesLifecyclePolicy::new;
-    }
-
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                    new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
-                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
-                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ReplicasAction.NAME, ReplicasAction::new),
-                    new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
-                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)));
-    }
 
     public void testGetFirstPhase() {
         Map<String, Phase> phases = new HashMap<>();
@@ -125,12 +47,12 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 }
             }
         }
-        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, phases);
-        assertThat(policy.getFirstPhase(), equalTo(expectedFirstPhase));
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
+        assertThat(policy.getFirstPhase(phases), equalTo(expectedFirstPhase));
     }
 
     public void testGetNextPhase() {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+        for (int runs = 0; runs < 20; runs++) {
             Map<String, Phase> phases = new HashMap<>();
             List<Phase> phasesInOrder = new ArrayList<>();
             for (String phase : VALID_PHASES) {
@@ -140,13 +62,13 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                     phasesInOrder.add(phaseToAdd);
                 }
             }
-            TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, phases);
-            assertThat(policy.nextPhase(null), equalTo(policy.getFirstPhase()));
+            TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
+            assertThat(policy.nextPhase(phases, null), equalTo(policy.getFirstPhase(phases)));
             for (int i = 0; i < phasesInOrder.size() - 1; i++) {
-                assertThat(policy.nextPhase(phasesInOrder.get(i)), equalTo(phasesInOrder.get(i + 1)));
+                assertThat(policy.nextPhase(phases, phasesInOrder.get(i)), equalTo(phasesInOrder.get(i + 1)));
             }
             if (phasesInOrder.isEmpty() == false) {
-                assertNull(policy.nextPhase(phasesInOrder.get(phasesInOrder.size() - 1)));
+                assertNull(policy.nextPhase(phases, phasesInOrder.get(phasesInOrder.size() - 1)));
             }
         }
     }
@@ -160,10 +82,10 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
             new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         if (invalid) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> new TimeseriesLifecyclePolicy(lifecycleName, phases));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE.validate(phases.values()));
             assertThat(e.getMessage(), equalTo("Timeseries lifecycle does not support phase [" + phaseName + "]"));
         } else {
-            new TimeseriesLifecyclePolicy(lifecycleName, phases);
+            TimeseriesLifecycleType.INSTANCE.validate(phases.values());
         }
     }
 
@@ -180,11 +102,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> new TimeseriesLifecyclePolicy(lifecycleName, hotPhase));
+                    () -> TimeseriesLifecycleType.INSTANCE.validate(hotPhase.values()));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [hot]"));
         } else {
-            new TimeseriesLifecyclePolicy(lifecycleName, hotPhase);
+            TimeseriesLifecycleType.INSTANCE.validate(hotPhase.values());
         }
     }
 
@@ -201,11 +123,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> new TimeseriesLifecyclePolicy(lifecycleName, warmPhase));
+                    () -> TimeseriesLifecycleType.INSTANCE.validate(warmPhase.values()));
             assertThat(e.getMessage(),
             equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [warm]"));
         } else {
-            new TimeseriesLifecyclePolicy(lifecycleName, warmPhase);
+            TimeseriesLifecycleType.INSTANCE.validate(warmPhase.values());
         }
     }
 
@@ -222,11 +144,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> new TimeseriesLifecyclePolicy(lifecycleName, coldPhase));
+                    () -> TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values()));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [cold]"));
         } else {
-            new TimeseriesLifecyclePolicy(lifecycleName, coldPhase);
+            TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
         }
     }
 
@@ -243,11 +165,11 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> new TimeseriesLifecyclePolicy(lifecycleName, deletePhase));
+                    () -> TimeseriesLifecycleType.INSTANCE.validate(deletePhase.values()));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [delete]"));
         } else {
-            new TimeseriesLifecyclePolicy(lifecycleName, deletePhase);
+            TimeseriesLifecycleType.INSTANCE.validate(deletePhase.values());
         }
     }
 
@@ -264,7 +186,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 return true;
             }
         };
-        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("hot", hotPhase));
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, hotPhase);
         assertThat(provider.next(null), equalTo(TEST_ROLLOVER_ACTION));
         assertNull(provider.next(TEST_ROLLOVER_ACTION));
@@ -286,7 +208,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 return true;
             }
         };
-        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("warm", warmPhase));
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, warmPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
@@ -334,7 +256,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 return true;
             }
         };
-        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("cold", coldPhase));
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, coldPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
@@ -370,7 +292,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
                 return true;
             }
         };
-        TimeseriesLifecyclePolicy policy = new TimeseriesLifecyclePolicy(lifecycleName, Collections.singletonMap("delete", deletePhase));
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, deletePhase);
         assertThat(provider.next(null), equalTo(TEST_DELETE_ACTION));
         assertNull(provider.next(TEST_DELETE_ACTION));

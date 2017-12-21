@@ -5,16 +5,25 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class LifecyclePolicyTests extends ESTestCase {
+public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
 
     private String indexName;
     private String lifecycleName;
@@ -25,28 +34,87 @@ public class LifecyclePolicyTests extends ESTestCase {
     private Phase secondPhase;
     private Phase thirdPhase;
     private LifecyclePolicy policy;
+    private NamedXContentRegistry registry;
+
+    @Override
+    protected LifecyclePolicy doParseInstance(XContentParser parser) throws IOException {
+        return LifecyclePolicy.parse(parser, new Tuple<String, NamedXContentRegistry>(lifecycleName, registry));
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+    }
+
+    @Override
+    protected LifecyclePolicy createTestInstance() {
+        int numberPhases = randomInt(5);
+        Map<String, Phase> phases = new HashMap<>(numberPhases);
+        for (int i = 0; i < numberPhases; i++) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            if (randomBoolean()) {
+                DeleteAction action = new DeleteAction();
+                actions.put(action.getWriteableName(), action);
+            }
+            String phaseName = randomAlphaOfLength(10);
+            phases.put(phaseName, new Phase(phaseName, after, actions));
+        }
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    @Override
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+        String name = instance.getName();
+        Map<String, Phase> phases = instance.getPhases();
+        switch (between(0, 1)) {
+        case 0:
+            name = name + randomAlphaOfLengthBetween(1, 5);
+            break;
+        case 1:
+            phases = new LinkedHashMap<>(phases);
+            String phaseName = randomAlphaOfLengthBetween(1, 10);
+            phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases);
+    }
+
+    @Override
+    protected Reader<LifecyclePolicy> instanceReader() {
+        return LifecyclePolicy::new;
+    }
 
     @Before
     public void setupPolicy() {
+        List<NamedXContentRegistry.Entry> entries = Arrays
+                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                        new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
+                                (p) -> TestLifecycleType.INSTANCE));
+        registry = new NamedXContentRegistry(entries);
         indexName = randomAlphaOfLengthBetween(1, 20);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        List<Phase> phases = new ArrayList<>();
+        Map<String, Phase> phases = new LinkedHashMap<>();
         firstAction = new MockAction();
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         TimeValue after = TimeValue.timeValueSeconds(0);
         firstPhase = new Phase("first_phase", after, actions);
-        phases.add(firstPhase);
+        phases.put(firstPhase.getName(), firstPhase);
         secondAction = new MockAction();
         actions = Collections.singletonMap(MockAction.NAME, secondAction);
         after = TimeValue.timeValueSeconds(10);
         secondPhase = new Phase("second_phase", after, actions);
-        phases.add(secondPhase);
+        phases.put(secondPhase.getName(), secondPhase);
         thirdAction = new MockAction();
         actions = Collections.singletonMap(MockAction.NAME, thirdAction);
         after = TimeValue.timeValueSeconds(20);
         thirdPhase = new Phase("third_phase", after, actions);
-        phases.add(thirdPhase);
-        policy = new TestLifecyclePolicy(lifecycleName, phases);
+        phases.put(thirdPhase.getName(), thirdPhase);
+        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
     }
 
     public void testExecuteNewIndexBeforeTrigger() throws Exception {

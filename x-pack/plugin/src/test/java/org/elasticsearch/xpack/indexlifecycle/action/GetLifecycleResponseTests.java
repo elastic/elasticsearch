@@ -12,12 +12,12 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.Phase;
-import org.elasticsearch.xpack.indexlifecycle.TestLifecyclePolicy;
+import org.elasticsearch.xpack.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.action.GetLifecycleAction.Response;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     @Override
     protected Response createTestInstance() {
-        return new Response(new TestLifecyclePolicy(lifecycleName, Collections.emptyList()));
+        return new Response(new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, Collections.emptyMap()));
     }
 
     @Override
@@ -46,7 +46,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE, TestLifecyclePolicy::new)));
+                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)));
     }
 
     @Override
@@ -68,7 +68,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new Response(new TestLifecyclePolicy(name, new ArrayList<>(phases.values())));
+            return new Response(new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases));
         };
     }
 }

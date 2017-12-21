@@ -163,13 +163,13 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            policy = in.readNamedWriteable(LifecyclePolicy.class);
+            policy = new LifecyclePolicy(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(policy);
+            policy.writeTo(out);
         }
 
         @Override

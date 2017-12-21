@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.util.List;
 import java.util.SortedMap;
@@ -17,11 +17,11 @@ import java.util.function.Function;
  * parsing namedWriteables
  */
 public class ObjectParserUtils {
-    public static <V extends NamedWriteable> SortedMap<String, V>  convertListToMapValues(Function<V, String> keyFunction,
+    public static <V extends Writeable> SortedMap<String, V> convertListToMapValues(Function<V, String> keyFunction,
                                                                                           List<V> list) {
         SortedMap<String, V> map = new TreeMap<>();
-        for (V namedWriteable : list) {
-            map.put(keyFunction.apply(namedWriteable), namedWriteable);
+        for (V writeable : list) {
+            map.put(keyFunction.apply(writeable), writeable);
         }
         return map;
     }

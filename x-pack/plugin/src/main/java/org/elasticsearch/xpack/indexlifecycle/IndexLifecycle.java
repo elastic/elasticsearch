@@ -119,9 +119,9 @@ public class IndexLifecycle extends Plugin {
                 new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
                         IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
 
-                // Lifecycle policies
-                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TimeseriesLifecyclePolicy.TYPE,
-                    TimeseriesLifecyclePolicy::new),
+                // Lifecycle types
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                        (in) -> TimeseriesLifecycleType.INSTANCE),
 
                 // Lifecycle actions
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
@@ -138,9 +138,9 @@ public class IndexLifecycle extends Plugin {
                 // Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                         parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
-                // Lifecycle Policy
-                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE),
-                    (p, c) -> TimeseriesLifecyclePolicy.parse(p, c)),
+                // Lifecycle Types
+                new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                        (p, c) -> TimeseriesLifecycleType.INSTANCE),
                 // Lifecycle actions
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),

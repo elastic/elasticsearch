@@ -67,8 +67,8 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
             .put("discovery.zen.hosts_provider", "azure");
 
         // Make the test run faster
-        builder.put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "50ms")
-            .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "10ms");
+        builder.put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "1s")
+            .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "500ms");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")

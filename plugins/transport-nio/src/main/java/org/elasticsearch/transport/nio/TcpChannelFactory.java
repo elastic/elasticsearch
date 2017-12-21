@@ -19,12 +19,10 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
@@ -39,11 +37,11 @@ import java.util.function.Consumer;
  */
 public class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> {
 
-    private final Consumer<NioSocketChannel> contextSetter;
-    private final Consumer<NioServerSocketChannel> serverContextSetter;
+    private final Consumer<TcpNioSocketChannel> contextSetter;
+    private final Consumer<TcpNioServerSocketChannel> serverContextSetter;
 
-    TcpChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter,
-                      Consumer<NioServerSocketChannel> serverContextSetter) {
+    TcpChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<TcpNioSocketChannel> contextSetter,
+                      Consumer<TcpNioServerSocketChannel> serverContextSetter) {
         super(new RawChannelFactory(profileSettings.tcpNoDelay,
             profileSettings.tcpKeepAlive,
             profileSettings.reuseAddress,

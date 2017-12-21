@@ -20,7 +20,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.TcpWriteContext;
+import org.elasticsearch.transport.nio.TcpWriteContext2;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setContexts(readContext, new TcpWriteContext(channel), exceptionHandler);
+        channel.setContexts(readContext, new TcpWriteContext2(channel), exceptionHandler);
         channel.register();
         channel.finishConnect();
 

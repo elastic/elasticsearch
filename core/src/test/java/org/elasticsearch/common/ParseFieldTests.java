@@ -26,9 +26,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ParseFieldTests extends ESTestCase {
@@ -59,11 +59,9 @@ public class ParseFieldTests extends ESTestCase {
         assertThat(withDeprecations.match(name, failOnDeprecation), is(true));
         assertThat(withDeprecations.match("foo bar", failOnDeprecation), is(false));
         for (String deprecatedName : deprecated) {
-            ArgumentCaptor<String> calledWithDeprecatedName = ArgumentCaptor.forClass(String.class);
             DeprecationHandler handler = mock(DeprecationHandler.class);
-            doNothing().when(handler).usedDeprecatedName(calledWithDeprecatedName.capture(), eq(name));
             assertTrue(withDeprecations.match(deprecatedName, handler));
-            assertEquals(deprecatedName, calledWithDeprecatedName.getValue());
+            verify(handler).usedDeprecatedName(deprecatedName, name);
             verifyNoMoreInteractions(handler);
         }
     }
@@ -73,14 +71,13 @@ public class ParseFieldTests extends ESTestCase {
         String[] deprecated = new String[]{"text", "same_as_text"};
         ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
         assertFalse(field.match("not a field name", failOnDeprecation));
-        ArgumentCaptor<String> calledWithDeprecatedName = ArgumentCaptor.forClass(String.class);
         DeprecationHandler handler = mock(DeprecationHandler.class);
         assertTrue(field.match("text", handler));
-        assertEquals(calledWithDeprecatedName.getValue(), "Deprecated field [text] used, replaced by [like]");
+        verify(handler).usedDeprecatedField("text", "like");
         assertTrue(field.match("same_as_text", handler));
-        assertEquals(calledWithDeprecatedName.getValue(), "Deprecated field [same_as_text] used, replaced by [like]");
+        verify(handler).usedDeprecatedField("same_as_text", "like");
         assertTrue(field.match("like_text", handler));
-        assertEquals(calledWithDeprecatedName.getValue(), "Deprecated field [like_text] used, replaced by [like]");
+        verify(handler).usedDeprecatedField("like_text", "like");
         verifyNoMoreInteractions(handler);
     }
 

@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata.IndexLifecy
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -35,8 +35,9 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Before
     public void setup() {
         List<NamedXContentRegistry.Entry> entries = Arrays
-            .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField("test"), TestLifecyclePolicy::parse));
+                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                        new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
+                                (p) -> TestLifecycleType.INSTANCE));
         registry = new NamedXContentRegistry(entries);
     }
 
@@ -46,17 +47,18 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         SortedMap<String, LifecyclePolicy> policies = new TreeMap<>();
         for (int i = 0; i < numPolicies; i++) {
             int numberPhases = randomInt(5);
-            List<Phase> phases = new ArrayList<>(numberPhases);
+            Map<String, Phase> phases = new HashMap<>(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
                 TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
                 Map<String, LifecycleAction> actions = Collections.emptyMap();
                 if (randomBoolean()) {
                     actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
                 }
-                phases.add(new Phase(randomAlphaOfLength(10), after, actions));
+                String phaseName = randomAlphaOfLength(10);
+                phases.put(phaseName, new Phase(phaseName, after, actions));
             }
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new TestLifecyclePolicy(policyName, phases));
+            policies.put(policyName, new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases));
         }
         return new IndexLifecycleMetadata(policies);
     }
@@ -75,8 +77,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                    new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE,
-                        TestLifecyclePolicy::new)));
+                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
     }
 
     @Override
@@ -85,7 +86,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         SortedMap<String, LifecyclePolicy> policies = metadata.getPolicies();
         policies = new TreeMap<>(policies);
         String policyName = randomAlphaOfLength(10);
-        policies.put(policyName, new TestLifecyclePolicy(policyName, Collections.emptyList()));
+        policies.put(policyName, new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()));
         return new IndexLifecycleMetadata(policies);
     }
 

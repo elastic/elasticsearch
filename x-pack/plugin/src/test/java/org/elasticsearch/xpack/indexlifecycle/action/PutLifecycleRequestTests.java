@@ -15,12 +15,12 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.Phase;
-import org.elasticsearch.xpack.indexlifecycle.TestLifecyclePolicy;
+import org.elasticsearch.xpack.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction.Request;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,11 +34,10 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Before
     public void setup() {
-        List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class,
-                        new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                    new NamedXContentRegistry.Entry(LifecyclePolicy.class,
-                        new ParseField(TestLifecyclePolicy.TYPE), TestLifecyclePolicy::parse));
+        List<NamedXContentRegistry.Entry> entries = Arrays.asList(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
+                        (p) -> TestLifecycleType.INSTANCE));
         registry = new NamedXContentRegistry(entries);
         lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
@@ -46,7 +45,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(new TestLifecyclePolicy(lifecycleName, Collections.emptyList()));
+        return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, Collections.emptyMap()));
     }
 
     @Override
@@ -62,7 +61,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE, TestLifecyclePolicy::new)));
+                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)));
     }
 
     protected boolean supportsUnknownFields() {
@@ -88,7 +87,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new Request(new TestLifecyclePolicy(name, new ArrayList<>(phases.values())));
+            return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases));
         };
     }
 

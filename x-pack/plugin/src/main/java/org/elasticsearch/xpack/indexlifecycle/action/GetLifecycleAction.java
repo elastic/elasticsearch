@@ -86,12 +86,12 @@ public class GetLifecycleAction
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policy = in.readNamedWriteable(LifecyclePolicy.class);
+            policy = new LifecyclePolicy(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(policy);
+            policy.writeTo(out);
         }
 
         @Override

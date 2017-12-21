@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy.NextActionProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,13 +23,15 @@ import java.util.stream.Stream;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
- * {@link TimeseriesLifecyclePolicy} is made up of a set of {@link Phase}s which it will
+ * {@link TimeseriesLifecycleType} is made up of a set of {@link Phase}s which it will
  * move through. Soon we will constrain the phases using some kinda of lifecycle
  * type which will allow only particular {@link Phase}s to be defined, will
  * dictate the order in which the {@link Phase}s are executed and will define
  * which {@link LifecycleAction}s are allowed in each phase.
  */
-public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
+public class TimeseriesLifecycleType implements LifecycleType {
+    public static final TimeseriesLifecycleType INSTANCE = new TimeseriesLifecycleType();
+
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(RolloverAction.NAME);
@@ -38,36 +40,25 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(AllocateAction.NAME, ReplicasAction.NAME);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
 
-    /**
-     * @param name
-     *            the name of this {@link TimeseriesLifecyclePolicy}
-     * @param phases
-     *            a {@link Map} of {@link Phase}s which make up this
-     *            {@link TimeseriesLifecyclePolicy}.
-     */
-    public TimeseriesLifecyclePolicy(String name, Map<String, Phase> phases) {
-        super(name, phases);
-    }
-
-    /**
-     * For Serialization
-     */
-    public TimeseriesLifecyclePolicy(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public static TimeseriesLifecyclePolicy parse(XContentParser parser, Object context) {
-        ToXContentContext factory = (ToXContentContext) context;
-        return new TimeseriesLifecyclePolicy(factory.getName(), factory.getPhases());
+    private TimeseriesLifecycleType() {
     }
 
     @Override
-    protected String getType() {
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public String getType() {
         return TYPE;
     }
 
     @Override
-    protected Phase getFirstPhase() {
+    public String getWriteableName() {
+        return TYPE;
+    }
+
+    @Override
+    public Phase getFirstPhase(Map<String, Phase> phases) {
         Phase firstPhase = phases.get("hot");
         if (firstPhase == null) {
             firstPhase = phases.get("warm");
@@ -82,9 +73,9 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
     }
 
     @Override
-    protected Phase nextPhase(@Nullable Phase currentPhase) {
+    public Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase) {
         if (currentPhase == null) {
-            return getFirstPhase();
+            return getFirstPhase(phases);
         }
 
         // VALID_PHASES is in order of execution
@@ -124,7 +115,7 @@ public class TimeseriesLifecyclePolicy extends LifecyclePolicy {
      * @return the {@link org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy.NextActionProvider} for {@code phase}.
      */
     @Override
-    protected NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
+    public NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
         switch (phase.getName()) {
             case "hot":

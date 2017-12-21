@@ -86,7 +86,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
         Map<String, Phase> phases = Collections.singletonMap("delete", new Phase("delete",
             TimeValue.timeValueSeconds(3), deletePhaseActions));
-        lifecyclePolicy = new TimeseriesLifecyclePolicy("test", phases);
+        lifecyclePolicy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, "test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {

@@ -38,7 +38,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, NamedXContentRegistry> PARSER = new ConstructingObjectParser<>(
             TYPE, a -> new IndexLifecycleMetadata(
-                ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0])));
+                    ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0])));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicy.parse(p, new Tuple<>(n, c)),
                 v -> {
@@ -56,7 +56,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         int size = in.readVInt();
         TreeMap<String, LifecyclePolicy> policies = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            policies.put(in.readString(), in.readNamedWriteable(LifecyclePolicy.class));
+            policies.put(in.readString(), new LifecyclePolicy(in));
         }
         this.policies = policies;
     }
@@ -66,7 +66,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         out.writeVInt(policies.size());
         for (Map.Entry<String, LifecyclePolicy> entry : policies.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeNamedWriteable(entry.getValue());
+            entry.getValue().writeTo(out);
         }
     }
 
@@ -127,44 +127,12 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         final Diff<Map<String, LifecyclePolicy>> policies;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
-            this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer(),
-                new DiffableUtils.ValueSerializer<String, LifecyclePolicy>() {
-                    @Override
-                    public void write(LifecyclePolicy value, StreamOutput out) throws IOException {
-                        out.writeNamedWriteable(value);
-                    }
-
-                    @Override
-                    public LifecyclePolicy read(StreamInput in, String key) throws IOException {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Diff<LifecyclePolicy> readDiff(StreamInput in, String key) throws IOException {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean supportsDiffableValues() {
-                        return true;
-                    }
-
-                    @Override
-                    public Diff<LifecyclePolicy> diff(LifecyclePolicy value, LifecyclePolicy beforePart) {
-                        return value.diff(beforePart);
-                    }
-
-                    @Override
-                    public void writeDiff(Diff<LifecyclePolicy> value, StreamOutput out) throws IOException {
-                        value.writeTo(out);
-                    }
-
-                });
+            this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer());
         }
 
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
-            this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                (i) -> i.readNamedWriteable(LifecyclePolicy.class), IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
+            this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicy::new,
+                    IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
         }
 
         @Override
@@ -184,7 +152,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         }
 
         static Diff<LifecyclePolicy> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom((i) -> i.readNamedWriteable(LifecyclePolicy.class), in);
+            return AbstractDiffable.readDiffFrom(LifecyclePolicy::new, in);
         }
     }
 }

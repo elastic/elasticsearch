@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 
@@ -45,6 +46,7 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
             request = new GetCalendarEventsAction.Request(calendarId);
             request.setAfter(restRequest.param(GetCalendarEventsAction.Request.AFTER.getPreferredName(), null));
             request.setBefore(restRequest.param(GetCalendarEventsAction.Request.BEFORE.getPreferredName(), null));
+            request.setJobId(restRequest.param(Job.ID.getPreferredName(), null));
 
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
                 request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),

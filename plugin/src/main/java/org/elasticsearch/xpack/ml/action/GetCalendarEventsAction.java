@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -69,6 +70,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             PARSER.declareString(Request::setCalendarId, Calendar.ID);
             PARSER.declareString(Request::setAfter, AFTER);
             PARSER.declareString(Request::setBefore, BEFORE);
+            PARSER.declareString(Request::setJobId, Job.ID);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
         }
 
@@ -83,6 +85,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         private String calendarId;
         private String after;
         private String before;
+        private String jobId;
         private PageParams pageParams = PageParams.defaultParams();
 
         Request() {
@@ -115,6 +118,14 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             this.before = before;
         }
 
+        public String getJobId() {
+            return jobId;
+        }
+
+        public void setJobId(String jobId) {
+            this.jobId = jobId;
+        }
+
         public PageParams getPageParams() {
             return pageParams;
         }
@@ -125,7 +136,14 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException e = null;
+
+            boolean calendarIdIsAll = GetCalendarsAction.Request.ALL.equals(calendarId);
+            if (jobId != null && calendarIdIsAll == false) {
+                e = ValidateActions.addValidationError("If " + Job.ID.getPreferredName() + " is used " +
+                        Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "'", e);
+            }
+            return e;
         }
 
         @Override
@@ -134,6 +152,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             calendarId = in.readString();
             after = in.readOptionalString();
             before = in.readOptionalString();
+            jobId = in.readOptionalString();
             pageParams = new PageParams(in);
         }
 
@@ -143,12 +162,13 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             out.writeString(calendarId);
             out.writeOptionalString(after);
             out.writeOptionalString(before);
+            out.writeOptionalString(jobId);
             pageParams.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, after, before, pageParams);
+            return Objects.hash(calendarId, after, before, pageParams, jobId);
         }
 
         @Override
@@ -161,7 +181,8 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             }
             Request other = (Request) obj;
             return Objects.equals(calendarId, other.calendarId) && Objects.equals(after, other.after)
-                    && Objects.equals(before, other.before) && Objects.equals(pageParams, other.pageParams);
+                    && Objects.equals(before, other.before) && Objects.equals(pageParams, other.pageParams)
+                    && Objects.equals(jobId, other.jobId);
         }
 
         @Override
@@ -173,6 +194,9 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             }
             if (before != null) {
                 builder.field(BEFORE.getPreferredName(), before);
+            }
+            if (jobId != null) {
+                builder.field(Job.ID.getPreferredName(), jobId);
             }
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             builder.endObject();
@@ -253,18 +277,27 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                     r -> {
                         SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder()
-                                .calendarIds(Collections.singletonList(request.getCalendarId()))
                                 .after(request.getAfter())
                                 .before(request.getBefore())
                                 .from(request.getPageParams().getFrom())
                                 .size(request.getPageParams().getSize());
 
-                        jobProvider.specialEvents(query, ActionListener.wrap(
+                        if (GetCalendarsAction.Request.ALL.equals(request.getCalendarId()) == false) {
+                            query.calendarIds(Collections.singletonList(request.getCalendarId()));
+                        }
+
+                        ActionListener<QueryPage<SpecialEvent>> eventsListener = ActionListener.wrap(
                                 events -> {
                                     listener.onResponse(new Response(events));
                                 },
                                 listener::onFailure
-                        ));
+                        );
+
+                        if (request.getJobId() != null) {
+                            jobProvider.specialEventsForJob(request.getJobId(), query, eventsListener);
+                        } else {
+                            jobProvider.specialEvents(query, eventsListener);
+                        }
                     },
                     listener::onFailure);
 
@@ -272,6 +305,11 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         }
 
         private void checkCalendarExists(String calendarId, ActionListener<Boolean> listener) {
+            if (GetCalendarsAction.Request.ALL.equals(calendarId)) {
+                listener.onResponse(true);
+                return;
+            }
+
             jobProvider.calendar(calendarId, ActionListener.wrap(
                     c -> listener.onResponse(true),
                     listener::onFailure

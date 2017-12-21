@@ -61,6 +61,8 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
+        public static final String ALL = "_all";
+
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
@@ -243,7 +245,7 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             final String calendarId = request.getCalendarId();
-            if (request.getCalendarId() != null) {
+            if (request.getCalendarId() != null && Request.ALL.equals(request.getCalendarId()) == false) {
                 getCalendar(calendarId, listener);
             } else {
                 PageParams pageParams = request.getPageParams();

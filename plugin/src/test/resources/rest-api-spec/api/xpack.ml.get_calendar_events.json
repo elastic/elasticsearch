@@ -14,6 +14,10 @@
         }
       },
       "params": {
+        "job_id": {
+          "type": "string",
+          "description": "Get events for the job. When this option is used calendar_id must be '_all'"
+        },
         "after": {
           "type": "string",
           "description": "Get events after this time"

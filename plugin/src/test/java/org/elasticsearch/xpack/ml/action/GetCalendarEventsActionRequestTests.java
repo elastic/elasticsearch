@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
@@ -20,6 +21,9 @@ public class GetCalendarEventsActionRequestTests extends AbstractStreamableXCont
         }
         if (randomBoolean()) {
             request.setBefore(randomAlphaOfLengthBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            request.setJobId(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
             request.setPageParams(new PageParams(randomIntBetween(0, 10), randomIntBetween(1, 10)));
@@ -40,5 +44,18 @@ public class GetCalendarEventsActionRequestTests extends AbstractStreamableXCont
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    public void testValidate() {
+        GetCalendarEventsAction.Request request = new GetCalendarEventsAction.Request("cal-name");
+        request.setJobId("foo");
+
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals("Validation Failed: 1: If job_id is used calendar_id must be '_all';", validationException.getMessage());
+
+        request = new GetCalendarEventsAction.Request("_all");
+        request.setJobId("foo");
+        assertNull(request.validate());
     }
 }

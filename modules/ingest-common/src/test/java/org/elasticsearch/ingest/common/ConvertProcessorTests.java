@@ -449,26 +449,26 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(convertedValue, equalTo(randomLong));
     }
 
-    public void testAutoConvertMatchDouble() throws Exception {
+    public void testAutoConvertDoubleNotMatched() throws Exception {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
+        float randomFloat  = Float.parseFloat(randomString);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
-        assertThat(convertedValue, equalTo(randomDouble));
+        assertThat(convertedValue, not(randomDouble));
+        assertThat(convertedValue, equalTo(randomFloat));
     }
 
-    public void testAutoConvertFloatNotMatched() throws Exception {
+    public void testAutoConvertMatchFloat() throws Exception {
         float randomFloat = randomFloat();
         String randomString = Float.toString(randomFloat);
-        Double randomDouble = Double.parseDouble(randomString);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
-        assertThat(convertedValue, not(randomFloat));
-        assertThat(convertedValue, equalTo(randomDouble));
+        assertThat(convertedValue, equalTo(randomFloat));
     }
 
     public void testTargetField() throws Exception {

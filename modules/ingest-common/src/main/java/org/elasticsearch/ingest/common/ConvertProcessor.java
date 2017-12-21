@@ -107,10 +107,10 @@ public final class ConvertProcessor extends AbstractProcessor {
                     return LONG.convert(value);
                 } catch (IllegalArgumentException e) {}
                 try {
-                    return DOUBLE.convert(value);
+                    return FLOAT.convert(value);
                 } catch (IllegalArgumentException e) {}
                 try {
-                    return FLOAT.convert(value);
+                    return DOUBLE.convert(value);
                 } catch (IllegalArgumentException e) {}
                 return value;
             }

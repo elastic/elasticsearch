@@ -168,7 +168,7 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext) {
-        this(config, sslService, threadContext, new NodeFailureListener());
+        this(config, sslService, threadContext, new NodeFailureListener(), createResources(config));
     }
 
     /**
@@ -179,8 +179,9 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener) {
-        this(config, createRestClient(config, sslService, listener), threadContext, listener);
+    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
+                 final HttpResource resource) {
+        this(config, createRestClient(config, sslService, listener), threadContext, listener, resource);
     }
 
     /**
@@ -191,21 +192,9 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener) {
-        this(config, client, createSniffer(config, client, listener), threadContext, listener);
-    }
-
-    /**
-     * Create an {@link HttpExporter}.
-     *
-     * @param config The HTTP Exporter's configuration
-     * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
-     * @param listener The node failure listener used to notify an optional sniffer and resources
-     * @throws SettingsException if any setting is malformed
-     */
-    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener) {
-        this(config, client, sniffer, threadContext, listener, createResources(config));
+    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener,
+                 final HttpResource resource) {
+        this(config, client, createSniffer(config, client, listener), threadContext, listener, resource);
     }
 
     /**
@@ -583,12 +572,14 @@ public class HttpExporter extends Exporter {
         if (settings.getAsBoolean(CLUSTER_ALERTS_MANAGEMENT_SETTING, true)) {
             final ClusterService clusterService = config.clusterService();
             final List<HttpResource> watchResources = new ArrayList<>();
+            final List<String> blacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
 
             // add a resource per watch
             for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+                final boolean blacklisted = blacklist.contains(watchId);
                 // lazily load the cluster state to fetch the cluster UUID once it's loaded
                 final Supplier<String> uniqueWatchId = () -> ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
-                final Supplier<String> watch = () -> ClusterAlertsUtil.loadWatch(clusterService, watchId);
+                final Supplier<String> watch = blacklisted ? null : () -> ClusterAlertsUtil.loadWatch(clusterService, watchId);
 
                 watchResources.add(new ClusterAlertHttpResource(resourceOwnerName, config.licenseState(), uniqueWatchId, watch));
             }

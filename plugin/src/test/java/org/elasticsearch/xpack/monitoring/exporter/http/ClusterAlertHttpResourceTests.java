@@ -36,6 +36,13 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
 
     private final ClusterAlertHttpResource resource = new ClusterAlertHttpResource(owner, licenseState, () -> watchId, () -> watchValue);
 
+    public void testIsWatchDefined() {
+        final ClusterAlertHttpResource noWatchResource = new ClusterAlertHttpResource(owner, licenseState, () -> watchId, null);
+
+        assertThat(noWatchResource.isWatchDefined(), is(false));
+        assertThat(resource.isWatchDefined(), is(true));
+    }
+
     public void testWatchToHttpEntity() throws IOException {
         final byte[] watchValueBytes = watchValue.getBytes(ContentType.APPLICATION_JSON.getCharset());
         final byte[] actualBytes = new byte[watchValueBytes.length];
@@ -89,6 +96,26 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
             doCheckWithStatusCode(resource, "/_xpack/watcher/watch", watchId, successfulCheckStatus(),
                                   CheckResponse.ERROR, entity);
         }
+    }
+
+    public void testDoCheckAsDeleteWatchExistsWhenNoWatchIsSpecified() throws IOException {
+        final ClusterAlertHttpResource noWatchResource = new ClusterAlertHttpResource(owner, licenseState, () -> watchId, null);
+        final boolean clusterAlertsAllowed = randomBoolean();
+
+        // should not matter
+        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+
+        assertCheckAsDeleteExists(noWatchResource, "/_xpack/watcher/watch", watchId);
+    }
+
+    public void testDoCheckWithExceptionAsDeleteWatchErrorWhenNoWatchIsSpecified() throws IOException {
+        final ClusterAlertHttpResource noWatchResource = new ClusterAlertHttpResource(owner, licenseState, () -> watchId, null);
+        final boolean clusterAlertsAllowed = randomBoolean();
+
+        // should not matter
+        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+
+        assertCheckAsDeleteWithException(noWatchResource, "/_xpack/watcher/watch", watchId);
     }
 
     public void testDoCheckAsDeleteWatchExists() throws IOException {

@@ -29,6 +29,7 @@ import org.junit.Before;
 import org.mockito.InOrder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -193,6 +194,34 @@ public class HttpExporterTests extends ESTestCase {
                 expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
+    }
+
+    public void testExporterWithUnknownBlacklistedClusterAlerts() {
+        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+
+        final List<String> blacklist = new ArrayList<>();
+        blacklist.add("does_not_exist");
+
+        if (randomBoolean()) {
+            // a valid ID
+            blacklist.add(randomFrom(ClusterAlertsUtil.WATCH_IDS));
+            Collections.shuffle(blacklist, random());
+        }
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
+                .put("xpack.monitoring.exporters._http.host", "http://localhost:9200")
+                .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", blacklist);
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
+
+        assertThat(exception.getMessage(),
+                   equalTo("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
+                           "Alert IDs [does_not_exist]"));
     }
 
     public void testExporterWithHostOnly() throws Exception {

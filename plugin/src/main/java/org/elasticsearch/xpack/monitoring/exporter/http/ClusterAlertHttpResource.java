@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -49,8 +50,10 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      */
     private final Supplier<String> watchId;
     /**
-     * Provides a fully formed Watch (e.g., no variables that need replaced).
+     * Provides a fully formed Watch (e.g., no variables that need replaced). If {@code null}, then we are always going to delete this
+     * Cluster Alert.
      */
+    @Nullable
     private final Supplier<String> watch;
 
     /**
@@ -58,17 +61,18 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      *
      * @param resourceOwnerName The user-recognizable name.
      * @param watchId The name of the watch, which is lazily loaded.
-     * @param watch The watch provider.
+     * @param watch The watch provider. {@code null} indicates that we should always delete this Watch.
      */
     public ClusterAlertHttpResource(final String resourceOwnerName,
                                     final XPackLicenseState licenseState,
-                                    final Supplier<String> watchId, final Supplier<String> watch) {
+                                    final Supplier<String> watchId,
+                                    @Nullable final Supplier<String> watch) {
         // Watcher does not support master_timeout
         super(resourceOwnerName, null, CLUSTER_ALERT_VERSION_PARAMETERS);
 
         this.licenseState = Objects.requireNonNull(licenseState);
         this.watchId = Objects.requireNonNull(watchId);
-        this.watch = Objects.requireNonNull(watch);
+        this.watch = watch;
     }
 
     /**
@@ -77,7 +81,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected CheckResponse doCheck(final RestClient client) {
         // if we should be adding, then we need to check for existence
-        if (licenseState.isMonitoringClusterAlertsAllowed()) {
+        if (isWatchDefined() && licenseState.isMonitoringClusterAlertsAllowed()) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 
@@ -103,6 +107,15 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
         return putResource(client, logger,
                            "/_xpack/watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
                            resourceOwnerName, "monitoring cluster");
+    }
+
+    /**
+     * Determine if the {@link #watch} is defined. If not, then we should always delete the watch.
+     *
+     * @return {@code true} if {@link #watch} is defined (non-{@code null}). Otherwise {@code false}.
+     */
+    boolean isWatchDefined() {
+        return watch != null;
     }
 
     /**

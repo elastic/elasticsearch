@@ -10,12 +10,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SettingsException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.monitoring.exporter.Exporter.CLUSTER_ALERTS_BLACKLIST_SETTING;
 
 /**
  * {@code ClusterAlertsUtil} provides static methods to easily load the JSON resources that
@@ -123,6 +131,32 @@ public class ClusterAlertsUtil {
                 return new BytesArray(out.toByteArray());
             }
         }
+    }
+
+    /**
+     * Get any blacklisted cluster alerts by their ID.
+     *
+     * @param config The {@link Exporter}'s configuration, which is used for the {@link SettingsException}.
+     * @return Never {@code null}. Can be empty.
+     * @throws SettingsException if an unknown cluster alert ID exists in the blacklist.
+     */
+    public static List<String> getClusterAlertsBlacklist(final Exporter.Config config) {
+        final List<String> blacklist = config.settings().getAsList(CLUSTER_ALERTS_BLACKLIST_SETTING, Collections.emptyList());
+
+        // validate the blacklist only contains recognized IDs
+        if (blacklist.isEmpty() == false) {
+            final List<String> watchIds = Arrays.asList(ClusterAlertsUtil.WATCH_IDS);
+            final Set<String> unknownIds = blacklist.stream().filter(id -> watchIds.contains(id) == false).collect(Collectors.toSet());
+
+            if (unknownIds.isEmpty() == false) {
+                throw new SettingsException(
+                    "[" + Exporter.settingFQN(config, CLUSTER_ALERTS_BLACKLIST_SETTING) + "] contains unrecognized Cluster Alert IDs [" +
+                    String.join(", ", unknownIds) + "]"
+                );
+            }
+        }
+
+        return blacklist;
     }
 
 }

@@ -77,6 +77,10 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             data = mutableMap(data);
         }
         IndexRequest indexRequest = new IndexRequest();
+        if (action.refreshPolicy != null) {
+            indexRequest.setRefreshPolicy(action.refreshPolicy);
+        }
+
         indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
         indexRequest.type(getField(actionId, ctx.id().watchId(), "type",data, TYPE_FIELD, action.docType));
         indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
@@ -88,7 +92,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), indexRequest.type(), indexRequest.id(),
+            return new IndexAction.Simulated(indexRequest.index(), indexRequest.type(), indexRequest.id(), action.refreshPolicy,
                     new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
@@ -107,6 +111,10 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         BulkRequest bulkRequest = new BulkRequest();
+        if (action.refreshPolicy != null) {
+            bulkRequest.setRefreshPolicy(action.refreshPolicy);
+        }
+
         for (Object item : list) {
             if (!(item instanceof Map)) {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +

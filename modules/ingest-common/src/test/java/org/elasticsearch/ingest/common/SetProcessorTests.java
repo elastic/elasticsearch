@@ -119,7 +119,8 @@ public class SetProcessorTests extends ESTestCase {
         if (randomMetaData == IngestDocument.MetaData.VERSION) {
             assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), Long.class), Matchers.equalTo(version));
         } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
-            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), VersionType.class), Matchers.equalTo(VersionType.fromString(versionType)));
+            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), VersionType.class),
+                       Matchers.equalTo(VersionType.fromString(versionType)));
         } else {
             assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
         }

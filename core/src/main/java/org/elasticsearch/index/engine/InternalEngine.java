@@ -1827,6 +1827,7 @@ public class InternalEngine extends Engine {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+        iwc.setIndexCommit(startingCommit);
         iwc.setIndexDeletionPolicy(snapshotDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
@@ -1848,8 +1849,6 @@ public class InternalEngine extends Engine {
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }
-        assert startingCommit == null || create == false : "Starting commit makes sense only when create=false";
-        iwc.setIndexCommit(startingCommit);
         return iwc;
     }
 

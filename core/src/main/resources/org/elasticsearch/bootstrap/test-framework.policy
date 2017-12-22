@@ -63,6 +63,11 @@ grant codeBase "${codebase.mocksocket}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
+grant codeBase "${codebase.elasticsearch-nio}" {
+  // elasticsearch-nio makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
 grant codeBase "${codebase.elasticsearch-rest-client}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

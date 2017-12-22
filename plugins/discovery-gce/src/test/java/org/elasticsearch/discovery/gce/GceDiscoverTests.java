@@ -104,6 +104,11 @@ public class GceDiscoverTests extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
     @BeforeClass
     public static void startHttpd() throws Exception {
         logDir = createTempDir();

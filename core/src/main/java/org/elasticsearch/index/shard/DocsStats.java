@@ -49,7 +49,11 @@ public class DocsStats implements Streamable, ToXContentFragment {
         if (other == null) {
             return;
         }
-        this.totalSizeInBytes += other.totalSizeInBytes;
+        if (this.totalSizeInBytes == -1) {
+            this.totalSizeInBytes = other.totalSizeInBytes;
+        } else if (other.totalSizeInBytes != -1) {
+            this.totalSizeInBytes += other.totalSizeInBytes;
+        }
         this.count += other.count;
         this.deleted += other.deleted;
     }

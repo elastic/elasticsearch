@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.azure.classic;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.classic.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +58,7 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
         return builder.build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27917")
     public void testSimpleOnlyMasterNodeElection() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode();

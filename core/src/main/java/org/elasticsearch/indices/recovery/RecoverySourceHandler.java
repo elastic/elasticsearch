@@ -473,7 +473,7 @@ public class RecoverySourceHandler {
     /*
      * finalizes the recovery process
      */
-    public void finalizeRecovery(final long targetLocalCheckpoint) {
+    public void finalizeRecovery(final long targetLocalCheckpoint) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -488,7 +488,7 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
         final long globalCheckpoint = shard.getGlobalCheckpoint();
-        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
+        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
         runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint));
 
         if (request.isPrimaryRelocation()) {

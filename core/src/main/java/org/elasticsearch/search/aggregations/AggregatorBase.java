@@ -105,7 +105,7 @@ public abstract class AggregatorBase extends Aggregator {
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
     }
-    
+
     /**
      * Increment or decrement the number of bytes that have been allocated to service
      * this request and potentially trigger a {@link CircuitBreakingException}. The
@@ -114,7 +114,7 @@ public abstract class AggregatorBase extends Aggregator {
      * If memory has been returned, decrement it without tripping the breaker.
      * For performance reasons subclasses should not call this millions of times
      * each with small increments and instead batch up into larger allocations.
-     * 
+     *
      * @param bytes the number of bytes to register or negative to deregister the bytes
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
@@ -162,8 +162,16 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        preGetSubLeafCollectors();
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
         return getLeafCollector(ctx, sub);
+    }
+
+    /**
+     * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
+     * of children aggregators are instantiated for the next segment.
+     */
+    protected void preGetSubLeafCollectors() throws IOException {
     }
 
     /**

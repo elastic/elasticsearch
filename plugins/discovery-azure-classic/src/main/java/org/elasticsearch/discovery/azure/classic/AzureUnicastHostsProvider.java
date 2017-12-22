@@ -66,6 +66,10 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             this.type = type ;
         }
 
+        public String getType() {
+            return type;
+        }
+
         public static HostType fromString(String type) {
             for (HostType hostType : values()) {
                 if (hostType.type.equalsIgnoreCase(type)) {
@@ -199,43 +203,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             // In other case, it should be the right deployment so we can add it to the list of instances
 
             for (RoleInstance instance : deployment.getRoleInstances()) {
-                String networkAddress = null;
-                // Let's detect if we want to use public or private IP
-                switch (hostType) {
-                    case PRIVATE_IP:
-                        InetAddress privateIp = instance.getIPAddress();
-
-                        if (privateIp != null) {
-                            if (privateIp.equals(ipAddress)) {
-                                logger.trace("adding ourselves {}", NetworkAddress.format(ipAddress));
-                            }
-                            networkAddress = InetAddresses.toUriString(privateIp);
-                        } else {
-                            logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
-                        }
-                        break;
-                    case PUBLIC_IP:
-                        for (InstanceEndpoint endpoint : instance.getInstanceEndpoints()) {
-                            if (!publicEndpointName.equals(endpoint.getName())) {
-                                logger.trace("ignoring endpoint [{}] as different than [{}]",
-                                        endpoint.getName(), publicEndpointName);
-                                continue;
-                            }
-
-                            networkAddress = NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(),
-                                    endpoint.getPort()));
-                        }
-
-                        if (networkAddress == null) {
-                            logger.trace("no public ip provided. ignoring [{}]...", instance.getInstanceName());
-                        }
-                        break;
-                    default:
-                        // This could never happen!
-                        logger.warn("undefined host_type [{}]. Please check your settings.", hostType);
-                        return cachedDiscoNodes;
-                }
-
+                final String networkAddress = resolveInstanceAddress(hostType, instance);
                 if (networkAddress == null) {
                     // We have a bad parameter here or not enough information from azure
                     logger.warn("no network address found. ignoring [{}]...", instance.getInstanceName());
@@ -259,5 +227,25 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         logger.debug("{} node(s) added", cachedDiscoNodes.size());
 
         return cachedDiscoNodes;
+    }
+
+    protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
+        if (hostType == HostType.PRIVATE_IP) {
+            final InetAddress privateIp = instance.getIPAddress();
+            if (privateIp != null) {
+                return InetAddresses.toUriString(privateIp);
+            } else {
+                logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
+            }
+        } else if (hostType == HostType.PUBLIC_IP) {
+            for (InstanceEndpoint endpoint : instance.getInstanceEndpoints()) {
+                if (publicEndpointName.equals(endpoint.getName())) {
+                    return NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));
+                } else {
+                    logger.trace("ignoring endpoint [{}] as different than [{}]", endpoint.getName(), publicEndpointName);
+                }
+            }
+        }
+        return null;
     }
 }

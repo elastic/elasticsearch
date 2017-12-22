@@ -19,18 +19,10 @@
 
 package org.elasticsearch.plugin.discovery.azure.classic;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -42,11 +34,16 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
@@ -70,7 +67,15 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> new AzureUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+    }
+
+    // Used for testing
+    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
+                                                                   final AzureComputeService azureComputeService,
+                                                                   final TransportService transportService,
+                                                                   final NetworkService networkService) {
+        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
     }
 
     @Override

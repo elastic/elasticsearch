@@ -58,6 +58,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
                 geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb.gz")),
+            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb.gz"));
 
         NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomNonNegativeLong()));
         databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, cache);
@@ -122,6 +124,24 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
+    public void testAsnBuildDefaults() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
+        String processorTag = randomAlphaOfLength(10);
+
+        GeoIpProcessor processor = factory.create(null, processorTag, config);
+
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-ASN"));
+        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_ASN_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
+    }
+
     public void testBuildTargetField() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
         Map<String, Object> config = new HashMap<>();
@@ -146,12 +166,31 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildWithCountryDbAndCityFields() throws Exception {
+    public void testBuildWithCountryDbAndAsnFields() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb.gz");
-        EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.complementOf(GeoIpProcessor.Property.ALL_COUNTRY_PROPERTIES);
+        EnumSet<GeoIpProcessor.Property> asnOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_ASN_PROPERTIES);
+        asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
+        String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
+        config.put("properties", Collections.singletonList(asnProperty));
+        try {
+            factory.create(null, null, config);
+            fail("Exception expected");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + asnProperty +
+                    "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
+        }
+    }
+
+    public void testBuildWithAsnDbAndCityFields() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
+        EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_CITY_PROPERTIES);
+        cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", Collections.singletonList(cityProperty));
         try {
@@ -159,7 +198,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             fail("Exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
-                    "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
+                "]. valid values are [IP, ASN, ORGANIZATION_NAME]"));
         }
     }
 
@@ -230,6 +269,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
             geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb.gz")),
+            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb.gz"));
 
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
@@ -248,6 +289,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        factory.create(null, "_tag", config);
+        config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
         factory.create(null, "_tag", config);
 
         for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {

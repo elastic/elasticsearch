@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,9 +23,10 @@ import java.util.Set;
  * the resulting ES document as a field.
  */
 public class SqlSourceBuilder {
-    final Set<String> sourceFields = new HashSet<>();
-    final Set<String> docFields = new HashSet<>();
-    final Map<String, Script> scriptFields = new HashMap<>();
+    // The LinkedHashMaps preserve the order of the fields in the response
+    final Set<String> sourceFields = new LinkedHashSet<>();
+    final Set<String> docFields = new LinkedHashSet<>();
+    final Map<String, Script> scriptFields = new LinkedHashMap<>();
 
     boolean trackScores = false;
 

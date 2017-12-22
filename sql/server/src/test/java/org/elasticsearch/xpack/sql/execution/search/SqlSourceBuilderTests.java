@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SqlSourceBuilderTests extends ESTestCase {
@@ -35,8 +34,8 @@ public class SqlSourceBuilderTests extends ESTestCase {
 
         assertTrue(source.trackScores());
         FetchSourceContext fsc = source.fetchSource();
-        assertThat(Arrays.asList(fsc.includes()), containsInAnyOrder("foo", "foo2"));
-        assertThat(source.docValueFields(), containsInAnyOrder("bar", "bar2"));
+        assertThat(Arrays.asList(fsc.includes()), contains("foo", "foo2"));
+        assertThat(source.docValueFields(), contains("bar", "bar2"));
         Map<String, Script> scriptFields = source.scriptFields()
                 .stream()
                 .collect(Collectors.toMap(SearchSourceBuilder.ScriptField::fieldName, SearchSourceBuilder.ScriptField::script));

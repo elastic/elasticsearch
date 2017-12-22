@@ -3133,13 +3133,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().get();
+        ShardStats shardStats = stats.getShards()[0];
+        assertTrue(shardStats.getShardRouting().primary());
+        assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(10L)); // 10 indexed docs and one "missing" op.
+        assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(10L));
         logger.info("--> indexing some more");
         for (int i = 10; i < 15; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().get();
-        ShardStats shardStats = stats.getShards()[0];
+        stats = client().admin().indices().prepareStats(indexName).clear().get();
+        shardStats = stats.getShards()[0];
         assertTrue(shardStats.getShardRouting().primary());
         assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(15L)); // 15 indexed docs and one "missing" op.
         assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(15L));

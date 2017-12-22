@@ -49,7 +49,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -59,7 +58,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -244,9 +242,9 @@ public class InternalEngine extends Engine {
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
             case OPEN_INDEX_CREATE_TRANSLOG:
-                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo();
-                maxSeqNo = seqNoStats.v1();
-                localCheckpoint = seqNoStats.v2();
+                final SequenceNumbers.CommitInfo seqNoStats = store.loadSeqNoInfo();
+                maxSeqNo = seqNoStats.maxSeqNo;
+                localCheckpoint = seqNoStats.localCheckpoint;
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
                 break;
             default: throw new IllegalArgumentException("unknown type: " + openMode);

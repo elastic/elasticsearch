@@ -53,7 +53,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -215,10 +214,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Loads the maximum sequence number and local checkpoint from the latest Lucene commit point.
      *
-     * @return a tuple populated with the maximum sequence number and the local checkpoint
+     * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public Tuple<Long, Long> loadSeqNoInfo() throws IOException {
+    public SequenceNumbers.CommitInfo loadSeqNoInfo() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
         return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }

@@ -19,8 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -58,7 +56,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -87,12 +84,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -1802,8 +1795,13 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         }));
-
+        assertThat(target.getLocalCheckpoint(), equalTo(0L));
+        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
+        assertThat(target.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
+        assertThat(target.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
+
         assertDocs(target, "0");
 
         closeShards(source, target);
@@ -2094,7 +2092,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.performTranslogRecovery(true);
+        shard.openIndexAndTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2243,9 +2241,10 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertEquals(file.recovered(), file.length());
                 }
             }
-            IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
+            assertThat(targetShard.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(1L));
+            IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             assertThat(targetShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
                 targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);

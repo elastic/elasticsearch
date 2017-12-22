@@ -1275,21 +1275,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
-    /**
-     * After the store has been recovered, we need to start the engine in order to apply operations
-     */
-    public void performTranslogRecovery(boolean indexExists) throws IOException {
-        if (indexExists == false) {
-            // note: these are set when recovering from the translog
-            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
-            translogStats.totalOperations(0);
-            translogStats.totalOperationsOnStart(0);
-        }
-        internalPerformTranslogRecovery(false, indexExists);
-        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    /** creates an empty index and translog and opens the engine **/
+    public void createIndexAndTranslog() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() == false;
+        // note: these are set when recovering from the translog
+        final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+        translogStats.totalOperations(0);
+        translogStats.totalOperationsOnStart(0);
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
     }
 
-    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
+    /** opens the engine on top of the existing lucene engine but creates an empty translog **/
+    public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
+        assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
+            recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
+        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo();
+        assert commitInfo.localCheckpoint >= globalCheckpoint :
+            "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+                    + globalCheckpoint + "]";
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
+    }
+
+    /**
+     * opens the engine on top of the existing lucene engine and translog.
+     * Operations from the translog will be replayed to bring lucene up to date.
+     **/
+    public void openIndexAndTranslog() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    }
+
+    private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1303,35 +1322,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-        final EngineConfig.OpenMode openMode;
-        /* by default we recover and index and replay the translog but if the index
-         * doesn't exist we create everything from the scratch. Yet, if the index
-         * doesn't exist we don't need to worry about the skipTranslogRecovery since
-         * there is no translog on a non-existing index.
-         * The skipTranslogRecovery invariant is used if we do remote recovery since
-         * there the translog isn't local but on the remote host, hence we can skip it.
-         */
-        if (indexExists == false) {
-            openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
-        } else if (skipTranslogRecovery) {
-            openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
-        } else {
-            openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-        }
 
-        assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
+        assert openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG || assertMaxUnsafeAutoIdInCommit();
 
 
-        final EngineConfig config = newEngineConfig(openMode);
-
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // set global checkpoint before opening engine, to ensure that the global checkpoint written to the checkpoint file
-            // is not reset to the default value, which could prevent future sequence-number based recoveries or rolling back of Lucene.
-            globalCheckpointTracker.updateGlobalCheckpointOnReplica(
-                Translog.readGlobalCheckpoint(config.getTranslogConfig().getTranslogPath()),
-                "opening index and translog"
-            );
-        }
+        final EngineConfig config = newEngineConfig(openMode, forceNewHistoryUUID);
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
@@ -1342,9 +1337,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
+            // we have to set it before we recover from the translog as acquring a snapshot from the translog causes a sync which
+            // causes the global checkpoint to be pulled in.
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(getEngine().getTranslog().getLastSyncedGlobalCheckpoint(),
+                "read from translog");
             newEngine.recoverFromTranslog();
         }
         assertSequenceNumbersInCommit();
+        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -1373,17 +1373,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected void onNewEngine(Engine newEngine) {
         refreshListeners.setTranslog(newEngine.getTranslog());
-    }
-
-    /**
-     * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
-     * the replay of the transaction log which is required in cases where we restore a previous index or recover from
-     * a remote peer.
-     */
-    public void skipTranslogRecovery() throws IOException {
-        assert getEngineOrNull() == null : "engine was already created";
-        internalPerformTranslogRecovery(true, true);
-        assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
     /**
@@ -2172,22 +2161,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) {
         Sort indexSort = indexSortSupplier.get();
-        final boolean forceNewHistoryUUID;
-        switch (shardRouting.recoverySource().getType()) {
-            case EXISTING_STORE:
-            case PEER:
-                forceNewHistoryUUID = false;
-                break;
-            case EMPTY_STORE:
-            case SNAPSHOT:
-            case LOCAL_SHARDS:
-                forceNewHistoryUUID = true;
-                break;
-            default:
-                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
-        }
         return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,

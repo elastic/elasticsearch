@@ -1795,8 +1795,13 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         }));
-
+        assertThat(target.getLocalCheckpoint(), equalTo(0L));
+        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
+        assertThat(target.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
+        assertThat(target.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
+
         assertDocs(target, "0");
 
         closeShards(source, target);
@@ -2236,9 +2241,10 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertEquals(file.recovered(), file.length());
                 }
             }
-            IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
+            assertThat(targetShard.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(1L));
+            IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             assertThat(targetShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
                 targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);

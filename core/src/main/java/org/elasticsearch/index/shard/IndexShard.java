@@ -1275,6 +1275,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
+    /** creates an empty index and translog and opens the engine **/
     public void createIndexAndTranslog() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
         assert shardRouting.primary() && shardRouting.isRelocationTarget() == false;
@@ -1286,6 +1287,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
     }
 
+    /** opens the engine on top of the existing lucene engine but creates an empty translog **/
     public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
         assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
             recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
@@ -1299,6 +1301,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
     }
 
+    /**
+     * opens the engine on top of the existing lucene engine and translog.
+     * Operations from the translog will be replayed to bring lucene up to date.
+     **/
     public void openIndexAndTranslog() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);

@@ -37,7 +37,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * An in-memory representation of the plugin descriptor.
@@ -133,27 +136,33 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public static PluginInfo readFromProperties(final Path path) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
-        final Properties props = new Properties();
-        try (InputStream stream = Files.newInputStream(descriptor)) {
-            props.load(stream);
+
+        final Map<String, String> propsMap;
+        {
+            final Properties props = new Properties();
+            try (InputStream stream = Files.newInputStream(descriptor)) {
+                props.load(stream);
+            }
+            propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
         }
-        final String name = props.getProperty("name");
+
+        final String name = propsMap.remove("name");
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException(
                     "property [name] is missing in [" + descriptor + "]");
         }
-        final String description = props.getProperty("description");
+        final String description = propsMap.remove("description");
         if (description == null) {
             throw new IllegalArgumentException(
                     "property [description] is missing for plugin [" + name + "]");
         }
-        final String version = props.getProperty("version");
+        final String version = propsMap.remove("version");
         if (version == null) {
             throw new IllegalArgumentException(
                     "property [version] is missing for plugin [" + name + "]");
         }
 
-        final String esVersionString = props.getProperty("elasticsearch.version");
+        final String esVersionString = propsMap.remove("elasticsearch.version");
         if (esVersionString == null) {
             throw new IllegalArgumentException(
                     "property [elasticsearch.version] is missing for plugin [" + name + "]");
@@ -168,23 +177,28 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     esVersionString);
             throw new IllegalArgumentException(message);
         }
-        final String javaVersionString = props.getProperty("java.version");
+        final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
             throw new IllegalArgumentException(
                     "property [java.version] is missing for plugin [" + name + "]");
         }
         JarHell.checkVersionFormat(javaVersionString);
         JarHell.checkJavaVersion(name, javaVersionString);
-        final String classname = props.getProperty("classname");
+        final String classname = propsMap.remove("classname");
         if (classname == null) {
             throw new IllegalArgumentException(
                     "property [classname] is missing for plugin [" + name + "]");
         }
 
-        final String extendedString = props.getProperty("extended.plugins", "");
-        final List<String> extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
+        final String extendedString = propsMap.remove("extended.plugins");
+        final List<String> extendedPlugins;
+        if (extendedString == null) {
+            extendedPlugins = Collections.emptyList();
+        } else {
+            extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
+        }
 
-        final String hasNativeControllerValue = props.getProperty("has.native.controller");
+        final String hasNativeControllerValue = propsMap.remove("has.native.controller");
         final boolean hasNativeController;
         if (hasNativeControllerValue == null) {
             hasNativeController = false;
@@ -208,13 +222,20 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
-        final String requiresKeystoreValue = props.getProperty("requires.keystore", "false");
+        String requiresKeystoreValue = propsMap.remove("requires.keystore");
+        if (requiresKeystoreValue == null) {
+            requiresKeystoreValue = "false";
+        }
         final boolean requiresKeystore;
         try {
             requiresKeystore = Booleans.parseBoolean(requiresKeystoreValue);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("property [requires.keystore] must be [true] or [false]," +
                                                " but was [" + requiresKeystoreValue + "]", e);
+        }
+
+        if (propsMap.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
         return new PluginInfo(name, description, version, classname, extendedPlugins, hasNativeController, requiresKeystore);

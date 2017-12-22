@@ -96,7 +96,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * kicks in and initializes the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
  * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(ClusterChangedEvent)} method</li>
- * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using the {@link SnapshotShardsService#updateIndexShardSnapshotStatus} method</li>
+ * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
  * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot as completed</li>
  * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry)} finalizes snapshot in the repository,
  * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
@@ -381,7 +381,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                        if (entry.snapshot().equals(snapshot.snapshot())) {
+                        if (entry.snapshot().equals(snapshot.snapshot()) && entry.state() != State.ABORTED) {
                             // Replace the snapshot that was just created
                             ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
                             if (!partial) {
@@ -392,11 +392,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     StringBuilder failureMessage = new StringBuilder();
                                     updatedSnapshot = new SnapshotsInProgress.Entry(entry, State.FAILED, shards);
                                     entries.add(updatedSnapshot);
-                                    if (missing.isEmpty() == false ) {
+                                    if (missing.isEmpty() == false) {
                                         failureMessage.append("Indices don't have primary shards ");
                                         failureMessage.append(missing);
                                     }
-                                    if (closed.isEmpty() == false ) {
+                                    if (closed.isEmpty() == false) {
                                         if (failureMessage.length() > 0) {
                                             failureMessage.append("; ");
                                         }
@@ -1237,7 +1237,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             "could not be found after failing to abort.",
                                             smex.getSnapshotName()), e);
                                         listener.onFailure(new SnapshotException(snapshot,
-                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "Tried deleting in-progress snapshot [" + smex.getSnapshotName() + "], but it " +
                                             "could not be found after failing to abort.", smex));
                                     }
                                 });
@@ -1292,6 +1292,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             try {
                 Repository repository = repositoriesService.repository(snapshot.getRepository());
                 repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId);
+                logger.info("snapshot [{}] deleted", snapshot);
+
                 removeSnapshotDeletionFromClusterState(snapshot, null, listener);
             } catch (Exception ex) {
                 removeSnapshotDeletionFromClusterState(snapshot, ex, listener);

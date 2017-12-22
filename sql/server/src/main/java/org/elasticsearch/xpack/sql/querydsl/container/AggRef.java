@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 
 public class AggRef implements ColumnReference {
@@ -28,5 +29,10 @@ public class AggRef implements ColumnReference {
 
     public String path() {
         return path;
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        // Aggregations do not need any special fields
     }
 }

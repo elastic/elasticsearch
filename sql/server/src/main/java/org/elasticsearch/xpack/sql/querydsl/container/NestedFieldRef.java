@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+
+
 public class NestedFieldRef implements FieldReference {
     private final String parent, name;
     private final boolean docValue;
@@ -26,6 +29,11 @@ public class NestedFieldRef implements FieldReference {
 
     public boolean useDocValue() {
         return docValue;
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        throw new IllegalStateException("unhandled nested field while collecting source fields [" + getClass() + "]");
     }
 
     @Override

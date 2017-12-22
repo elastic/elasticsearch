@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import static java.util.Collections.emptyList;
 
 public class ScoreProcessorDefinition extends ProcessorDefinition {
+
     public ScoreProcessorDefinition(Expression expression) {
         super(expression, emptyList());
     }
@@ -26,4 +28,10 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
     public Processor asProcessor() {
         return new HitExtractorProcessor(ScoreExtractor.INSTANCE);
     }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        sourceBuilder.trackScores();
+    }
+
 }

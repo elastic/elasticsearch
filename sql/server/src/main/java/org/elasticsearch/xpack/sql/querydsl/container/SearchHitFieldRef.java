@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+
 public class SearchHitFieldRef implements FieldReference {
     private final String name;
     private final boolean docValue;
@@ -21,6 +23,15 @@ public class SearchHitFieldRef implements FieldReference {
 
     public boolean useDocValue() {
         return docValue;
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        if (docValue) {
+            sourceBuilder.addDocField(name);
+        } else {
+            sourceBuilder.addSourceField(name);
+        }
     }
 
     @Override

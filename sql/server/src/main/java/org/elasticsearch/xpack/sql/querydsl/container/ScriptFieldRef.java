@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 
 public class ScriptFieldRef implements FieldReference {
@@ -24,6 +25,11 @@ public class ScriptFieldRef implements FieldReference {
 
     public ScriptTemplate script() {
         return script;
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        sourceBuilder.addScriptField(name, script.toPainless());
     }
 
     @Override

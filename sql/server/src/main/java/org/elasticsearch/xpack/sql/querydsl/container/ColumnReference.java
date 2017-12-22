@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+
 /**
- * Entity representing a 'column' backed by one or multiple results from ES.
+ * Entity representing a 'column' backed by one or multiple results from ES. A
+ * column reference can also extract a field (meta or otherwise) from a result
+ * set, so extends {@link FieldExtraction}.
  */
-public interface ColumnReference {
+public interface ColumnReference extends FieldExtraction {
 
     /**
      * Indicates the depth of the result. Used for counting the actual size of a

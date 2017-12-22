@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
 
-public abstract class ProcessorDefinition extends Node<ProcessorDefinition> {
+public abstract class ProcessorDefinition extends Node<ProcessorDefinition> implements FieldExtraction {
 
     private final Expression expression;
 
@@ -27,4 +29,9 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> {
     public abstract boolean resolved();
 
     public abstract Processor asProcessor();
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        // No fields needed
+    }
 }

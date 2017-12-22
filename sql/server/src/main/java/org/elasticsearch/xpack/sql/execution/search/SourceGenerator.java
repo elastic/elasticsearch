@@ -61,40 +61,25 @@ public abstract class SourceGenerator {
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
-        SearchSourceBuilder source = new SearchSourceBuilder();
+        final SearchSourceBuilder source = new SearchSourceBuilder();
         // add the source
-        if (container.query() != null) {
-            if (filter != null) {
-                source.query(new BoolQueryBuilder().must(container.query().asBuilder()).filter(filter));
-            } else {
-                source.query(container.query().asBuilder());
-            }
-        } else {
+        if (container.query() == null) {
             if (filter != null) {
                 source.query(new ConstantScoreQueryBuilder(filter));
             }
+        } else {
+            if (filter == null) {
+                source.query(container.query().asBuilder());
+            } else {
+                source.query(new BoolQueryBuilder().must(container.query().asBuilder()).filter(filter));
+            }
         }
 
-        // translate fields to source-fields or script fields
-        Set<String> sourceFields = new LinkedHashSet<>();
-        Set<String> docFields = new LinkedHashSet<>();
-        Map<String, Script> scriptFields = new LinkedHashMap<>();
-
-        for (ColumnReference ref : container.columns()) {
-            collectFields(source, ref, sourceFields, docFields, scriptFields);
-        }
-
-        if (!sourceFields.isEmpty()) {
-            source.fetchSource(sourceFields.toArray(new String[sourceFields.size()]), null);
-        }
-
-        for (String field : docFields) {
-            source.docValueField(field);
-        }
-
-        for (Entry<String, Script> entry : scriptFields.entrySet()) {
-            source.scriptField(entry.getKey(), entry.getValue());
-        }
+        SqlSourceBuilder sortBuilder = new SqlSourceBuilder();
+        // Iterate through all the columns requested, collecting the fields that
+        // need to be retrieved from the result documents
+        container.columns().forEach(cr -> cr.collectFields(sortBuilder));
+        sortBuilder.build(source);
 
         // add the aggs
         Aggs aggs = container.aggs();
@@ -135,32 +120,6 @@ public abstract class SourceGenerator {
         }
 
         return source;
-    }
-
-    private static void collectFields(SearchSourceBuilder source, ColumnReference ref,
-            Set<String> sourceFields, Set<String> docFields, Map<String, Script> scriptFields) {
-        if (ref instanceof ComputedRef) {
-            ProcessorDefinition proc = ((ComputedRef) ref).processor();
-            if (proc instanceof ScoreProcessorDefinition) {
-                /*
-                 * If we're SELECTing SCORE then force tracking scores just in case
-                 * we're not sorting on them.
-                 */
-                source.trackScores(true);
-            }
-            proc.forEachUp(l -> collectFields(source, l.context(), sourceFields, docFields, scriptFields), ReferenceInput.class);
-        } else if (ref instanceof SearchHitFieldRef) {
-            SearchHitFieldRef sh = (SearchHitFieldRef) ref;
-            Set<String> collection = sh.useDocValue() ? docFields : sourceFields;
-            collection.add(sh.name());
-        } else if (ref instanceof ScriptFieldRef) {
-            ScriptFieldRef sfr = (ScriptFieldRef) ref;
-            scriptFields.put(sfr.name(), sfr.script().toPainless());
-        } else if (ref instanceof AggRef) {
-            // Nothing to do
-        } else {
-            throw new IllegalStateException("unhandled field in collectFields [" + ref.getClass() + "][" + ref + "]");
-        }
     }
 
     private static void sorting(QueryContainer container, SearchSourceBuilder source) {

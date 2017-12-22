@@ -32,6 +32,7 @@ import com.amazonaws.regions.InstanceMetadataRegionProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.util.AwsHostNameUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -41,8 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Random;
-
-import static com.amazonaws.util.AwsHostNameUtils.parseRegion;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
 
@@ -66,13 +65,9 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
 
         String endpoint = findEndpoint(logger, settings);
         if (endpoint != null) {
-            String region = buildRegion(endpoint);
-            // TODO according to the documentation we should set the region instead of setting a endpoint
-            // See https://github.com/elastic/elasticsearch/issues/27924
-            logger.debug("Setting endpoint to [{}] with region [{}]", endpoint, region);
-            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, buildRegion(endpoint)));
         } else {
-            logger.debug("No endpoint defined. We are falling back to [ec2.us-east-1.amazonaws.com].");
+            logger.debug("No endpoint defined. Using default endpoint [ec2.us-east-1.amazonaws.com].");
         }
 
         this.client = builder.build();
@@ -85,7 +80,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
         String region = new InstanceMetadataRegionProvider().getRegion();
         if (region == null) {
             // Or we try to get it from the endpoint itself
-            region = parseRegion(endpoint, null);
+            region = AwsHostNameUtils.parseRegion(endpoint, null);
         }
         return region;
     }

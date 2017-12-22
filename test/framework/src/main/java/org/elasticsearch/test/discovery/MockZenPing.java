@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * A {@link ZenPing} implementation which returns results based on an static in-memory map. This allows pinging
+ * A {@link ZenPing} implementation which returns results based on a static in-memory map. This allows pinging
  * to be immediate and can be used to speed up tests.
  */
 public final class MockZenPing extends AbstractComponent implements ZenPing {

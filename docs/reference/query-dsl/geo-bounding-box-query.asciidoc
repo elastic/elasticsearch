@@ -9,7 +9,7 @@ bounding box. Assuming the following indexed document:
 PUT /my_locations
 {
     "mappings": {
-        "location": {
+        "_doc": {
             "properties": {
                 "pin": {
                     "properties": {
@@ -23,7 +23,7 @@ PUT /my_locations
     }
 }
 
-PUT /my_locations/location/1
+PUT /my_locations/_doc/1
 {
     "pin" : {
         "location" : {

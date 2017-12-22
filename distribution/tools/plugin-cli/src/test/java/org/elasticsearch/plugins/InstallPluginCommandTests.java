@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -77,6 +79,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -174,7 +177,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", home)
             .build();
-        return Tuple.tuple(home, new Environment(settings));
+        return Tuple.tuple(home, TestEnvironment.newEnvironment(settings));
     }
 
     static Path createPluginDir(Function<String, Path> temp) throws IOException {
@@ -234,7 +237,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     MockTerminal installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         command.execute(terminal, pluginUrl, true, env);
         return terminal;
@@ -799,8 +802,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl(pluginId, name, url, stagingHash, ".sha512",
-            bytes -> MessageDigests.toHexString(digest.digest(bytes)));
+        assertInstallPluginFromUrl(pluginId, name, url, stagingHash, ".sha512", checksumAndFilename(digest, url));
     }
 
     public void testOfficalPlugin() throws Exception {
@@ -839,8 +841,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMavenSha1Backcompat() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        MockTerminal terminal = assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null,
-                                               ".sha1", bytes -> MessageDigests.toHexString(digest.digest(bytes)));
+        MockTerminal terminal = assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", checksum(digest));
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
@@ -848,8 +849,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha1",
-                                       bytes -> MessageDigests.toHexString(digest.digest(bytes))));
+            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha1", checksum(digest)));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha512", e.getMessage());
     }
@@ -862,12 +862,41 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertEquals("Plugin checksum missing: " + url + ".sha1", e.getMessage());
     }
 
-    public void testInvalidShaFile() throws Exception {
+    public void testInvalidShaFileMissingFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512",
-                bytes -> MessageDigests.toHexString(digest.digest(bytes)) + "\nfoobar"));
+                assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512", checksum(digest)));
+        assertEquals(ExitCodes.IO_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
+    }
+
+    public void testInvalidShaFileMismatchFilename() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        UserException e = expectThrows(UserException.class, () ->
+                assertInstallPluginFromUrl(
+                        "analysis-icu",
+                        "analysis-icu",
+                        url,
+                        null,
+                        ".sha512",
+                        checksumAndString(digest, "  repository-s3-" + Version.CURRENT + ".zip")));
+        assertEquals(ExitCodes.IO_ERROR, e.exitCode);
+        assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
+    }
+
+    public void testInvalidShaFileContainingExtraLine() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        UserException e = expectThrows(UserException.class, () ->
+            assertInstallPluginFromUrl(
+                    "analysis-icu",
+                    "analysis-icu",
+                    url,
+                    null,
+                    ".sha512",
+                    checksumAndString(digest, "  analysis-icu-" + Version.CURRENT + ".zip\nfoobar")));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
@@ -875,8 +904,13 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testSha512Mismatch() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512",
-                bytes -> "foobar"));
+            assertInstallPluginFromUrl(
+                    "analysis-icu",
+                    "analysis-icu",
+                    url,
+                    null,
+                    ".sha512",
+                    bytes -> "foobar  analysis-icu-" + Version.CURRENT + ".zip"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-512 mismatch, expected foobar"));
     }
@@ -884,8 +918,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testSha1Mismatch() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null,
-                ".sha1", bytes -> "foobar"));
+            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", bytes -> "foobar"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
     }
@@ -917,4 +950,18 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = installPlugin(pluginZip, env.v1());
         assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
     }
+
+    private Function<byte[], String> checksum(final MessageDigest digest) {
+        return checksumAndString(digest, "");
+    }
+
+    private Function<byte[], String> checksumAndFilename(final MessageDigest digest, final String url) throws MalformedURLException {
+        final String[] segments = URI.create(url).getPath().split("/");
+        return checksumAndString(digest, "  " + segments[segments.length - 1]);
+    }
+
+    private Function<byte[], String> checksumAndString(final MessageDigest digest, final String s) {
+        return bytes -> MessageDigests.toHexString(digest.digest(bytes)) + s;
+    }
+
 }

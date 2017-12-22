@@ -26,9 +26,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -91,6 +95,10 @@ public final class ResponseCollectorService extends AbstractComponent implements
         return nodeStats;
     }
 
+    public AdaptiveSelectionStats getAdaptiveStats(Map<String, Long> clientSearchConnections) {
+        return new AdaptiveSelectionStats(clientSearchConnections, getAllNodeStatistics());
+    }
+
     /**
      * Optionally return a {@code NodeStatistics} for the given nodeid, if
      * response information exists for the given node. Returns an empty
@@ -106,7 +114,7 @@ public final class ResponseCollectorService extends AbstractComponent implements
      * node's statistics. This includes the EWMA of queue size, response time,
      * and service time.
      */
-    public static class ComputedNodeStats {
+    public static class ComputedNodeStats implements Writeable {
         // We store timestamps with nanosecond precision, however, the
         // formula specifies milliseconds, therefore we need to convert
         // the values so the times don't unduely weight the formula
@@ -120,12 +128,34 @@ public final class ResponseCollectorService extends AbstractComponent implements
         public final double responseTime;
         public final double serviceTime;
 
-        ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
+        public ComputedNodeStats(String nodeId, int clientNum, int queueSize, double responseTime, double serviceTime) {
+            this.nodeId = nodeId;
             this.clientNum = clientNum;
-            this.nodeId = nodeStats.nodeId;
-            this.queueSize = (int) nodeStats.queueSize.getAverage();
-            this.responseTime = nodeStats.responseTime.getAverage();
-            this.serviceTime = nodeStats.serviceTime;
+            this.queueSize = queueSize;
+            this.responseTime = responseTime;
+            this.serviceTime = serviceTime;
+        }
+
+        ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
+            this(nodeStats.nodeId, clientNum,
+                    (int) nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
+        }
+
+        ComputedNodeStats(StreamInput in) throws IOException {
+            this.nodeId = in.readString();
+            this.clientNum = in.readInt();
+            this.queueSize = in.readInt();
+            this.responseTime = in.readDouble();
+            this.serviceTime = in.readDouble();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(this.nodeId);
+            out.writeInt(this.clientNum);
+            out.writeInt(this.queueSize);
+            out.writeDouble(this.responseTime);
+            out.writeDouble(this.serviceTime);
         }
 
         /**
@@ -133,9 +163,9 @@ public final class ResponseCollectorService extends AbstractComponent implements
          * https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf
          */
         private double innerRank(long outstandingRequests) {
-            // this is a placeholder value, the concurrency compensation is
-            // defined as the number of outstanding requests from the client
-            // to the node times the number of clients in the system
+            // the concurrency compensation is defined as the number of
+            // outstanding requests from the client to the node times the number
+            // of clients in the system
             double concurrencyCompensation = outstandingRequests * clientNum;
 
             // Cubic queue adjustment factor. The paper chose 3 though we could

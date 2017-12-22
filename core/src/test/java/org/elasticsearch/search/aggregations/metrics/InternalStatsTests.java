@@ -19,6 +19,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
@@ -26,6 +29,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +85,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         long count = aggregation.getCount();
         assertEquals(count, parsed.getCount());
         // for count == 0, fields are rendered as `null`, so  we test that we parse to default values used also in the reduce phase
-        assertEquals(count > 0 ? aggregation.getMin() : Double.POSITIVE_INFINITY , parsed.getMin(), 0);
+        assertEquals(count > 0 ? aggregation.getMin() : Double.POSITIVE_INFINITY, parsed.getMin(), 0);
         assertEquals(count > 0 ? aggregation.getMax() : Double.NEGATIVE_INFINITY, parsed.getMax(), 0);
         assertEquals(count > 0 ? aggregation.getSum() : 0, parsed.getSum(), 0);
         assertEquals(count > 0 ? aggregation.getAvg() : 0, parsed.getAvg(), 0);
@@ -152,6 +157,56 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+    }
+
+    public void testDoXContentBody() throws IOException {
+        // count is greater than zero
+        double min = randomDoubleBetween(-1000000, 1000000, true);
+        double max = randomDoubleBetween(-1000000, 1000000, true);
+        double sum = randomDoubleBetween(-1000000, 1000000, true);
+        int count = randomIntBetween(1, 10);
+        DocValueFormat format = randomNumericDocValueFormat();
+        InternalStats internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        String expected = "{\n" +
+            "  \"count\" : " + count + ",\n" +
+            "  \"min\" : " + min + ",\n" +
+            "  \"max\" : " + max + ",\n" +
+            "  \"avg\" : " + internalStats.getAvg() + ",\n" +
+            "  \"sum\" : " + sum;
+        if (format != DocValueFormat.RAW) {
+            expected += ",\n"+
+                "  \"min_as_string\" : \"" + format.format(internalStats.getMin()) + "\",\n" +
+                "  \"max_as_string\" : \"" + format.format(internalStats.getMax()) + "\",\n" +
+                "  \"avg_as_string\" : \"" + format.format(internalStats.getAvg()) + "\",\n" +
+                "  \"sum_as_string\" : \"" + format.format(internalStats.getSum()) + "\"";
+        }
+        expected += "\n}";
+        assertEquals(expected, builder.string());
+
+        // count is zero
+        format = randomNumericDocValueFormat();
+        min = 0.0;
+        max = 0.0;
+        sum = 0.0;
+        count = 0;
+        internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
+        builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        assertEquals("{\n" +
+            "  \"count\" : 0,\n" +
+            "  \"min\" : null,\n" +
+            "  \"max\" : null,\n" +
+            "  \"avg\" : null,\n" +
+            "  \"sum\" : 0.0\n" +
+            "}", builder.string());
     }
 }
 

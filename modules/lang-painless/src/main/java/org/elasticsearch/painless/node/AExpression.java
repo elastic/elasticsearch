@@ -119,7 +119,7 @@ public abstract class AExpression extends ANode {
      * @return The new child node for the parent node calling this method.
      */
     AExpression cast(Locals locals) {
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+        Cast cast = locals.getDefinition().caster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
@@ -167,7 +167,7 @@ public abstract class AExpression extends ANode {
                     // from this node because the output data for the EConstant
                     // will already be the same.
 
-                    constant = AnalyzerCaster.constCast(location, constant, cast);
+                    constant = locals.getDefinition().caster.constCast(location, constant, cast);
 
                     EConstant econstant = new EConstant(location, constant);
                     econstant.analyze(locals);

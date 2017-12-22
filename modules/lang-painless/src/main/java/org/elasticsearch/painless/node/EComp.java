@@ -89,7 +89,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply equals [==] to types " +
@@ -133,14 +133,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeEqR(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
@@ -175,14 +175,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeNE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
@@ -226,14 +226,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeNER(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
@@ -268,14 +268,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeGTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
@@ -309,14 +309,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeGT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
@@ -350,14 +350,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeLTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
@@ -391,14 +391,14 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeLT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than [>=] to types " +
@@ -432,7 +432,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     @Override

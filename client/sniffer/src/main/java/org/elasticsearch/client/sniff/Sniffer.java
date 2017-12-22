@@ -27,12 +27,16 @@ import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
@@ -45,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Sniffer implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
+    private static final String SNIFFER_THREAD_NAME = "es_rest_client_sniffer";
 
     private final Task task;
 
@@ -79,7 +84,8 @@ public class Sniffer implements Closeable {
             this.restClient = restClient;
             this.sniffIntervalMillis = sniffIntervalMillis;
             this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
-            this.scheduledExecutorService = Executors.newScheduledThreadPool(1);
+            SnifferThreadFactory threadFactory = new SnifferThreadFactory(SNIFFER_THREAD_NAME);
+            this.scheduledExecutorService = Executors.newScheduledThreadPool(1, threadFactory);
             scheduleNextRun(0);
         }
 
@@ -150,5 +156,35 @@ public class Sniffer implements Closeable {
      */
     public static SnifferBuilder builder(RestClient restClient) {
         return new SnifferBuilder(restClient);
+    }
+
+    private static class SnifferThreadFactory implements ThreadFactory {
+
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final String namePrefix;
+        private final ThreadFactory originalThreadFactory;
+
+        private SnifferThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            this.originalThreadFactory = AccessController.doPrivileged(new PrivilegedAction<ThreadFactory>() {
+                @Override
+                public ThreadFactory run() {
+                    return Executors.defaultThreadFactory();
+                }
+            });
+        }
+
+        @Override
+        public Thread newThread(final Runnable r) {
+            return AccessController.doPrivileged(new PrivilegedAction<Thread>() {
+                @Override
+                public Thread run() {
+                    Thread t = originalThreadFactory.newThread(r);
+                    t.setName(namePrefix + "[T#" + threadNumber.getAndIncrement() + "]");
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
+        }
     }
 }

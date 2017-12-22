@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.locationtech.spatial4j.shape.Shape;
 
 import org.elasticsearch.ElasticsearchException;
@@ -125,13 +128,30 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.startArray(FIELD_GEOMETRIES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.startArray(ShapeParser.FIELD_GEOMETRIES.getPreferredName());
         for (ShapeBuilder shape : shapes) {
             shape.toXContent(builder, params);
         }
         builder.endArray();
         return builder.endObject();
+    }
+
+    @Override
+    protected StringBuilder contentToWKT() {
+        StringBuilder sb = new StringBuilder();
+        if (shapes.isEmpty()) {
+            sb.append(GeoWKTParser.EMPTY);
+        } else {
+            sb.append(GeoWKTParser.LPAREN);
+            sb.append(shapes.get(0).toWKT());
+            for (int i = 1; i < shapes.size(); ++i) {
+                sb.append(GeoWKTParser.COMMA);
+                sb.append(shapes.get(i).toWKT());
+            }
+            sb.append(GeoWKTParser.RPAREN);
+        }
+        return sb;
     }
 
     @Override

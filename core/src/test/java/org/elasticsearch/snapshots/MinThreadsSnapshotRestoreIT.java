@@ -66,7 +66,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         final String index = "test-idx1";
         assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
         for (int i = 0; i < 10; i++) {
-            index(index, "doc", Integer.toString(i), "foo", "bar" + i);
+            index(index, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot1 = "test-snap1";
@@ -74,7 +74,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         final String index2 = "test-idx2";
         assertAcked(prepareCreate(index2, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
         for (int i = 0; i < 10; i++) {
-            index(index2, "doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot2 = "test-snap2";
@@ -120,7 +120,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         final String index = "test-idx";
         assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
         for (int i = 0; i < 10; i++) {
-            index(index, "doc", Integer.toString(i), "foo", "bar" + i);
+            index(index, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot1 = "test-snap1";
@@ -166,7 +166,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         final String index = "test-idx";
         assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
         for (int i = 0; i < 10; i++) {
-            index(index, "doc", Integer.toString(i), "foo", "bar" + i);
+            index(index, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot1 = "test-snap1";
@@ -174,7 +174,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         final String index2 = "test-idx2";
         assertAcked(prepareCreate(index2, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
         for (int i = 0; i < 10; i++) {
-            index(index2, "doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot2 = "test-snap2";

@@ -323,6 +323,7 @@ public class SearchModuleTests extends ModuleTestCase {
             "span_within",
             "term",
             "terms",
+            "terms_set",
             "type",
             "wildcard",
             "wrapper"

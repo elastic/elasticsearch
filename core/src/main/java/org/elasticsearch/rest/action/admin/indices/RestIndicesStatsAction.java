@@ -91,7 +91,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
 
-        Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
         if (metrics.size() == 1 && metrics.contains("_all")) {
             indicesStatsRequest.all();

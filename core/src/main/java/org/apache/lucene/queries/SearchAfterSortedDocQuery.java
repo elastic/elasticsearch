@@ -35,9 +35,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -81,7 +79,7 @@ public class SearchAfterSortedDocQuery extends Query {
                     throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }
                 final int afterDoc = after.doc - context.docBase;
-                TopComparator comparator= getTopComparator(fieldComparators, reverseMuls, context, afterDoc);
+                TopComparator comparator = getTopComparator(fieldComparators, reverseMuls, context, afterDoc);
                 final int maxDoc = context.reader().maxDoc();
                 final int firstDoc = searchAfterDoc(comparator, 0, context.reader().maxDoc());
                 if (firstDoc >= maxDoc) {
@@ -89,6 +87,14 @@ public class SearchAfterSortedDocQuery extends Query {
                 }
                 final DocIdSetIterator disi = new MinDocQuery.MinDocIterator(firstDoc, maxDoc);
                 return new ConstantScoreScorer(this, score(), disi);
+            }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                // If the sort order includes _doc, then the matches in a segment
+                // may depend on other segments, which makes this query a bad
+                // candidate for caching
+                return false;
             }
         };
     }
@@ -137,7 +143,7 @@ public class SearchAfterSortedDocQuery extends Query {
                 }
             }
 
-            if (topDoc <= doc) {
+            if (doc <= topDoc) {
                 return false;
             }
             return true;

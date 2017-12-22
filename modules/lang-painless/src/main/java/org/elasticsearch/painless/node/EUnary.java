@@ -76,7 +76,7 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(Locals variables) {
-        child.expected = Definition.BOOLEAN_TYPE;
+        child.expected = variables.getDefinition().booleanType;
         child.analyze(variables);
         child = child.cast(variables);
 
@@ -84,13 +84,13 @@ public final class EUnary extends AExpression {
             constant = !(boolean)child.constant;
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = variables.getDefinition().booleanType;
     }
 
     void analyzeBWNot(Locals variables) {
         child.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(child.actual, false);
+        promote = variables.getDefinition().caster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply not [~] to type [" + child.actual.name + "]."));
@@ -121,7 +121,7 @@ public final class EUnary extends AExpression {
     void analyzerAdd(Locals variables) {
         child.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply positive [+] to type [" + child.actual.name + "]."));
@@ -156,7 +156,7 @@ public final class EUnary extends AExpression {
     void analyzerSub(Locals variables) {
         child.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply negative [-] to type [" + child.actual.name + "]."));

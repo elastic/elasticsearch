@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
@@ -93,6 +95,9 @@ public class TopHitsAggregator extends MetricsAggregator {
             public void setScorer(Scorer scorer) throws IOException {
                 this.scorer = scorer;
                 super.setScorer(scorer);
+                for (ObjectCursor<LeafCollector> cursor : leafCollectors.values()) {
+                    cursor.value.setScorer(scorer);
+                }
             }
 
             @Override
@@ -112,8 +117,10 @@ public class TopHitsAggregator extends MetricsAggregator {
                     if (sort == null) {
                         topDocsCollector = TopScoreDocCollector.create(topN);
                     } else {
+                        // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
+                        // Note that this would require to catch CollectionTerminatedException
                         topDocsCollector = TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(),
-                            subSearchContext.trackScores());
+                            subSearchContext.trackScores(), true);
                     }
                     topDocsCollectors.put(bucket, topDocsCollector);
                 }

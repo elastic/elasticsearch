@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -385,10 +386,40 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
         final String expectedChecksum;
         try (InputStream in = checksumUrl.openStream()) {
-            BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-            expectedChecksum = checksumReader.readLine();
-            if (checksumReader.readLine() != null) {
-                throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+            /*
+             * The supported format of the SHA-1 files is a single-line file containing the SHA-1. The supported format of the SHA-512 files
+             * is a single-line file containing the SHA-512 and the filename, separated by two spaces. For SHA-1, we verify that the hash
+             * matches, and that the file contains a single line. For SHA-512, we verify that the hash and the filename match, and that the
+             * file contains a single line.
+             */
+            if (digestAlgo.equals("SHA-1")) {
+                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                expectedChecksum = checksumReader.readLine();
+                if (checksumReader.readLine() != null) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
+            } else {
+                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                final String checksumLine = checksumReader.readLine();
+                final String[] fields = checksumLine.split(" {2}");
+                if (fields.length != 2) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
+                expectedChecksum = fields[0];
+                final String[] segments = URI.create(urlString).getPath().split("/");
+                final String expectedFile = segments[segments.length - 1];
+                if (fields[1].equals(expectedFile) == false) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
+                            checksumUrl,
+                            expectedFile,
+                            fields[1]);
+                    throw new UserException(ExitCodes.IO_ERROR, message);
+                }
+                if (checksumReader.readLine() != null) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
             }
         }
 

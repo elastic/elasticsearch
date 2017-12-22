@@ -61,7 +61,7 @@ could use the following template:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "integers": {
@@ -90,7 +90,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
@@ -117,7 +117,7 @@ fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "longs_as_strings": {
@@ -134,7 +134,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "long_num": "5", <1>
   "long_text": "foo" <2>
@@ -173,7 +173,7 @@ top-level `full_name` field, except for the `middle` field:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "full_name": {
@@ -190,7 +190,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "name": {
     "first":  "Alice",
@@ -214,7 +214,7 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "named_analyzers": {
@@ -240,7 +240,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "english": "Some English text", <1>
   "count":   5 <2>
@@ -257,9 +257,9 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-By default elasticsearch will map string fields as a `text` field with a sub
+By default Elasticsearch will map string fields as a `text` field with a sub
 `keyword` field. However if you are only indexing structured content and not
-interested in full text search, you can make elasticsearch map your fields
+interested in full text search, you can make Elasticsearch map your fields
 only as `keyword`s. Note that this means that in order to search those fields,
 you will have to search on the exact same value that was indexed.
 
@@ -268,7 +268,7 @@ you will have to search on the exact same value that was indexed.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_keywords": {
@@ -290,7 +290,7 @@ PUT my_index
 On the contrary to the previous example, if the only thing that you care about
 on your string fields is full-text search, and if you don't plan on running
 aggregations, sorting or exact search on your string fields, you could tell
-elasticsearch to map it only as a text field (which was the default behaviour
+Elasticsearch to map it only as a text field (which was the default behaviour
 before 5.0):
 
 [source,js]
@@ -298,7 +298,7 @@ before 5.0):
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_text": {
@@ -326,7 +326,7 @@ disable the storage of these scoring factors in the index and save some space.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings_as_keywords": {
@@ -357,7 +357,7 @@ remove it as described in the previous section.
 
 ===== Time-series
 
-When doing time series analysis with elasticsearch, it is common to have many
+When doing time series analysis with Elasticsearch, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:
@@ -367,7 +367,7 @@ maybe gain some indexing speed:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "unindexed_longs": {

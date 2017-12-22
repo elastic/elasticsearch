@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PublishClusterStateAction extends AbstractComponent {
 
@@ -89,6 +90,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IncomingClusterStateListener incomingClusterStateListener;
     private final DiscoverySettings discoverySettings;
+
+    private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
+    private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
+    private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
             Settings settings,
@@ -380,11 +385,13 @@ public class PublishClusterStateAction extends AbstractComponent {
                 // If true we received full cluster state - otherwise diffs
                 if (in.readBoolean()) {
                     incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                    fullClusterStateReceivedCount.incrementAndGet();
                     logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                         request.bytes().length());
                 } else if (lastSeenClusterState != null) {
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);
+                    compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                 } else {
@@ -394,6 +401,9 @@ public class PublishClusterStateAction extends AbstractComponent {
                 incomingClusterStateListener.onIncomingClusterState(incomingState);
                 lastSeenClusterState = incomingState;
             }
+        } catch (IncompatibleClusterStateVersionException e) {
+            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+            throw e;
         } finally {
             IOUtils.close(in);
         }
@@ -635,5 +645,12 @@ public class PublishClusterStateAction extends AbstractComponent {
         public void setPublishingTimedOut(boolean isTimedOut) {
             publishingTimedOut.set(isTimedOut);
         }
+    }
+
+    public PublishClusterStateStats stats() {
+        return new PublishClusterStateStats(
+            fullClusterStateReceivedCount.get(),
+            incompatibleClusterStateDiffReceivedCount.get(),
+            compatibleClusterStateDiffReceivedCount.get());
     }
 }

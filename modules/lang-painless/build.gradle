@@ -29,7 +29,7 @@ integTestCluster {
 }
 
 dependencies {
-  compile 'org.antlr:antlr4-runtime:4.5.1-1'
+  compile 'org.antlr:antlr4-runtime:4.5.3'
   compile 'org.ow2.asm:asm-debug-all:5.1'
 }
 
@@ -71,7 +71,7 @@ configurations {
 }
 
 dependencies {
-  regenerate 'org.antlr:antlr4:4.5.1-1'
+  regenerate 'org.antlr:antlr4:4.5.3'
 }
 
 String grammarPath = 'src/main/antlr'

@@ -21,15 +21,22 @@ package org.elasticsearch.search.aggregations.metrics.tophits;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -39,6 +46,7 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
@@ -147,5 +155,48 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));
         }
         return document;
+    }
+
+    public void testSetScorer() throws Exception {
+        Directory directory = newDirectory();
+        IndexWriter w = new IndexWriter(directory, newIndexWriterConfig()
+                // only merge adjacent segments
+                .setMergePolicy(newLogMergePolicy()));
+        // first window (see BooleanScorer) has matches on one clause only
+        for (int i = 0; i < 2048; ++i) {
+            Document doc = new Document();
+            doc.add(new StringField("_id", Uid.encodeId(Integer.toString(i)), Store.YES));
+            if (i == 1000) { // any doc in 0..2048
+                doc.add(new StringField("string", "bar", Store.NO));
+            }
+            w.addDocument(doc);
+        }
+        // second window has matches in two clauses
+        for (int i = 0; i < 2048; ++i) {
+            Document doc = new Document();
+            doc.add(new StringField("_id", Uid.encodeId(Integer.toString(2048 + i)), Store.YES));
+            if (i == 500) { // any doc in 0..2048
+                doc.add(new StringField("string", "baz", Store.NO));
+            } else if (i == 1500) {
+                doc.add(new StringField("string", "bar", Store.NO));
+            }
+            w.addDocument(doc);
+        }
+
+        w.forceMerge(1); // we need all docs to be in the same segment
+
+        IndexReader reader = DirectoryReader.open(w);
+        w.close();
+
+        IndexSearcher searcher = new IndexSearcher(reader);
+        Query query = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
+                .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
+                .build();
+        AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
+        TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
+        assertEquals(3, result.getHits().totalHits);
+        reader.close();
+        directory.close();
     }
 }

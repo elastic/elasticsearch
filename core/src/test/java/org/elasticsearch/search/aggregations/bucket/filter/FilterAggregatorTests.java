@@ -36,9 +36,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -121,7 +118,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         AggregatorFactory<?> factory = createAggregatorFactory(builder, indexSearcher, fieldType);
         assertThat(factory, Matchers.instanceOf(FilterAggregatorFactory.class));
         FilterAggregatorFactory filterFactory = (FilterAggregatorFactory) factory;
-        Query parsedQuery = filterFactory.weight.getQuery();
+        Query parsedQuery = filterFactory.getWeight().getQuery();
         assertThat(parsedQuery, Matchers.instanceOf(BooleanQuery.class));
         assertEquals(2, ((BooleanQuery) parsedQuery).clauses().size());
         // means the bool query has been parsed as a filter, if it was a query minShouldMatch would

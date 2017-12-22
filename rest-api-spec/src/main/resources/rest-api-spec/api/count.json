@@ -39,8 +39,8 @@
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
         },
         "routing": {
-          "type" : "string",
-          "description" : "Specific routing value"
+          "type" : "list",
+          "description" : "A comma-separated list of specific routing values"
         },
         "q": {
           "type" : "string",

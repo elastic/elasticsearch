@@ -263,7 +263,7 @@ public class DoSection implements ExecutableSection {
         final List<String> missing = new ArrayList<>();
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         final Set<String> expected =
-                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escape).collect(Collectors.toList()));
+                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escapeAndEncode).collect(Collectors.toList()));
         for (final String header : warningHeaders) {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();

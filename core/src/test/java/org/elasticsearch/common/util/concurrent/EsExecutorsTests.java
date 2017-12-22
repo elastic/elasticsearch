@@ -44,8 +44,13 @@ public class EsExecutorsTests extends ESTestCase {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];
     }
 
+    private String getName() {
+        return getClass().getName() + "/" + getTestName();
+    }
+
     public void testFixedForcedExecution() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+        EsThreadPoolExecutor executor =
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -107,7 +112,8 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+        EsThreadPoolExecutor executor =
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -165,7 +171,8 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-        ThreadPoolExecutor pool = EsExecutors.newScaling(getTestName(), min, max, between(1, 100), randomTimeUnit(), EsExecutors.daemonThreadFactory("test"), threadContext);
+        ThreadPoolExecutor pool =
+                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(), EsExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -201,7 +208,8 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-        final ThreadPoolExecutor pool = EsExecutors.newScaling(getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"), threadContext);
+        final ThreadPoolExecutor pool =
+                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -241,7 +249,8 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+        EsThreadPoolExecutor executor =
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -272,7 +281,7 @@ public class EsExecutorsTests extends ESTestCase {
                 assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
                 String message = ExceptionsHelper.detailedMessage(e);
                 assertThat(message, containsString("of dummy runnable"));
-                assertThat(message, containsString("on EsThreadPoolExecutor[testRejectionMessage"));
+                assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
                 assertThat(message, containsString("queue capacity = " + queue));
                 assertThat(message, containsString("[Running"));
                 /*
@@ -312,7 +321,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
             String message = ExceptionsHelper.detailedMessage(e);
             assertThat(message, containsString("of dummy runnable"));
-            assertThat(message, containsString("on EsThreadPoolExecutor[" + getTestName()));
+            assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
             assertThat(message, containsString("queue capacity = " + queue));
             assertThat(message, containsString("[Terminated"));
             assertThat(message, containsString("active threads = 0"));
@@ -330,7 +339,8 @@ public class EsExecutorsTests extends ESTestCase {
         threadContext.putHeader("foo", "bar");
         final Integer one = new Integer(1);
         threadContext.putTransient("foo", one);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+        EsThreadPoolExecutor executor =
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             executor.execute(() -> {
                 try {
@@ -360,7 +370,8 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+        EsThreadPoolExecutor executor =
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             Runnable r = () -> {
                 latch.countDown();
@@ -379,6 +390,6 @@ public class EsExecutorsTests extends ESTestCase {
             latch.countDown();
             terminate(executor);
         }
-
     }
+
 }

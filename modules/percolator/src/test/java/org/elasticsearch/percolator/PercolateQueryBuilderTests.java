@@ -53,6 +53,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -94,7 +95,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
-        String docType = "doc";
+        String docType = "_doc";
         mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
                 queryField, "type=percolator"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -340,7 +341,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             xContent.map(source);
             return xContent.bytes();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

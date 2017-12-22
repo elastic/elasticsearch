@@ -98,7 +98,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         // TODO - it will be nice to get a random mapping generator
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
-        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"text\" }}}");
         mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
         assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
     }
@@ -109,7 +109,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
-        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"text\" }}}");
         ClusterState result = mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request))
             .resultingState;
 

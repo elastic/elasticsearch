@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class Temporal -> java.time.temporal.Temporal {
+class java.time.temporal.Temporal {
   Temporal minus(long,TemporalUnit)
   Temporal minus(TemporalAmount)
   Temporal plus(long,TemporalUnit)
@@ -34,7 +34,7 @@ class Temporal -> java.time.temporal.Temporal {
   Temporal with(TemporalField,long)
 }
 
-class TemporalAccessor -> java.time.temporal.TemporalAccessor {
+class java.time.temporal.TemporalAccessor {
   int get(TemporalField)
   long getLong(TemporalField)
   boolean isSupported(TemporalField)
@@ -42,18 +42,18 @@ class TemporalAccessor -> java.time.temporal.TemporalAccessor {
   ValueRange range(TemporalField)
 }
 
-class TemporalAdjuster -> java.time.temporal.TemporalAdjuster {
+class java.time.temporal.TemporalAdjuster {
   Temporal adjustInto(Temporal)
 }
 
-class TemporalAmount -> java.time.temporal.TemporalAmount {
+class java.time.temporal.TemporalAmount {
   Temporal addTo(Temporal)
   long get(TemporalUnit)
   List getUnits()
   Temporal subtractFrom(Temporal)
 }
 
-class TemporalField -> java.time.temporal.TemporalField {
+class java.time.temporal.TemporalField {
   Temporal adjustInto(Temporal,long)
   TemporalUnit getBaseUnit()
   String getDisplayName(Locale)
@@ -68,11 +68,11 @@ class TemporalField -> java.time.temporal.TemporalField {
   String toString()
 }
 
-class TemporalQuery -> java.time.temporal.TemporalQuery {
+class java.time.temporal.TemporalQuery {
   def queryFrom(TemporalAccessor)
 }
 
-class TemporalUnit -> java.time.temporal.TemporalUnit {
+class java.time.temporal.TemporalUnit {
   Temporal addTo(Temporal,long)
   long between(Temporal,Temporal)
   Duration getDuration()
@@ -85,7 +85,7 @@ class TemporalUnit -> java.time.temporal.TemporalUnit {
 
 #### Classes
 
-class IsoFields -> java.time.temporal.IsoFields {
+class java.time.temporal.IsoFields {
   TemporalField DAY_OF_QUARTER
   TemporalField QUARTER_OF_YEAR
   TemporalUnit QUARTER_YEARS
@@ -94,13 +94,13 @@ class IsoFields -> java.time.temporal.IsoFields {
   TemporalField WEEK_OF_WEEK_BASED_YEAR
 }
 
-class JulianFields -> java.time.temporal.JulianFields {
+class java.time.temporal.JulianFields {
   TemporalField JULIAN_DAY
   TemporalField MODIFIED_JULIAN_DAY
   TemporalField RATA_DIE
 }
 
-class TemporalAdjusters -> java.time.temporal.TemporalAdjusters {
+class java.time.temporal.TemporalAdjusters {
   TemporalAdjuster dayOfWeekInMonth(int,DayOfWeek)
   TemporalAdjuster firstDayOfMonth()
   TemporalAdjuster firstDayOfNextMonth()
@@ -117,7 +117,7 @@ class TemporalAdjusters -> java.time.temporal.TemporalAdjusters {
   TemporalAdjuster previousOrSame(DayOfWeek)
 }
 
-class TemporalQueries -> java.time.temporal.TemporalQueries {
+class java.time.temporal.TemporalQueries {
   TemporalQuery chronology()
   TemporalQuery localDate()
   TemporalQuery localTime()
@@ -127,7 +127,7 @@ class TemporalQueries -> java.time.temporal.TemporalQueries {
   TemporalQuery zoneId()
 }
 
-class ValueRange -> java.time.temporal.ValueRange {
+class java.time.temporal.ValueRange {
   int checkValidIntValue(long,TemporalField)
   long checkValidValue(long,TemporalField)
   long getLargestMinimum()
@@ -143,7 +143,7 @@ class ValueRange -> java.time.temporal.ValueRange {
   ValueRange of(long,long,long,long)
 }
 
-class WeekFields -> java.time.temporal.WeekFields {
+class java.time.temporal.WeekFields {
   WeekFields ISO
   WeekFields SUNDAY_START
   TemporalUnit WEEK_BASED_YEARS
@@ -160,7 +160,7 @@ class WeekFields -> java.time.temporal.WeekFields {
 
 #### Enums
 
-class ChronoField -> java.time.temporal.ChronoField {
+class java.time.temporal.ChronoField {
   ChronoField ALIGNED_DAY_OF_WEEK_IN_MONTH
   ChronoField ALIGNED_DAY_OF_WEEK_IN_YEAR
   ChronoField ALIGNED_WEEK_OF_MONTH
@@ -197,7 +197,7 @@ class ChronoField -> java.time.temporal.ChronoField {
   ChronoField[] values()
 }
 
-class ChronoUnit -> java.time.temporal.ChronoUnit {
+class java.time.temporal.ChronoUnit {
   ChronoUnit CENTURIES
   ChronoUnit DAYS
   ChronoUnit DECADES
@@ -220,6 +220,6 @@ class ChronoUnit -> java.time.temporal.ChronoUnit {
 
 #### Exceptions
 
-class UnsupportedTemporalTypeException -> java.time.temporal.UnsupportedTemporalTypeException {
+class java.time.temporal.UnsupportedTemporalTypeException {
   (String)
 }

@@ -18,7 +18,7 @@
  */
 
 task buildTar(type: Tar) {
-  dependsOn createPluginsDir
+  dependsOn createLogDir, createPluginsDir
   baseName = 'elasticsearch'
   extension = 'tar.gz'
   with archivesFiles

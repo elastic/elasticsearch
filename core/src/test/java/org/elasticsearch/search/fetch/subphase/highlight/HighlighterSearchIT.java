@@ -2915,4 +2915,32 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }
     }
+
+    public void testWithNormalizer() throws Exception {
+        Builder builder = Settings.builder()
+            .put(indexSettings())
+            .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
+
+        assertAcked(prepareCreate("test").setSettings(builder.build())
+            .addMapping("doc", "keyword",
+                "type=keyword,normalizer=my_normalizer"));
+        ensureGreen();
+
+        client().prepareIndex("test", "doc", "0")
+            .setSource("keyword", "Hello World")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        for (String highlighterType : new String[] {"unified", "plain"}) {
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchQuery("keyword", "hello world"))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("keyword").highlighterType(highlighterType)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+        }
+    }
 }

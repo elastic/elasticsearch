@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -93,12 +94,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            try {
-                searchRequest.source(SearchSourceBuilder.fromXContent(parser));
-                multiRequest.add(searchRequest);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Exception when parsing search request", e);
-            }
+            searchRequest.source(SearchSourceBuilder.fromXContent(parser));
+            multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
         preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
@@ -113,7 +110,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
+            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -123,100 +120,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-
-        int from = 0;
-        int length = data.length();
-        byte marker = xContent.streamSeparator();
-        while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
-            if (nextMarker == -1) {
-                break;
-            }
-            // support first line with \n
-            if (nextMarker == 0) {
-                from = nextMarker + 1;
-                continue;
-            }
-
-            SearchRequest searchRequest = new SearchRequest();
-            if (indices != null) {
-                searchRequest.indices(indices);
-            }
-            if (indicesOptions != null) {
-                searchRequest.indicesOptions(indicesOptions);
-            }
-            if (types != null && types.length > 0) {
-                searchRequest.types(types);
-            }
-            if (routing != null) {
-                searchRequest.routing(routing);
-            }
-            if (searchType != null) {
-                searchRequest.searchType(searchType);
-            }
-
-            IndicesOptions defaultOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-
-
-            // now parse the action
-            if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(request.getXContentRegistry(), data.slice(from, nextMarker - from))) {
-                    Map<String, Object> source = parser.map();
-                    for (Map.Entry<String, Object> entry : source.entrySet()) {
-                        Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
-                            if (!allowExplicitIndex) {
-                                throw new IllegalArgumentException("explicit index in multi search is not allowed");
-                            }
-                            searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
-                            searchRequest.types(nodeStringArrayValue(value));
-                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
-                            searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
-                            searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
-                        } else if ("preference".equals(entry.getKey())) {
-                            searchRequest.preference(nodeStringValue(value, null));
-                        } else if ("routing".equals(entry.getKey())) {
-                            searchRequest.routing(nodeStringValue(value, null));
-                        }
-                    }
-                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
-                }
-            }
-            searchRequest.indicesOptions(defaultOptions);
-
-            // move pointers
-            from = nextMarker + 1;
-            // now for the body
-            nextMarker = findNextMarker(marker, from, data, length);
-            if (nextMarker == -1) {
-                break;
-            }
-            BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(request.getXContentRegistry(), bytes)) {
-                consumer.accept(searchRequest, parser);
-            }
-            // move pointers
-            from = nextMarker + 1;
-        }
+        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
+                searchType, request.getXContentRegistry(), allowExplicitIndex);
     }
 
     @Override
     public boolean supportsContentStream() {
         return true;
-    }
-
-    private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
-        }
-        if (from != length) {
-            throw new IllegalArgumentException("The msearch request must be terminated by a newline [\n]");
-        }
-        return -1;
     }
 
     @Override

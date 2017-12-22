@@ -28,7 +28,7 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Concatenates a list of files into one.
+ * Concatenates a list of files into one and removes duplicate lines.
  */
 public class ConcatFilesTask extends DefaultTask {
 
@@ -56,12 +56,12 @@ public class ConcatFilesTask extends DefaultTask {
             output.append(headerLine).append('\n')
         }
 
-        final File globalFile = File.createTempFile('global', 'txt')
-        files.each {
-            globalFile.append(it.getText('UTF-8'))
+        final StringBuilder sb = new StringBuilder()
+        files.each { file ->
+            sb.append(file.getText('UTF-8'))
         }
-        final TreeSet<String> lines = globalFile.readLines('UTF-8').toSet()
-        for (String value : lines) {
+        // Remove duplicate lines
+        sb.readLines().toSet().each { value ->
             output.append(value).append('\n')
         }
 

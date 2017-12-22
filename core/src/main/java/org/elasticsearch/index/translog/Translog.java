@@ -196,7 +196,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 final long generation = deletionPolicy.getMinTranslogGenerationForRecovery();
                 logger.debug("wipe translog location - creating new translog, starting generation [{}]", generation);
                 Files.createDirectories(location);
-                final long initialGlobalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                final long initialGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
                 final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);

@@ -68,7 +68,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27861")
     public void testRetentionPolicyChangeDuringRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();
@@ -227,6 +226,19 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             assertThat(newReplica.commitStats().getUserData().get(Engine.HISTORY_UUID_KEY), equalTo(historyUUID));
 
             shards.assertAllEqual(numDocs);
+        }
+    }
+
+    public void testPeerRecoveryPersistGlobalCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startPrimary();
+            final long numDocs = shards.indexDocs(between(1, 100));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            final IndexShard replica = shards.addReplica();
+            shards.recoverReplica(replica);
+            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(numDocs - 1));
         }
     }
 }

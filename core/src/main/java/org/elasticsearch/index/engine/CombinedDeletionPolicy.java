@@ -54,7 +54,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() : "index is created, but we have commits";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";

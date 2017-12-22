@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Builds a message describing how two sets of values are unequal. 
+ * Builds a message describing how two sets of values are unequal.
  */
 public class NotEqualMessageBuilder {
     private final StringBuilder message;
@@ -150,7 +150,17 @@ public class NotEqualMessageBuilder {
             field(field, "same [" + expected + "]");
             return;
         }
-        field(field, "expected [" + expected + "] but was [" + actual + "]");
+        String expectedString = Objects.toString(expected);
+        String actualString = Objects.toString(actual);
+        if (expectedString.equals(actualString)) {
+            if (expected != null) {
+                expectedString += " (" + expected.getClass().getName() + ")";
+            }
+            if (actual != null) {
+                actualString += " (" + actual.getClass().getName() + ")";
+            }
+        }
+        field(field, "expected [" + expectedString + "] but was [" + actualString + "]");
     }
 
     private void indent() {

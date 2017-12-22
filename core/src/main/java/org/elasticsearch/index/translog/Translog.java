@@ -356,7 +356,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the minimum file generation referenced by the translog
      */
-    long getMinFileGeneration() {
+    public long getMinFileGeneration() {
         try (ReleasableLock ignored = readLock.acquire()) {
             if (readers.isEmpty()) {
                 return current.getGeneration();

@@ -182,9 +182,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
+        return readCommittedSegmentsInfo(null);
+    }
+
+    /**
+     * Returns the committed segments info for the given commit point.
+     * If the commit point is not provided, this method will return the segments info of the last commit in the store.
+     */
+    public SegmentInfos readCommittedSegmentsInfo(final IndexCommit commit) throws IOException {
         failIfCorrupted();
         try {
-            return readSegmentsInfo(null, directory());
+            return readSegmentsInfo(commit, directory());
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -212,13 +220,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Loads the maximum sequence number and local checkpoint from the latest Lucene commit point.
+     * Loads the maximum sequence number and local checkpoint from the given Lucene commit point or the latest if not provided.
      *
+     * @param commit the commit point to load seqno stats, or the last commit in the store if the parameter is null
      * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SequenceNumbers.CommitInfo loadSeqNoInfo() throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+    public SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
+        final Map<String, String> userData = commit != null ? commit.getUserData() : SegmentInfos.readLatestCommit(directory).getUserData();
         return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 

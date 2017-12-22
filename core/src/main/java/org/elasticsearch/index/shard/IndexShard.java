@@ -1291,7 +1291,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
         assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
             recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
-        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo();
+        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
         assert commitInfo.localCheckpoint >= globalCheckpoint :
             "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
                     + globalCheckpoint + "]";

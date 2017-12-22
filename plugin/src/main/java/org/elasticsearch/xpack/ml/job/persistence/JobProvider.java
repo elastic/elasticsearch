@@ -360,11 +360,31 @@ public class JobProvider {
     }
 
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
-        AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
 
         String jobId = job.getId();
+
+        ActionListener<AutodetectParams.Builder> getSpecialEventsListener = ActionListener.wrap(
+                paramsBuilder -> {
+                    SpecialEventsQueryBuilder specialEventsQuery = new SpecialEventsQueryBuilder();
+                    Date lastestRecordTime = paramsBuilder.getDataCounts().getLatestRecordTimeStamp();
+                    if (lastestRecordTime != null) {
+                        specialEventsQuery.after(Long.toString(lastestRecordTime.getTime()));
+                    }
+                    specialEventsForJob(jobId, specialEventsQuery, ActionListener.wrap(
+                            events -> {
+                                paramsBuilder.setSpecialEvents(events.results());
+                                consumer.accept(paramsBuilder.build());
+                            },
+                            errorHandler
+                    ));
+                },
+                errorHandler
+        );
+
+        AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
+
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
@@ -377,44 +397,43 @@ public class JobProvider {
             msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId)));
         }
 
-        msearch.add(createSpecialEventSearch(jobId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
-                                                ActionListener.<MultiSearchResponse>wrap(
-                response -> {
-                    for (int i = 0; i < response.getResponses().length; i++) {
-                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
-                        if (itemResponse.isFailure()) {
-                            errorHandler.accept(itemResponse.getFailure());
-                        } else {
-                            SearchResponse searchResponse = itemResponse.getResponse();
-                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                            if (shardFailures != null && shardFailures.length > 0) {
-                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                        Arrays.toString(shardFailures));
-                                errorHandler.accept(new ElasticsearchException(
-                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                            } else if (unavailableShards > 0) {
-                                errorHandler.accept(new ElasticsearchException("[" + jobId
-                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                            } else {
-                                SearchHits hits = searchResponse.getHits();
-                                long hitsCount = hits.getHits().length;
-                                if (hitsCount == 0) {
-                                    SearchRequest searchRequest = msearch.request().requests().get(i);
-                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                ActionListener.<MultiSearchResponse>wrap(
+                        response -> {
+                            for (int i = 0; i < response.getResponses().length; i++) {
+                                MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                                if (itemResponse.isFailure()) {
+                                    errorHandler.accept(itemResponse.getFailure());
                                 } else {
-                                    for (SearchHit hit : hits) {
-                                        parseAutodetectParamSearchHit(jobId, paramsBuilder, hit, errorHandler);
+                                    SearchResponse searchResponse = itemResponse.getResponse();
+                                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                                    int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                                    if (shardFailures != null && shardFailures.length > 0) {
+                                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                                Arrays.toString(shardFailures));
+                                        errorHandler.accept(new ElasticsearchException(
+                                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                    } else if (unavailableShards > 0) {
+                                        errorHandler.accept(new ElasticsearchException("[" + jobId
+                                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                    } else {
+                                        SearchHits hits = searchResponse.getHits();
+                                        long hitsCount = hits.getHits().length;
+                                        if (hitsCount == 0) {
+                                            SearchRequest searchRequest = msearch.request().requests().get(i);
+                                            LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                                        } else {
+                                            for (SearchHit hit : hits) {
+                                                parseAutodetectParamSearchHit(jobId, paramsBuilder, hit, errorHandler);
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    consumer.accept(paramsBuilder.build());
-                },
-                errorHandler
+                            getSpecialEventsListener.onResponse(paramsBuilder);
+                        },
+                        errorHandler
                 ), client::multiSearch);
     }
 
@@ -423,17 +442,6 @@ public class JobProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.idsQuery().addIds(id))
                 .setRouting(id);
-    }
-
-
-    private SearchRequestBuilder createSpecialEventSearch(String jobId) {
-        QueryBuilder qb = new BoolQueryBuilder()
-                .filter(new TermsQueryBuilder(SpecialEvent.TYPE.getPreferredName(), SpecialEvent.SPECIAL_EVENT_TYPE))
-                .filter(new TermsQueryBuilder(SpecialEvent.JOB_IDS.getPreferredName(), jobId));
-
-        return client.prepareSearch(MlMetaIndex.INDEX_NAME)
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(qb);
     }
 
     private void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
@@ -451,10 +459,8 @@ public class JobProvider {
             paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
             paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler).build());
-        } else if (hitId.startsWith(SpecialEvent.DOCUMENT_ID_PREFIX)) {
-            paramsBuilder.addSpecialEvent(parseSearchHit(hit, SpecialEvent.PARSER, errorHandler));
         } else {
-            errorHandler.accept(new IllegalStateException("Unexpected type [" + hit.getType() + "]"));
+            errorHandler.accept(new IllegalStateException("Unexpected Id [" + hitId + "]"));
         }
     }
 
@@ -940,6 +946,7 @@ public class JobProvider {
                                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(searchFromTimeMs))
                                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE)))
                         .addAggregation(AggregationBuilders.extendedStats("es").field(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName()));
+
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, search.request(),
                         ActionListener.<SearchResponse>wrap(
                                 response -> {
@@ -994,21 +1001,46 @@ public class JobProvider {
         });
     }
 
-    public void specialEvents(String jobId, Consumer<List<SpecialEvent>> handler, Consumer<Exception> errorHandler) {
-        SearchRequestBuilder request = createSpecialEventSearch(jobId);
+    public void specialEventsForJob(String jobId, SpecialEventsQueryBuilder queryBuilder, ActionListener<QueryPage<SpecialEvent>> handler) {
+
+        // Find all the calendars used by the job then the events for those calendars
+
+        ActionListener<QueryPage<Calendar>> calendarsListener = ActionListener.wrap(
+                calendars -> {
+                    if (calendars.results().isEmpty()) {
+                        handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, SpecialEvent.RESULTS_FIELD));
+                        return;
+                    }
+                    List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
+                    queryBuilder.calendarIds(calendarIds);
+                    specialEvents(queryBuilder, handler);
+                },
+                handler::onFailure
+        );
+
+        CalendarQueryBuilder query = new CalendarQueryBuilder().jobId(jobId);
+        calendars(query, calendarsListener);
+    }
+
+    public void specialEvents(SpecialEventsQueryBuilder query, ActionListener<QueryPage<SpecialEvent>> handler) {
+        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(query.build());
+
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request.request(),
                 ActionListener.<SearchResponse>wrap(
-                    response -> {
-                        List<SpecialEvent> specialEvents = new ArrayList<>();
-                        SearchHit[] hits = response.getHits().getHits();
-                        for (SearchHit hit : hits) {
-                            specialEvents.add(parseSearchHit(hit, SpecialEvent.PARSER, errorHandler));
-                    }
+                        response -> {
+                            List<SpecialEvent> specialEvents = new ArrayList<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                specialEvents.add(parseSearchHit(hit, SpecialEvent.PARSER, handler::onFailure).build());
+                            }
 
-                    handler.accept(specialEvents);
-                },
-                errorHandler)
-        , client::search);
+                            handler.onResponse(new QueryPage<>(specialEvents, response.getHits().getTotalHits(),
+                                    SpecialEvent.RESULTS_FIELD));
+                        },
+                        handler::onFailure)
+                , client::search);
     }
 
     public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,

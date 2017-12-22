@@ -1,0 +1,35 @@
+[role="xpack"]
+[[ml-put-calendar]]
+=== Create Calendar API
+++++
+<titleabbrev>Create Calendar</titleabbrev>
+++++
+
+The create calendar API enables you to instantiate a calendar.
+
+==== Request
+
+`PUT _xpack/ml/calendars/<calendar_id>`
+
+//===== Description
+
+==== Path Parameters
+
+`calendar_id` (required)::
+  (string) Identifier for the calendar.
+
+
+==== Request Body
+
+`description`::
+  (string) A description of the calendar.
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+
+//==== Examples
+//See plugin/src/test/resources/rest-api-spec/test/ml/calendar_crud.yml

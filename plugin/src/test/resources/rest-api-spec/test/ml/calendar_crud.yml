@@ -74,6 +74,11 @@
   - match: { count: 2 }
 
   - do:
+      xpack.ml.get_calendars:
+        calendar_id: _all
+  - match: { count: 2 }
+
+  - do:
       catch: missing
       xpack.ml.get_calendars:
         calendar_id: "Dogs of the Year"
@@ -177,7 +182,7 @@
   - match: { calendars.0.job_ids: [] }
 
 ---
-"Test update calendar":
+"Test update calendar job ids":
 
   - do:
       xpack.ml.put_calendar:
@@ -234,3 +239,172 @@
       xpack.ml.delete_calendar_job:
         calendar_id: "Wildlife"
         job_id: "missing job"
+
+---
+"Test calendar events":
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "events"
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "events"
+        body: >
+          { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "events" }
+          { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z", "calendar_id": "events" }
+          { "description": "event 3", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-13T00:00:00Z", "calendar_id": "events" }
+          { "description": "event 4", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-15T00:00:00Z", "calendar_id": "events" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "events"
+  - length: { special_events: 4 }
+  - match: { special_events.0.description: "event 1" }
+  - match: { special_events.1.description: "event 2" }
+  - match: { special_events.2.description: "event 3" }
+  - match: { special_events.3.description: "event 4" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "events"
+        from: 1
+        size: 2
+  - length: { special_events: 2 }
+  - match: { special_events.0.description: "event 2" }
+  - match: { special_events.1.description: "event 3" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "events"
+        before: "2017-12-12T00:00:00Z"
+  - length: { special_events: 2 }
+  - match: { special_events.0.description: "event 1" }
+  - match: { special_events.1.description: "event 2" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "events"
+        after: "2017-12-05T03:00:00Z"
+  - length: { special_events: 3 }
+  - match: { special_events.0.description: "event 2" }
+  - match: { special_events.1.description: "event 3" }
+  - match: { special_events.2.description: "event 4" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "events"
+        after: "2017-12-02T00:00:00Z"
+        before: "2017-12-12T00:00:00Z"
+  - length: { special_events: 1 }
+  - match: { special_events.0.description: "event 2" }
+
+---
+"Test get all calendar events":
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "dave-holidays"
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "dave-holidays"
+        body: >
+          { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
+          { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "tom-holidays"
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "tom-holidays"
+        body: >
+          { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
+          { "description": "other", "start_time": "2017-12-27T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "_all"
+  - length: { special_events: 4 }
+
+---
+"Test get calendar events for job":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: cal-crud-job-with-events
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "dave-holidays"
+        body: >
+          {
+            "job_ids": ["cal-crud-job-with-events"]
+          }
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "dave-holidays"
+        body: >
+          { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
+          { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "tom-holidays"
+        body: >
+          {
+            "job_ids": ["cal-crud-job-with-events"]
+          }
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "tom-holidays"
+        body: >
+          { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
+          { "description": "other", "start_time": "2018-01-15T00:00:00Z", "end_time": "2018-01-16T00:00:00Z" }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "not-used-by-job"
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "not-used-by-job"
+        body: >
+          { "description": "random", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-26T00:00:00Z" }
+          { "description": "random2", "start_time": "2018-02-20T00:00:00Z", "end_time": "2018-02-26T00:00:00Z" }
+
+
+  - do:
+      catch: /action_request_validation_exception/
+      xpack.ml.get_calendar_events:
+        calendar_id: "dave-holiday"
+        job_id: cal-crud-job-with-events
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: _all
+        job_id: cal-crud-job-with-events
+  - match: { count: 4 }
+  - length: { special_events: 4 }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: _all
+        after: "2018-01-01T00:00:00Z"
+        job_id: cal-crud-job-with-events
+  - match: { count: 2 }
+  - length: { special_events: 2 }
+  - match: { special_events.0.description: ny }
+  - match: { special_events.1.description: other }

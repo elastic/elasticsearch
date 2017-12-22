@@ -1,0 +1,34 @@
+[role="xpack"]
+[[ml-put-calendar-job]]
+=== Add Jobs to Calendar API
+++++
+<titleabbrev>Add Jobs to Calendar</titleabbrev>
+++++
+
+The add jobs to calendar API enables you to add jobs to a calendar.
+
+==== Request
+
+`PUT _xpack/ml/calendars/<calendar_id>/jobs/<job_id>`
+
+//===== Description
+
+==== Path Parameters
+
+`calendar_id` (required)::
+  (string) Identifier for the calendar.
+
+`job_id` (required)::
+  (string) Identifier for the job.
+
+
+//==== Request Body
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+
+//==== Examples

@@ -11,34 +11,23 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
@@ -46,14 +35,10 @@ import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCalendarsAction.Response, GetCalendarsAction.RequestBuilder> {
 
@@ -74,7 +59,24 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         return new Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContentObject {
+
+        public static final String ALL = "_all";
+
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setCalendarId, Calendar.ID);
+            PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
+        }
+
+        public static Request parseRequest(String calendarId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (calendarId != null) {
+                request.setCalendarId(calendarId);
+            }
+            return request;
+        }
 
         private String calendarId;
         private PageParams pageParams;
@@ -114,18 +116,20 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            calendarId = in.readString();
+            calendarId = in.readOptionalString();
+            pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(calendarId);
+            out.writeOptionalString(calendarId);
+            out.writeOptionalWriteable(pageParams);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId);
+            return Objects.hash(calendarId, pageParams);
         }
 
         @Override
@@ -137,7 +141,20 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId);
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(pageParams, other.pageParams);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (calendarId != null) {
+                builder.field(Calendar.ID.getPreferredName(), calendarId);
+            }
+            if (pageParams != null) {
+                builder.field(PageParams.PAGE.getPreferredName(), pageParams);
+            }
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -228,7 +245,7 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             final String calendarId = request.getCalendarId();
-            if (request.getCalendarId() != null) {
+            if (request.getCalendarId() != null && Request.ALL.equals(request.getCalendarId()) == false) {
                 getCalendar(calendarId, listener);
             } else {
                 PageParams pageParams = request.getPageParams();

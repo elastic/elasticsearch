@@ -131,6 +131,7 @@ teardown:
                 "index" : {
                   "index" : "my_test_index",
                   "doc_type" : "my-type",
+                  "refresh" : "wait_for",
                   "doc_id": "my-id"
                 }
               }
@@ -156,3 +157,8 @@ teardown:
   - is_true: watch_record.node
   - is_false: watch_record.result.input.payload.foo
   - is_true: watch_record.result.input.payload.spam
+
+  - do:
+      search:
+        index: my_test_index
+  - match: { hits.total : 1 }

@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -75,6 +74,8 @@ import static org.hamcrest.Matchers.notNullValue;
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
+    private final List<String> clusterAlertBlacklist =
+            rarely() ? randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS)) : Collections.emptyList();
     private final boolean templatesExistsAlready = randomBoolean();
     private final boolean includeOldTemplates = randomBoolean();
     private final boolean pipelineExistsAlready = randomBoolean();
@@ -114,12 +115,16 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                        .build();
     }
 
+    protected Settings.Builder baseSettings() {
+        return Settings.builder()
+                       .put("xpack.monitoring.exporters._http.type", "http")
+                       .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+                       .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
+                       .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates);
+    }
+
     public void testExport() throws Exception {
-        final Settings settings = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
-                .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates)
-                .build();
+        final Settings settings = baseSettings().build();
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
@@ -146,10 +151,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         headers.put("X-Found-Cluster", new String[] { headerValue });
         headers.put("Array-Check", array);
 
-        Settings settings = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
-                .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates)
+        final Settings settings = baseSettings()
                 .put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
                 .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
                 .putList("xpack.monitoring.exporters._http.headers.Array-Check", array)
@@ -199,14 +201,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             basePath = "/" + basePath;
         }
 
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+        final Settings.Builder builder = baseSettings()
                 .put("xpack.monitoring.exporters._http.proxy.base_path", basePath + (randomBoolean() ? "/" : ""));
-
-        if (includeOldTemplates == false) {
-            builder.put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", false);
-        }
 
         if (useHeaders) {
             builder.put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
@@ -231,11 +227,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     public void testHostChangeReChecksTemplate() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
-                .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates)
-                .build();
+        final Settings settings = baseSettings().build();
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
@@ -327,11 +319,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     public void testDynamicIndexFormatChange() throws Exception {
-        final Settings settings = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
-                .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", includeOldTemplates)
-                .build();
+        final Settings settings = baseSettings().build();
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
@@ -473,7 +461,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                       final boolean remoteClusterAllowsWatcher, final boolean currentLicenseAllowsWatcher,
                                       final boolean alreadyExists,
                                       @Nullable final Map<String, String[]> customHeaders,
-                                      @Nullable final String basePath) throws Exception {
+                                      @Nullable final String basePath) {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
         MockRequest request;
 
@@ -486,13 +474,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertHeaders(request, customHeaders);
 
         if (remoteClusterAllowsWatcher) {
-            for (Tuple<String, String> watch : monitoringWatches()) {
+            for (final Tuple<String, String> watch : monitoringWatches()) {
+                final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watch.v1());
+
                 request = webServer.takeRequest();
 
                 // GET / PUT if we are allowed to use it
-                if (currentLicenseAllowsWatcher) {
+                if (currentLicenseAllowsWatcher && clusterAlertBlacklist.contains(watch.v1()) == false) {
                     assertThat(request.getMethod(), equalTo("GET"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + watch.v1()));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
 
@@ -500,7 +490,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                         request = webServer.takeRequest();
 
                         assertThat(request.getMethod(), equalTo("PUT"));
-                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + watch.v1()));
+                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
                         assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                         assertThat(request.getBody(), equalTo(watch.v2()));
                         assertHeaders(request, customHeaders);
@@ -508,7 +498,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // DELETE if we're not allowed to use it
                 } else {
                     assertThat(request.getMethod(), equalTo("DELETE"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + watch.v1()));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
                 }
@@ -775,59 +765,58 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void enqueueClusterAlertResponsesDoesNotExistYet(final MockWebServer webServer)
             throws IOException {
-        for (final String watchId : monitoringWatchIds()) {
-            if (randomBoolean()) {
-                enqueueResponse(webServer, 404, "watch [" + watchId + "] does not exist");
-            } else if (randomBoolean()) {
-                final int version = ClusterAlertsUtil.LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
-
-                // it DOES exist, but it's an older version
-                enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + version + "}}}");
+        for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+            if (clusterAlertBlacklist.contains(watchId)) {
+                enqueueDeleteClusterAlertResponse(webServer, watchId);
             } else {
-                // no version specified
-                enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{}}}");
+                if (randomBoolean()) {
+                    enqueueResponse(webServer, 404, "watch [" + watchId + "] does not exist");
+                } else if (randomBoolean()) {
+                    final int version = ClusterAlertsUtil.LAST_UPDATED_VERSION - randomIntBetween(1, 1000000);
+
+                    // it DOES exist, but it's an older version
+                    enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + version + "}}}");
+                } else {
+                    // no version specified
+                    enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{}}}");
+                }
+                enqueueResponse(webServer, 201, "[" + watchId + "] created");
             }
-            enqueueResponse(webServer, 201, "[" + watchId + "] created");
         }
     }
 
     private void enqueueClusterAlertResponsesExistsAlready(final MockWebServer webServer) throws IOException {
-        final int count = monitoringWatchIds().size();
-        for (int i = 0; i < count; ++i) {
-            final int existsVersion;
-
-            if (randomBoolean()) {
-                // it's a NEWER cluster alert
-                existsVersion = randomFrom(Version.CURRENT.id, ClusterAlertsUtil.LAST_UPDATED_VERSION) + randomIntBetween(1, 1000000);
+        for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+            if (clusterAlertBlacklist.contains(watchId)) {
+                enqueueDeleteClusterAlertResponse(webServer, watchId);
             } else {
-                // we already put it
-                existsVersion = ClusterAlertsUtil.LAST_UPDATED_VERSION;
-            }
+                final int existsVersion;
 
-            enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + existsVersion + "}}}");
+                if (randomBoolean()) {
+                    // it's a NEWER cluster alert
+                    existsVersion = randomFrom(Version.CURRENT.id, ClusterAlertsUtil.LAST_UPDATED_VERSION) + randomIntBetween(1, 1000000);
+                } else {
+                    // we already put it
+                    existsVersion = ClusterAlertsUtil.LAST_UPDATED_VERSION;
+                }
+
+                enqueueResponse(webServer, 200, "{\"metadata\":{\"xpack\":{\"version_created\":" + existsVersion + "}}}");
+            }
         }
     }
 
     private void enqueueDeleteClusterAlertResponses(final MockWebServer webServer) throws IOException {
-        for (final String watchId : monitoringWatchIds()) {
-            if (randomBoolean()) {
-                enqueueResponse(webServer, 404, "watch [" + watchId + "] did not exist");
-            } else {
-                enqueueResponse(webServer, 200, "watch [" + watchId + "] deleted");
-            }
+        for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
+            enqueueDeleteClusterAlertResponse(webServer, watchId);
         }
     }
 
-    private void writeIndex(XContentBuilder response, String index, String alias) throws IOException {
-        response.startObject(index);
-        {
-            response.startObject("aliases");
-            {
-                response.startObject(alias).endObject();
-            }
-            response.endObject();
+    private void enqueueDeleteClusterAlertResponse(final MockWebServer webServer, final String watchId) throws IOException {
+        if (randomBoolean()) {
+            enqueueResponse(webServer, 404, "watch [" + watchId + "] did not exist");
+        } else {
+            enqueueResponse(webServer, 200, "watch [" + watchId + "] deleted");
         }
-        response.endObject();
     }
 
     private void enqueueResponse(int responseCode, String body) throws IOException {

@@ -185,14 +185,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         final ClusterService clusterService = clusterService();
 
         return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
-                .map(id -> new Tuple<>(ClusterAlertsUtil.createUniqueWatchId(clusterService, id),
-                                       ClusterAlertsUtil.loadWatch(clusterService, id)))
-                .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringWatchIds() {
-        return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
-                .map(id -> ClusterAlertsUtil.createUniqueWatchId(clusterService(), id))
+                .map(id -> new Tuple<>(id, ClusterAlertsUtil.loadWatch(clusterService, id)))
                 .collect(Collectors.toList());
     }
 

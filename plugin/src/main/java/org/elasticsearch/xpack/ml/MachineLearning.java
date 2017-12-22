@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
@@ -119,7 +121,9 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
@@ -471,7 +475,9 @@ public class MachineLearning implements ActionPlugin {
             new RestPutCalendarAction(settings, restController),
             new RestDeleteCalendarAction(settings, restController),
             new RestDeleteCalendarJobAction(settings, restController),
-            new RestPutCalendarJobAction(settings, restController)
+            new RestPutCalendarJobAction(settings, restController),
+            new RestGetCalendarEventsAction(settings, restController),
+            new RestPostCalendarEventAction(settings, restController)
         );
     }
 
@@ -521,7 +527,9 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, GetCalendarsAction.TransportAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, PutCalendarAction.TransportAction.class),
                 new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class),
-                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class)
+                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class),
+                new ActionHandler<>(GetCalendarEventsAction.INSTANCE, GetCalendarEventsAction.TransportAction.class),
+                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, PostCalendarEventsAction.TransportAction.class)
         );
     }
 
@@ -568,6 +576,7 @@ public class MachineLearning implements ActionPlugin {
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .build();
                 templates.put(Auditor.NOTIFICATIONS_INDEX, notificationMessageTemplate);
@@ -582,6 +591,7 @@ public class MachineLearning implements ActionPlugin {
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
                         .putMapping(MlMetaIndex.TYPE, docMapping.string())
@@ -596,6 +606,7 @@ public class MachineLearning implements ActionPlugin {
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
                         // TODO review these settings
                         .settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
@@ -613,6 +624,7 @@ public class MachineLearning implements ActionPlugin {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's

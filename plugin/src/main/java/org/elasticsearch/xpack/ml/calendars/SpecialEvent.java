@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -29,32 +30,27 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class SpecialEvent implements ToXContentObject, Writeable {
 
-    public static final ParseField ID = new ParseField("id");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
     public static final ParseField TYPE = new ParseField("type");
-    public static final ParseField JOB_IDS = new ParseField("job_ids");
+
+    public static final ParseField RESULTS_FIELD = new ParseField("special_events");
 
     public static final String SPECIAL_EVENT_TYPE = "special_event";
     public static final String DOCUMENT_ID_PREFIX = "event_";
 
-    public static final ConstructingObjectParser<SpecialEvent, Void> PARSER =
-            new ConstructingObjectParser<>("special_event", a -> new SpecialEvent((String) a[0], (String) a[1], (ZonedDateTime) a[2],
-                    (ZonedDateTime) a[3], (List<String>) a[4]));
+    public static final ObjectParser<SpecialEvent.Builder, Void> PARSER =
+            new ObjectParser<>("special_event", Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+        PARSER.declareString(SpecialEvent.Builder::description, DESCRIPTION);
+        PARSER.declareField(SpecialEvent.Builder::startTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -63,7 +59,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + START_TIME.getPreferredName() + "]");
         }, START_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+        PARSER.declareField(SpecialEvent.Builder::endTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -73,7 +69,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
                     "unexpected token [" + p.currentToken() + "] for [" + END_TIME.getPreferredName() + "]");
         }, END_TIME, ObjectParser.ValueType.VALUE);
 
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), JOB_IDS);
+        PARSER.declareString(SpecialEvent.Builder::calendarId, Calendar.ID);
         PARSER.declareString((builder, s) -> {}, TYPE);
     }
 
@@ -81,30 +77,23 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         return DOCUMENT_ID_PREFIX + eventId;
     }
 
-    private final String id;
     private final String description;
     private final ZonedDateTime startTime;
     private final ZonedDateTime endTime;
-    private final Set<String> jobIds;
+    private final String calendarId;
 
-    public SpecialEvent(String id, String description, ZonedDateTime startTime, ZonedDateTime endTime, List<String> jobIds) {
-        this.id = Objects.requireNonNull(id);
+    SpecialEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId) {
         this.description = Objects.requireNonNull(description);
         this.startTime = Objects.requireNonNull(startTime);
         this.endTime = Objects.requireNonNull(endTime);
-        this.jobIds = new HashSet<>(jobIds);
+        this.calendarId = Objects.requireNonNull(calendarId);
     }
 
     public SpecialEvent(StreamInput in) throws IOException {
-        id = in.readString();
         description = in.readString();
         startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
         endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
-        jobIds = new HashSet<>(Arrays.asList(in.readStringArray()));
-    }
-
-    public String getId() {
-        return id;
+        calendarId = in.readString();
     }
 
     public String getDescription() {
@@ -119,12 +108,8 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         return endTime;
     }
 
-    public Set<String> getJobIds() {
-        return jobIds;
-    }
-
-    public String documentId() {
-        return documentId(id);
+    public String getCalendarId() {
+        return calendarId;
     }
 
     /**
@@ -157,21 +142,19 @@ public class SpecialEvent implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
         out.writeString(description);
         out.writeVLong(startTime.toInstant().toEpochMilli());
         out.writeVLong(endTime.toInstant().toEpochMilli());
-        out.writeStringArray(jobIds.toArray(new String [0]));
+        out.writeString(calendarId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
         builder.field(DESCRIPTION.getPreferredName(), description);
         builder.dateField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toInstant().toEpochMilli());
         builder.dateField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
-        builder.field(JOB_IDS.getPreferredName(), jobIds);
+        builder.field(Calendar.ID.getPreferredName(), calendarId);
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
         }
@@ -190,12 +173,83 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         }
 
         SpecialEvent other = (SpecialEvent) obj;
-        return id.equals(other.id) && description.equals(other.description) && startTime.equals(other.startTime)
-                && endTime.equals(other.endTime) && jobIds.equals(other.jobIds);
+        // In Java 8 the tests pass with ZonedDateTime.isEquals() or ZonedDateTime.toInstant.equals()
+        // but in Java 9 & 10 the same tests fail.
+        // Both isEquals() and toInstant.equals() work the same; convert to epoch seconds and
+        // compare seconds and nanos are equal. For some reason the nanos are different in Java 9 & 10.
+        // It's sufficient to compare just the epoch seconds for the purpose of establishing equality
+        // which only occurs in testing.
+        // Note ZonedDataTime.equals() fails because the time zone and date-time must be the same
+        // which isn't the case in tests where the time zone is randomised.
+        return description.equals(other.description)
+                && Objects.equals(startTime.toInstant().getEpochSecond(), other.startTime.toInstant().getEpochSecond())
+                && Objects.equals(endTime.toInstant().getEpochSecond(), other.endTime.toInstant().getEpochSecond())
+                && calendarId.equals(other.calendarId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, startTime, endTime, jobIds);
+        return Objects.hash(description, startTime, endTime, calendarId);
+    }
+
+    public static class Builder {
+        private String description;
+        private ZonedDateTime startTime;
+        private ZonedDateTime endTime;
+        private String calendarId;
+
+
+        public Builder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder startTime(ZonedDateTime startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        public Builder endTime(ZonedDateTime endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        public Builder calendarId(String calendarId) {
+            this.calendarId = calendarId;
+            return this;
+        }
+
+        public String getCalendarId() {
+            return calendarId;
+        }
+
+        public SpecialEvent build() {
+            if (description == null) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, DESCRIPTION.getPreferredName()));
+            }
+
+            if (startTime == null) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, START_TIME.getPreferredName()));
+            }
+
+            if (endTime == null) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, END_TIME.getPreferredName()));
+            }
+
+            if (calendarId == null) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, Calendar.ID.getPreferredName()));
+            }
+
+            if (startTime.isBefore(endTime) == false) {
+                throw ExceptionsHelper.badRequestException("Special event start time [" + startTime +
+                                "] must come before end time [" + endTime + "]");
+            }
+
+            return new SpecialEvent(description, startTime, endTime, calendarId);
+        }
     }
 }

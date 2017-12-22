@@ -300,16 +300,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * The Job creation time. This name is preferred when serialising to the
-     * data store.
-     *
-     * @return The date the job was created
-     */
-    public Date getAtTimestamp() {
-        return createTime;
-    }
-
-    /**
      * The time the job was finished or <code>null</code> if not finished.
      *
      * @return The date the job was last retired or <code>null</code>
@@ -767,7 +757,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        Builder setCreateTime(Date createTime) {
+        public Builder setCreateTime(Date createTime) {
             this.createTime = createTime;
             return this;
         }

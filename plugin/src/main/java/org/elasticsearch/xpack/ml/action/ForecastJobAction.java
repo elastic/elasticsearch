@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.results.Forecast;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -247,16 +250,13 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
     public static class TransportAction extends TransportJobTaskAction<Request, Response> {
 
-        private final JobManager jobManager;
-
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobManager jobManager, AutodetectProcessManager processManager) {
+                AutodetectProcessManager processManager) {
             super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new, ThreadPool.Names.SAME,
                     processManager);
-            this.jobManager = jobManager;
             // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
@@ -269,20 +269,16 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
+            ClusterState state = clusterService.state();
+            Job job = JobManager.getJobOrThrowIfUnknown(task.getJobId(), state);
+            validate(job, request);
+
             ForecastParams.Builder paramsBuilder = ForecastParams.builder();
+
             if (request.getDuration() != null) {
-                TimeValue duration = request.getDuration();
-                TimeValue bucketSpan = jobManager.getJobOrThrowIfUnknown(task.getJobId()).getAnalysisConfig().getBucketSpan();
-
-                if (duration.compareTo(bucketSpan) < 0) {
-                    throw new IllegalArgumentException(
-                            "[" + DURATION.getPreferredName()
-                            + "] must be greater or equal to the bucket span: ["
-                            + duration.getStringRep() + "/" + bucketSpan.getStringRep() + "]");
-                }
-
                 paramsBuilder.duration(request.getDuration());
             }
+
             if (request.getExpiresIn() != null) {
                 paramsBuilder.expiresIn(request.getExpiresIn());
             }
@@ -295,6 +291,24 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                     listener.onFailure(e);
                 }
             });
+        }
+
+        static void validate(Job job, Request request) {
+            if (job.getJobVersion() == null || job.getJobVersion().before(Version.V_6_1_0)) {
+                throw ExceptionsHelper.badRequestException(
+                        "Cannot run forecast because jobs created prior to version 6.1 are not supported");
+            }
+
+            if (request.getDuration() != null) {
+                TimeValue duration = request.getDuration();
+                TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
+
+                if (duration.compareTo(bucketSpan) < 0) {
+                    throw ExceptionsHelper.badRequestException(
+                            "[" + DURATION.getPreferredName() + "] must be greater or equal to the bucket span: [" + duration.getStringRep()
+                                    + "/" + bucketSpan.getStringRep() + "]");
+                }
+            }
         }
     }
 }

@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.core.IsEqual.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PluginInfoTests extends ESTestCase {
 
@@ -170,10 +170,24 @@ public class PluginInfoTests extends ESTestCase {
         plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
-
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
         List<String> names = infos.stream().map(PluginInfo::getName).collect(Collectors.toList());
         assertThat(names, contains("a", "b", "c", "d", "e"));
+    }
+
+    public void testUnknownProperties() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writeProperties(pluginDir,
+            "extra", "property",
+            "unknown", "property",
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Unknown properties in plugin descriptor"));
     }
 
 }

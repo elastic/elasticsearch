@@ -59,7 +59,7 @@ public abstract class NodeUtils {
      * As an example:
      *
      * <pre><code>
-     * class Add extends Node{@code <T>} {
+     * class Add extends Node&lt;T&gt; {
      *   private Literal left;
      *   private Literal right;
      *
@@ -70,8 +70,8 @@ public abstract class NodeUtils {
      *
      *   public Literal left() { return left; }
      *   public Literal right() { return right; }
-     * }
-     * </code></pre>
+     * }</code>
+     * </pre>
      */
     static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
         Check.notNull(tree, "Non-null tree expected");

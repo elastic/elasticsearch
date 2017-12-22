@@ -5,11 +5,11 @@
  */
 
 /**
- * <b>X-Pack SQL</b> module is a SQL interface to Elasticsearch. <br/>
+ * <b>X-Pack SQL</b> module is a SQL interface to Elasticsearch. <br>
  * In a nutshell, currently, SQL acts as a <i>translator</i>, allowing traditional SQL queries to be executed against
  * Elasticsearch indices without any modifications. Do note that SQL does <i>not</i> try to hide Elasticsearch or
  * abstract it in anyway; rather it maps the given SQL, if possible, to one (at the moment) query DSL. Of course,
- * this means not all SQL queries are supported.<br/>
+ * this means not all SQL queries are supported.<br>
  *
  *
  * <h3>Premise</h3>
@@ -18,7 +18,7 @@
  * In fact, even the grammar introduces Elasticsearch specific components that have no concept in ANSI SQL.
  *
  * <h3>Architecture</h3>
- * SQL module is roughly based on the Volcano project (by Graefe & co)
+ * SQL module is roughly based on the Volcano project (by Graefe {@code &} co)
  * <a href="http://ieeexplore.ieee.org/document/344061">[1]</a>
  * <a href="https://dl.acm.org/citation.cfm?id=627558">[2]</a>
  * <a href="https://scholar.google.com/citations?user=pdDeRScAAAAJ">[3]</a>
@@ -45,8 +45,8 @@
  * <h3>Concepts</h3>
  *
  * The building operation of the SQL engine is defined by an action, namely a rule (defined in
- * {@link org.elasticsearch.sql.xpack.rule rule} package that accepts one
- * <i>immutable</i> tree (defined in {@link org.elasticsearch.sql.xpack.tree tree} package) and transforms it to another <i>immutable</i>
+ * {@link org.elasticsearch.xpack.sql.rule rule} package that accepts one
+ * <i>immutable</i> tree (defined in {@link org.elasticsearch.xpack.sql.tree tree} package) and transforms it to another <i>immutable</i>
  *  tree.
  * Each rules looks for a certain <i>pattern</i> that it can identify and then transform.
  *

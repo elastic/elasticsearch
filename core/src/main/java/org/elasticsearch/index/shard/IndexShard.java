@@ -1283,7 +1283,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         translogStats.totalOperations(0);
         translogStats.totalOperationsOnStart(0);
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
-        openEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
     }
 
     public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
@@ -1296,17 +1296,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + globalCheckpoint + "]");
         }
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
-        openEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
     }
 
     public void openIndexAndTranslog() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
-        openEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
-        globalCheckpointTracker.updateGlobalCheckpointOnReplica(getEngine().getTranslog().getLastSyncedGlobalCheckpoint(),
-            "read from translog");
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
     }
 
-    private void openEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
+    private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1335,6 +1333,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
+            // we have to set it before we recover from the translog as acquring a snapshot from the translog causes a sync which
+            // causes the global checkpoint to be pulled in.
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(getEngine().getTranslog().getLastSyncedGlobalCheckpoint(),
+                "read from translog");
             newEngine.recoverFromTranslog();
         }
         assertSequenceNumbersInCommit();

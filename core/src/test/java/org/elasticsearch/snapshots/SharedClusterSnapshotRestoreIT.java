@@ -22,6 +22,7 @@ package org.elasticsearch.snapshots;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -100,6 +102,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -3116,6 +3119,74 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .get();
             assertEquals(1, response.getSnapshots().size());
             verifySnapshotInfo(response, indicesPerSnapshot);
+        }
+    }
+
+    public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
+        final Client client = client();
+
+        // Blocks on initialization
+        assertAcked(client.admin().cluster().preparePutRepository("repository")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("block_on_init", true)
+            ));
+
+        createIndex("test-idx");
+        final int nbDocs = scaledRandomIntBetween(100, 500);
+        for (int i = 0; i < nbDocs; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits(), equalTo((long) nbDocs));
+
+        // Create a snapshot
+        client.admin().cluster().prepareCreateSnapshot("repository", "snap").execute();
+        waitForBlock(internalCluster().getMasterName(), "repository", TimeValue.timeValueMinutes(1));
+        boolean blocked = true;
+
+        // Snapshot is initializing (and is blocked at this stage)
+        SnapshotsStatusResponse snapshotsStatus = client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+        assertThat(snapshotsStatus.getSnapshots().iterator().next().getState(), equalTo(State.INIT));
+
+        final List<State> states = new CopyOnWriteArrayList<>();
+        final ClusterStateListener listener = event -> {
+            SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                if ("snap".equals(entry.snapshot().getSnapshotId().getName())) {
+                    states.add(entry.state());
+                }
+            }
+        };
+
+        try {
+            // Record the upcoming states of the snapshot on all nodes
+            internalCluster().getInstances(ClusterService.class).forEach(clusterService -> clusterService.addListener(listener));
+
+            // Delete the snapshot while it is being initialized
+            ActionFuture<DeleteSnapshotResponse> delete = client.admin().cluster().prepareDeleteSnapshot("repository", "snap").execute();
+
+            // The deletion must set the snapshot in the ABORTED state
+            assertBusy(() -> {
+                SnapshotsStatusResponse status = client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+                assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
+            });
+
+            // Now unblock the repository
+            unblockNode("repository", internalCluster().getMasterName());
+            blocked = false;
+
+            assertAcked(delete.get());
+            expectThrows(SnapshotMissingException.class, () ->
+                client.admin().cluster().prepareGetSnapshots("repository").setSnapshots("snap").get());
+
+            assertFalse("Expecting snapshot state to be updated", states.isEmpty());
+            assertFalse("Expecting snapshot to be aborted and not started at all", states.contains(State.STARTED));
+        } finally {
+            internalCluster().getInstances(ClusterService.class).forEach(clusterService -> clusterService.removeListener(listener));
+            if (blocked) {
+                unblockNode("repository", internalCluster().getMasterName());
+            }
         }
     }
 

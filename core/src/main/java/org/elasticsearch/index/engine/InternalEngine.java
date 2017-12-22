@@ -549,6 +549,8 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+                // The index commit from IndexWriterConfig is null if the engine is open with other modes
+                // rather than CREATE_INDEX_AND_TRANSLOG. In those cases lastCommittedSegmentInfos will be retrieved from the last commit.
                 lastCommittedSegmentInfos = store.readCommittedSegmentsInfo(indexWriter.getConfig().getIndexCommit());
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
@@ -1808,9 +1810,7 @@ public class InternalEngine extends Engine {
 
     private IndexWriter createWriter(boolean create, IndexCommit startingCommit) throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig(create);
-            assert startingCommit == null || create == false : "Starting commit makes sense only when create=false";
-            iwc.setIndexCommit(startingCommit);
+            final IndexWriterConfig iwc = getIndexWriterConfig(create, startingCommit);
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -1823,7 +1823,7 @@ public class InternalEngine extends Engine {
         return new IndexWriter(directory, iwc);
     }
 
-    private IndexWriterConfig getIndexWriterConfig(boolean create) {
+    private IndexWriterConfig getIndexWriterConfig(boolean create, IndexCommit startingCommit) {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
@@ -1848,6 +1848,8 @@ public class InternalEngine extends Engine {
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }
+        assert startingCommit == null || create == false : "Starting commit makes sense only when create=false";
+        iwc.setIndexCommit(startingCommit);
         return iwc;
     }
 

@@ -44,42 +44,47 @@ public abstract class NodeUtils {
     private static final int TO_STRING_MAX_WIDTH = 110;
 
     private static final Map<Class<?>, NodeInfo> CACHE = new LinkedHashMap<>();
-    
-    // make a modified copy of a tree node by replacing its children.
-    // to do so it instantiates the class with the new values assuming it will 'replay' the creation.
-    // as any child might be also a field the method uses the following convention:
-    //
-    // 1. the children are created through constructor alone
-    // 2. any children referenced through fields are also present in the children list
-    // 3. the list of children is created through the constructor
-    // 4. all the constructor arguments are available on the given instance through public methods using the same name.
-    //
-    // As an example:
-    //
-    // class Add extends TreeNode<T> {
-    //     private Literal left;
-    //     private Literal right;
-    // 
-    //     public Add(Literal left, Literal right) {
-    //        this.left = left;
-    //        this.right = right;
-    //     }
-    //
-    //     public Literal left() { return left; }
-    //     public Literal right() { return right; }
-    // }
+
+    /**
+     *
+     * make a modified copy of a tree node by replacing its children.
+     * to do so it instantiates the class with the new values assuming it will 'replay' the creation.
+     * as any child might be also a field the method uses the following convention:
+     *
+     * 1. the children are created through constructor alone
+     * 2. any children referenced through fields are also present in the children list
+     * 3. the list of children is created through the constructor
+     * 4. all the constructor arguments are available on the given instance through public methods using the same name.
+     *
+     * As an example:
+     *
+     * <pre><code>
+     * class Add extends Node{@code <T>} {
+     *   private Literal left;
+     *   private Literal right;
+     *
+     *   public Add(Literal left, Literal right) {
+     *     this.left = left;
+     *     this.right = right;
+     *   }
+     *
+     *   public Literal left() { return left; }
+     *   public Literal right() { return right; }
+     * }
+     * </code></pre>
+     */
     static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
         Check.notNull(tree, "Non-null tree expected");
 
         // basic sanity check
         List<T> currentChildren = tree.children();
-        Check.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s", currentChildren.size(), newChildren.size()); 
+        Check.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s", currentChildren.size(), newChildren.size());
 
         NodeInfo info = info(tree.getClass());
         Object[] props = properties(tree, info);
 
         // for each parameter, look in the list of children to find it
-        // if it's missing, it's added as is, otherwise it gets picked up from the new ones 
+        // if it's missing, it's added as is, otherwise it gets picked up from the new ones
         for (int i = 0; i < props.length; i++) {
             Object property = props[i];
 
@@ -118,7 +123,7 @@ public abstract class NodeUtils {
                     treeNodeInfo.ctr.toGenericString(), ex);
         }
     }
-    
+
     @SuppressWarnings("rawtypes")
     public static NodeInfo info(Class<? extends Node> clazz) {
         NodeInfo treeNodeInfo = CACHE.get(clazz);
@@ -127,7 +132,7 @@ public abstract class NodeUtils {
         if (treeNodeInfo == null) {
             Constructor<?>[] constructors = clazz.getConstructors();
             Check.isTrue(!CollectionUtils.isEmpty(constructors), "No public constructors found for class %s", clazz);
-            
+
             // find the longest constructor
             Constructor<?> ctr = null;
             int maxParameterCount = -1;
@@ -160,16 +165,16 @@ public abstract class NodeUtils {
                     throw new SqlIllegalArgumentException("class [%s] expected to have method [%s] for retrieving constructor arguments; none found",
                             clazz.getName(), paramName);
                 }
-                
+
                 // validate return type
                 Class<?> expected = param.getType();
                 Class<?> found = getter.getReturnType();
                 // found == Object if we're dealing with generics
                 Check.isTrue(found == Object.class || expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
-                
+
                 params.put(paramName, getter);
             }
-            
+
             treeNodeInfo = new NodeInfo(ctr, params, childrenIndex);
             CACHE.put(clazz, treeNodeInfo);
         }
@@ -228,8 +233,8 @@ public abstract class NodeUtils {
         Iterator<String> nameIterator = keySet.iterator();
         boolean needsComma = false;
 
-        for (int i = 0; i < properties.length; i++) {
-            Object object = properties[i];
+        for (Object property : properties) {
+            Object object = property;
             String propertyName = nameIterator.next();
             // consider a property if it is not ignored AND
             // it's not a child (optional)
@@ -292,7 +297,7 @@ public abstract class NodeUtils {
 
             sb.append("_");
         }
-        
+
         if (treeNode == null) {
             sb.append("null");
             return sb;
@@ -331,7 +336,7 @@ public abstract class NodeUtils {
         for (String string : leftSplit) {
             leftMaxPadding = Math.max(string.length(), leftMaxPadding);
         }
-        
+
         // try to allocate the buffer - 5 represents the column comparison chars
         StringBuilder sb = new StringBuilder(left.length() + right.length() + Math.max(left.length(),  right.length()) * 3);
 

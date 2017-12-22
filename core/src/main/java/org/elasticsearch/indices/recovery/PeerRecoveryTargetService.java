@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -354,17 +353,15 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
-            final Tuple<Long, Long> seqNoStats = recoveryTarget.store().loadSeqNoInfo();
-            long maxSeqNo = seqNoStats.v1();
-            long localCheckpoint = seqNoStats.v2();
-            if (maxSeqNo <= globalCheckpoint) {
-                assert localCheckpoint <= globalCheckpoint;
+            final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo();
+            if (seqNoStats.maxSeqNo <= globalCheckpoint) {
+                assert seqNoStats.localCheckpoint <= globalCheckpoint;
                 /*
                  * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
                  * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
                  * after the local checkpoint stored in the commit.
                  */
-                return localCheckpoint + 1;
+                return seqNoStats.localCheckpoint + 1;
             } else {
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }

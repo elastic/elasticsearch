@@ -73,11 +73,11 @@ public class DependenciesInfoTask extends DefaultTask {
     }
 
     /**
-     * Create an URL on <a href="https://jcenter.bintray.com/">JCenter repository</a>
+     * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>
      * based on dependency coordinates.
      */
     protected String createURL(final String group, final String name, final String version){
-        final String baseURL = 'https://jcenter.bintray.com'
+        final String baseURL = 'https://repo1.maven.org/maven2'
         return "${baseURL}/${group.replaceAll('\\.' , '/')}/${name}/${version}"
     }
 

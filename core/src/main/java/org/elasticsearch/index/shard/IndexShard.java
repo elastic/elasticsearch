@@ -1292,11 +1292,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
             recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
         SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo();
-        if (commitInfo.localCheckpoint < globalCheckpoint) {
-            throw new IllegalArgumentException(
-                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is > global checkpoint ["
-                    + globalCheckpoint + "]");
-        }
+        assert commitInfo.localCheckpoint < globalCheckpoint :
+            "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+                    + globalCheckpoint + "]";
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
     }

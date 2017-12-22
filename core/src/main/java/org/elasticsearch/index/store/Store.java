@@ -214,7 +214,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Loads the maximum sequence number and local checkpoint from the latest Lucene commit point.
      *
-     * @return {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} containing information about the last commit
+     * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
     public SequenceNumbers.CommitInfo loadSeqNoInfo() throws IOException {

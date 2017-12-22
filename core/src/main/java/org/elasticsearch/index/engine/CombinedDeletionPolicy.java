@@ -92,11 +92,13 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Find a safe commit point from a list of existing commits based on the persisted global checkpoint from translog.
-     * The max seqno of a safe commit point should be at most the global checkpoint from the translog checkpoint.
+     * Find a safe commit point from a list of existing commits based on the supplied global checkpoint.
+     * The max sequence number of a safe commit point should be at most the global checkpoint.
+     * If an index was created before v6.2, and we haven't retained a safe commit yet, this method will return the oldest commit.
      *
      * @param commits          a list of existing commit points
      * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
+     * @return a safe commit or the oldest commit if a safe commit is not found
      */
     public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {
         if (commits.isEmpty()) {

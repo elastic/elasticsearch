@@ -183,9 +183,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
+        return readCommittedSegmentsInfo(null);
+    }
+
+    /**
+     * Returns the committed segments info for the given commit point.
+     * If the commit point is not provided, this method will return the segments info of the last commit in the store.
+     */
+    public SegmentInfos readCommittedSegmentsInfo(final IndexCommit commit) throws IOException {
         failIfCorrupted();
         try {
-            return readSegmentsInfo(null, directory());
+            return readSegmentsInfo(commit, directory());
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;

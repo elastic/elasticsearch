@@ -1086,7 +1086,6 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSnapshotStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0");
-        shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), 0);
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
@@ -1772,6 +1771,7 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         // Simulate resync (without rollback): Noop #1, index #2
+        shard.primaryTerm++;
         shard.markSeqNoAsNoop(1, "test");
         shard.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "doc", "doc-2", new BytesArray("{}"), XContentType.JSON), mapping);
@@ -1782,6 +1782,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard newShard = reinitShard(shard,
             newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
                 RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
+        newShard.primaryTerm++;
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());

@@ -60,7 +60,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -80,7 +79,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -180,13 +178,13 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                final IndexCommit startingCommit = getStartingCommitPoint();
-                assert startingCommit == null || openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG :
-                    "OPEN_INDEX_AND_TRANSLOG must have starting commit; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
+                final IndexCommit startingCommit = getStartingCommitPoint();
+                assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
+                    "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
+                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
                     new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
                 );
@@ -249,14 +247,8 @@ public class InternalEngine extends Engine {
                 localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
-                // When recovering from a previous commit point, we use the local checkpoint from that commit,
-                // but the max_seqno from the last commit. This allows use to throw away stale operations.
-                maxSeqNo = store.loadSeqNoInfo(null).v1();
-                localCheckpoint = store.loadSeqNoInfo(startingCommit).v2();
-                logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
-                break;
             case OPEN_INDEX_CREATE_TRANSLOG:
-                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo(null);
+                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo(startingCommit);
                 maxSeqNo = seqNoStats.v1();
                 localCheckpoint = seqNoStats.v2();
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
@@ -413,25 +405,24 @@ public class InternalEngine extends Engine {
 
     private IndexCommit getStartingCommitPoint() throws IOException {
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+            final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+            final long minRetainedTranslogGen = translog.getMinFileGeneration();
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose full translog
             // files are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
             // To avoid this issue, we only select index commits whose translog files are fully retained.
             if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
                 final List<IndexCommit> recoverableCommits = new ArrayList<>();
-                final long minRetainedTranslogGen = Translog.readMinReferencedTranslogGen(translogPath);
                 for (IndexCommit commit : existingCommits) {
                     if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
                         recoverableCommits.add(commit);
                     }
                 }
-                assert recoverableCommits.isEmpty() == false : "Unable to select a proper safe commit point; " +
+                assert recoverableCommits.isEmpty() == false : "No commit point with full translog found; " +
                     "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, globalCheckpoint);
+                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
             } else {
-                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
+                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
             }
         }
         return null;
@@ -559,11 +550,7 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-                    lastCommittedSegmentInfos = Lucene.readSegmentInfos(indexWriter.getConfig().getIndexCommit());
-                } else {
-                    lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
-                }
+                lastCommittedSegmentInfos = store.readCommittedSegmentsInfo(indexWriter.getConfig().getIndexCommit());
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;

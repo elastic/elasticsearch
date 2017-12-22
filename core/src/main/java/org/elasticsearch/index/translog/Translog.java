@@ -356,7 +356,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the minimum file generation referenced by the translog
      */
-    long getMinFileGeneration() {
+    public long getMinFileGeneration() {
         try (ReleasableLock ignored = readLock.acquire()) {
             if (readers.isEmpty()) {
                 return current.getGeneration();
@@ -1702,17 +1702,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static final long readGlobalCheckpoint(final Path location) throws IOException {
         return readCheckpoint(location).globalCheckpoint;
-    }
-
-    /**
-     * Reads the minimum referenced generation translog generation from the translog checkpoint.
-     *
-     * @param location the location of the translog
-     * @return the minimum generation referenced by the translog.
-     * @throws IOException if an I/O exception occurred reading the checkpoint
-     */
-    public static long readMinReferencedTranslogGen(final Path location) throws IOException {
-        return readCheckpoint(location).minTranslogGeneration;
     }
 
     /**

@@ -198,13 +198,15 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, processor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -217,7 +219,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.singletonList(processor),
                 Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id")
+            .source(Collections.emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
@@ -235,14 +238,17 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(),
+            indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -256,15 +262,19 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                     Collections.singletonList(onFailureOnFailureProcessor))));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id",
+            indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }

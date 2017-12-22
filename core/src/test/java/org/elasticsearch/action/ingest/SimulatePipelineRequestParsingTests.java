@@ -40,7 +40,13 @@ import org.junit.Before;
 
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.*;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.PARENT;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ROUTING;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -119,11 +125,11 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDoc = new HashMap<>();
             List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, PARENT, VERSION, VERSION_TYPE);
             for(IngestDocument.MetaData field : fields) {
-                if (field == IngestDocument.MetaData.VERSION) {
+                if (field == VERSION) {
                     Long value = randomLong();
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
-                } else if (field == IngestDocument.MetaData.VERSION_TYPE) {
+                } else if (field == VERSION_TYPE) {
                     VersionType value = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);

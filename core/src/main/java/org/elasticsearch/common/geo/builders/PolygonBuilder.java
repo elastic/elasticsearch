@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
@@ -634,14 +633,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-        // calculate the direction of the points:
-        // find the point a the top of the set and check its
-        // neighbors orientation. So direction is equivalent
-        // to clockwise/counterclockwise
-        final int top = top(points, offset, length);
-        final int prev = (offset + ((top + length - 1) % length));
-        final int next = (offset + ((top + 1) % length));
-        boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+        boolean orientation = getOrientation(points, offset, length);
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -670,6 +663,27 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
+    /**
+     * @return whether the points are clockwise (true) or anticlockwise (false)
+     */
+    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
+        // calculate the direction of the points: find the southernmost point
+        // and check its neighbors orientation.
+
+        final int top = top(points, offset, length);
+        final int prev = (top + length - 1) % length;
+        final int next = (top + 1) % length;
+        final double determinant
+            = (points[offset + next].x - points[offset + top].x) * (points[offset + prev].y - points[offset + top].y)
+            - (points[offset + prev].x - points[offset + top].x) * (points[offset + next].y - points[offset + top].y);
+        assert determinant != 0.0;
+        return determinant < 0.0;
+    }
+
+    /**
+     * @return the (offset) index of the point that is furthest west amongst
+     * those points that are the furthest south in the set.
+     */
     private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {

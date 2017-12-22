@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
@@ -228,5 +229,22 @@ public class AllocationDeciders extends AllocationDecider {
             }
         }
         return ret;
+    }
+    
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes) {
+        Decision bestDecision = Decision.ALWAYS;
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.decideOutgoingMovePerNode(node, allocation, routingNodes);
+            if (decision == Decision.THROTTLE) {
+                logger.info("Pre-emptively returning decision {} from decider {}", decision.type(), decider.getClass().getName());
+                return decision;
+            } else if (decision == Decision.NO) {
+                bestDecision = decision;
+            }
+        }
+        logger.info("Returning decision after iterating all deciders best decision {}", bestDecision.type());
+        return bestDecision;
+
     }
 }

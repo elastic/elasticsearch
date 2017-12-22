@@ -643,8 +643,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
+            long outerStartTime = System.currentTimeMillis();
+            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(allocation, routingNodes, logger); it
+                    .hasNext();) {
                 ShardRouting shardRouting = it.next();
+                if (shardRouting == null) {
+                    logger.info("Reached end");
+                    break;
+                }
+                logger.info("Shard routing = " + shardRouting.currentNodeId() + " "+shardRouting.getIndexName() + " " +shardRouting.shardId() + "  "+shardRouting);
+                long startTime = System.currentTimeMillis();
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
@@ -659,7 +667,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
+                long endTime = System.currentTimeMillis();
+                logger.info("Time difference = " + (endTime-startTime) );
             }
+            long outerEndTime = System.currentTimeMillis();
+            logger.info("Outer time difference = " + (outerEndTime-outerStartTime));
         }
 
         /**

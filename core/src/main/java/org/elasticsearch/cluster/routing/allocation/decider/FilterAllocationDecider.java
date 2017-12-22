@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -176,6 +177,21 @@ public class FilterAllocationDecider extends AllocationDecider {
             }
         }
         return null;
+    }
+    
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes) {
+        long startTime = System.nanoTime();
+        Decision decision = Decision.NO;
+        if (clusterExcludeFilters != null) {
+            if (!clusterExcludeFilters.match(node.node())) {
+                decision = allocation.decision(Decision.YES, NAME, "node matches global exclude filters [%s]", clusterExcludeFilters);
+            }
+        }
+        long endTime = System.nanoTime();
+        long totalTime = endTime - startTime;
+        logger.info("Returning decision {} for node {} after {}", decision.type(), node.nodeId(), totalTime);
+        return decision;
     }
 
     private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {

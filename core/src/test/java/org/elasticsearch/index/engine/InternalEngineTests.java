@@ -106,7 +106,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -1121,9 +1120,14 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSyncedFlushSurvivesEngineRestart() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        IOUtils.close(store, engine);
+        store = createStore();
+        engine = createEngine(store, primaryTranslogDir, globalCheckpoint::get);
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
-        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         engine.index(indexForDoc(doc));
+        globalCheckpoint.set(0L);
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
             Engine.SyncedFlushResult.SUCCESS);
@@ -1145,7 +1149,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSyncedFlushVanishesOnReplay() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
-        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         engine.index(indexForDoc(doc));
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
@@ -2532,6 +2536,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testTranslogReplay() throws IOException {
+        final LongSupplier inSyncGlobalCheckpointSupplier = () -> this.engine.getLocalCheckpointTracker().getCheckpoint();
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
@@ -2545,7 +2550,7 @@ public class InternalEngineTests extends EngineTestCase {
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
-        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, inSyncGlobalCheckpointSupplier)); // we need to reuse the engine config unless the parser.mappingModified won't work
         engine.recoverFromTranslog();
 
         assertVisibleCount(engine, numDocs, false);
@@ -2559,7 +2564,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, primaryTranslogDir);
+        engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         assertVisibleCount(engine, numDocs, false);
         parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         assertEquals(0, parser.appliedOperations());
@@ -2586,7 +2591,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, primaryTranslogDir);
+        engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
@@ -2598,7 +2603,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
         } else {
             engine.close();
-            engine = createEngine(store, primaryTranslogDir);
+            engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
@@ -2827,8 +2832,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testCurrentTranslogIDisCommitted() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
 
             // create
             {
@@ -2838,7 +2844,7 @@ public class InternalEngineTests extends EngineTestCase {
                 try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG))){
                     assertFalse(engine.isRecovering());
                     engine.index(firstIndexRequest);
-
+                    globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
                     expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));

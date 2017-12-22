@@ -381,7 +381,7 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                indexShard.openIndexAndCreateTranslog(true, store.loadSeqNoInfo().localCheckpoint);
+                indexShard.openIndexAndCreateTranslog(true, store.loadSeqNoInfo(null).localCheckpoint);
             } else {
                 // since we recover from local, just fill the files and size
                 try {
@@ -442,7 +442,7 @@ final class StoreRecovery {
             final long localCheckpoint;
             store.incRef();
             try {
-                localCheckpoint = store.loadSeqNoInfo().localCheckpoint;
+                localCheckpoint = store.loadSeqNoInfo(null).localCheckpoint;
             } finally {
                 store.decRef();
             }

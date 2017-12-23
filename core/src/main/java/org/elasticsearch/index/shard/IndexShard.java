@@ -1331,16 +1331,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            // we have to set it before we open an engine and recover from the translog because
+            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
+                "read from translog checkpoint");
+        }
         Engine newEngine = createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
-            // we have to set it before we recover from the translog as acquring a snapshot from the translog causes a sync which
-            // causes the global checkpoint to be pulled in.
-            globalCheckpointTracker.updateGlobalCheckpointOnReplica(getEngine().getTranslog().getLastSyncedGlobalCheckpoint(),
-                "read from translog");
             newEngine.recoverFromTranslog();
         }
         assertSequenceNumbersInCommit();

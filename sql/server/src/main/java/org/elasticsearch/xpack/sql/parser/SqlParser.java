@@ -23,6 +23,7 @@ import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class SqlParser {
@@ -42,7 +43,7 @@ public class SqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser("statement", sql, SqlBaseParser::singleStatement);
+        return invokeParser("statement", sql, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     public Expression createExpression(String expression) {
@@ -50,11 +51,10 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser("expression", expression, SqlBaseParser::singleExpression);
+        return invokeParser("expression", expression, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> T invokeParser(String name, String sql, Function<SqlBaseParser, ParserRuleContext> parseFunction) {
+    private <T> T invokeParser(String name, String sql, Function<SqlBaseParser, ParserRuleContext> parseFunction, BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         try {
             SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
 
@@ -85,7 +85,7 @@ public class SqlParser {
 
             postProcess(lexer, parser, tree);
 
-            return (T) new AstBuilder(timeZone).visit(tree);
+            return visitor.apply(new AstBuilder(timeZone), tree);
         }
 
         catch (StackOverflowError e) {

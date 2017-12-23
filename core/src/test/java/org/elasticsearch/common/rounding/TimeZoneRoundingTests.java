@@ -627,7 +627,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("Expected: " + new DateTime(expected, tz) + " [" + expected + "] ");
+                description.appendText(new DateTime(expected, tz) + " [" + expected + "] ");
             }
 
             @Override

@@ -229,7 +229,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         createUser("full_access", "read_all");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getTables("%", "%", "%", null),
+            con -> con.getMetaData().getTables("%", "%", "%t", null),
             "full_access",
             con -> con.getMetaData().getTables("%", "%", "%", null));
         new AuditLogAsserter()
@@ -278,7 +278,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         createUser("full_access", "read_all");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getColumns("%", "%", "%", "%"),
+            con -> con.getMetaData().getColumns("%", "%", "%t", "%"),
             "full_access",
             con -> con.getMetaData().getColumns("%", "%", "%", "%"));
         new AuditLogAsserter()

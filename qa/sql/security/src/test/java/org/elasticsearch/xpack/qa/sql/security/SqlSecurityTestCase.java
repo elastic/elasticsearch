@@ -335,7 +335,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testShowTablesWorksAsAdmin() throws Exception {
-        actions.expectShowTables(Arrays.asList("bort", "test"), null);
+        actions.expectShowTables(Arrays.asList(".security-6", "bort", "test"), null);
         new AuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .assertLogs();
@@ -344,7 +344,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testShowTablesWorksAsFullAccess() throws Exception {
         createUser("full_access", "read_all");
 
-        actions.expectMatchesAdmin("SHOW TABLES", "full_access", "SHOW TABLES");
+        actions.expectMatchesAdmin("SHOW TABLES LIKE '*t'", "full_access", "SHOW TABLES");
         new AuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .expectSqlCompositeAction("full_access", "bort", "test")

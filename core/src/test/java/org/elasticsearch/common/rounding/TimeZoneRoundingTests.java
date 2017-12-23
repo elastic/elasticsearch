@@ -594,9 +594,10 @@ public class TimeZoneRoundingTests extends ESTestCase {
                 isDate(nextRoundingValue, tz));
 
         long dateBetween = dateBetween(rounded, nextRoundingValue);
-        assertThat("dateBetween should round down to roundedDate", rounding.round(dateBetween), isDate(rounded, tz));
-        assertThat("dateBetween should round up to nextRoundingValue", rounding.nextRoundingValue(dateBetween),
-                isDate(nextRoundingValue, tz));
+        assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round down to roundedDate",
+            rounding.round(dateBetween), isDate(rounded, tz));
+        assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round up to nextRoundingValue",
+            rounding.nextRoundingValue(dateBetween), isDate(nextRoundingValue, tz));
     }
 
     private static long dateBetween(long lower, long upper) {

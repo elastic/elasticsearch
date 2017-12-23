@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -13,6 +14,8 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
+import org.elasticsearch.xpack.sql.plugin.SqlRequest;
+import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,7 +38,7 @@ public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
     @Override
     protected SqlRequest createTestInstance() {
         return new SqlRequest(randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
-                between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomCursor());
+                between(1, Integer.MAX_VALUE), randomTV(), randomTV(), Cursor.encodeToString(Version.CURRENT, randomCursor()));
     }
 
     private TimeValue randomTV() {
@@ -52,7 +55,7 @@ public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
     protected MutateFunction<SqlRequest> getMutateFunction() {
         return randomFrom(
                 request -> getCopyFunction().copy(request)
-                        .cursor(randomValueOtherThan(request.cursor(), SqlResponseTests::randomCursor)),
+                        .cursor(randomValueOtherThan(request.cursor(), SqlResponseTests::randomStringCursor)),
                 request -> (SqlRequest) getCopyFunction().copy(request)
                         .query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> (SqlRequest) getCopyFunction().copy(request)

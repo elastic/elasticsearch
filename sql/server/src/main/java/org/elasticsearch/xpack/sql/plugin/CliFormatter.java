@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -107,7 +106,7 @@ public class CliFormatter implements Writeable {
      * without the header lines.
      */
     public String formatWithoutHeader(SqlResponse response) {
-        return formatWithoutHeader(new StringBuilder(estimateSize(response.rows().size())), response).toString();
+        return formatWithoutHeader(new StringBuilder(estimateSize(response.rows().size())), response);
     }
 
     private String formatWithoutHeader(StringBuilder sb, SqlResponse response) {

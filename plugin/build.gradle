@@ -33,7 +33,7 @@ dependencyLicenses {
   mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /server.*/, to: 'elasticsearch'
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
-  mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /rest-proto.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
   mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
@@ -43,7 +43,7 @@ dependencyLicenses {
   ignoreSha 'tribe'
   ignoreSha 'server'
   ignoreSha 'jdbc-proto'
-  ignoreSha 'cli-proto'
+  ignoreSha 'rest-proto'
   ignoreSha 'shared-proto'
   ignoreSha 'elasticsearch-rest-client-sniffer'
   ignoreSha 'aggs-matrix-stats'

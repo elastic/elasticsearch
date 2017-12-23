@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryCloseResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
+import org.elasticsearch.xpack.sql.cli.PlainResponse;
 
 import java.sql.SQLException;
 
@@ -41,7 +39,7 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         CliHttpClient client = mock(CliHttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(10);
-        when(client.queryInit("test query", 10)).thenReturn(new QueryInitResponse(123, "", "some command response"));
+        when(client.queryInit("test query", 10)).thenReturn(new PlainResponse(123, "", "some command response"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
         assertEquals("some command response<flush/>", testTerminal.toString());
@@ -54,9 +52,9 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         CliHttpClient client = mock(CliHttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(10);
-        when(client.queryInit("test query", 10)).thenReturn(new QueryInitResponse(123, "my_cursor1", "first"));
-        when(client.nextPage("my_cursor1")).thenReturn(new QueryPageResponse(345, "my_cursor2", "second"));
-        when(client.nextPage("my_cursor2")).thenReturn(new QueryPageResponse(678, "", "third"));
+        when(client.queryInit("test query", 10)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
+        when(client.nextPage("my_cursor1")).thenReturn(new PlainResponse(345, "my_cursor2", "second"));
+        when(client.nextPage("my_cursor2")).thenReturn(new PlainResponse(678, "", "third"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
         assertEquals("firstsecondthird<flush/>", testTerminal.toString());
@@ -72,8 +70,8 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         cliSession.setFetchSize(15);
         // Set a separator
         cliSession.setFetchSeparator("-----");
-        when(client.queryInit("test query", 15)).thenReturn(new QueryInitResponse(123, "my_cursor1", "first"));
-        when(client.nextPage("my_cursor1")).thenReturn(new QueryPageResponse(345, "", "second"));
+        when(client.queryInit("test query", 15)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
+        when(client.nextPage("my_cursor1")).thenReturn(new PlainResponse(345, "", "second"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
         assertEquals("first-----\nsecond<flush/>", testTerminal.toString());
@@ -87,9 +85,9 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         CliHttpClient client = mock(CliHttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(15);
-        when(client.queryInit("test query", 15)).thenReturn(new QueryInitResponse(123, "my_cursor1", "first"));
+        when(client.queryInit("test query", 15)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
         when(client.nextPage("my_cursor1")).thenThrow(new SQLException("test exception"));
-        when(client.queryClose("my_cursor1")).thenReturn(new QueryCloseResponse(true));
+        when(client.queryClose("my_cursor1")).thenReturn(true);
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
         assertEquals("first<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());

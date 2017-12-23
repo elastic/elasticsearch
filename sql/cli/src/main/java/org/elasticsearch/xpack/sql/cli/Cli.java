@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.cli;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
@@ -30,14 +30,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
 
-public class Cli extends Command {
+public class Cli extends LoggingAwareCommand {
     private final OptionSpec<Boolean> debugOption;
     private final OptionSpec<String> keystoreLocation;
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
 
     private Cli() {
-        super("Elasticsearch SQL CLI", Cli::configureLogging);
+        super("Elasticsearch SQL CLI");
         this.debugOption = parser.acceptsAll(Arrays.asList("d", "debug"),
                 "Enable debug logging")
                 .withRequiredArg().ofType(Boolean.class)
@@ -65,13 +65,14 @@ public class Cli extends Command {
      */
     public static void main(String[] args) throws Exception {
         final Cli cli = new Cli();
+        configureJLineLogging();
         int status = cli.main(args, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
         }
     }
 
-    private static void configureLogging() {
+    private static void configureJLineLogging() {
         try {
             /* Initialize the logger from the a properties file we bundle. This makes sure
              * we get useful error messages from jLine. */
@@ -134,7 +135,7 @@ public class Cli extends Command {
                 throw new UserException(ExitCodes.IO_ERROR,
                         "Cannot connect to the server " + con.connectionString() + " - " + ex.getCause().getMessage());
             } else {
-                // Most likely we connected to an old version of Elasticsearch or not Elasticsearch at all
+                // Most likely we connected to something other than Elasticsearch
                 throw new UserException(ExitCodes.DATA_ERROR,
                         "Cannot communicate with the server " + con.connectionString() +
                                 ". This version of CLI only works with Elasticsearch version " + Version.CURRENT.toString());

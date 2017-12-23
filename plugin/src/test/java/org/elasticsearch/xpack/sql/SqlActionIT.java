@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
+import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
 
 import java.sql.JDBCType;
 

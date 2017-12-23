@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
-import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -32,10 +35,11 @@ public class ServerInfoCliCommandTests extends ESTestCase {
         TestTerminal testTerminal = new TestTerminal();
         CliHttpClient client = mock(CliHttpClient.class);
         CliSession cliSession = new CliSession(client);
-        when(client.serverInfo()).thenReturn(new InfoResponse("my_node", "my_cluster", (byte) 1, (byte) 2, "v1.2", "1234", "Sep 1, 2017"));
+        when(client.serverInfo()).thenReturn(new MainResponse("my_node", org.elasticsearch.Version.fromString("1.2.3"),
+                new ClusterName("my_cluster"), UUIDs.randomBase64UUID(), Build.CURRENT, randomBoolean()));
         ServerInfoCliCommand cliCommand = new ServerInfoCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "info"));
-        assertEquals(testTerminal.toString(), "Node:<em>my_node</em> Cluster:<em>my_cluster</em> Version:<em>v1.2</em>\n");
+        assertEquals(testTerminal.toString(), "Node:<em>my_node</em> Cluster:<em>my_cluster</em> Version:<em>1.2.3</em>\n");
         verify(client, times(1)).serverInfo();
         verifyNoMoreInteractions(client);
     }

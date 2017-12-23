@@ -120,8 +120,8 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlRequest;
 import org.junit.Before;
 import org.mockito.Mockito;
 

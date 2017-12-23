@@ -31,9 +31,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -137,7 +134,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         SqlRequest sqlRequest = new SqlRequest(request.query, null, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
-                                                Cursor.EMPTY);
+                                                "");
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             List<JDBCType> types = new ArrayList<>(response.columns().size());
@@ -146,8 +143,9 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                 types.add(info.jdbcType());
                 columns.add(new ColumnInfo(info.name(), info.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
             }
+            Cursor cursor = Cursor.decodeFromString(response.cursor());
             return new QueryInitResponse(System.nanoTime() - start,
-                    Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(response.cursor(), types)), columns,
+                    Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(cursor, types)), columns,
                     new SqlResponsePayload(types, response.rows()));
         }));
     }
@@ -162,17 +160,16 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         SqlRequest sqlRequest = new SqlRequest(EMPTY, null, SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
-                                                cursor);
+                request.cursor);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel,
                 response -> new QueryPageResponse(System.nanoTime() - start,
-                        Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(response.cursor(), types)),
+                        Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(Cursor.decodeFromString(response.cursor()), types)),
                     new SqlResponsePayload(types, response.rows()))));
     }
 
     private Consumer<RestChannel> queryClose(Client client, QueryCloseRequest request) {
-        Cursor cursor = Cursor.decodeFromString(request.cursor);
-        SqlClearCursorAction.Request sqlRequest = new SqlClearCursorAction.Request(cursor);
+        SqlClearCursorRequest sqlRequest = new SqlClearCursorRequest(request.cursor);
         return channel -> client.execute(SqlClearCursorAction.INSTANCE, sqlRequest, toActionListener(channel,
                 response -> new QueryCloseResponse(response.isSucceeded())));
     }

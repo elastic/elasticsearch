@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 import org.joda.time.DateTimeZone;

@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.sql.plugin.CliFormatter;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
 import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
+import org.elasticsearch.xpack.sql.plugin.SqlRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
@@ -30,6 +32,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
+    static String randomStringCursor() {
+        return Cursor.encodeToString(Version.CURRENT, randomCursor());
+    }
+
     static Cursor randomCursor() {
         return randomBoolean() ? Cursor.EMPTY : randomNonEmptyCursor();
     }
@@ -46,7 +52,7 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
                 }
                 return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
             case 2:
-                SqlResponse response = createRandomInstance(Cursor.EMPTY);
+                SqlResponse response = createRandomInstance("");
                 if (response.columns() != null && response.rows() != null) {
                     return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
                 } else {
@@ -64,10 +70,10 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
 
     @Override
     protected SqlResponse createTestInstance() {
-        return createRandomInstance(randomCursor());
+        return createRandomInstance(randomStringCursor());
     }
 
-    private static SqlResponse createRandomInstance(Cursor cursor) {
+    private static SqlResponse createRandomInstance(String cursor) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -130,8 +136,8 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
             assertEquals(row, testInstance.rows().get(i));
         }
 
-        if (testInstance.cursor() != Cursor.EMPTY) {
-            assertEquals(rootMap.get(SqlRequest.CURSOR.getPreferredName()), Cursor.encodeToString(Version.CURRENT, testInstance.cursor()));
+        if (testInstance.cursor().equals("") == false) {
+            assertEquals(rootMap.get(SqlRequest.CURSOR.getPreferredName()), testInstance.cursor());
         }
     }
 

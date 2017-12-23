@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 
 import java.net.URI;
@@ -33,9 +34,11 @@ public class ConnectionBuilder {
 
     /**
      * Build the connection.
+     *
      * @param connectionStringArg the connection string to connect to
-     * @param keystoreLocation the location of the keystore to configure. If null then use the system keystore.
+     * @param keystoreLocation    the location of the keystore to configure. If null then use the system keystore.
      */
+    @SuppressForbidden(reason = "cli application")
     public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation) throws UserException {
         final URI uri;
         final String connectionString;

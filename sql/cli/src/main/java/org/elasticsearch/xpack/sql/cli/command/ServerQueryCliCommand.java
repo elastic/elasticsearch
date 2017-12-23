@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
+import org.elasticsearch.xpack.sql.cli.PlainResponse;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
-        QueryResponse response = null;
+        PlainResponse response = null;
         CliHttpClient cliClient = cliSession.getClient();
         try {
             response = cliClient.queryInit(line, cliSession.getFetchSize());
@@ -31,7 +32,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
             }
             while (true) {
                 handleText(terminal, response.data);
-                if (response.cursor().isEmpty()) {
+                if (response.cursor.isEmpty()) {
                     // Successfully finished the entire query!
                     terminal.flush();
                     return true;
@@ -39,7 +40,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                 if (false == cliSession.getFetchSeparator().equals("")) {
                     terminal.println(cliSession.getFetchSeparator());
                 }
-                response = cliSession.getClient().nextPage(response.cursor());
+                response = cliSession.getClient().nextPage(response.cursor);
             }
         } catch (SQLException e) {
             if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
@@ -47,9 +48,9 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
             } else {
                 terminal.error("Bad request", e.getMessage());
             }
-            if (response != null && response.cursor().isEmpty() == false) {
+            if (response != null) {
                 try {
-                    cliClient.queryClose(response.cursor());
+                    cliClient.queryClose(response.cursor);
                 } catch (SQLException ex) {
                     terminal.error("Could not close cursor", ex.getMessage());
                 }
@@ -62,6 +63,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         terminal.print(str);
     }
 
+    @SuppressForbidden(reason = "cli application")
     private void handleGraphviz(CliTerminal terminal, String str) {
         try {
             // save the content to a temp file

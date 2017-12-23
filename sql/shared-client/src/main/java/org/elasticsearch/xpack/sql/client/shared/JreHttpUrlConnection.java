@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
+import javax.sql.rowset.serial.SerialException;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -30,15 +33,12 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
-import javax.sql.rowset.serial.SerialException;
-
 import static java.util.Collections.emptyMap;
-
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSocketFactory;
 
 public class JreHttpUrlConnection implements Closeable {
     /**
@@ -142,35 +142,65 @@ public class JreHttpUrlConnection implements Closeable {
             try (OutputStream out = con.getOutputStream()) {
                 doc.accept(new DataOutputStream(out));
             }
-            if (con.getResponseCode() < 300) {
+            if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
                     return new ResponseOrException<>(parser.apply(new DataInputStream(stream)));
                 }
             }
-            RemoteFailure failure;
-            try (InputStream stream = getStream(con, con.getErrorStream())) {
-                failure = RemoteFailure.parseFromResponse(stream);
-            }
-            if (con.getResponseCode() >= 500) {
-                /*
-                 * Borrowing a page from the HTTP spec, we throw a "transient"
-                 * exception if the server responded with a 500, not because
-                 * we think that the application should retry, but because we
-                 * think that the failure is not the fault of the application.
-                 */
-                return new ResponseOrException<>(new SQLException("Server encountered an error ["
-                        + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
-            }
-            SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
-            if (type == null) {
-                return new ResponseOrException<>(new SQLException("Server sent bad type ["
-                        + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
-                        + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
-            }
-            return new ResponseOrException<>(type.asException(failure.reason()));
+            return parserError();
         } catch (IOException ex) {
             throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
         }
+    }
+
+    public <R> ResponseOrException<R> request(
+            CheckedConsumer<OutputStream, IOException> doc,
+            CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+            String requestMethod
+    ) throws ClientException {
+        try {
+            con.setRequestMethod(requestMethod);
+            con.setDoOutput(true);
+            con.setRequestProperty("Content-Type", "application/json");
+            if (doc != null) {
+                try (OutputStream out = con.getOutputStream()) {
+                    doc.accept(new DataOutputStream(out));
+                }
+            }
+            if (shouldParseBody(con.getResponseCode())) {
+                try (InputStream stream = getStream(con, con.getInputStream())) {
+                    return new ResponseOrException<>(parser.apply(
+                            new DataInputStream(stream),
+                            con::getHeaderField
+                            ));
+                }
+            }
+            return parserError();
+        } catch (IOException ex) {
+            throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
+        }
+    }
+
+    private boolean shouldParseBody(int responseCode) {
+        return responseCode == 200 || responseCode == 201 || responseCode == 202;
+    }
+
+    private <R> ResponseOrException<R> parserError() throws IOException {
+        RemoteFailure failure;
+        try (InputStream stream = getStream(con, con.getErrorStream())) {
+            failure = RemoteFailure.parseFromResponse(stream);
+        }
+        if (con.getResponseCode() >= 500) {
+            return new ResponseOrException<>(new SQLException("Server encountered an error ["
+                    + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+        }
+        SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
+        if (type == null) {
+            return new ResponseOrException<>(new SQLException("Server sent bad type ["
+                    + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
+                    + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+        }
+        return new ResponseOrException<>(type.asException(failure.reason()));
     }
 
     public static class ResponseOrException<R> {

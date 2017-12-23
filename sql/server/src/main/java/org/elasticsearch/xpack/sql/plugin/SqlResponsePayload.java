@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Payload;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
 

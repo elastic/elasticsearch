@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.TransportSqlAction;
 
 import java.util.Objects;
 

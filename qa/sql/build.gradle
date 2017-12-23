@@ -32,7 +32,7 @@ dependencies {
   compile(project(':x-pack-elasticsearch:sql:server')) {
     transitive = false
   }
-  compile(project(':x-pack-elasticsearch:sql:cli-proto')) {
+  compile(project(':x-pack-elasticsearch:sql:rest-proto')) {
     transitive = false
   }
   compile "org.elasticsearch.client:transport:${version}"

@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
-import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
 
 import java.sql.JDBCType;
 import java.util.Arrays;
@@ -16,7 +14,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class CliFormatterTests extends ESTestCase {
-    private final SqlResponse firstResponse = new SqlResponse(Cursor.EMPTY, 10, 5,
+    private final SqlResponse firstResponse = new SqlResponse("", 10, 5,
             Arrays.asList(
                     new ColumnInfo("foo", "string", JDBCType.VARCHAR, 0),
                     new ColumnInfo("bar", "long", JDBCType.BIGINT, 15),
@@ -49,7 +47,7 @@ public class CliFormatterTests extends ESTestCase {
      * truncation of long columns.
      */
     public void testFormatWithoutHeader() {
-        String[] result = formatter.formatWithoutHeader(new SqlResponse(Cursor.EMPTY, 10, 5, null,
+        String[] result = formatter.formatWithoutHeader(new SqlResponse("", 10, 5, null,
                 Arrays.asList(
                         Arrays.asList("ohnotruncateddata", 4, 1, 77, "wombat"),
                         Arrays.asList("dog", 2, 123124.888, 9912, "goat")))).split("\n");

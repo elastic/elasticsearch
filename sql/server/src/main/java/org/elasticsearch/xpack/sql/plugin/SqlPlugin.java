@@ -20,9 +20,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
@@ -69,9 +66,8 @@ public class SqlPlugin implements ActionPlugin {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
                              new SqlTranslateAction.RestAction(settings, restController),
-                             new RestSqlCliAction(settings, restController),
                              new RestSqlJdbcAction(settings, restController, sqlLicenseChecker, indexResolver),
-                             new SqlClearCursorAction.RestAction(settings, restController));
+                             new RestSqlClearCursorAction(settings, restController));
     }
 
     @Override
@@ -82,6 +78,6 @@ public class SqlPlugin implements ActionPlugin {
 
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
                              new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class),
-                             new ActionHandler<>(SqlClearCursorAction.INSTANCE, SqlClearCursorAction.TransportAction.class));
+                             new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class));
     }
 }

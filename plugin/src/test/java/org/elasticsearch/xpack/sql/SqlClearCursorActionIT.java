@@ -9,9 +9,9 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction.Response;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,7 +44,8 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         assertThat(sqlResponse.cursor(), notNullValue());
         assertThat(sqlResponse.cursor(), not(equalTo(Cursor.EMPTY)));
 
-        Response cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE).cursor(sqlResponse.cursor()).get();
+        SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
+                .cursor(sqlResponse.cursor()).get();
         assertTrue(cleanCursorResponse.isSucceeded());
 
         assertEquals(0, getNumberOfSearchContexts());
@@ -76,10 +77,11 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         do {
             sqlResponse = client().prepareExecute(SqlAction.INSTANCE).cursor(sqlResponse.cursor()).get();
             fetched += sqlResponse.size();
-        } while (sqlResponse.cursor().equals(Cursor.EMPTY) == false);
+        } while (sqlResponse.cursor().equals("") == false);
         assertEquals(indexSize, fetched);
 
-        Response cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE).cursor(sqlResponse.cursor()).get();
+        SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
+                .cursor(sqlResponse.cursor()).get();
         assertFalse(cleanCursorResponse.isSucceeded());
 
         assertEquals(0, getNumberOfSearchContexts());

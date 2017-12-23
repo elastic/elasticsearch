@@ -29,7 +29,8 @@ public abstract class AbstractServerCliCommand implements CliCommand {
      * into a method so that tests can bubble the failure.
      */
     protected void handleExceptionWhileCommunicatingWithServer(CliTerminal terminal, CliSession cliSession, RuntimeException e) {
-        terminal.line().error("Communication error [").param(e.getMessage()).error("]").ln();
+        terminal.line().error("Communication error [").param(e.getMessage() == null ? e.getClass().getName() : e.getMessage()).error("]")
+                .ln();
         if (cliSession.isDebug()) {
             terminal.printStackTrace(e);
         }

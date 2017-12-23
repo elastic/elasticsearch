@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.xpack.sql.cli.CliHttpClient;
-import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
@@ -58,14 +58,14 @@ public class CliSession {
     }
 
     public void checkConnection() throws ClientException {
-        InfoResponse response;
+        MainResponse response;
         try {
             response = cliHttpClient.serverInfo();
         } catch (SQLException ex) {
             throw new ClientException(ex);
         }
         // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
-        if (response.majorVersion != Version.CURRENT.major || response.minorVersion != Version.CURRENT.minor) {
+        if (response.getVersion().major != Version.CURRENT.major || response.getVersion().minor != Version.CURRENT.minor) {
             throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " +
                     Version.CURRENT.toString());
         }

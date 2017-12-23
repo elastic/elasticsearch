@@ -34,7 +34,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.joda.time.DateTimeZone;
 
@@ -44,10 +43,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_FETCH_SIZE;
-import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT;
-import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT;
-import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_TIME_ZONE;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_FETCH_SIZE;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_TIME_ZONE;
 
 public class SqlTranslateAction
         extends Action<SqlTranslateAction.Request, SqlTranslateAction.Response, SqlTranslateAction.RequestBuilder> {

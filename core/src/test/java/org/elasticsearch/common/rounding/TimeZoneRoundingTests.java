@@ -515,6 +515,56 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
+     * Test for a time zone whose days overlap because the clocks are set back across midnight at the end of DST.
+     */
+    public void testDST_America_St_Johns() {
+        // time zone "America/St_Johns", rounding to days.
+        DateTimeUnit timeUnit = DateTimeUnit.DAY_OF_MONTH;
+        DateTimeZone tz = DateTimeZone.forID("America/St_Johns");
+        Rounding rounding = new TimeUnitRounding(timeUnit, tz);
+
+        // 29 October 2006 - Daylight Saving Time ended, changing the UTC offset from -02:30 to -03:30.
+        // This happened at 02:31 UTC, 00:01 local time, so the clocks were set back 1 hour to 23:01 on the 28th.
+        // This means that 2006-10-29 has _two_ midnights, one in the -02:30 offset and one in the -03:30 offset.
+        // Both of these are "rounded" even though they are only an hour apart.
+
+        {
+            // Times before the first midnight should be rounded up to the first midnight.
+            long timeBeforeFirstMidnight = time("2006-10-28T23:30:00.000-02:30");
+            long floor = rounding.round(timeBeforeFirstMidnight);
+            assertThat(floor, isDate(time("2006-10-28T00:00:00.000-02:30"), tz));
+            long ceiling = rounding.nextRoundingValue(timeBeforeFirstMidnight);
+            assertThat(ceiling, isDate(time("2006-10-29T00:00:00.000-02:30"), tz));
+            assertInterval(floor, timeBeforeFirstMidnight, ceiling, rounding, tz);
+        }
+
+        {
+            // Times after the second midnight should be rounded down to the second midnight.
+            long timeAfterSecondMidnight = time("2006-10-29T06:00:00.000-03:30");
+            long floor = rounding.round(timeAfterSecondMidnight);
+            assertThat(floor, isDate(time("2006-10-29T00:00:00.000-03:30"), tz));
+            long ceiling = rounding.nextRoundingValue(timeAfterSecondMidnight);
+            assertThat(ceiling, isDate(time("2006-10-30T00:00:00.000-03:30"), tz));
+            assertInterval(floor, timeAfterSecondMidnight, ceiling, rounding, tz);
+        }
+
+        {
+            // Times between the two midnights should be rounded down to the first one and up to the second.
+            long timeBetweenMidnights = time("2006-10-28T23:30:00.000-03:30");
+            // (this is halfway through the hour after the clocks changed, in which local time was ambiguous)
+
+            long floor = rounding.round(timeBetweenMidnights);
+            assertThat(floor, isDate(time("2006-10-29T00:00:00.000-02:30"), tz));
+            // Yes, this really rounds a time on 2006-10-28 _down_ to give a time on 2006-10-29. Note the offsets.
+
+            long ceiling = rounding.nextRoundingValue(timeBetweenMidnights);
+            assertThat(ceiling, isDate(time("2006-10-29T00:00:00.000-03:30"), tz));
+
+            assertInterval(floor, timeBetweenMidnights, ceiling, rounding, tz);
+        }
+    }
+
+    /**
      * tests for dst transition with overlaps and day roundings.
      */
     public void testDST_END_Edgecases() {

@@ -255,7 +255,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public boolean syncNeeded() {
         return totalOffset != lastSyncedCheckpoint.offset ||
-            globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint ||
+            globalCheckpointSupplier.getAsLong() > lastSyncedCheckpoint.globalCheckpoint ||
             minTranslogGenerationSupplier.getAsLong() != lastSyncedCheckpoint.minTranslogGeneration;
     }
 

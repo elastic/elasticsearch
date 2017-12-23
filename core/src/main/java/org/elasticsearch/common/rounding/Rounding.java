@@ -127,54 +127,71 @@ public abstract class Rounding implements Streamable {
 
         @Override
         public long round(long utcMillis) {
-            long rounded = field.roundFloor(utcMillis);
-            if (timeZone.isFixed() == false) {
-                // special cases for non-fixed time zones with dst transitions
-                if (timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
-                    /*
-                     * the offset change indicates a dst transition. In some
-                     * edge cases this will result in a value that is not a
-                     * rounded value before the transition. We round again to
-                     * make sure we really return a rounded value. This will
-                     * have no effect in cases where we already had a valid
-                     * rounded value
-                     */
-                    rounded = field.roundFloor(rounded);
-                } else {
-                    /*
-                     * check if the current time instant is at a start of a DST
-                     * overlap by comparing the offset of the instant and the
-                     * previous millisecond. We want to detect negative offset
-                     * changes that result in an overlap
-                     */
-                    if (timeZone.getOffset(rounded) < timeZone.getOffset(rounded - 1)) {
-                        /*
-                         * we are rounding a date just after a DST overlap. if
-                         * the overlap is smaller than the time unit we are
-                         * rounding to, we want to add the overlapping part to
-                         * the following rounding interval
-                         */
-                        long previousRounded = field.roundFloor(rounded - 1);
-                        if (rounded - previousRounded < field.getDurationField().getUnitMillis()) {
-                            rounded = previousRounded;
-                        }
-                    }
+            int transitionCount = 0;
+
+            while (true) {
+                long rounded = field.roundFloor(utcMillis);
+                long transitionTime = timeZone.previousTransition(utcMillis);
+                if (transitionTime == utcMillis) {
+                    // No earlier transitions
+                    assert rounded == field.roundFloor(rounded);
+                    return rounded;
+                }
+
+                assert transitionTime < utcMillis;
+                assert timeZone.getOffset(transitionTime + 1) == timeZone.getOffset(utcMillis);
+                // would like to assert timeZone.getOffset(transitionTime + 1) != timeZone.getOffset(transitionTime);
+                // but some time zones have transitions that don't change their offsets
+                if (transitionTime < rounded) {
+                    // The previous transition doesn't interfere with this rounding.
+                    assert rounded == field.roundFloor(rounded);
+                    return rounded;
+                }
+
+                /*
+                 * The previous transition interferes with this rounding, so there are no earlier rounded
+                 * times in the current period-of-constant-offset. Go back to the previous transition time and round
+                 * _that_ down instead.
+                 */
+                transitionCount += 1;
+                utcMillis = transitionTime;
+
+                // We round by at most one year, which may contain up to 4 transitions (e.g. Morocco, or double-DST in the UK)
+                assert transitionCount <= 4;
+
+                /*
+                 * Bound the iterations to prevent an infinite loop, but allow for more than 4 transitions
+                 * in case the previous assertion is wrong.
+                 */
+                if (transitionCount > 10) {
+                    throw new IllegalStateException("Too many timezone transitions found");
                 }
             }
-            assert rounded == field.roundFloor(rounded);
-            return rounded;
         }
 
         @Override
         public long nextRoundingValue(long utcMillis) {
-            long floor = round(utcMillis);
-            // add one unit and round to get to next rounded value
-            long next = round(field.add(floor, 1));
-            if (next == floor) {
-                // in rare case we need to add more than one unit
-                next = round(field.add(floor, 2));
+            long guess = utcMillis;
+            long rounded;
+            do {
+                guess = field.add(guess, 1);
+                rounded = round(guess);
+            } while (rounded <= utcMillis);
+
+            assert rounded == round(rounded);
+
+            while (true) {
+                long prevRounded = round(rounded - 1);
+                assert prevRounded < rounded;
+                assert prevRounded == round(prevRounded);
+
+                if (prevRounded <= utcMillis) {
+                    assert utcMillis < rounded;
+                    return rounded;
+                }
+
+                rounded = prevRounded;
             }
-            return next;
         }
 
         @Override

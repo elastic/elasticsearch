@@ -185,11 +185,12 @@ public class MockNioTransport extends TcpTransport {
             };
             ReadContext.ReadConsumer readConsumer = channelBuffer ->  {
                 BytesReference bytesReference = toBytesReference(channelBuffer);
-                if (bytesReference.length() < 6) {
-                    // Have not read a whole header
+                try {
+                    TcpTransport.validateMessageHeader(bytesReference);
+                } catch (IllegalStateException e) {
+                    // Have not read either the whole header or whole message
                     return 0;
                 }
-                TcpTransport.validateMessageHeader(bytesReference);
                 StreamInput streamInput = bytesReference.streamInput();
                 assert streamInput.skip(2) == 2 : "Failed to skip the appropriate number of bytes";
                 int messageSize = streamInput.readInt();
@@ -197,9 +198,6 @@ public class MockNioTransport extends TcpTransport {
                 if (messageSize == -1) {
                     // This is a ping
                     return 6;
-                } else if (messageSize + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE > bytesReference.length()) {
-                    // Have not read the whole message
-                    return 0;
                 } else {
                     BytesStreamOutput output = new BytesStreamOutput();
                     final byte[] buffer = new byte[messageSize];

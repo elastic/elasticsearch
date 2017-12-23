@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.qa.sql.embed;
 
+import io.netty.handler.codec.http.HttpHeaderNames;
+
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -12,16 +15,24 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 
 public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
 
@@ -38,8 +49,7 @@ public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
 
     protected ProtoHandler(Client client) {
         NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
-        this.client = !(client instanceof EmbeddedModeFilterClient) ? new EmbeddedModeFilterClient(
-                client) : (EmbeddedModeFilterClient) client;
+        this.client = client instanceof EmbeddedModeFilterClient ? (EmbeddedModeFilterClient) client : new EmbeddedModeFilterClient(client);
         this.client.setPlanExecutor(planExecutor(this.client));
         info = niResponse.getNodes().get(0);
         clusterName = niResponse.getClusterName().value();
@@ -55,32 +65,34 @@ public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
             return;
         }
 
+        FakeRestChannel channel = new FakeRestChannel(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(singletonMap("error_trace", "")).build(), true, 1);
         try (DataInputStream in = new DataInputStream(http.getRequestBody())) {
-            handle(http, in);
-        } catch (Exception ex) {
-            fail(http, ex);
-        }
-    }
-
-    protected abstract void handle(HttpExchange http, DataInput in) throws IOException;
-
-    protected void sendHttpResponse(HttpExchange http, BytesReference response) throws IOException {
-        // first do the conversion in case an exception is triggered
-        if (http.getResponseHeaders().isEmpty()) {
-            http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
-        }
-        response.writeTo(http.getResponseBody());
-        http.close();
-    }
-
-    protected void fail(HttpExchange http, Exception ex) {
-        log.error("Caught error while transmitting response", ex);
-        try {
-            // the error conversion has failed, halt
-            if (http.getResponseHeaders().isEmpty()) {
-                http.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+            handle(channel, in);
+            while (false == channel.await()) {
             }
-        } catch (IOException ioEx) {
+            sendHttpResponse(http, channel.capturedResponse());
+        } catch (Exception e) {
+            sendHttpResponse(http, new BytesRestResponse(channel, e));
+        }
+    }
+
+    protected abstract void handle(RestChannel channel, DataInput in) throws IOException;
+
+    protected void sendHttpResponse(HttpExchange http, RestResponse response) throws IOException {
+        try {
+            // first do the conversion in case an exception is triggered
+            if (http.getResponseHeaders().isEmpty()) {
+                http.sendResponseHeaders(response.status().getStatus(), response.content().length());
+
+                Headers headers = http.getResponseHeaders();
+                headers.putIfAbsent(HttpHeaderNames.CONTENT_TYPE.toString(), singletonList(response.contentType()));
+                if (response.getHeaders() != null) {
+                    headers.putAll(response.getHeaders());
+                }
+            }
+            response.content().writeTo(http.getResponseBody());
+        } catch (IOException ex) {
             log.error("Caught error while trying to catch error", ex);
         } finally {
             http.close();

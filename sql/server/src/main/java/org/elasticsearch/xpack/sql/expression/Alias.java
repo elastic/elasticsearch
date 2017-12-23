@@ -32,7 +32,7 @@ public class Alias extends NamedExpression {
     public Alias(Location location, String name, String qualifier, Expression child, ExpressionId id) {
         this(location, name, qualifier, child, id, false);
     }
-    
+
     public Alias(Location location, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
         super(location, name, singletonList(child), id, synthetic);
         this.child = child;
@@ -68,13 +68,13 @@ public class Alias extends NamedExpression {
     private Attribute createAttribute() {
         if (resolved()) {
             Expression c = child();
-            
+
             Attribute attr = Expressions.attribute(c);
             if (attr != null) {
                 return attr.clone(location(), name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
             }
             else {
-                return new RootFieldAttribute(location(), name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
+                return new FieldAttribute(location(), null, name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
             }
         }
 

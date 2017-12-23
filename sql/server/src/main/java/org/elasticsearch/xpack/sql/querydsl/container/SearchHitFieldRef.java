@@ -10,10 +10,20 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 public class SearchHitFieldRef implements FieldReference {
     private final String name;
     private final boolean docValue;
+    private final String hitName;
 
     public SearchHitFieldRef(String name, boolean useDocValueInsteadOfSource) {
+        this(name, useDocValueInsteadOfSource, null);
+    }
+
+    public SearchHitFieldRef(String name, boolean useDocValueInsteadOfSource, String hitName) {
         this.name = name;
         this.docValue = useDocValueInsteadOfSource;
+        this.hitName = hitName;
+    }
+
+    public String hitName() {
+        return hitName;
     }
 
     @Override

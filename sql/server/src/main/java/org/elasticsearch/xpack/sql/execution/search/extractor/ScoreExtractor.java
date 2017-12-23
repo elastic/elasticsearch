@@ -39,7 +39,7 @@ public class ScoreExtractor implements HitExtractor {
     }
 
     @Override
-    public String innerHitName() {
+    public String hitName() {
         return null;
     }
 

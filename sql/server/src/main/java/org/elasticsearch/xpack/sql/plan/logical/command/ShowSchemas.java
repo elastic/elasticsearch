@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -27,7 +26,7 @@ public class ShowSchemas extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new RootFieldAttribute(location(), "schema", DataTypes.KEYWORD));
+        return singletonList(new FieldAttribute(location(), "schema", DataTypes.KEYWORD));
     }
 
     @Override

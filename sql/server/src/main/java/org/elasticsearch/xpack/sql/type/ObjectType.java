@@ -5,23 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import java.sql.JDBCType;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-public class ObjectType implements CompoundDataType {
+public class ObjectType extends CompoundDataType {
 
     public static final ObjectType EMPTY = new ObjectType(emptyMap());
-            
-    private final Map<String, DataType> properties;
 
-    public ObjectType(Map<String, DataType> properties) {
-        this.properties = properties;
-    }
-
-    public Map<String, DataType> properties() {
-        return properties;
+    ObjectType(Map<String, DataType> properties) {
+        super(JDBCType.STRUCT, false, properties);
     }
 
     @Override
@@ -30,21 +24,7 @@ public class ObjectType implements CompoundDataType {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(properties);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ObjectType other = (ObjectType) obj;
-        return Objects.equals(properties, other.properties);
+    public String toString() {
+        return "O" + properties();
     }
 }

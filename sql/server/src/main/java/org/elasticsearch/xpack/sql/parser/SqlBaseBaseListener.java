@@ -645,18 +645,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterColumnExpression(SqlBaseParser.ColumnExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitColumnExpression(SqlBaseParser.ColumnExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterNullLiteral(SqlBaseParser.NullLiteralContext ctx) { }
   /**
    * {@inheritDoc}

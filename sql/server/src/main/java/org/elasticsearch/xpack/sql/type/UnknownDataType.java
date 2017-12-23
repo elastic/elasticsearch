@@ -19,13 +19,7 @@ public class UnknownDataType extends AbstractDataType {
     }
 
     @Override
-    public boolean isComplex() {
-        return false;
-    }
-
-    @Override
     public boolean isPrimitive() {
         return false;
     }
-
 }

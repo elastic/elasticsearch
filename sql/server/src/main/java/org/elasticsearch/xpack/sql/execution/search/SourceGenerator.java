@@ -22,8 +22,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
@@ -142,52 +140,49 @@ public abstract class SourceGenerator {
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
                 if (attr instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) attr;
-                    attr = fa.isAnalyzed() ? fa.notAnalyzedAttribute() : attr;
-                }
+                    fa = fa.isInexact() ? fa.exactAttribute() : fa;
 
-                // top-level doc value
-                if (attr instanceof RootFieldAttribute) {
-                    sortBuilder = fieldSort(((RootFieldAttribute) attr).name());
-                }
-                if (attr instanceof NestedFieldAttribute) {
-                    NestedFieldAttribute nfa = (NestedFieldAttribute) attr;
-                    FieldSortBuilder fieldSort = fieldSort(nfa.name());
-
-                    String nestedPath = nfa.parentPath();
-                    NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
-                    NestedSortBuilder nestedSort = fieldSort.getNestedSort();
-
-                    if (nestedSort == null) {
-                        fieldSort.setNestedSort(newSort);
+                    sortBuilder = fieldSort(fa.name());
+                    if (!fa.isNested()) {
+                        sortBuilder = fieldSort(fa.name());
                     } else {
-                        for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
-                        }
-                        nestedSort.setNestedSort(newSort);
-                    }
+                        FieldSortBuilder fieldSort = fieldSort(fa.name());
+                        String nestedPath = fa.nestedParent().path();
+                        NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
+                        NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 
-                    nestedSort = newSort;
-
-                    List<QueryBuilder> nestedQuery = new ArrayList<>(1);
-
-                    // copy also the nested queries fr(if any)
-                    if (container.query() != null) {
-                        container.query().forEachDown(nq -> {
-                            // found a match
-                            if (nestedPath.equals(nq.path())) {
-                                // get the child query - the nested wrapping and inner hits are not needed
-                                nestedQuery.add(nq.child().asBuilder());
+                        if (nestedSort == null) {
+                            fieldSort.setNestedSort(newSort);
+                        } else {
+                            for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
                             }
-                        }, NestedQuery.class);
-                    }
-
-                    if (nestedQuery.size() > 0) {
-                        if (nestedQuery.size() > 1) {
-                            throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+                            nestedSort.setNestedSort(newSort);
                         }
-                        nestedSort.setFilter(nestedQuery.get(0));
-                    }
 
-                    sortBuilder = fieldSort;
+                        nestedSort = newSort;
+
+                        List<QueryBuilder> nestedQuery = new ArrayList<>(1);
+
+                        // copy also the nested queries fr(if any)
+                        if (container.query() != null) {
+                            container.query().forEachDown(nq -> {
+                                // found a match
+                                if (nestedPath.equals(nq.path())) {
+                                    // get the child query - the nested wrapping and inner hits are not needed
+                                    nestedQuery.add(nq.child().asBuilder());
+                                }
+                            }, NestedQuery.class);
+                        }
+
+                        if (nestedQuery.size() > 0) {
+                            if (nestedQuery.size() > 1) {
+                                throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+                            }
+                            nestedSort.setFilter(nestedQuery.get(0));
+                        }
+
+                        sortBuilder = fieldSort;
+                    }
                 }
             } else if (sortable instanceof ScriptSort) {
                 ScriptSort ss = (ScriptSort) sortable;

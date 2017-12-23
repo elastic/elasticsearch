@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StarContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -119,42 +117,18 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitStar(StarContext ctx) {
-        return new UnresolvedStar(source(ctx), ctx.qualifier != null ? visitColumnExpression(ctx.qualifier) : null);
-    }
-
-    @Override
-    public Object visitDereference(DereferenceContext ctx) {
-        String fieldName = visitIdentifier(ctx.fieldName);
-        String qualifier = null;
-        Expression base = expression(ctx.base);
-        if (base != null) {
-            if (base instanceof UnresolvedAttribute) {
-                UnresolvedAttribute b = (UnresolvedAttribute) base;
-                return new UnresolvedAttribute(source(ctx), b.name() + "." + fieldName, b.qualifier());
-            }
-            else {
-                throw new UnsupportedOperationException(format(Locale.ROOT, "Uknown dereferencing using %s ", base.getClass()));
-            }
-        }
-        return new UnresolvedAttribute(source(ctx), fieldName, qualifier);
-    }
-
-    @Override
-    public UnresolvedAttribute visitColumnExpression(ColumnExpressionContext ctx) {
-        String qualifier = null;
-        if (ctx.alias != null) {
-            qualifier = visitIdentifier(ctx.alias);
-        }
-        else if (ctx.table != null) {
-            TableIdentifier table = visitTableIdentifier(ctx.table);
-            qualifier = table.index();
-        }
-        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.name), qualifier);
+        return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
+                new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
     }
 
     @Override
     public Object visitColumnReference(ColumnReferenceContext ctx) {
-        return visitColumnExpression(ctx.columnExpression());
+        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.identifier()));
+    }
+
+    @Override
+    public Object visitDereference(DereferenceContext ctx) {
+        return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
     }
 
     @Override
@@ -217,7 +191,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.RLIKE:
                 e = new RLike(loc, exp, expression(pCtx.pattern));
                 break;
-            case SqlBaseParser.NULL:;
+            case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
                 e = new IsNotNull(loc, exp);
                 return pCtx.NOT() != null ? e : new Not(loc, e);

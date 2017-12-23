@@ -10,12 +10,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractorTests;
-import org.elasticsearch.xpack.sql.execution.search.extractor.DocValueExtractorTests;
+import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
-import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ProcessingHitExtractorTests;
-import org.elasticsearch.xpack.sql.execution.search.extractor.SourceExtractorTests;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
@@ -39,9 +37,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
             options.add(() -> ProcessingHitExtractorTests.randomProcessingHitExtractor(depth));
         }
         options.add(ConstantExtractorTests::randomConstantExtractor);
-        options.add(DocValueExtractorTests::randomDocValueExtractor);
-        options.add(InnerHitExtractorTests::randomInnerHitExtractor);
-        options.add(SourceExtractorTests::randomSourceExtractor);
+        options.add(FieldHitExtractorTests::randomFieldHitExtractor);
         return randomFrom(options).get();
     }
 

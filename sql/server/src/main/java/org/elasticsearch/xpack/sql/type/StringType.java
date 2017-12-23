@@ -8,56 +8,75 @@ package org.elasticsearch.xpack.sql.type;
 import java.sql.JDBCType;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toMap;
 
-public abstract class StringType implements DataType {
+// String type is a special type of CompoundDataType
+public abstract class StringType extends CompoundDataType {
 
     private final boolean docValue;
     private final Map<String, DataType> fields;
-    private final Map<String, DataType> docValueFields;
+    private final Map<String, KeywordType> exactKeywords;
+
 
     StringType(boolean docValue, Map<String, DataType> fields) {
+        super(JDBCType.VARCHAR, docValue, fields);
+
         this.docValue = docValue;
         this.fields = fields;
 
         if (docValue || fields.isEmpty()) {
-            docValueFields = emptyMap();
+            exactKeywords = emptyMap();
         } else {
-            docValueFields = fields.entrySet().stream()
-                    .filter(e -> e.getValue().hasDocValues())
-                    .collect(toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue,
-                            (k1, k2) -> {
-                                throw new IllegalStateException("Duplicate key " + k1);
-                            },
-                            LinkedHashMap::new));
+            exactKeywords = new LinkedHashMap<>();
+            for (Entry<String, DataType> entry : fields.entrySet()) {
+                DataType t = entry.getValue();
+                // consider only non-normalized keywords
+                if (t instanceof KeywordType) {
+                    KeywordType kt = (KeywordType) t;
+                    if (!kt.isNormalized()) {
+                        exactKeywords.put(entry.getKey(), kt);
+                    }
+                }
+            }
         }
     }
 
-    @Override
-    public JDBCType sqlType() {
-        return JDBCType.VARCHAR;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return docValue;
-    }
+    public abstract boolean isInexact();
 
     public Map<String, DataType> fields() {
-        return fields;
+        return properties();
     }
 
-    public Map<String, DataType> docValueFields() {
-        return docValueFields;
+    public Map<String, KeywordType> exactKeywords() {
+        return exactKeywords;
     }
 
     @Override
     public boolean isPrimitive() {
-        return fields.isEmpty();
+        return true;
+    }
+
+    @Override
+    public int precision() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(docValue, fields);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            StringType other = (StringType) obj;
+            return Objects.equals(docValue, other.docValue)
+                    && Objects.equals(fields(), other.fields());
+        }
+        return false;
     }
 
     @Override

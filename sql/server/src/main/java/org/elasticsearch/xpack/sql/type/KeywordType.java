@@ -13,13 +13,25 @@ import static java.util.Collections.emptyMap;
 public class KeywordType extends StringType {
 
     static final int DEFAULT_LENGTH = 256;
-    static final KeywordType DEFAULT = new KeywordType(true, DEFAULT_LENGTH, emptyMap());
+    static final boolean DEFAULT_NORMALIZED = false;
+    static final KeywordType DEFAULT = new KeywordType(true, DEFAULT_LENGTH, DEFAULT_NORMALIZED, emptyMap());
 
     private final int length;
-    
-    KeywordType(boolean docValues, int length, Map<String, DataType> fields) {
+    private final boolean normalized;
+
+    KeywordType(boolean docValues, int length, boolean normalized, Map<String, DataType> fields) {
         super(docValues, fields);
         this.length = length;
+        this.normalized = normalized;
+    }
+
+    @Override
+    public boolean isInexact() {
+        return normalized;
+    }
+
+    public boolean isNormalized() {
+        return normalized;
     }
 
     @Override
@@ -32,28 +44,19 @@ public class KeywordType extends StringType {
         return length;
     }
 
-    static DataType from(boolean docValues, int length, Map<String, DataType> fields) {
-        return docValues && length == DEFAULT_LENGTH && fields.isEmpty() ? DEFAULT : new KeywordType(docValues, length, fields);
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(length, hasDocValues(), fields());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        
-        KeywordType other = (KeywordType) obj;
-        return Objects.equals(hasDocValues(), other.hasDocValues())
-                && Objects.equals(length, other.length)
-                && Objects.equals(fields(), other.fields());
+        return super.equals(obj) && length == ((KeywordType) obj).length;
+    }
+
+    static DataType from(boolean docValues, int length, boolean normalized, Map<String, DataType> fields) {
+        return docValues && length == DEFAULT_LENGTH && fields.isEmpty() && normalized == DEFAULT_NORMALIZED 
+                ? DEFAULT 
+                : new KeywordType(docValues, length, normalized, fields);
     }
 }

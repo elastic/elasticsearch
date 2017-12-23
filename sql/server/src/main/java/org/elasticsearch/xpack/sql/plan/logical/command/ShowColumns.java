@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -40,8 +40,8 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new RootFieldAttribute(location(), "column", DataTypes.KEYWORD),
-                new RootFieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new FieldAttribute(location(), "column", DataTypes.KEYWORD),
+                new FieldAttribute(location(), "type", DataTypes.KEYWORD));
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ShowColumns extends Command {
                     listener.onResponse(Rows.of(output(), rows));
                 },
                 listener::onFailure
-        ));
+                ));
     }
 
     private void fillInRows(Map<String, DataType> mapping, String prefix, List<List<?>> rows) {

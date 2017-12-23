@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.session.Rows;
@@ -38,8 +38,8 @@ public class ShowFunctions extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new RootFieldAttribute(location(), "name", DataTypes.KEYWORD),
-                new RootFieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new FieldAttribute(location(), "name", DataTypes.KEYWORD), 
+                new FieldAttribute(location(), "type", DataTypes.KEYWORD));
     }
 
     @Override

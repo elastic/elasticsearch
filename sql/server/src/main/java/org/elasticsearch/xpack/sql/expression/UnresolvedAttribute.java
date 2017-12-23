@@ -17,9 +17,11 @@ import java.util.Objects;
 
 import static java.lang.String.format;
 
+// unfortunately we can't use UnresolvedNamedExpression
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     private final String unresolvedMsg;
+    private final boolean customMessage;
     private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Location location, String name) {
@@ -36,6 +38,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public UnresolvedAttribute(Location location, String name, String qualifier, ExpressionId id, String unresolvedMessage, Object resolutionMetadata) {
         super(location, name, qualifier, id);
+        this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
@@ -43,6 +46,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public Object resolutionMetadata() {
         return resolutionMetadata;
+    }
+
+    public boolean customMessage() {
+        return customMessage;
     }
 
     @Override

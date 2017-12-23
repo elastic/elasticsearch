@@ -21,7 +21,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
         String index = text(ctx.index);
-        
+
         Location source = source(ctx);
         validateIndex(index, source);
 
@@ -29,14 +29,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     // see https://github.com/elastic/elasticsearch/issues/6736
-    private static void validateIndex(String index, Location source) {
+    static void validateIndex(String index, Location source) {
         for (int i = 0; i < index.length(); i++) {
             char c = index.charAt(i);
             if (Character.isUpperCase(c)) {
                 throw new ParsingException(source, format(Locale.ROOT, "Invalid index name (needs to be lowercase) %s", index));
             }
-            if (c == '.' || c == '\\' || c == '/' || c == '*' || c == '?' || c == '<' || c == '>' || c == '|' || c == ',') {
-                throw new ParsingException(source, format(Locale.ROOT, "Illegal character %c in index name %s", c, index));
+            if (c == '\\' || c == '/' || c == '<' || c == '>' || c == '|' || c == ',' || c == ' ') {
+                throw new ParsingException(source, format(Locale.ROOT, "Invalid index name (illegal character %c) %s", c, index));
             }
         }
     }

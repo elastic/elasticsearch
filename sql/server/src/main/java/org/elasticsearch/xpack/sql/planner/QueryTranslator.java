@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
@@ -261,8 +259,8 @@ abstract class QueryTranslator {
                 // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) exp;
-                    if (fa.isAnalyzed()) {
-                        ne = fa.notAnalyzedAttribute();
+                    if (fa.isInexact()) {
+                        ne = fa.exactAttribute();
                     }
                 }
                 aggId = ne.id().toString();
@@ -415,8 +413,8 @@ abstract class QueryTranslator {
 
     static String field(AggregateFunction af) {
         Expression arg = af.field();
-        if (arg instanceof RootFieldAttribute) {
-            return ((RootFieldAttribute) arg).name();
+        if (arg instanceof FieldAttribute) {
+            return ((FieldAttribute) arg).name();
         }
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
@@ -431,18 +429,18 @@ abstract class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(BinaryExpression e, boolean onAggs) {
             Query q = null;
-            boolean analyzed = true;
+            boolean inexact = true;
             String target = null;
 
             if (e.left() instanceof FieldAttribute) {
                 FieldAttribute fa = (FieldAttribute) e.left();
-                analyzed = fa.isAnalyzed();
-                target = nameOf(analyzed ? fa : fa.notAnalyzedAttribute());
+                inexact = fa.isInexact();
+                target = nameOf(inexact ? fa : fa.exactAttribute());
             }
 
             String pattern = sqlToEsPatternMatching(stringValueOf(e.right()));
             if (e instanceof Like) {
-                if (analyzed) {
+                if (inexact) {
                     q = new QueryStringQuery(e.location(), pattern, target);
                 }
                 else {
@@ -451,7 +449,7 @@ abstract class QueryTranslator {
             }
 
             if (e instanceof RLike) {
-                if (analyzed) {
+                if (inexact) {
                     q = new QueryStringQuery(e.location(), "/" + pattern + "/", target);
                 }
                 else {
@@ -622,7 +620,7 @@ abstract class QueryTranslator {
             if (bc instanceof Equals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
-                    if (fa.isAnalyzed()) {
+                    if (fa.isInexact()) {
                         return new MatchQuery(loc, name, value);
                     }
                 }
@@ -870,9 +868,11 @@ abstract class QueryTranslator {
         protected abstract QueryTranslation asQuery(E e, boolean onAggs);
 
         protected static Query wrapIfNested(Query query, Expression exp) {
-            if (exp instanceof NestedFieldAttribute) {
-                NestedFieldAttribute nfa = (NestedFieldAttribute) exp;
-                return new NestedQuery(nfa.location(), nfa.parentPath(), query);
+            if (exp instanceof FieldAttribute) {
+                FieldAttribute fa = (FieldAttribute) exp;
+                if (fa.isNested()) {
+                    return new NestedQuery(fa.location(), fa.nestedParent().name(), query);
+                }
             }
             return query;
         }

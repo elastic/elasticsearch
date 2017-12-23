@@ -7,39 +7,48 @@ package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
 import java.util.Map;
+import java.util.Objects;
 
-public interface CompoundDataType extends DataType {
+public abstract class CompoundDataType extends AbstractDataType {
 
-    @Override
-    default JDBCType sqlType() {
-        return JDBCType.STRUCT;
+    private final Map<String, DataType> properties;
+
+    CompoundDataType(JDBCType sqlType, boolean hasDocValues, Map<String, DataType> properties) {
+        super(sqlType, hasDocValues);
+        this.properties = properties;
+    }
+
+    public Map<String, DataType> properties() {
+        return properties;
     }
 
     @Override
-    default int precision() {
+    public int precision() {
         return 0;
     }
 
     @Override
-    default boolean isInteger() {
+    public boolean isInteger() {
         return false;
     }
 
     @Override
-    default boolean isRational() {
+    public boolean isRational() {
         return false;
     }
 
     @Override
-    default boolean isPrimitive() {
+    public boolean isPrimitive() {
         return false;
     }
 
     @Override
-    default boolean hasDocValues() {
-        return false;
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Objects.hash(properties));
     }
 
-    Map<String, DataType> properties();
-
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(properties, ((CompoundDataType) obj).properties);
+    }
 }

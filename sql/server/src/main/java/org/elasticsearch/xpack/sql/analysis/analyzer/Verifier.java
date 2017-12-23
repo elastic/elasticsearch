@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -129,15 +127,22 @@ abstract class Verifier {
                             // handle Attributes different to provide more context
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
-                                boolean useQualifier = ua.qualifier() != null;
-                                List<String> potentialMatches = new ArrayList<>();
-                                for (Attribute a : p.intputSet()) {
-                                    potentialMatches.add(useQualifier ? a.qualifiedName() : a.name());
-                                }
+                                // only work out the synonyms for raw unresolved attributes
+                                if (!ua.customMessage()) {
+                                    boolean useQualifier = ua.qualifier() != null;
+                                    List<String> potentialMatches = new ArrayList<>();
+                                    for (Attribute a : p.intputSet()) {
+                                        String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
+                                        // add only primitives (object types would only result in another error)
+                                        if (a.dataType().isPrimitive()) {
+                                            potentialMatches.add(nameCandidate);
+                                        }
+                                    }
 
-                                List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
-                                if (!matches.isEmpty()) {
-                                    ae = new UnresolvedAttribute(ua.location(), ua.name(), ua.qualifier(), UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
+                                    List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
+                                    if (!matches.isEmpty()) {
+                                        ae = ua.withUnresolvedMessage(UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
+                                    }
                                 }
                             }
 
@@ -261,7 +266,7 @@ abstract class Verifier {
                             Expressions.names(a.groupings())));
                     groupingFailures.add(a);
                     return false;
-                    }
+                }
             }
         }
         return true;
@@ -300,7 +305,7 @@ abstract class Verifier {
             a.aggregates().forEach(ne ->
             ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
 
-                if (!missing.isEmpty()) {
+            if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                 localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " %s, expected %s",
                         Expressions.names(missing.keySet()),

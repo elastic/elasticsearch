@@ -14,7 +14,7 @@ import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // typically used for nested fields
+    // typically used for nested fields or inner/dotted fields
     private final UnresolvedAttribute qualifier;
 
     public UnresolvedStar(Location location, UnresolvedAttribute qualifier) {

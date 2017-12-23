@@ -25,15 +25,15 @@ public class CliExplainIT extends CliIntegrationTestCase {
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[test_field{r}#"));
+        assertThat(readLine(), startsWith("Project[[test_field{f}#"));
         assertThat(readLine(), startsWith("\\_SubQueryAlias[test]"));
-        assertThat(readLine(), startsWith("  \\_EsRelation[test][test_field{r}#"));
+        assertThat(readLine(), startsWith("  \\_EsRelation[test][test_field{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[test_field{r}#"));
-        assertThat(readLine(), startsWith("\\_EsRelation[test][test_field{r}#"));
+        assertThat(readLine(), startsWith("Project[[test_field{f}#"));
+        assertThat(readLine(), startsWith("\\_EsRelation[test][test_field{f}#"));
         assertEquals("", readLine());
 
         // TODO in this case we should probably remove the source filtering entirely. Right? It costs but we don't need it.
@@ -72,17 +72,17 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test WHERE i = 2"),
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[i{r}#"));
-        assertThat(readLine(), startsWith("\\_Filter[i{r}#"));
+        assertThat(readLine(), startsWith("Project[[i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[i{f}#"));
         assertThat(readLine(), startsWith("  \\_SubQueryAlias[test]"));
-        assertThat(readLine(), startsWith("    \\_EsRelation[test][i{r}#"));
+        assertThat(readLine(), startsWith("    \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test WHERE i = 2"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[i{r}#"));
-        assertThat(readLine(), startsWith("\\_Filter[i{r}#"));
-        assertThat(readLine(), startsWith("  \\_EsRelation[test][i{r}#"));
+        assertThat(readLine(), startsWith("Project[[i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[i{f}#"));
+        assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN EXECUTABLE) SELECT * FROM test WHERE i = 2"), containsString("plan"));
@@ -132,13 +132,13 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
         assertThat(readLine(), startsWith("\\_SubQueryAlias[test]"));
-        assertThat(readLine(), startsWith("  \\_EsRelation[test][i{r}#"));
+        assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
-        assertThat(readLine(), startsWith("\\_EsRelation[test][i{r}#"));
+        assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN EXECUTABLE) SELECT COUNT(*) FROM test"), containsString("plan"));

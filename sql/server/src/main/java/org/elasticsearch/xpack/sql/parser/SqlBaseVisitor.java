@@ -362,12 +362,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
-   * Visit a parse tree produced by {@link SqlBaseParser#columnExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitColumnExpression(SqlBaseParser.ColumnExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree

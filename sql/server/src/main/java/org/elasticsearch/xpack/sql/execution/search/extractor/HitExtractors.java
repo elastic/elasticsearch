@@ -20,9 +20,7 @@ public abstract class HitExtractors {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new Entry(HitExtractor.class, ConstantExtractor.NAME, ConstantExtractor::new));
-        entries.add(new Entry(HitExtractor.class, DocValueExtractor.NAME, DocValueExtractor::new));
-        entries.add(new Entry(HitExtractor.class, InnerHitExtractor.NAME, InnerHitExtractor::new));
-        entries.add(new Entry(HitExtractor.class, SourceExtractor.NAME, SourceExtractor::new));
+        entries.add(new Entry(HitExtractor.class, FieldHitExtractor.NAME, FieldHitExtractor::new));
         entries.add(new Entry(HitExtractor.class, ComputingHitExtractor.NAME, ComputingHitExtractor::new));
         entries.add(new Entry(HitExtractor.class, ScoreExtractor.NAME, in -> ScoreExtractor.INSTANCE));
         entries.addAll(Processors.getNamedWriteables());

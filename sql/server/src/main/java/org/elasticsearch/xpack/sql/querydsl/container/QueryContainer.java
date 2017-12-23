@@ -12,9 +12,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AttributeInput;
@@ -197,15 +196,15 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private ColumnReference fieldRef(RootFieldAttribute fieldAttr) {
+    private ColumnReference searchHitFieldRef(FieldAttribute fieldAttr) {
         return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.dataType().hasDocValues());
     }
 
-    private Tuple<QueryContainer, ColumnReference> nestedFieldRef(NestedFieldAttribute attr) {
+    private Tuple<QueryContainer, ColumnReference> nestedFieldRef(FieldAttribute attr) {
         // attach the field to the relevant nested query
         List<ColumnReference> nestedRefs = new ArrayList<>();
 
-        String parent = attr.parentPath();
+        String parent = attr.nestedParent().name();
         String name = aliasName(attr);
 
         Query q = query;
@@ -234,7 +233,7 @@ public class QueryContainer {
             }
         }
 
-        NestedFieldRef nestedFieldRef = new NestedFieldRef(attr.parentPath(), attr.name(), attr.dataType().hasDocValues());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(attr.name(), attr.dataType().hasDocValues(), parent);
         nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
@@ -277,11 +276,13 @@ public class QueryContainer {
     }
 
     private Tuple<QueryContainer, ColumnReference> toReference(Attribute attr) {
-        if (attr instanceof RootFieldAttribute) {
-            return new Tuple<>(this, fieldRef((RootFieldAttribute) attr));
-        }
-        if (attr instanceof NestedFieldAttribute) {
-            return nestedFieldRef((NestedFieldAttribute) attr);
+        if (attr instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) attr;
+            if (fa.isNested()) {
+                return nestedFieldRef(fa);
+            } else {
+                return new Tuple<>(this, searchHitFieldRef(fa));
+            }
         }
         if (attr instanceof ScalarFunctionAttribute) {
             return computingRef((ScalarFunctionAttribute) attr);

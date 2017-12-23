@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
@@ -76,7 +76,7 @@ public class Explain extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new RootFieldAttribute(location(), "plan", DataTypes.KEYWORD));
+        return singletonList(new FieldAttribute(location(), "plan", DataTypes.KEYWORD));
     }
 
     @Override
@@ -157,7 +157,7 @@ public class Explain extends Command {
 
                         listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)));
                     }, listener::onFailure));
-                // cannot continue
+                    // cannot continue
                 } else {
                     if (type != Type.ALL) {
                         listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));

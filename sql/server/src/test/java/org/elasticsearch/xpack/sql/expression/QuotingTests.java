@@ -20,6 +20,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 
@@ -80,9 +81,9 @@ public class QuotingTests extends ESTestCase {
         Expression exp = new SqlParser(DateTimeZone.UTC).createExpression(quote + qualifier + quote + "." + quote + name + quote);
         assertThat(exp, instanceOf(UnresolvedAttribute.class));
         UnresolvedAttribute ua = (UnresolvedAttribute) exp;
-        assertThat(ua.name(), equalTo(name));
+        assertThat(ua.name(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifiedName(), equalTo(qualifier + "." + name));
-        assertThat(ua.qualifier(), equalTo(qualifier));
+        assertThat(ua.qualifier(), is(nullValue()));
     }
 
 

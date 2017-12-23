@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Batch;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.ExecutionInfo;
@@ -65,7 +65,7 @@ public class Debug extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new RootFieldAttribute(location(), "plan", DataTypes.KEYWORD));
+        return singletonList(new FieldAttribute(location(), "plan", DataTypes.KEYWORD));
     }
 
     @Override

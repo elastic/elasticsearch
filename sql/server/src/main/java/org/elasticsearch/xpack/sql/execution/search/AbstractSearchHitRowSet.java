@@ -44,7 +44,7 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
 
         String innerHit = null;
         for (HitExtractor ex : exts) {
-            innerHit = ex.innerHitName();
+            innerHit = ex.hitName();
             if (innerHit != null) {
                 innerHits.add(innerHit);
             }
@@ -96,7 +96,7 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
     @Override
     protected Object getColumn(int column) {
         HitExtractor e = extractors.get(column);
-        int extractorLevel = e.innerHitName() == null ? 0 : 1;
+        int extractorLevel = e.hitName() == null ? 0 : 1;
 
         SearchHit hit = null;
         SearchHit[] sh = hits;

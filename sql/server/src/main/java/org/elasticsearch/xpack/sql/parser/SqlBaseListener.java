@@ -601,16 +601,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link SqlBaseParser#columnExpression}.
-   * @param ctx the parse tree
-   */
-  void enterColumnExpression(SqlBaseParser.ColumnExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link SqlBaseParser#columnExpression}.
-   * @param ctx the parse tree
-   */
-  void exitColumnExpression(SqlBaseParser.ColumnExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree

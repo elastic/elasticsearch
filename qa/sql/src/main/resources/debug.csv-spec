@@ -3,7 +3,7 @@
 //
 
 debug
-SELECT int FROM test GROUP BY AVG(int) + 2;
+SELECT 5 + 2 AS a;
 
 table:s
 test_emp

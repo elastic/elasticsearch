@@ -43,7 +43,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultiGroupBy() {
-        // TODO: location needs to be updated after merging extend-having
         assertEquals("1:32: Currently, only a single expression can be used with GROUP BY; please select one of [bool, keyword]",
                 verify("SELECT bool FROM test GROUP BY bool, keyword"));
     }

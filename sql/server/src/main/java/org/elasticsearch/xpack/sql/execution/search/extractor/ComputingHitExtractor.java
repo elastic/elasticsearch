@@ -61,7 +61,7 @@ public class ComputingHitExtractor implements HitExtractor {
     }
 
     @Override
-    public String innerHitName() {
+    public String hitName() {
         return null;
     }
 

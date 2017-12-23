@@ -6,29 +6,22 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
-@TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class VerifierErrorMessagesTests extends ESTestCase {
     private SqlParser parser = new SqlParser(DateTimeZone.UTC);
 
     private String verify(String sql) {
-        Map<String, DataType> mapping = new LinkedHashMap<>();
-        mapping.put("bool", DataTypes.BOOLEAN);
-        mapping.put("int", DataTypes.INTEGER);
-        mapping.put("text", DataTypes.TEXT);
-        mapping.put("keyword", DataTypes.KEYWORD);
+        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         return verify(GetIndexResult.valid(test), sql);
     }

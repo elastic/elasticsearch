@@ -71,17 +71,17 @@ public abstract class DataTypeConversion {
 
     public static boolean canConvert(DataType from, DataType to) { // TODO it'd be cleaner and more right to fetch the conversion
         // only primitives are supported so far
-        if (from.isComplex() || to.isComplex()) {
+        if (!from.isPrimitive() || !to.isPrimitive()) {
             return false;
         }
-        
+
         if (from.getClass() == to.getClass()) {
             return true;
         }
         if (from instanceof NullType) {
             return true;
         }
-        
+
         // anything can be converted to String
         if (to instanceof StringType) {
             return true;

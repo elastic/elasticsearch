@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 import org.joda.time.DateTimeZone;
 
-// Typed object holding properties for a given 
+// Typed object holding properties for a given action 
 public class Configuration {
     public static final Configuration DEFAULT = new Configuration(DateTimeZone.UTC, 
                                 AbstractQueryInitRequest.DEFAULT_FETCH_SIZE,
@@ -24,6 +24,7 @@ public class Configuration {
     private int pageSize;
     private TimeValue requestTimeout;
     private TimeValue pageTimeout;
+    
     @Nullable
     private QueryBuilder filter;
 

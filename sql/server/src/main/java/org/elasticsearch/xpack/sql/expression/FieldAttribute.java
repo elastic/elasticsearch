@@ -5,50 +5,127 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.TextType;
+import org.elasticsearch.xpack.sql.type.KeywordType;
+import org.elasticsearch.xpack.sql.type.NestedType;
+import org.elasticsearch.xpack.sql.type.StringType;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
-public abstract class FieldAttribute extends TypedAttribute {
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
-    FieldAttribute(Location location, String name, DataType dataType) {
-        this(location, name, dataType, null, true, null, false);
+/**
+ * Attribute for an ES field.
+ * To differentiate between the different type of fields this class offers:
+ * - name - the fully qualified name (foo.bar.tar)
+ * - path - the path pointing to the field name (foo.bar)
+ * - parent - the immediate parent of the field; useful for figuring out the type of field (nested vs object)
+ * - nestedParent - if nested, what's the parent (which might not be the immediate one)
+ */
+public class FieldAttribute extends TypedAttribute {
+
+    private final FieldAttribute parent;
+    private final FieldAttribute nestedParent;
+    private final String path;
+
+    public FieldAttribute(Location location, String name, DataType dataType) {
+        this(location, null, name, dataType);
     }
 
-    FieldAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    public FieldAttribute(Location location, FieldAttribute parent, String name, DataType dataType) {
+        this(location, parent, name, dataType, null, true, null, false);
+    }
+
+    public FieldAttribute(Location location, FieldAttribute parent, String name, DataType dataType, String qualifier,
+            boolean nullable, ExpressionId id, boolean synthetic) {
         super(location, name, dataType, qualifier, nullable, id, synthetic);
-    }
+        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.parent = parent;
 
-    public boolean isAnalyzed() {
-        return dataType() instanceof TextType;
-    }
-
-    public FieldAttribute notAnalyzedAttribute() {
-        if (isAnalyzed()) {
-            Map<String, DataType> docValueFields = ((TextType) dataType()).docValueFields();
-            if (docValueFields.size() == 1) {
-                Entry<String, DataType> entry = docValueFields.entrySet().iterator().next();
-                return with(entry.getKey(), entry.getValue());
+        // figure out the last nested parent
+        FieldAttribute nestedPar = null;
+        if (parent != null) {
+            nestedPar = parent.nestedParent;
+            if (parent.dataType() instanceof NestedType) {
+                nestedPar = parent;
             }
-            if (docValueFields.isEmpty()) {
+        }
+        this.nestedParent = nestedPar;
+    }
+
+    public FieldAttribute parent() {
+        return parent;
+    }
+
+    public String path() {
+        return path;
+    }
+
+    public String qualifiedPath() {
+        return qualifier() != null ? qualifier() + "." + path : path;
+    }
+
+    public boolean isNested() {
+        return nestedParent != null;
+    }
+
+    public FieldAttribute nestedParent() {
+        return nestedParent;
+    }
+
+    public boolean isInexact() {
+        return (dataType() instanceof StringType && ((StringType) dataType()).isInexact());
+    }
+
+    public FieldAttribute exactAttribute() {
+        if (isInexact()) {
+            Map<String, KeywordType> exactFields = ((StringType) dataType()).exactKeywords();
+            if (exactFields.size() == 1) {
+                Entry<String, KeywordType> entry = exactFields.entrySet().iterator().next();
+                return innerField(entry.getKey(), entry.getValue());
+            }
+            if (exactFields.isEmpty()) {
                 throw new MappingException("No docValue multi-field defined for %s", name());
             }
-            if (docValueFields.size() > 1) {
-                DataType dataType = docValueFields.get("keyword");
-                if (dataType != null && dataType.hasDocValues()) {
-                    return with("keyword", dataType);
-                }
-                throw new MappingException("Default 'keyword' not available as multi-fields and multiple options available for %s", name());
+            // pick the default - keyword
+            if (exactFields.size() > 1) {
+                throw new MappingException("Multiple exact keyword candidates %s available for %s; specify which one to use",
+                        exactFields.keySet(), name());
             }
         }
         return this;
     }
 
-    protected FieldAttribute with(String subFieldName, DataType type) {
-        return (FieldAttribute) clone(location(), name() + "." + subFieldName, type, qualifier(), nullable(), id(), synthetic());
+    private FieldAttribute innerField(String subFieldName, DataType type) {
+        return new FieldAttribute(location(), this, name() + "." + subFieldName, type, qualifier(), nullable(), id(), synthetic());
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        return new FieldAttribute(location(), null, "<none>", dataType(), null, true, id(), false);
+    }
+
+    @Override
+    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+        FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
+        return new FieldAttribute(location, qualifiedParent, name, dataType, qualifier, nullable, id, synthetic);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), path);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(path, ((FieldAttribute) obj).path);
+    }
+
+    @Override
+    protected String label() {
+        return "f";
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.index;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -96,11 +97,7 @@ public class IndexResolver {
     }
 
     private static GetIndexResult buildGetIndexResult(String concreteIndex, String indexOrAlias,
-                                                      ImmutableOpenMap<String, MappingMetaData> mappings) {
-        if (concreteIndex.startsWith(".")) {
-            //Indices that start with "." are considered internal and should not be available to SQL
-            return GetIndexResult.notFound(indexOrAlias);
-        }
+            ImmutableOpenMap<String, MappingMetaData> mappings) {
 
         // Make sure that the index contains only a single type
         MappingMetaData singleType = null;
@@ -128,8 +125,12 @@ public class IndexResolver {
             return GetIndexResult.invalid(
                     "[" + indexOrAlias + "] contains more than one type " + typeNames + " so it is incompatible with sql");
         } else {
-            Map<String, DataType> mapping = Types.fromEs(singleType.sourceAsMap());
-            return GetIndexResult.valid(new EsIndex(indexOrAlias, mapping));
+            try {
+                Map<String, DataType> mapping = Types.fromEs(singleType.sourceAsMap());
+                return GetIndexResult.valid(new EsIndex(indexOrAlias, mapping));
+            } catch (MappingException ex) {
+                return GetIndexResult.invalid(ex.getMessage());
+            }
         }
     }
 }

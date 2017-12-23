@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.qa.sql.embed;
 
-import com.sun.net.httpserver.HttpExchange;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.test.rest.FakeRestChannel;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.plugin.RestSqlJdbcAction;
@@ -31,14 +29,7 @@ class JdbcProtoHandler extends ProtoHandler {
     }
 
     @Override
-    protected void handle(HttpExchange http, DataInput in) throws IOException {
-        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true, 1);
-        try {
-            action.operation(Proto.INSTANCE.readRequest(in), client).accept(channel);
-            while (false == channel.await()) {}
-            sendHttpResponse(http, channel.capturedResponse().content());
-        } catch (Exception e) {
-            fail(http, e);
-        }
+    protected void handle(RestChannel channel, DataInput in) throws IOException {
+        action.operation(Proto.INSTANCE.readRequest(in), client).accept(channel);
     }
 }

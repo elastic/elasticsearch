@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -40,7 +40,7 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return Collections.singletonList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
+        return Collections.singletonList(new FieldAttribute(location(), "table", DataTypes.KEYWORD));
     }
 
     @Override

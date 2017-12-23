@@ -14,12 +14,11 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
-import org.elasticsearch.xpack.sql.expression.TypedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -62,7 +60,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -163,27 +160,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private static Attribute resolveAgainstList(UnresolvedAttribute u, List<Attribute> attrList, boolean lenient) {
         List<Attribute> matches = new ArrayList<>();
 
-        // use the qualifier if present
-        if (u.qualifier() != null) {
-            for (Attribute attribute : attrList) {
-                if (!attribute.synthetic()) {
-                    if (Objects.equals(u.qualifiedName(), attribute.qualifiedName())) {
-                        matches.add(attribute);
-                    }
-                    if (attribute instanceof NestedFieldAttribute) {
-                        // since u might be unqualified but the parent shows up as a qualifier
-                        if (Objects.equals(u.qualifiedName(), attribute.name())) {
-                            matches.add(attribute.withLocation(u.location()));
-                        }
-                    }
-                }
-            }
-        }
+        // first try the qualified version
+        boolean qualified = u.qualifier() != null;
 
-        // if none is found, try to do a match just on the name (to filter out missing qualifiers)
-        if (matches.isEmpty()) {
-            for (Attribute attribute : attrList) {
-                if (!attribute.synthetic() && Objects.equals(u.name(), attribute.name())) {
+        for (Attribute attribute : attrList) {
+            if (!attribute.synthetic()) {
+                boolean match = qualified ? 
+                        Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
+                        Objects.equals(u.name(), attribute.name());
+                if (match) {
                     matches.add(attribute.withLocation(u.location()));
                 }
             }
@@ -356,17 +341,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsUp(e -> {
                 if (e instanceof UnresolvedAttribute) {
                     UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    NamedExpression named = resolveAgainstList(u,
-                            plan.children().stream()
-                            .flatMap(c -> c.output().stream())
-                            .collect(toList()),
-                            false);
+                    List<Attribute> childrenOutput = new ArrayList<>();
+                    for (LogicalPlan child : plan.children()) {
+                        childrenOutput.addAll(child.output());
+                    }
+                    NamedExpression named = resolveAgainstList(u, childrenOutput, false);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
-                        // it's a compound type so convert it
-                        if (named instanceof TypedAttribute && ((TypedAttribute) named).dataType() instanceof CompoundDataType) {
-                            named = new UnresolvedStar(e.location(),
-                                    new UnresolvedAttribute(e.location(), u.name(), u.qualifier()));
+                        // if it's a object/compound type, keep it unresolved with a nice error message
+                        if (named instanceof FieldAttribute && !((FieldAttribute) named).dataType().isPrimitive()) {
+                            FieldAttribute fa = (FieldAttribute) named;
+                            named = u.withUnresolvedMessage(
+                                    "Cannot use field [" + fa.name() + "] (type " + fa.dataType().esName() + ") only its subfields");
                         }
 
                         if (log.isTraceEnabled()) {
@@ -381,42 +367,71 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private List<NamedExpression> expandProjections(List<? extends NamedExpression> projections, LogicalPlan child) {
-            return projections.stream().flatMap(e -> {
-                // check if there's a qualifier
-                // no - means only top-level
-                // it is - return only that level
-                if (e instanceof UnresolvedStar) {
-                    List<Attribute> output = child.output();
-                    UnresolvedStar us = (UnresolvedStar) e;
+            List<NamedExpression> result = new ArrayList<>();
 
-                    Stream<Attribute> stream = output.stream();
+            List<Attribute> output = child.output();
+            for (NamedExpression ne : projections) {
+                if (ne instanceof UnresolvedStar) {
+                    UnresolvedStar us = (UnresolvedStar) ne;
 
-                    if (us.qualifier() == null) {
-                        stream = stream.filter(a -> !(a instanceof NestedFieldAttribute));
-                    }
-
-                    // if there's a qualifier, inspect that level
+                    // a qualifier is specified - since this is a star, it should be a CompoundDataType
                     if (us.qualifier() != null) {
-                        // qualifier is selected, need to resolve that first.
-                        Attribute qualifier = resolveAgainstList(us.qualifier(), output, false);
-                        stream = stream.filter(a -> (a instanceof NestedFieldAttribute)
-                                && Objects.equals(a.qualifier(), qualifier.qualifier())
-                                && Objects.equals(((NestedFieldAttribute) a).parentPath(), qualifier.name()));
-                    }
+                        // resolve the so-called qualifier first
+                        // since this is an unresolved start we don't know whether it's a path or an actual qualifier
+                        Attribute q = resolveAgainstList(us.qualifier(), output, false);
 
-                    return stream.filter(a -> !(a.dataType() instanceof CompoundDataType));
-                }
-                else if (e instanceof UnresolvedAlias) {
-                    UnresolvedAlias ua = (UnresolvedAlias) e;
-                    if (ua.child() instanceof UnresolvedStar) {
-                        return child.output().stream();
+                        // now use the resolved 'qualifier' to match
+                        for (Attribute attr : output) {
+                            // filter the attributes that match based on their path
+                            if (attr instanceof FieldAttribute) {
+                                FieldAttribute fa = (FieldAttribute) attr;
+                                if (q.qualifier() != null) {
+                                    if (Objects.equals(q.qualifiedName(), fa.qualifiedName())) {
+                                        result.add(fa.withLocation(attr.location()));
+                                    }
+                                } else {
+                                    // use the path only to match non-compound types
+                                    if (Objects.equals(q.name(), fa.path())) {
+                                        result.add(fa.withLocation(attr.location()));
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // add only primitives
+                        // but filter out multi fields
+                        Set<Attribute> seenMultiFields = new LinkedHashSet<>();
+
+                        for (Attribute a : output) {
+                            if (a.dataType().isPrimitive()) {
+                                if (a instanceof FieldAttribute) {
+                                    FieldAttribute fa = (FieldAttribute) a;
+                                    if (!seenMultiFields.contains(fa.parent())) {
+                                        result.add(a);
+                                        seenMultiFields.add(a);
+                                    }
+                                } else {
+                                    result.add(a);
+                                }
+                            }
+                        }
                     }
-                    return Stream.of(e);
+                } else if (ne instanceof UnresolvedAlias) {
+                    UnresolvedAlias ua = (UnresolvedAlias) ne;
+                    if (ua.child() instanceof UnresolvedStar) {
+                        // add only primitives
+                        for (Attribute a : output) {
+                            if (a.dataType().isPrimitive()) {
+                                result.add(a);
+                            }
+                        }
+                    }
+                } else {
+                    result.add(ne);
                 }
-                return Stream.of(e);
-            })
-                    .map(NamedExpression.class::cast)
-                    .collect(toList());
+            }
+
+            return result;
         }
 
         // generate a new (right) logical plan with different IDs for all conflicting attributes

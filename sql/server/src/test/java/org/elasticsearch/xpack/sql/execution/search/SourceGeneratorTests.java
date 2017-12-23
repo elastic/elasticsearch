@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
@@ -28,11 +28,10 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
-
-import static java.util.Collections.emptyList;
 
 public class SourceGeneratorTests extends ESTestCase {
 
@@ -81,26 +80,26 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSelectScoreForcesTrackingScore() {
         QueryContainer container = new QueryContainer()
-            .addColumn(new Score(new Location(1, 1)).toAttribute());
+                .addColumn(new Score(new Location(1, 1)).toAttribute());
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertTrue(sourceBuilder.trackScores());
     }
 
     public void testSortScoreSpecified() {
         QueryContainer container = new QueryContainer()
-            .sort(new ScoreSort(Direction.DESC));
+                .sort(new ScoreSort(Direction.DESC));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
     }
 
     public void testSortFieldSpecified() {
         QueryContainer container = new QueryContainer()
-            .sort(new AttributeSort(new RootFieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.ASC));
+                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.ASC));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(fieldSort("test").order(SortOrder.ASC)), sourceBuilder.sorts());
 
         container = new QueryContainer()
-            .sort(new AttributeSort(new RootFieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.DESC));
+                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.DESC));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(fieldSort("test").order(SortOrder.DESC)), sourceBuilder.sorts());
     }
@@ -112,8 +111,8 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testNoSortIfAgg() {
         QueryContainer container = new QueryContainer()
-            .addGroups(singletonList(new GroupByColumnAgg("group_id", "", "group_column")))
-            .addAgg("group_id", new AvgAgg("agg_id", "", "avg_column"));
+                .addGroups(singletonList(new GroupByColumnAgg("group_id", "", "group_column")))
+                .addAgg("group_id", new AvgAgg("agg_id", "", "avg_column"));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertNull(sourceBuilder.sorts());
     }

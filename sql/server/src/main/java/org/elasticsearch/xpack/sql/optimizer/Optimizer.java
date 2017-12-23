@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.ExpressionSet;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -95,19 +95,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Finish Analysis", 
+        Batch resolution = new Batch("Finish Analysis",
                 new PruneSubqueryAliases(),
                 CleanAliases.INSTANCE
                 );
 
-        Batch aggregate = new Batch("Aggregation", 
+        Batch aggregate = new Batch("Aggregation",
                 new PruneDuplicatesInGroupBy(),
                 new ReplaceDuplicateAggsWithReferences(),
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
-                new PromoteStatsToExtendedStats(), 
-                new ReplaceAggsWithPercentiles(), 
+                new PromoteStatsToExtendedStats(),
+                new ReplaceAggsWithPercentiles(),
                 new ReplceAggsWithPercentileRanks()
                 );
 
@@ -134,10 +134,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new SkipQueryOnLimitZero(),
                 new SkipQueryIfFoldingProjection()
                 );
-                //new BalanceBooleanTrees());
+        //new BalanceBooleanTrees());
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
-        
+
         return Arrays.asList(resolution, aggregate, operators, local, label);
     }
 
@@ -157,7 +157,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class CleanAliases extends OptimizerRule<LogicalPlan> {
 
         private static final CleanAliases INSTANCE = new CleanAliases();
-        
+
         CleanAliases() {
             super(TransformDirection.UP);
         }
@@ -308,7 +308,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return p;
             }
 
-            // update old agg attributes 
+            // update old agg attributes
             return ReplaceAggsWithStats.updateAggAttributes(p, promotedFunctionIds);
         }
 
@@ -360,12 +360,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<Expression, Match> potentialPromotions = new LinkedHashMap<>();
 
             p.forEachExpressionsUp(e -> collect(e, potentialPromotions));
-            
+
             // no promotions found - skip
             if (potentialPromotions.isEmpty()) {
                 return p;
             }
-            
+
             // start promotion
 
             // old functionId to new function attribute
@@ -431,13 +431,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // 2a. collect ScalarFunctions that unwrapped refer to any of the updated aggregates
             // 2b. replace any of the old ScalarFunction attributes
-            
+
             final Set<String> newAggIds = new LinkedHashSet<>(promotedFunctionIds.size());
-            
+
             for (AggregateFunctionAttribute afa : promotedFunctionIds.values()) {
                 newAggIds.add(afa.functionId());
             }
-            
+
             final Map<String, ScalarFunctionAttribute> updatedScalarAttrs = new LinkedHashMap<>();
             final Map<ExpressionId, ScalarFunctionAttribute> updatedScalarAliases = new LinkedHashMap<>();
 
@@ -452,7 +452,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     sfa = updatedScalarAliases.getOrDefault(sfa.id(), sfa);
                     return sfa;
                 }
-                
+
                 // unwrap aliases as they 'hide' functions under their own attributes
                 if (e instanceof Alias) {
                     Attribute att = Expressions.attribute(e);
@@ -500,7 +500,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
-    
+
     static class PromoteStatsToExtendedStats extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
@@ -709,8 +709,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 for (Order order : ob.order()) {
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
-                    if (attr instanceof NestedFieldAttribute) {
-                        nestedOrders.put(((NestedFieldAttribute) attr).parentPath(), order);
+                    if (attr instanceof FieldAttribute) {
+                        FieldAttribute fa = (FieldAttribute) attr;
+                        if (fa.isNested()) {
+                            nestedOrders.put(fa.nestedParent().name(), order);
+                        }
                     }
                 }
 
@@ -723,8 +726,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 List<String> nestedTopFields = new ArrayList<>();
 
                 for (Attribute attr : project.output()) {
-                    if (attr instanceof NestedFieldAttribute) {
-                        nestedTopFields.add(((NestedFieldAttribute) attr).parentPath());
+                    if (attr instanceof FieldAttribute) {
+                        FieldAttribute fa = (FieldAttribute) attr;
+                        if (fa.isNested()) {
+                            nestedTopFields.add(fa.nestedParent().name());
+                        }
                     }
                 }
 
@@ -933,7 +939,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return project;
         }
 
-        // normally only the upper projections should survive but since the lower list might have aliases definitions 
+        // normally only the upper projections should survive but since the lower list might have aliases definitions
         // that might be reused by the upper one, these need to be replaced.
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
         private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
@@ -948,7 +954,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             AttributeMap<Alias> aliases = new AttributeMap<>(map);
             List<NamedExpression> replaced = new ArrayList<>();
-            
+
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
@@ -956,7 +962,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Alias as = aliases.get(a);
                     return as != null ? as : a;
                 }, Attribute.class);
-                
+
                 replaced.add((NamedExpression) CleanAliases.trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
@@ -991,13 +997,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }, Project.class);
-            
+
             if (attrs.isEmpty()) {
                 return plan;
             }
-            
+
             AtomicBoolean stop = new AtomicBoolean(false);
-            
+
             // propagate folding up to unary nodes
             // anything higher and the propagate stops
             plan = plan.transformUp(p -> {
@@ -1021,12 +1027,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 return p;
             });
-            
+
             // finally clean-up aliases
             return CleanAliases.INSTANCE.apply(plan);
-            
+
         }
-        
+
         private boolean canPropagateFoldable(LogicalPlan p) {
             return p instanceof Project || p instanceof Filter || p instanceof SubQueryAlias || p instanceof Aggregate || p instanceof Limit || p instanceof OrderBy;
         }
@@ -1061,7 +1067,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return e;
         }
-        
+
         private Expression fold(Expression e) {
             // literals are always foldable, so avoid creating a duplicate
             if (e.foldable() && !(e instanceof Literal)) {
@@ -1070,7 +1076,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
-    
+
     static class BooleanSimplification extends OptimizerExpressionRule {
 
         BooleanSimplification() {
@@ -1168,7 +1174,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return combineAnd(combine(common, new Or(combineLeft.location(), combineLeft, combineRight)));
             }
 
-            // TODO: eliminate conjunction/disjunction 
+            // TODO: eliminate conjunction/disjunction
             return bc;
         }
 
@@ -1271,7 +1277,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         return new Range(and.location(), lb.left(), lb.right(), l instanceof GreaterThanOrEqual, rb.right(),
                                 r instanceof LessThanOrEqual);
                     }
-                    // </<= AND >/>= 
+                    // </<= AND >/>=
                     else if ((r instanceof GreaterThan || r instanceof GreaterThanOrEqual)
                             && (l instanceof LessThan || l instanceof LessThanOrEqual)) {
                         return new Range(and.location(), rb.left(), rb.right(), r instanceof GreaterThanOrEqual, lb.right(),
@@ -1289,7 +1295,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals((Number) (((Literal) limit.limit()).fold()))) {
+                if (Integer.valueOf(0).equals((((Literal) limit.limit()).fold()))) {
                     return new LocalRelation(limit.location(), new EmptyExecutable(limit.output()));
                 }
             }

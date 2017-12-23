@@ -22,5 +22,5 @@ public interface HitExtractor extends NamedWriteable {
      * Name of the inner hit needed by this extractor if it needs one, {@code null} otherwise.
      */
     @Nullable
-    String innerHitName();
+    String hitName();
 }

@@ -26,10 +26,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingHitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.DocValueExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.SourceExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggValueInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.HitExtractorInput;
@@ -40,7 +38,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.container.AggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
-import org.elasticsearch.xpack.sql.querydsl.container.NestedFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
@@ -239,14 +236,14 @@ public class Scroller {
 
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
-                    // is all the content already retrieved?
+                        // is all the content already retrieved?
                         (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                    // or maybe the limit has been reached
-                            || (hits.length >= query.limit() && query.limit() > -1))) {
-                        // if so, clear the scroll
-                        clearScroll(response.getScrollId(), ActionListener.wrap(
-                                succeeded -> listener.onResponse(new InitialSearchHitRowSet(schema, exts, hits, query.limit(), null)),
-                                listener::onFailure));
+                        // or maybe the limit has been reached
+                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                    // if so, clear the scroll
+                    clearScroll(response.getScrollId(), ActionListener.wrap(
+                            succeeded -> listener.onResponse(new InitialSearchHitRowSet(schema, exts, hits, query.limit(), null)),
+                            listener::onFailure));
                 } else {
                     listener.onResponse(new InitialSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
                 }
@@ -273,17 +270,12 @@ public class Scroller {
         private HitExtractor createExtractor(ColumnReference ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return f.useDocValue() ? new DocValueExtractor(f.name()) : new SourceExtractor(f.name());
-            }
-
-            if (ref instanceof NestedFieldRef) {
-                NestedFieldRef f = (NestedFieldRef) ref;
-                return new InnerHitExtractor(f.parent(), f.name(), f.useDocValue());
+                return new FieldHitExtractor(f.name(), f.useDocValue(), f.hitName());
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new DocValueExtractor(f.name());
+                return new FieldHitExtractor(f.name(), true);
             }
 
             if (ref instanceof ComputedRef) {
@@ -318,15 +310,27 @@ public class Scroller {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
                 if (!CollectionUtils.isEmpty(failure)) {
-                    onFailure(new ExecutionException(failure[0].reason(), failure[0].getCause()));
+                    cleanupScroll(response, new ExecutionException(failure[0].reason(), failure[0].getCause()));
                 }
                 handleResponse(response, listener);
             } catch (Exception ex) {
-                onFailure(ex);
+                cleanupScroll(response, ex);
             }
         }
 
         protected abstract void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener);
+
+        // clean-up the scroll in case of exception
+        protected final void cleanupScroll(SearchResponse response, Exception ex) {
+            if (response != null && response.getScrollId() != null) {
+                client.prepareClearScroll().addScrollId(response.getScrollId())
+                // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
+                        .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
+                            ex.addSuppressed(e);
+                            listener.onFailure(ex);
+                        }));
+            }
+        }
 
         protected final void clearScroll(String scrollId, ActionListener<Boolean> listener) {
             if (scrollId != null) {

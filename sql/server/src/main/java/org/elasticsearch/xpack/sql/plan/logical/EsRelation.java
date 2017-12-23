@@ -6,24 +6,18 @@
 package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
-import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.NestedType;
-import org.elasticsearch.xpack.sql.type.StringType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class EsRelation extends LeafPlan {
 
@@ -33,32 +27,30 @@ public class EsRelation extends LeafPlan {
     public EsRelation(Location location, EsIndex index) {
         super(location);
         this.index = index;
-        attrs = flatten(location, index.mapping()).collect(toList());
+        attrs = flatten(location, index.mapping());
     }
 
-    private static Stream<Attribute> flatten(Location location, Map<String, DataType> mapping) {
-        return flatten(location, mapping, null, emptyList());
+    private static List<Attribute> flatten(Location location, Map<String, DataType> mapping) {
+        return flatten(location, mapping, null);
     }
-    
-    private static Stream<Attribute> flatten(Location location, Map<String, DataType> mapping, String parent, List<String> nestedParents) {
-        return mapping.entrySet().stream()
-                .filter(e -> e.getValue() != null)
-                .flatMap(e -> {
-                    String name = parent != null ? parent + "." + e.getKey() : e.getKey();
-                    DataType t = e.getValue();
-                    if (t.isComplex() && !(t instanceof StringType)) {
-                        if (t instanceof NestedType) {
-                            return Stream.concat(Stream.of(new NestedFieldAttribute(location, name, t, nestedParents)), flatten(location, ((NestedType) t).properties(), name, combine(nestedParents, name)));
-                        }
-                        //                        if (t instanceof ObjectType) {
-                        //                            return flatten(location, ((ObjectType) t).properties(), name, combine(nestedParents, name));
-                        //                        }
 
-                        throw new MappingException("Does not know how to handle complex type %s", t);
-                    }
-                    Attribute att = nestedParents.isEmpty() ? new RootFieldAttribute(location, name, t) : new NestedFieldAttribute(location, name, t, nestedParents);
-                    return Stream.of(att);
-                });
+    private static List<Attribute> flatten(Location location, Map<String, DataType> mapping, FieldAttribute parent) {
+        List<Attribute> list = new ArrayList<>();
+
+        for (Entry<String, DataType> entry : mapping.entrySet()) {
+            String name = entry.getKey();
+            DataType t = entry.getValue();
+
+            if (t != null) {
+                FieldAttribute f = new FieldAttribute(location, parent, parent != null ? parent.name() + "." + name : name, t);
+                list.add(f);
+                // object or nested
+                if (t instanceof CompoundDataType) {
+                    list.addAll(flatten(location, ((CompoundDataType) t).properties(), f));
+                }
+            }
+        }
+        return list;
     }
 
     public EsIndex index() {

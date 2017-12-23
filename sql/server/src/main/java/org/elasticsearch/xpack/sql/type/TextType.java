@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -30,8 +31,23 @@ public class TextType extends StringType {
     }
 
     @Override
+    public boolean isInexact() {
+        return true;
+    }
+
+    @Override
     public String esName() {
         return "text";
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fieldData);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && fieldData == ((TextType) obj).fieldData;
     }
 
     static DataType from(boolean fieldData, Map<String, DataType> fields) {

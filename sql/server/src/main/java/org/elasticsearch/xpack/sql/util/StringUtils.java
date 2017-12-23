@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 public abstract class StringUtils {
@@ -60,13 +59,6 @@ public abstract class StringUtils {
                 return sb.append(']').toString();
             sb.append(',').append(' ');
         }
-    }
-
-    public static String concatWithDot(List<String> strings) {
-        if (strings == null || strings.isEmpty()) {
-            return EMPTY;
-        }
-        return strings.stream().collect(joining("."));
     }
 
     //CamelCase to camel_case
@@ -195,7 +187,7 @@ public abstract class StringUtils {
         for (String potentialMatch : potentialMatches) {
             float distance = ld.getDistance(match, potentialMatch);
             if (distance >= 0.5f) {
-                scoredMatches.add(new Tuple<>(distance, potentialMatch));    
+                scoredMatches.add(new Tuple<>(distance, potentialMatch));
             }
         }
         CollectionUtil.timSort(scoredMatches, (a,b) -> b.v1().compareTo(a.v1()));

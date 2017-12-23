@@ -93,7 +93,7 @@ public class DataLoader {
             if (titlesString == null) {
                 throw new IllegalArgumentException("[" + location + "] must contain at least a title row");
             }
-            List<String> titles = Arrays.asList(titlesString.split(","));    
+            List<String> titles = Arrays.asList(titlesString.split(","));
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -106,4 +106,5 @@ public class DataLoader {
     public static InputStream readFromJarUrl(URL source) throws IOException {
         return source.openStream();
     }
+
 }

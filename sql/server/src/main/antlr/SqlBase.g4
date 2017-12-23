@@ -188,18 +188,15 @@ primaryExpression
     | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
     | constant                                                                       #constantDefault
     | ASTERISK                                                                       #star
-    | (qualifier=columnExpression '.')? ASTERISK                                     #star
+    | (qualifiedName '.')? ASTERISK                                                  #star
     | identifier '(' (setQuantifier? expression (',' expression)*)? ')'              #functionCall
     | '(' query ')'                                                                  #subqueryExpression
-    | columnExpression                                                               #columnReference
-    | base=columnExpression '.' fieldName=identifier                                 #dereference
+    | identifier                                                                     #columnReference
+    | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
-columnExpression
-    : ((alias=identifier | table=tableIdentifier) '.' )? name=identifier
-    ;
-
+    
 constant
     : NULL                                                                                     #nullLiteral
     | identifier STRING                                                                        #typeConstructor
@@ -221,7 +218,7 @@ dataType
     ;
 
 qualifiedName
-    : identifier ('.' identifier)*
+    : (path=identifier '.')* name=identifier
     ;
 
 tableIdentifier
@@ -251,16 +248,16 @@ number
 
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
-    : ANALYZE | ANALYZED
-    | COLUMNS
-    | DEBUG
-    | EXECUTABLE | EXPLAIN
-    | FORMAT | FUNCTIONS | FROM
-    | GRAPHVIZ
-    | MAPPED
-    | OPTIMIZED
-    | PARSED | PHYSICAL | PLAN
-    | QUERY
+    : ANALYZE | ANALYZED 
+    | COLUMNS 
+    | DEBUG 
+    | EXECUTABLE | EXPLAIN 
+    | FORMAT | FUNCTIONS | FROM 
+    | GRAPHVIZ 
+    | MAPPED 
+    | OPTIMIZED 
+    | PARSED | PHYSICAL | PLAN 
+    | QUERY 
     | RLIKE
     | SCHEMAS | SHOW
     | TABLES | TEXT
@@ -325,7 +322,6 @@ TEXT: 'TEXT';
 TRUE: 'TRUE';
 USING: 'USING';
 VERIFY: 'VERIFY';
-WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
 

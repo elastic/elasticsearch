@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.List;
+import java.util.Objects;
+
+import static java.util.stream.Collectors.toList;
 
 public class SubQueryAlias extends UnaryPlan {
 
@@ -30,7 +31,7 @@ public class SubQueryAlias extends UnaryPlan {
         return (alias == null ? child().output() : 
                 child().output().stream()
                 .map(e -> e.withQualifier(alias))
-                .collect(Collectors.toList())
+                .collect(toList())
                 );
     }
 

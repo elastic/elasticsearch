@@ -55,10 +55,6 @@ public interface DataType {
         return isInteger() || isRational();
     }
 
-    default boolean isComplex() {
-        return !isPrimitive();
-    }
-
     boolean isPrimitive();
 
     default boolean same(DataType other) {

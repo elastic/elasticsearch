@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
@@ -83,8 +85,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        // We treat the resync as best-effort for now and don't mark unavailable shard copies as stale.
-        return new ReplicasProxy(primaryTerm);
+        return new ResyncReplicaProxy(primaryTerm);
     }
 
     @Override
@@ -182,6 +183,39 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                     }
                 }
             });
+    }
+
+    class ResyncReplicaProxy extends ReplicasProxy {
+        ResyncReplicaProxy(long primaryTerm) {
+            super(primaryTerm);
+        }
+
+        @Override
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
+                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            // Marked already, just notify.
+            if (replica.resyncFailedInfo() != null) {
+                onSuccess.run();
+                return;
+            }
+            logger.warn(new ParameterizedMessage("Mark shard [{}] as resync failed [{}]", replica.shardId(), message), exception);
+            shardStateAction.markShardResyncFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, message, exception,
+                new ShardStateAction.Listener() {
+                    @Override
+                    public void onSuccess() {
+                        onSuccess.run();
+                    }
+
+                    @Override
+                    public void onFailure(Exception shardFailedError) {
+                        if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                            onPrimaryDemoted.accept(shardFailedError);
+                        } else {
+                            onIgnoredFailure.accept(shardFailedError);
+                        }
+                    }
+                });
+        }
     }
 
 }

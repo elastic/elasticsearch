@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.ResyncFailedInfo;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -218,6 +219,20 @@ public class AllocationService extends AbstractComponent {
             return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
+    /**
+     * Marks the given shards as resync-failed. This only sets {@link ShardRouting#resyncFailedInfo} of the given shards.
+     */
+    public ClusterState markShardsResyncFailed(final ClusterState clusterState, final List<FailedShard> shardsToMark) {
+        final RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes,
+            clusterState, clusterInfoService.getClusterInfo(), currentNanoTime());
+        for (FailedShard shardToMark : shardsToMark) {
+            final ResyncFailedInfo resyncFailedInfo = new ResyncFailedInfo(shardToMark.getMessage(), shardToMark.getFailure());
+            routingNodes.markShardResyncFailed(shardToMark.getRoutingEntry(), resyncFailedInfo);
+        }
+        return buildResultAndLogHealthChange(clusterState, allocation, "Mark shards as resync-failed");
     }
 
     /**

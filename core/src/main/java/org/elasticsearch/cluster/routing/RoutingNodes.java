@@ -627,6 +627,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             " was matched but wasn't removed";
     }
 
+    /**
+     * Marks a shard resync-failed.
+     */
+    public ShardRouting markShardResyncFailed(ShardRouting shardToMark, ResyncFailedInfo resyncFailedInfo) {
+        ensureMutable();
+        final ShardRouting markedShard = shardToMark.markResyncFailed(resyncFailedInfo);
+        updateAssigned(shardToMark, markedShard);
+        return markedShard;
+    }
+
     private void promoteReplicaToPrimary(ShardRouting activeReplica, IndexMetaData indexMetaData,
                                          RoutingChangesObserver routingChangesObserver) {
         // if the activeReplica was relocating before this call to failShard, its relocation was cancelled earlier when we

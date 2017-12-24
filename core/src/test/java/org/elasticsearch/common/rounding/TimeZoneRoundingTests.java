@@ -577,11 +577,15 @@ public class TimeZoneRoundingTests extends ESTestCase {
 
         // Sunday, 29 October 2000, 01:00:00 clocks were turned backward 1 hour
         // to Sunday, 29 October 2000, 00:00:00 local standard time instead
+        // which means there were two midnights that day.
 
         long midnightBeforeTransition = time("2000-10-29T00:00:00", tz);
+        long midnightOfTransition = time("2000-10-29T00:00:00-01:00");
+        assertEquals(60L * 60L * 1000L, midnightOfTransition - midnightBeforeTransition);
         long nextMidnight = time("2000-10-30T00:00:00", tz);
 
-        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+        assertInterval(midnightBeforeTransition, midnightOfTransition, rounding, 60, tz);
+        assertInterval(midnightOfTransition, nextMidnight, rounding, 24 * 60, tz);
 
         // Second case, dst happens at 0am local time, switching back one hour to 23pm local time.
         // We want the overlapping hour to count for the previous day here

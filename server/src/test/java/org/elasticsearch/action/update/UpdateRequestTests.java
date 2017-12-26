@@ -639,4 +639,16 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
     }
+
+    public void testToString() throws IOException {
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+            .script(mockInlineScript("ctx._source.body = \"foo\""));
+        assertThat(request.toString(), equalTo("update {[test][type1][1], "
+            + "script[Script{type=inline, lang='mock', idOrCode='ctx._source.body = \"foo\"', options={}, params={}}], "
+            + "detect_noop[true]}"));
+        request = new UpdateRequest("test", "type1", "1").fromXContent(
+            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}")));
+        assertThat(request.toString(), equalTo("update {[test][type1][1], "
+            + "doc[index {[null][null][null], source[{\"body\":\"bar\"}]}], detect_noop[true]}"));
+    }
 }

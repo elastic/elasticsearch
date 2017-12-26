@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import java.util.Arrays;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -892,5 +893,32 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        String res = "update {[" + index + "][" + type + "][" + id + "]";
+        if (docAsUpsert) {
+            res += (", doc_as_upsert[" + docAsUpsert + "]");
+        }
+        if (doc != null) {
+            res += (", doc[" + doc + "]");
+        }
+        if (script != null) {
+            res += (", script[" + script + "]");
+        }
+        if (upsertRequest != null) {
+            res += (", upsert[" + upsertRequest + "]");
+        }
+        if (scriptedUpsert) {
+            res += (", scripted_upsert[" + scriptedUpsert + "]");
+        }
+        if (detectNoop) {
+            res += (", detect_noop[" + detectNoop + "]");
+        }
+        if (fields != null) {
+            res += (", fields[" + Arrays.toString(fields) + "]");
+        }
+        return res + "}";
     }
 }

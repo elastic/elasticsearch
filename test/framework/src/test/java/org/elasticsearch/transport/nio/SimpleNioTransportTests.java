@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -78,7 +78,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             }
 
             @Override
-            protected SocketEventHandler getSocketEventHandler() {
+            protected SocketEventHandler getSocketEventHandler(Logger logger) {
                 return new TestingSocketEventHandler(logger);
             }
         };

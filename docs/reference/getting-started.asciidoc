@@ -380,7 +380,7 @@ Let's now put something into our customer index. We'll index a simple customer d
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -393,7 +393,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "doc",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -416,7 +416,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/doc/1?pretty
+GET /customer/_doc/1?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -427,7 +427,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "doc",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "found" : true,
@@ -465,11 +465,11 @@ Before we move on, let's take a closer look again at some of the API commands th
 [source,js]
 --------------------------------------------------
 PUT /customer
-PUT /customer/doc/1
+PUT /customer/_doc/1
 {
   "name": "John Doe"
 }
-GET /customer/doc/1
+GET /customer/_doc/1
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
@@ -495,7 +495,7 @@ We've previously seen how we can index a single document. Let's recall that comm
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -506,7 +506,7 @@ Again, the above will index the specified document into the customer index, with
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "Jane Doe"
 }
@@ -518,7 +518,7 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/2?pretty
+PUT /customer/_doc/2?pretty
 {
   "name": "Jane Doe"
 }
@@ -534,7 +534,7 @@ This example shows how to index a document without an explicit ID:
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc?pretty
+POST /customer/_doc?pretty
 {
   "name": "Jane Doe"
 }
@@ -552,7 +552,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -564,7 +564,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -576,7 +576,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -594,7 +594,7 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 
 [source,js]
 --------------------------------------------------
-DELETE /customer/doc/2?pretty
+DELETE /customer/_doc/2?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -611,7 +611,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/_bulk?pretty
+POST /customer/_doc/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -623,7 +623,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/doc/_bulk?pretty
+POST /customer/_doc/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -696,7 +696,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the account type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
 
 === The Search API
 
@@ -731,14 +731,14 @@ And the response (partially shown):
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,
@@ -799,14 +799,14 @@ to clutter the docs with it:
     "max_score": null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score": null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score": null,

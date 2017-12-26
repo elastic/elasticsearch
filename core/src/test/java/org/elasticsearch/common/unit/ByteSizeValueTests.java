@@ -20,9 +20,9 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ByteSizeValueTests extends ESTestCase {
+public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
     public void testActualPeta() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
     }
@@ -150,17 +150,17 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareEquality() {
-        long firstRandom = randomNonNegativeLong();
         ByteSizeUnit randomUnit = randomFrom(ByteSizeUnit.values());
+        long firstRandom = randomNonNegativeLong() / randomUnit.toBytes(1);
         ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(firstRandom, randomUnit);
         assertEquals(0, firstByteValue.compareTo(secondByteValue));
     }
 
     public void testCompareValue() {
-        long firstRandom = randomNonNegativeLong();
-        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
         ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+        long firstRandom = randomNonNegativeLong() / unit.toBytes(1);
+        long secondRandom = randomValueOtherThan(firstRandom, () -> randomNonNegativeLong() / unit.toBytes(1));
         ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, unit);
         ByteSizeValue secondByteValue = new ByteSizeValue(secondRandom, unit);
         assertEquals(firstRandom > secondRandom, firstByteValue.compareTo(secondByteValue) > 0);
@@ -168,7 +168,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareUnits() {
-        long number = randomNonNegativeLong();
+        long number = randomNonNegativeLong() / ByteSizeUnit.PB.toBytes(1);
         ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
@@ -176,10 +176,25 @@ public class ByteSizeValueTests extends ESTestCase {
         assertTrue(secondByteValue.compareTo(firstByteValue) > 0);
     }
 
-    public void testEdgeCompare() {
-        ByteSizeValue maxLongValuePB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.PB);
-        ByteSizeValue maxLongValueB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
-        assertTrue(maxLongValuePB.compareTo(maxLongValueB) > 0);
+    public void testOutOfRange() {
+        // Make sure a value of > Long.MAX_VALUE bytes throws an exception
+        ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+        long size = (long) randomDouble() * unit.toBytes(1) + (Long.MAX_VALUE - unit.toBytes(1));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size, unit));
+        assertEquals("Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
+                exception.getMessage());
+
+        // Make sure for units other than BYTES a size of -1 throws an exception
+        ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+        long size2 = -1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size2, unit2));
+        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+
+        // Make sure for any unit a size < -1 throws an exception
+        ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
+        long size3 = -1L * randomNonNegativeLong() - 1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size3, unit3));
+        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
     }
 
     public void testConversionHashCode() {
@@ -188,14 +203,114 @@ public class ByteSizeValueTests extends ESTestCase {
         assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
 
-    public void testSerialization() throws IOException {
-        ByteSizeValue byteSizeValue = new ByteSizeValue(randomNonNegativeLong(), randomFrom(ByteSizeUnit.values()));
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            byteSizeValue.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                ByteSizeValue deserializedByteSizeValue = new ByteSizeValue(in);
-                assertEquals(byteSizeValue.getBytes(), deserializedByteSizeValue.getBytes());
+    @Override
+    protected ByteSizeValue createTestInstance() {
+        if (randomBoolean()) {
+            ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+            long size = randomNonNegativeLong() / unit.toBytes(1);
+            if (size > Long.MAX_VALUE / unit.toBytes(1)) {
+                throw new AssertionError();
+            }
+            return new ByteSizeValue(size, unit);
+        } else {
+            return new ByteSizeValue(randomNonNegativeLong());
+        }
+    }
+
+    @Override
+    protected Reader<ByteSizeValue> instanceReader() {
+        return ByteSizeValue::new;
+    }
+
+    @Override
+    protected ByteSizeValue mutateInstance(ByteSizeValue instance) throws IOException {
+        long size = instance.getSize();
+        ByteSizeUnit unit = instance.getUnit();
+        switch (between(0, 1)) {
+        case 0:
+            long unitBytes = unit.toBytes(1);
+            size = randomValueOtherThan(size, () -> randomNonNegativeLong() / unitBytes);
+            break;
+        case 1:
+            unit = randomValueOtherThan(unit, () -> randomFrom(ByteSizeUnit.values()));
+            long newUnitBytes = unit.toBytes(1);
+            if (size >= Long.MAX_VALUE / newUnitBytes) {
+                size = randomValueOtherThan(size, () -> randomNonNegativeLong() / newUnitBytes);
+            }
+            break;
+        default:
+            throw new AssertionError("Invalid randomisation branch");
+        }
+        return new ByteSizeValue(size, unit);
+    }
+
+    public void testParse() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            ByteSizeValue original = createTestInstance();
+            String serialised = original.getStringRep();
+            ByteSizeValue copy = ByteSizeValue.parseBytesSizeValue(serialised, "test");
+            assertEquals(original, copy);
+            assertEquals(serialised, copy.getStringRep());
+        }
+    }
+
+    public void testParseInvalidValue() {
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+                () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting"));
+        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
+        assertNotNull(exception.getCause());
+        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
+    }
+
+    public void testParseDefaultValue() {
+        ByteSizeValue defaultValue = createTestInstance();
+        assertEquals(defaultValue, ByteSizeValue.parseBytesSizeValue(null, defaultValue, "test"));
+    }
+
+    public void testParseSpecialValues() throws IOException {
+        ByteSizeValue instance = new ByteSizeValue(-1);
+        assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
+        assertSerialization(instance);
+
+        instance = new ByteSizeValue(0);
+        assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
+        assertSerialization(instance);
+    }
+
+    public void testParseInvalidNumber() throws IOException {
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+                () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test"));
+        assertEquals("failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
+                exception.getMessage());
+
+        exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumberMB", "test"));
+        assertEquals("failed to parse [notANumberMB]", exception.getMessage());
+    }
+
+    public void testParseFractionalNumber() throws IOException {
+        ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+        String fractionalValue = "23.5" + unit.getSuffix();
+        ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
+        assertEquals(fractionalValue, instance.toString());
+        assertWarnings("Fractional bytes values are deprecated. Use non-fractional bytes values instead: [" + fractionalValue
+                + "] found for setting [test]");
+    }
+
+    public void testGetBytesAsInt() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            ByteSizeValue instance = new ByteSizeValue(randomIntBetween(1, 1000), randomFrom(ByteSizeUnit.values()));
+            long bytesValue = instance.getBytes();
+            if (bytesValue > Integer.MAX_VALUE) {
+                IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> instance.bytesAsInt());
+                assertEquals("size [" + instance.toString() + "] is bigger than max int", exception.getMessage());
+            } else {
+                assertEquals((int) bytesValue, instance.bytesAsInt());
             }
         }
+    }
+
+    public void testOldSerialisation() throws IOException {
+        ByteSizeValue original = createTestInstance();
+        assertSerialization(original, randomFrom(Version.V_5_6_4, Version.V_5_6_5, Version.V_6_0_0, Version.V_6_0_1, Version.V_6_1_0));
     }
 }

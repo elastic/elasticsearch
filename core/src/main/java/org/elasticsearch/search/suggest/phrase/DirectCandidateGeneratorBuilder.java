@@ -31,8 +31,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,9 +44,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            Loggers.getLogger(DirectCandidateGeneratorBuilder.class));
 
     private static final String TYPE = "direct_generator";
 
@@ -464,19 +459,13 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     static StringDistance resolveDistance(String distanceVal) {
-        distanceVal = distanceVal.toLowerCase(Locale.US);
+        distanceVal = distanceVal.toLowerCase(Locale.ROOT);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+        } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
-        } else if ("levenstein".equals(distanceVal)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
-            return new LevensteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
             return new LevensteinDistance();
-        } else if ("jarowinkler".equals(distanceVal)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
-            return new JaroWinklerDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

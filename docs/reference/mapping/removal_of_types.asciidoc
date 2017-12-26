@@ -164,7 +164,7 @@ You could achieve the same thing by adding a custom `type` field as follows:
 PUT twitter
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "type": { "type": "keyword" }, <1>
         "name": { "type": "text" },
@@ -177,7 +177,7 @@ PUT twitter
   }
 }
 
-PUT twitter/doc/user-kimchy
+PUT twitter/_doc/user-kimchy
 {
   "type": "user", <1>
   "name": "Shay Banon",
@@ -185,7 +185,7 @@ PUT twitter/doc/user-kimchy
   "email": "shay@kimchy.com"
 }
 
-PUT twitter/doc/tweet-1
+PUT twitter/_doc/tweet-1
 {
   "type": "tweet", <1>
   "user_name": "kimchy",
@@ -244,7 +244,9 @@ Elasticsearch 6.x::
 * Indices created in 5.x will continue to function in 6.x as they did in 5.x.
 
 * Indices created in 6.x only allow a single-type per index.  Any name
-  can be used for the type, but there can be only one.
+  can be used for the type, but there can be only one. The preferred type name
+  is `_doc`, so that index APIs have the same path as they will have in 7.0:
+  `PUT {index}/_doc/{id}` and `POST {index}/_doc`
 
 * The `_type` name can no longer be combined with the `_id` to form the `_uid`
   field. The `_uid` field has become an alias for the `_id` field.
@@ -257,7 +259,9 @@ Elasticsearch 6.x::
 Elasticsearch 7.x::
 
 * The `type` parameter in URLs are optional.  For instance, indexing
-  a document no longer requires a document `type`.
+  a document no longer requires a document `type`.  The new index APIs
+  are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
+  for auto-generated ids.
 
 * The `GET|PUT _mapping` APIs support a query string parameter
   (`include_type_name`) which indicates whether the body should include
@@ -298,7 +302,7 @@ PUT users
     "index.mapping.single_type": true
   },
   "mappings": {
-    "user": {
+    "_doc": {
       "properties": {
         "name": {
           "type": "text"
@@ -320,7 +324,7 @@ PUT tweets
     "index.mapping.single_type": true
   },
   "mappings": {
-    "tweet": {
+    "_doc": {
       "properties": {
         "content": {
           "type": "text"
@@ -372,7 +376,7 @@ documents of different types which have conflicting IDs:
 PUT new_twitter
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "type": {
           "type": "keyword"
@@ -410,7 +414,7 @@ POST _reindex
     "source": """
       ctx._source.type = ctx._type;
       ctx._id = ctx._type + '-' + ctx._id;
-      ctx._type = 'doc';
+      ctx._type = '_doc';
     """
   }
 }

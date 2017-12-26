@@ -408,19 +408,21 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testTranslogFlushSizeThreshold() {
         ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
-        ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(translogFlushThresholdSize.toString(),
+        ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(translogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey());
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), translogFlushThresholdSize.toString())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), translogFlushThresholdSize.getBytes() + "B")
             .build());
         IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(actualValue, settings.getFlushThresholdSize());
         ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
-        ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(newTranslogFlushThresholdSize.toString(),
+        ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
+                newTranslogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey());
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), newTranslogFlushThresholdSize.toString()).build()));
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), newTranslogFlushThresholdSize.getBytes() + "B")
+                .build()));
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
@@ -428,20 +430,20 @@ public class IndexSettingsTests extends ESTestCase {
         final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
         final ByteSizeValue actualValue =
-                ByteSizeValue.parseBytesSizeValue(size.toString(), key);
+                ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
         final IndexMetaData metaData =
                 newIndexMeta(
                         "index",
                         Settings.builder()
                                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(key, size.toString())
+                                .put(key, size.getBytes() + "B")
                                 .build());
         final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(actualValue, settings.getGenerationThresholdSize());
         final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
-        final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.toString(), key);
+        final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
         settings.updateIndexMetaData(
-                newIndexMeta("index", Settings.builder().put(key, newSize.toString()).build()));
+                newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
         assertEquals(actual, settings.getGenerationThresholdSize());
     }
 

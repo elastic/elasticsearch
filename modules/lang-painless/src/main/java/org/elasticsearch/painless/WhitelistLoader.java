@@ -43,18 +43,29 @@ public final class WhitelistLoader {
      * and field.  Most validation will be done at a later point after all white-lists have been gathered and their
      * merging takes place.
      *
+     * A painless type name is one of the following:
+     * <ul>
+     *     <li> def - The Painless dynamic type which is automatically included without a need to be
+     *     white-listed. </li>
+     *     <li> fully-qualified Java type name - Any white-listed Java class will have the equivalent name as
+     *     a Painless type name with the exception that any dollar symbols used as part of inner classes will
+     *     be replaced with dot symbols. </li>
+     *     <li> short Java type name - The text after the final dot symbol of any specified Java class.  A
+     *     short type Java name may be excluded by using the 'only_fqn' token during Painless struct parsing
+     *     as described later. </li>
+     * </ul>
+     *
      * The following can be parsed from each white-list text file:
      * <ul>
      *   <li> Blank lines will be ignored by the parser. </li>
      *   <li> Comments may be created starting with a pound '#' symbol and end with a newline.  These will
      *   be ignored by the parser. </li>
-     *   <li> Primitive types may be specified starting with 'class' and followed by the Painless type
-     *   name (often the same as the Java type name), an arrow symbol, the Java type name,
+     *   <li> Primitive types may be specified starting with 'class' and followed by the Java type name,
      *   an opening bracket, a newline, a closing bracket, and a final newline. </li>
-     *   <li> Complex types may be specified starting with 'class' and followed by the Painless type name,
-     *   an arrow symbol, the Java class name, a opening bracket, a newline, constructor/method/field
-     *   specifications, a closing bracket, and a final newline. Within a complex type the following
-     *   may be parsed:
+     *   <li> Complex types may be specified starting with 'class' and followed the fully-qualified Java
+     *   class name, optionally followed by an 'only_fqn' token, an opening bracket, a newline,
+     *   constructor/method/field specifications, a closing bracket, and a final newline. Within a complex
+     *   type the following may be parsed:
      *   <ul>
      *     <li> A constructor may be specified starting with an opening parenthesis, followed by a
      *     comma-delimited list of Painless type names corresponding to the type/class names for
@@ -82,7 +93,9 @@ public final class WhitelistLoader {
      * If the same Painless type is defined across multiple files and the Java class is the same, all
      * specified constructors, methods, and fields will be merged into a single Painless type.  The
      * Painless dynamic type, 'def', used as part of constructor, method, and field definitions will
-     * be appropriately parsed and handled.
+     * be appropriately parsed and handled.  Painless complex types must be specified with the
+     * fully-qualified Java class name.  Method argument types, method return types, and field types
+     * must be specified with Painless type names (def, fully-qualified, or short) as described earlier.
      *
      * The following example is used to create a single white-list text file:
      *
@@ -94,7 +107,7 @@ public final class WhitelistLoader {
      *
      * # complex types
      *
-     * class Example -> my.package.Example {
+     * class my.package.Example only_fqn {
      *   # constructors
      *   ()
      *   (int)
@@ -129,8 +142,8 @@ public final class WhitelistLoader {
                 new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8))) {
 
                 String whitelistStructOrigin = null;
-                String painlessTypeName = null;
                 String javaClassName = null;
+                boolean onlyFQNJavaClassName = false;
                 List<Whitelist.Constructor> whitelistConstructors = null;
                 List<Whitelist.Method> whitelistMethods = null;
                 List<Whitelist.Field> whitelistFields = null;
@@ -145,7 +158,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new struct by resetting all the variables necessary to construct a new Whitelist.Struct for the white-list.
-                    // Expects the following format: 'class' ID -> ID '{' '\n'
+                    // Expects the following format: 'class' ID 'only_fqn'? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
@@ -153,17 +166,18 @@ public final class WhitelistLoader {
                                 "invalid struct definition: failed to parse class opening bracket [" + line + "]");
                         }
 
-                        // Parse the Painless type name and Java class name.
-                        String[] tokens = line.substring(5, line.length() - 1).replaceAll("\\s+", "").split("->");
+                        // Parse the Java class name.
+                        String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
 
                         // Ensure the correct number of tokens.
-                        if (tokens.length != 2) {
+                        if (tokens.length == 2 && "only_fqn".equals(tokens[1])) {
+                            onlyFQNJavaClassName = true;
+                        } else if (tokens.length != 1) {
                             throw new IllegalArgumentException("invalid struct definition: failed to parse class name [" + line + "]");
                         }
 
                         whitelistStructOrigin = "[" + filepath + "]:[" + number + "]";
-                        painlessTypeName = tokens[0];
-                        javaClassName = tokens[1];
+                        javaClassName = tokens[0];
 
                         // Reset all the constructors, methods, and fields to support a new struct.
                         whitelistConstructors = new ArrayList<>();
@@ -174,17 +188,17 @@ public final class WhitelistLoader {
                     // constructors, methods, augmented methods, and fields, and adding it to the list of white-listed structs.
                     // Expects the following format: '}' '\n'
                     } else if (line.equals("}")) {
-                        if (painlessTypeName == null) {
+                        if (javaClassName == null) {
                             throw new IllegalArgumentException("invalid struct definition: extraneous closing bracket");
                         }
 
-                        whitelistStructs.add(new Whitelist.Struct(whitelistStructOrigin, painlessTypeName, javaClassName,
+                        whitelistStructs.add(new Whitelist.Struct(whitelistStructOrigin, javaClassName, onlyFQNJavaClassName,
                             whitelistConstructors, whitelistMethods, whitelistFields));
 
                         // Set all the variables to null to ensure a new struct definition is found before other parsable values.
                         whitelistStructOrigin = null;
-                        painlessTypeName = null;
                         javaClassName = null;
+                        onlyFQNJavaClassName = false;
                         whitelistConstructors = null;
                         whitelistMethods = null;
                         whitelistFields = null;
@@ -195,7 +209,7 @@ public final class WhitelistLoader {
                         String origin = "[" + filepath + "]:[" + number + "]";
 
                         // Ensure we have a defined struct before adding any constructors, methods, augmented methods, or fields.
-                        if (painlessTypeName == null) {
+                        if (javaClassName == null) {
                             throw new IllegalArgumentException("invalid object definition: expected a class name [" + line + "]");
                         }
 
@@ -229,7 +243,7 @@ public final class WhitelistLoader {
 
                             // Parse the tokens prior to the method parameters.
                             int parameterIndex = line.indexOf('(');
-                            String[] tokens = line.substring(0, parameterIndex).split("\\s+");
+                            String[] tokens = line.trim().substring(0, parameterIndex).split("\\s+");
 
                             String javaMethodName;
                             String javaAugmentedClassName;
@@ -275,7 +289,7 @@ public final class WhitelistLoader {
                 }
 
                 // Ensure all structs end with a '}' token before the end of the file.
-                if (painlessTypeName != null) {
+                if (javaClassName != null) {
                     throw new IllegalArgumentException("invalid struct definition: expected closing bracket");
                 }
             } catch (Exception exception) {

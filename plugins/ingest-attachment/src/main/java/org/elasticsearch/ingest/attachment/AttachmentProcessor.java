@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -81,68 +82,72 @@ public final class AttachmentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
 
+        Metadata metadata = new Metadata();
+        String parsedContent = "";
         try {
-            Metadata metadata = new Metadata();
-            String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
-
-            if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
-                // somehow tika seems to append a newline at the end automatically, lets remove that again
-                additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
-            }
-
-            if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-                LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-                String language = identifier.getLanguage();
-                additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
-            }
-
-            if (properties.contains(Property.DATE)) {
-                String createdDate = metadata.get(TikaCoreProperties.CREATED);
-                if (createdDate != null) {
-                    additionalFields.put(Property.DATE.toLowerCase(), createdDate);
-                }
-            }
-
-            if (properties.contains(Property.TITLE)) {
-                String title = metadata.get(TikaCoreProperties.TITLE);
-                if (Strings.hasLength(title)) {
-                    additionalFields.put(Property.TITLE.toLowerCase(), title);
-                }
-            }
-
-            if (properties.contains(Property.AUTHOR)) {
-                String author = metadata.get("Author");
-                if (Strings.hasLength(author)) {
-                    additionalFields.put(Property.AUTHOR.toLowerCase(), author);
-                }
-            }
-
-            if (properties.contains(Property.KEYWORDS)) {
-                String keywords = metadata.get("Keywords");
-                if (Strings.hasLength(keywords)) {
-                    additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
-                }
-            }
-
-            if (properties.contains(Property.CONTENT_TYPE)) {
-                String contentType = metadata.get(Metadata.CONTENT_TYPE);
-                if (Strings.hasLength(contentType)) {
-                    additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
-                }
-            }
-
-            if (properties.contains(Property.CONTENT_LENGTH)) {
-                String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
-                long length;
-                if (Strings.hasLength(contentLength)) {
-                    length = Long.parseLong(contentLength);
-                } else {
-                    length = parsedContent.length();
-                }
-                additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
-            }
+            parsedContent = TikaImpl.parse(input, metadata, indexedChars);
+        } catch (ZeroByteFileException e) {
+            // tika 1.17 throws an exception when the InputStream has 0 bytes.
+            // previously, it did not mind. This is here to preserve that behavior.
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
+        }
+
+        if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
+            // somehow tika seems to append a newline at the end automatically, lets remove that again
+            additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
+        }
+
+        if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
+            String language = identifier.getLanguage();
+            additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+        }
+
+        if (properties.contains(Property.DATE)) {
+            String createdDate = metadata.get(TikaCoreProperties.CREATED);
+            if (createdDate != null) {
+                additionalFields.put(Property.DATE.toLowerCase(), createdDate);
+            }
+        }
+
+        if (properties.contains(Property.TITLE)) {
+            String title = metadata.get(TikaCoreProperties.TITLE);
+            if (Strings.hasLength(title)) {
+                additionalFields.put(Property.TITLE.toLowerCase(), title);
+            }
+        }
+
+        if (properties.contains(Property.AUTHOR)) {
+            String author = metadata.get("Author");
+            if (Strings.hasLength(author)) {
+                additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+            }
+        }
+
+        if (properties.contains(Property.KEYWORDS)) {
+            String keywords = metadata.get("Keywords");
+            if (Strings.hasLength(keywords)) {
+                additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+            }
+        }
+
+        if (properties.contains(Property.CONTENT_TYPE)) {
+            String contentType = metadata.get(Metadata.CONTENT_TYPE);
+            if (Strings.hasLength(contentType)) {
+                additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
+            }
+        }
+
+        if (properties.contains(Property.CONTENT_LENGTH)) {
+            String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
+            long length;
+            if (Strings.hasLength(contentLength)) {
+                length = Long.parseLong(contentLength);
+            } else {
+                length = parsedContent.length();
+            }
+            additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);

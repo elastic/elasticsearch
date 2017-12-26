@@ -168,7 +168,7 @@ must be prefixed with the cluster alias separated by a `:` character:
 
 [source,js]
 --------------------------------------------------
-GET /cluster_one:twitter/tweet/_search
+GET /cluster_one:twitter/_search
 {
   "query": {
     "match": {
@@ -203,7 +203,7 @@ GET /cluster_one:twitter/tweet/_search
     "hits": [
       {
         "_index": "cluster_one:twitter",
-        "_type": "tweet",
+        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -227,7 +227,7 @@ clusters:
 
 [source,js]
 --------------------------------------------------
-GET /cluster_one:twitter,twitter/tweet/_search
+GET /cluster_one:twitter,twitter/_search
 {
   "query": {
     "match": {
@@ -266,7 +266,7 @@ will be prefixed with their remote cluster name:
     "hits": [
       {
         "_index": "cluster_one:twitter",
-        "_type": "tweet",
+        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -278,7 +278,7 @@ will be prefixed with their remote cluster name:
       },
       {
         "_index": "twitter",
-        "_type": "tweet",
+        "_type": "_doc",
         "_id": "0",
         "_score": 2,
         "_source": {
@@ -320,7 +320,7 @@ PUT _cluster/settings
 
 [source,js]
 --------------------------------------------------
-GET /cluster_one:twitter,cluster_two:twitter,twitter/tweet/_search <1>
+GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 {
   "query": {
     "match": {
@@ -355,7 +355,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/tweet/_search <1>
     "hits": [
       {
         "_index": "cluster_one:twitter",
-        "_type": "tweet",
+        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -367,7 +367,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/tweet/_search <1>
       },
       {
         "_index": "twitter",
-        "_type": "tweet",
+        "_type": "_doc",
         "_id": "0",
         "_score": 2,
         "_source": {

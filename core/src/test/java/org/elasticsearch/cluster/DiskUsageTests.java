@@ -23,15 +23,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -184,12 +181,12 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280),
         };
         FsInfo.Path[] node2FSInfo = new FsInfo.Path[] {
-                new FsInfo.Path("/least_most", "/dev/sda", -2, -1, -1),
+                new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1),
         };
 
         FsInfo.Path[] node3FSInfo =  new FsInfo.Path[] {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
-                new FsInfo.Path("/least", "/dev/sda", 10, -8, 0),
+                new FsInfo.Path("/least", "/dev/sda", 10, -1, 0),
         };
         List<NodeStats> nodeStats = Arrays.asList(
                 new NodeStats(new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,

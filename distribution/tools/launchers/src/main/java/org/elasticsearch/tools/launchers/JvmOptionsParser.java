@@ -137,12 +137,12 @@ final class JvmOptionsParser {
      *         only
      *     </li>
      *     <li>
-     *         a line starting with a number followed by a dash is treated as a JVM option that applies to the matching Java specified major
-     *         version and all larger Java major versions
+     *         a line starting with a number followed by a dash followed by a colon is treated as a JVM option that applies to the matching
+     *         Java specified major version and all larger Java major versions
      *     </li>
      *     <li>
-     *         a line starting with a number followed by a dash followed by a number is treated as a JVM option that applies to the
-     *         specified range of matching Java major versions
+     *         a line starting with a number followed by a dash followed by a number followed by a colon is treated as a JVM option that
+     *         applies to the specified range of matching Java major versions
      *     </li>
      * </ul>
      *

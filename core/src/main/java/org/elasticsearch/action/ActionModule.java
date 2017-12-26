@@ -384,7 +384,7 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
 
-        /**
+        /*
          * Please note that the {@link org.elasticsearch.client.transport.TransportClient} uses
          * {@link ClientActionPlugin} to construct its client side interactions while the {@link ActionModule} uses the
          * {@link ActionPlugin} to construct its routing table.
@@ -431,18 +431,27 @@ public class ActionModule extends AbstractModule {
     static List<GenericAction<? extends ActionRequest, ? extends ActionResponse>>
         registerClientActions(List<ClientActionPlugin> clientActionPlugins) {
 
-        ActionRegistry actionRegistry = createBaseActionRegistry();
         ClientActionRegistry clientActionRegistry = new ClientActionRegistry();
         // Add the core actions in to the client registry
-        actionRegistry.getRegistry().values().forEach(a -> clientActionRegistry.register(a.getAction()));
-        clientActionPlugins.stream().flatMap(p -> p.getClientActions().stream()).forEach(clientActionRegistry::register);
+        for (ActionHandler<?,?> action: createBaseActionRegistry().getRegistry().values()) {
+            clientActionRegistry.register(action.getAction());
+        }
+        for (ClientActionPlugin plugin: clientActionPlugins) {
+            for (GenericAction<?, ?> action: plugin.getClientActions()) {
+                clientActionRegistry.register(action);
+            }
+        }
 
         return unmodifiableList(clientActionRegistry.getRegistry().values().stream().collect(Collectors.toList()));
     }
 
     static Map<String, ActionHandler> registerActions(List<ActionPlugin> actionPlugins) {
         ActionRegistry actionRegistry = createBaseActionRegistry();
-        actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actionRegistry::register);
+        for (ActionPlugin plugin: actionPlugins) {
+            for (ActionHandler<?, ?> action: plugin.getActions()) {
+                actionRegistry.register(action);
+            }
+        }
 
         return unmodifiableMap(actionRegistry.getRegistry());
     }

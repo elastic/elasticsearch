@@ -56,11 +56,6 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     }
 
     @Override
-    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-        return Arrays.asList(SearchTemplateAction.INSTANCE, MultiSearchTemplateAction.INSTANCE);
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {

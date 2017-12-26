@@ -70,14 +70,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-        return Arrays.asList(
-            ReindexAction.INSTANCE,
-            UpdateByQueryAction.INSTANCE,
-            DeleteByQueryAction.INSTANCE,
-            RethrottleAction.INSTANCE);
-    }
-    @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return singletonList(
             new NamedWriteableRegistry.Entry(

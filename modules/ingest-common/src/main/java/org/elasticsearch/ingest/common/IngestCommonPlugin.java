@@ -103,11 +103,6 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     }
 
     @Override
-    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-        return Collections.singletonList(GrokProcessorGetAction.INSTANCE);
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,

@@ -52,11 +52,6 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-        return Arrays.asList(NoopBulkAction.INSTANCE, NoopSearchAction.INSTANCE);
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {

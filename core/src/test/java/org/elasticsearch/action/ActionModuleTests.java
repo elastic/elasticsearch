@@ -71,10 +71,6 @@ public class ActionModuleTests extends ESTestCase {
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
                 return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
             }
-            @Override
-            public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-                return singletonList(MainAction.INSTANCE);
-            }
         };
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.registerClientActions(singletonList(dupsMainAction)));

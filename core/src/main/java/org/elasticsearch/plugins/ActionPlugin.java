@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. An accompanying
@@ -79,6 +80,13 @@ public interface ActionPlugin extends ClientActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Default for all Client Action Plugins is to grab its list of Actions and pull out the Generic Actions
+     */
+    default List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+        return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 
     /**

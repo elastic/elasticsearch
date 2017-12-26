@@ -77,11 +77,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }
 
-    @Override
-    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
-        return Arrays.asList(TestTaskAction.INSTANCE, UnblockTestTasksAction.INSTANCE);
-    }
-
     static class TestTask extends CancellableTask {
 
         private volatile boolean blocked = true;

@@ -68,3 +68,4 @@ dependencies {
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false

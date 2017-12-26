@@ -140,6 +140,7 @@ if (project != rootProject) {
 
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
+  dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
   jarHell.enabled = false

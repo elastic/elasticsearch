@@ -69,6 +69,7 @@ forbiddenApis {
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.excludes = [
         // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)

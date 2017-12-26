@@ -166,8 +166,8 @@ setup:
 ---
 "Aggregate After Missing":
   - skip:
-      version: " - 6.99.99"
-      reason:  bug fixed in 7.0.0
+      version: " - 6.1.99"
+      reason:  bug fixed in 6.2.0
 
 
   - do:

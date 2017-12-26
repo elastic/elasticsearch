@@ -1317,7 +1317,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDeleteException.get());
 
         shard.close("Unexpected close", true);
-        shard.state = IndexShardState.STARTED; // It will generate exception
+        shard.state.set(IndexShardState.STARTED); // It will generate exception
 
         try {
             indexDoc(shard, "test", "1");
@@ -2124,7 +2124,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null));
         primary.recoverFromStore();
 
-        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
+        primary.state.set(IndexShardState.RECOVERING); // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
         primary.runTranslogRecovery(primary.getEngine(), snapshot);
         assertThat(primary.recoveryState().getTranslog().totalOperationsOnStart(), equalTo(numTotalEntries));
         assertThat(primary.recoveryState().getTranslog().totalOperations(), equalTo(numTotalEntries));

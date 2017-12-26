@@ -26,7 +26,8 @@ public enum IndexShardState {
     POST_RECOVERY((byte) 2),
     STARTED((byte) 3),
     RELOCATED((byte) 4),
-    CLOSED((byte) 5);
+    CLOSED((byte) 5),
+    PROMOTING((byte) 6);
 
     private static final IndexShardState[] IDS = new IndexShardState[IndexShardState.values().length];
 

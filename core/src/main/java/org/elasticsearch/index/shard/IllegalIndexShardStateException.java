@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -52,7 +53,11 @@ public class IllegalIndexShardStateException extends ElasticsearchException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(currentState.id());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1) && currentState == IndexShardState.PROMOTING) {
+            out.writeByte(IndexShardState.STARTED.id());
+        } else {
+            out.writeByte(currentState.id());
+        }
     }
 
     @Override

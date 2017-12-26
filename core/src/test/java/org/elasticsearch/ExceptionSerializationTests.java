@@ -116,6 +116,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -398,10 +399,15 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testIllegalIndexShardStateException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
         IndexShardState state = randomFrom(IndexShardState.values());
-        IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"));
+        final Version version = VersionUtils.randomVersion(random());
+        IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"), version);
         assertEquals(id, ex.getShardId());
         assertEquals("CurrentState[" + state.name() + "] come back later buddy", ex.getMessage());
-        assertEquals(state, ex.currentState());
+        if (state == IndexShardState.PROMOTING && version.before(Version.V_7_0_0_alpha1)) {
+            assertThat(ex.currentState(), equalTo(IndexShardState.STARTED));
+        } else {
+            assertThat(ex.currentState(), equalTo(state));
+        }
     }
 
     public void testConnectTransportException() throws IOException {

@@ -193,5 +193,6 @@ check.dependsOn(integTest)
 test.enabled = false
 
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.enabled = false

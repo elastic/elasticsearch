@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
@@ -320,8 +321,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return internalCluster().getInstance(type, internalCluster().getMasterName());
     }
 
-    protected Watch.Parser watchParser() {
-        return getInstanceFromMaster(Watch.Parser.class);
+    protected WatchParser watchParser() {
+        return getInstanceFromMaster(WatchParser.class);
     }
 
     public AbstractWatcherIntegrationTestCase() {

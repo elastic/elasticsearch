@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
@@ -31,7 +32,7 @@ public class DatafeedNodeSelector {
     private final IndexNameExpressionResolver resolver;
 
     public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId) {
-        MlMetadata mlMetadata = Objects.requireNonNull(clusterState.metaData().custom(MlMetadata.TYPE));
+        MlMetadata mlMetadata = Objects.requireNonNull(clusterState.metaData().custom(MLMetadataField.TYPE));
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeed = mlMetadata.getDatafeed(datafeedId);
         this.jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);

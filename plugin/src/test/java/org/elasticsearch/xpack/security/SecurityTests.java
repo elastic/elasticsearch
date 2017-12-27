@@ -229,12 +229,12 @@ public class SecurityTests extends ESTestCase {
     public void testSettingFilter() throws Exception {
         createComponents(Settings.EMPTY);
         final List<String> filter = security.getSettingsFilter(null);
-        assertThat(filter, hasItem(Security.setting("authc.realms.*.bind_dn")));
-        assertThat(filter, hasItem(Security.setting("authc.realms.*.bind_password")));
-        assertThat(filter, hasItem(Security.setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING)));
-        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.password")));
-        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.path")));
-        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.algorithm")));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.bind_dn")));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.bind_password")));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING)));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.password")));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.path")));
+        assertThat(filter, hasItem(SecurityField.setting("authc.realms.*.ssl.truststore.algorithm")));
     }
 
     public void testJoinValidatorOnDisabledSecurity() throws Exception {

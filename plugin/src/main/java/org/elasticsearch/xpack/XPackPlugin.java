@@ -83,7 +83,7 @@ import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -114,35 +114,6 @@ import java.util.stream.Stream;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin {
-
-    public static final String NAME = "x-pack";
-
-    /** Name constant for the security feature. */
-    public static final String SECURITY = "security";
-
-    /** Name constant for the monitoring feature. */
-    public static final String MONITORING = "monitoring";
-
-    /** Name constant for the watcher feature. */
-    public static final String WATCHER = "watcher";
-
-    /** Name constant for the graph feature. */
-    public static final String GRAPH = "graph";
-
-    /** Name constant for the machine learning feature. */
-    public static final String MACHINE_LEARNING = "ml";
-
-    /** Name constant for the Logstash feature. */
-    public static final String LOGSTASH = "logstash";
-
-    /** Name constant for the Deprecation API feature. */
-    public static final String DEPRECATION = "deprecation";
-
-    /** Name constant for the upgrade feature. */
-    public static final String UPGRADE = "upgrade";
-
-    // inside of YAML settings we still use xpack do not having handle issues with dashes
-    private static final String SETTINGS_NAME = "xpack";
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -306,8 +277,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
-        if (AuthenticationService.RUN_AS_ENABLED.get(settings)) {
-            headers.add(AuthenticationService.RUN_AS_USER_HEADER);
+        if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
+            headers.add(AuthenticationServiceField.RUN_AS_USER_HEADER);
         }
         headers.addAll(extensionsService.getExtensions().stream()
             .flatMap(e -> e.getRestHeaders().stream()).collect(Collectors.toList()));
@@ -426,7 +397,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, LOGSTASH, LogstashFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XpackField.LOGSTASH, LogstashFeatureSet.Usage::new));
         entries.addAll(watcher.getNamedWriteables());
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
@@ -471,24 +442,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
-    public static boolean isTribeNode(Settings settings) {
-        return settings.getGroups("tribe", true).isEmpty() == false;
-    }
-
-    public static boolean isTribeClientNode(Settings settings) {
-        return settings.get("tribe.name") != null;
-    }
-
     public static Path resolveConfigFile(Environment env, String name) {
-        return env.configFile().resolve(NAME).resolve(name);
-    }
-
-    public static String featureSettingPrefix(String featureName) {
-        return SETTINGS_NAME + "." + featureName;
+        return env.configFile().resolve(XpackField.NAME).resolve(name);
     }
 
     public static Path resolveXPackExtensionsFile(Environment env) {
-        return env.pluginsFile().resolve(XPackPlugin.NAME).resolve("extensions");
+        return env.pluginsFile().resolve(XpackField.NAME).resolve("extensions");
     }
 
     @Override

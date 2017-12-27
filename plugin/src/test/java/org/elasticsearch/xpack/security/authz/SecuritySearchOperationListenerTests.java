@@ -22,6 +22,7 @@ import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.user.User;
 
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
@@ -66,7 +67,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
         listener.onNewScrollContext(testSearchContext);
 
-        Authentication contextAuth = testSearchContext.scrollContext().getFromContext(Authentication.AUTHENTICATION_KEY);
+        Authentication contextAuth = testSearchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
         assertEquals(authentication, contextAuth);
         assertEquals(scroll, testSearchContext.scrollContext().scroll);
 
@@ -77,7 +78,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
     public void testValidateSearchContext() throws Exception {
         TestScrollSearchContext testSearchContext = new TestScrollSearchContext();
         testSearchContext.scrollContext(new ScrollContext());
-        testSearchContext.scrollContext().putInContext(Authentication.AUTHENTICATION_KEY,
+        testSearchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);

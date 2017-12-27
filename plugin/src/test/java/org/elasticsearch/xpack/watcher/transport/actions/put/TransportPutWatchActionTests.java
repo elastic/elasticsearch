@@ -22,6 +22,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -54,7 +55,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         TransportService transportService = mock(TransportService.class);
 
-        Watch.Parser parser = mock(Watch.Parser.class);
+        WatchParser parser = mock(WatchParser.class);
         when(parser.parseWithSecrets(eq("_id"), eq(false), anyObject(), anyObject(), anyObject())).thenReturn(watch);
 
         Client client = mock(Client.class);

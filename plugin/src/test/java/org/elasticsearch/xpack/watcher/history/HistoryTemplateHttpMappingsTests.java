@@ -17,7 +17,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -67,7 +67,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/input/path")))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/webhook/path")
                         .method(HttpMethod.POST)
@@ -133,7 +133,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/")
                         .readTimeout(abortAtInput ? TimeValue.timeValueMillis(10) : TimeValue.timeValueSeconds(10))))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .readTimeout(TimeValue.timeValueMillis(10))
                         .path("/webhook/path")

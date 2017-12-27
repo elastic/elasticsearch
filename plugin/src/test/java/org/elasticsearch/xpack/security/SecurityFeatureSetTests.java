@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -166,7 +166,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSet.Usage(out.bytes().streamInput());
         for (XPackFeatureSet.Usage usage : Arrays.asList(securityUsage, serializedUsage)) {
             assertThat(usage, is(notNullValue()));
-            assertThat(usage.name(), is(XPackPlugin.SECURITY));
+            assertThat(usage.name(), is(XpackField.SECURITY));
             assertThat(usage.enabled(), is(enabled));
             assertThat(usage.available(), is(authcAuthzAvailable));
             XContentSource source;

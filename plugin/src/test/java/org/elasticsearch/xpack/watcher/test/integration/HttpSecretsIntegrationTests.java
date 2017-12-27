@@ -11,12 +11,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.WatcherField;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
@@ -78,7 +78,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
         if (encryptSensitiveData) {
             MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
                     .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
@@ -96,7 +96,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                         .input(httpInput(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_logging", loggingAction("executed")))
                         .get();
 
@@ -111,7 +111,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             MockSecureSettings mockSecureSettings = new MockSecureSettings();
-            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
             CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
@@ -161,7 +161,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_webhook", webhookAction(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray())))))
@@ -179,7 +179,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             MockSecureSettings mockSecureSettings = new MockSecureSettings();
-            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
             CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));

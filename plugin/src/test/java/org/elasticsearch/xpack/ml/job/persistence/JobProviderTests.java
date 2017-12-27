@@ -38,6 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -76,7 +77,7 @@ public class JobProviderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCreateJobResultsIndex() {
-        String resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        String resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         QueryBuilder jobFilter = QueryBuilders.termQuery("job_id", "foo");
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
@@ -90,7 +91,8 @@ public class JobProviderTests extends ESTestCase {
         AtomicReference<Boolean> resultHolder = new AtomicReference<>();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of())).build();
+                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of()))
+                .build();
 
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -153,7 +155,7 @@ public class JobProviderTests extends ESTestCase {
                 .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();
 
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -185,7 +187,7 @@ public class JobProviderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCreateJobRelatedIndicies_createsAliasBecauseIndexNameIsSet() {
-        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-bar";
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias("foo");
         QueryBuilder jobFilter = QueryBuilders.termQuery("job_id", "foo");
@@ -205,7 +207,7 @@ public class JobProviderTests extends ESTestCase {
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder().build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 

@@ -78,6 +78,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -182,6 +183,7 @@ import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
@@ -219,13 +221,13 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME4 = XPackPlugin.SECURITY + "4";
+    public static final String NAME4 = XpackField.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING =
-            new Setting<>(setting("user"), (String) null, Optional::ofNullable, Property.NodeScope);
+            new Setting<>(SecurityField.setting("user"), (String) null, Optional::ofNullable, Property.NodeScope);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
-        Setting.listSetting(setting("audit.outputs"),
-            s -> s.keySet().contains(setting("audit.outputs")) ?
+        Setting.listSetting(SecurityField.setting("audit.outputs"),
+            s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
                 Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
             Function.identity(), Property.NodeScope);
 
@@ -531,21 +533,21 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
 
         // hide settings
-        settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
+        settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
                 Property.NodeScope, Property.Filtered));
         return settingsList;
     }
 
     
     public List<String> getSettingsFilter(@Nullable XPackExtensionsService extensionsService) {
-        List<String> asArray = settings.getAsList(setting("hide_settings"));
+        List<String> asArray = settings.getAsList(SecurityField.setting("hide_settings"));
         ArrayList<String> settingsFilter = new ArrayList<>(asArray);
 
         final List<XPackExtension> extensions = extensionsService == null ? Collections.emptyList() : extensionsService.getExtensions();
         settingsFilter.addAll(RealmSettings.getSettingsFilter(extensions));
 
         // hide settings where we don't define them - they are part of a group...
-        settingsFilter.add("transport.profiles.*." + setting("*"));
+        settingsFilter.add("transport.profiles.*." + SecurityField.setting("*"));
         return settingsFilter;
     }
 
@@ -608,7 +610,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
                 new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
-                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, GetCertificateInfoAction.TransportAction.class)
+                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class)
         );
     }
 
@@ -720,7 +722,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             });
         }
 
-        Map<String, Settings> realmsSettings = settings.getGroups(setting("authc.realms"), true);
+        Map<String, Settings> realmsSettings = settings.getGroups(SecurityField.setting("authc.realms"), true);
         final boolean hasNativeRealm = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) ||
                 realmsSettings.isEmpty() ||
                 realmsSettings.entrySet().stream()
@@ -732,15 +734,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                         " can be used by the tribe node");
             }
         }
-    }
-
-    public static String settingPrefix() {
-        return XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".";
-    }
-
-    public static String setting(String setting) {
-        assert setting != null && setting.startsWith(".") == false;
-        return settingPrefix() + setting;
     }
 
     static boolean indexAuditLoggingEnabled(Settings settings) {
@@ -896,7 +889,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom));
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackPlugin.SECURITY, SecurityFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XpackField.SECURITY, SecurityFeatureSet.Usage::new));
         entries.addAll(Arrays.asList(ExpressionParser.NAMED_WRITEABLES));
         return entries;
     }

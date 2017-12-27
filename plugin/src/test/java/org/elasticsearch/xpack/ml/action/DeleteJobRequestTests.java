@@ -6,19 +6,18 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.DeleteJobAction.Request;
 
-public class DeleteJobRequestTests extends AbstractStreamableTestCase<Request> {
+public class DeleteJobRequestTests extends AbstractStreamableTestCase<DeleteJobAction.Request> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
+    protected DeleteJobAction.Request createTestInstance() {
+        DeleteJobAction.Request request = new DeleteJobAction.Request(randomAlphaOfLengthBetween(1, 20));
         request.setForce(randomBoolean());
         return request;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected DeleteJobAction.Request createBlankInstance() {
+        return new DeleteJobAction.Request();
     }
 }

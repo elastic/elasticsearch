@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.WatcherField;
 import org.junit.Before;
 
 import javax.crypto.KeyGenerator;
@@ -25,7 +25,7 @@ public class CryptoServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
+        mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
         settings = Settings.builder()
                 .setSecureSettings(mockSecureSettings)
                 .build();

@@ -35,6 +35,7 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.nio.file.Path;
@@ -63,11 +64,11 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("transport.type", getTestTransportType());
         List<String> enabledFeatures = enabledFeatures();
-        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.SECURITY));
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.MONITORING));
-        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.WATCHER));
-        builder.put(XPackSettings.GRAPH_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.GRAPH));
-        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.MACHINE_LEARNING));
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XpackField.SECURITY));
+        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XpackField.MONITORING));
+        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), enabledFeatures.contains(XpackField.WATCHER));
+        builder.put(XPackSettings.GRAPH_ENABLED.getKey(), enabledFeatures.contains(XpackField.GRAPH));
+        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), enabledFeatures.contains(XpackField.MACHINE_LEARNING));
         builder.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
         return builder.build();
     }

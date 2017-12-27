@@ -22,8 +22,8 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -67,7 +67,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackPlugin.SECURITY;
+        return XpackField.SECURITY;
     }
 
     @Override
@@ -199,7 +199,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                      Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
                      Map<String, Object> sslUsage, Map<String, Object> auditUsage,
                      Map<String, Object> ipFilterUsage, Map<String, Object> anonymousUsage) {
-            super(XPackPlugin.SECURITY, available, enabled);
+            super(XpackField.SECURITY, available, enabled);
             this.realmsUsage = realmsUsage;
             this.rolesStoreUsage = rolesStoreUsage;
             this.roleMappingStoreUsage = roleMappingStoreUsage;

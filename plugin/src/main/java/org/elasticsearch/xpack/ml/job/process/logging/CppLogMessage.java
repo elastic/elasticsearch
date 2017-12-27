@@ -23,7 +23,7 @@ import java.util.Objects;
  */
 public class CppLogMessage implements ToXContentObject, Writeable {
     /**
-     * Field Names (these are defined by log4cxx; we have no control over them)
+     * ThrottlerField Names (these are defined by log4cxx; we have no control over them)
      */
     public static final ParseField LOGGER_FIELD = new ParseField("logger");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");

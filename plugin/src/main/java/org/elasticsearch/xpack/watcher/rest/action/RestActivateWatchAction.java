@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchResponse;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchField;
 
 import java.io.IOException;
 
@@ -51,7 +51,7 @@ public class RestActivateWatchAction extends WatcherRestHandler {
                     @Override
                     public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
                         return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
                                 .endObject());
                     }
                 });
@@ -76,7 +76,7 @@ public class RestActivateWatchAction extends WatcherRestHandler {
                         @Override
                         public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
                             return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                    .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                    .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
                                     .endObject());
                         }
                     });

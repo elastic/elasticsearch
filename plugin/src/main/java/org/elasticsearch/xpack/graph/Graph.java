@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.XPackPlugin.GRAPH;
+import static org.elasticsearch.xpack.XpackField.GRAPH;
 
 public class Graph implements ActionPlugin {
 

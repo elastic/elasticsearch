@@ -17,8 +17,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -497,7 +497,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
          * Ensure the X-Pack configuration directory exists as a child of $ES_CONF_DIR or return a helpful error message.
          */
         private void checkConfigurationDir(Environment env) throws Exception {
-            Path configDir = env.configFile().resolve(XPackPlugin.NAME);
+            Path configDir = env.configFile().resolve(XpackField.NAME);
             if (Files.exists(configDir) == false) {
                 throw new UserException(ExitCodes.CONFIG, String.format(Locale.ROOT,
                         "Directory %s does not exist. Please ensure " +

@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -52,7 +52,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     static final ReservedUserInfo ENABLED_DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
 
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
-            Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
+            SecurityField.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
             Setting.Property.Deprecated);
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
@@ -80,7 +80,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         if (realmEnabled == false) {
             listener.onResponse(AuthenticationResult.notHandled());
-        } else if (isReserved(token.principal(), config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(token.principal(), config.globalSettings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
@@ -116,7 +116,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(anonymousUser);
             }
             listener.onResponse(null);
-        } else if (isReserved(username, config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(username, config.globalSettings()) == false) {
             listener.onResponse(null);
         } else if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
@@ -129,18 +129,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
                 }
             }, listener::onFailure));
-        }
-    }
-
-    public static boolean isReserved(String username, Settings settings) {
-        assert username != null;
-        switch (username) {
-            case ElasticUser.NAME:
-            case KibanaUser.NAME:
-            case LogstashSystemUser.NAME:
-                return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
-            default:
-                return AnonymousUser.isAnonymousUsername(username, settings);
         }
     }
 

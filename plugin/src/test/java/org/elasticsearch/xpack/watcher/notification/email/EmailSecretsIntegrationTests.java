@@ -9,10 +9,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.WatcherField;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
@@ -75,7 +75,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData);
         if (encryptSensitiveData) {
             MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             builder.setSecureSettings(secureSettings);
         }
         return builder.build();
@@ -87,7 +87,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_email", ActionBuilders.emailAction(
                                 EmailTemplate.builder()
                                         .from("_from")
@@ -106,7 +106,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         if (encryptSensitiveData) {
             assertThat(value, not(is(EmailServer.PASSWORD)));
             MockSecureSettings mockSecureSettings = new MockSecureSettings();
-            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
             CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(EmailServer.PASSWORD));

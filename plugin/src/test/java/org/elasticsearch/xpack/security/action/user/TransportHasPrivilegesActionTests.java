@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse.IndexPrivileges;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
@@ -60,7 +61,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 x -> null, null);
 
         final Authentication authentication = mock(Authentication.class);
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         when(authentication.getUser()).thenReturn(user);

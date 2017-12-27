@@ -20,7 +20,6 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
@@ -67,7 +66,7 @@ import java.util.Set;
 import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 /**
  * This is the command-line tool used for migrating users and roles from the file-based realm into the new native realm using the API for

@@ -50,13 +50,13 @@ import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
+import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
@@ -190,7 +190,7 @@ public class WatchTests extends ESTestCase {
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
 
-        Condition condition = AlwaysConditionTests.randomCondition(scriptService);
+        ExecutableCondition condition = AlwaysConditionTests.randomCondition(scriptService);
         ConditionRegistry conditionRegistry = conditionRegistry();
 
         ExecutableTransform transform = randomTransform();
@@ -212,7 +212,7 @@ public class WatchTests extends ESTestCase {
 
         BytesReference bytes = jsonBuilder().value(watch).bytes();
         logger.info("{}", bytes.utf8ToString());
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON);
 
@@ -255,7 +255,7 @@ public class WatchTests extends ESTestCase {
         }
         WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
 
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, builder.bytes(), XContentType.JSON);
         assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
@@ -283,7 +283,7 @@ public class WatchTests extends ESTestCase {
                 .startObject()
                     .startArray("actions").endArray()
                 .endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes(), XContentType.JSON);
             fail("This watch should fail to parse as actions is an array");
@@ -305,16 +305,16 @@ public class WatchTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(Watch.Field.TRIGGER.getPreferredName())
+        builder.startObject(WatchField.TRIGGER.getPreferredName())
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
         Watch watch = watchParser.parse("failure", false, builder.bytes(), XContentType.JSON);
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
         assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
-        assertThat(watch.condition(), instanceOf(AlwaysCondition.class));
+        assertThat(watch.condition(), instanceOf(InternalAlwaysCondition.class));
         assertThat(watch.transform(), nullValue());
         assertThat(watch.actions(), notNullValue());
         assertThat(watch.actions().size(), is(0));
@@ -330,7 +330,7 @@ public class WatchTests extends ESTestCase {
         InputRegistry inputRegistry = registry(SearchInput.TYPE);
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
         WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry());
 
@@ -394,7 +394,7 @@ public class WatchTests extends ESTestCase {
                     .endObject().endObject();
             builder.endObject();
 
-            Watch.Parser parser = createWatchparser();
+            WatchParser parser = createWatchparser();
             Watch watch = parser.parse("_id", false, builder.bytes(), XContentType.JSON);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.input().type(), is(NoneInput.TYPE));
@@ -410,7 +410,7 @@ public class WatchTests extends ESTestCase {
             builder.startObject("condition").startObject("always").endObject().endObject();
             builder.endObject();
 
-            Watch.Parser parser = createWatchparser();
+            WatchParser parser = createWatchparser();
             Watch watch = parser.parse("_id", false, builder.bytes(), XContentType.JSON);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.actions(), hasSize(0));
@@ -428,14 +428,14 @@ public class WatchTests extends ESTestCase {
                     .endObject().endObject();
             builder.endObject();
 
-            Watch.Parser parser = createWatchparser();
+            WatchParser parser = createWatchparser();
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                     () -> parser.parse("_id", false, builder.bytes(), XContentType.JSON));
             assertThat(e.getMessage(), is("could not parse watch [_id]. missing required field [trigger]"));
         }
     }
 
-    private Watch.Parser createWatchparser() throws Exception {
+    private WatchParser createWatchparser() throws Exception {
         LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
         List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
                 new ExecutableLoggingAction(loggingAction, logger, settings, new MockTextTemplateEngine())));
@@ -450,7 +450,7 @@ public class WatchTests extends ESTestCase {
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
 
-        return new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        return new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
     }
 
     private static Schedule randomSchedule() {
@@ -533,7 +533,7 @@ public class WatchTests extends ESTestCase {
 
     private ConditionRegistry conditionRegistry() {
         Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
+        parsers.put(InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
         parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
         parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));

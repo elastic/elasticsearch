@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 /**
  * This class executes a script against the ctx payload and returns a boolean
  */
-public final class ScriptCondition extends Condition {
+public final class ScriptCondition implements ExecutableCondition {
     public static final String TYPE = "script";
     private static final Result MET = new Result(null, TYPE, true);
     private static final Result UNMET = new Result(null, TYPE, false);
@@ -33,14 +33,12 @@ public final class ScriptCondition extends Condition {
     private final ExecutableScript.Factory scriptFactory;
 
     public ScriptCondition(Script script) {
-        super(TYPE);
         this.script = script;
         scriptService = null;
         scriptFactory = null;
     }
 
     ScriptCondition(Script script, ScriptService scriptService) {
-        super(TYPE);
         this.scriptService = scriptService;
         this.script = script;
         scriptFactory = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
@@ -97,5 +95,10 @@ public final class ScriptCondition extends Condition {
     @Override
     public int hashCode() {
         return script.hashCode();
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
     }
 }

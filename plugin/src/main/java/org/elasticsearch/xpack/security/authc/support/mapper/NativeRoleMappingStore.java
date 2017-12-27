@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
@@ -85,7 +85,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     public NativeRoleMappingStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackPlugin.isTribeNode(settings);
+        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 

@@ -9,14 +9,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -24,12 +21,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -38,8 +33,9 @@ import java.util.function.Supplier;
  */
 // TODO: Hacking around here with TransportTasksAction. Ideally we should have another base class in core that
 // redirects to a single node only
-public abstract class TransportJobTaskAction<Request extends TransportJobTaskAction.JobTaskRequest<Request>,
-        Response extends BaseTasksResponse & Writeable> extends TransportTasksAction<OpenJobAction.JobTask, Request, Response, Response> {
+public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>,
+        Response extends BaseTasksResponse & Writeable>
+        extends TransportTasksAction<TransportOpenJobAction.JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 
@@ -100,36 +96,4 @@ public abstract class TransportJobTaskAction<Request extends TransportJobTaskAct
         }
     }
 
-    public static class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksRequest<R> {
-
-        String jobId;
-
-        JobTaskRequest() {
-        }
-
-        JobTaskRequest(String jobId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-        }
-
-        public String getJobId() {
-            return jobId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-        }
-
-        @Override
-        public boolean match(Task task) {
-            return OpenJobAction.JobTask.match(task, jobId);
-        }
-    }
 }

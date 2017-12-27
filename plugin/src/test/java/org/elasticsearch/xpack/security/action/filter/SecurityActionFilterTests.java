@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
@@ -121,8 +122,8 @@ public class SecurityActionFilterTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];
-            assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
-            threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
+            assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+            threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
@@ -130,15 +131,15 @@ public class SecurityActionFilterTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            assertEquals(authentication, threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            assertEquals(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
-        assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
 
         filter.apply(task, "_action", request, listener, chain);
 
-        assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         verify(authzService).authorize(authentication, "_action", request, empty, null);
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
@@ -150,31 +151,31 @@ public class SecurityActionFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         SetOnce<Authentication> authenticationSetOnce = new SetOnce<>();
         ActionFilterChain chain = (task, action, request1, listener1) -> {
-            authenticationSetOnce.set(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            authenticationSetOnce.set(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         };
         Task task = mock(Task.class);
         final boolean hasExistingAuthentication = randomBoolean();
         final String action = "internal:foo";
         if (hasExistingAuthentication) {
-            threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-            threadContext.putHeader(Authentication.AUTHENTICATION_KEY, "foo");
+            threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
             threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
         } else {
-            assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         }
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];
-            callback.onResponse(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
 
         filter.apply(task, action, request, listener, chain);
 
         if (hasExistingAuthentication) {
-            assertEquals(authentication, threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            assertEquals(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         } else {
-            assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));
+            assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         }
         assertNotNull(authenticationSetOnce.get());
         assertNotEquals(authentication, authenticationSetOnce.get());

@@ -25,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchField;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
@@ -43,13 +45,13 @@ import static org.joda.time.DateTimeZone.UTC;
 public class TransportActivateWatchAction extends WatcherTransportAction<ActivateWatchRequest, ActivateWatchResponse> {
 
     private final Clock clock;
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final Client client;
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Clock clock,
-                                        XPackLicenseState licenseState, Watch.Parser parser, Client client) {
+                                        XPackLicenseState licenseState, WatchParser parser, Client client) {
         super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, ActivateWatchRequest::new);
         this.clock = clock;
@@ -97,7 +99,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private XContentBuilder activateWatchBuilder(boolean active, DateTime now) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
-                    .startObject(Watch.Field.STATUS.getPreferredName())
+                    .startObject(WatchField.STATUS.getPreferredName())
                     .startObject(WatchStatus.Field.STATE.getPreferredName())
                     .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
 

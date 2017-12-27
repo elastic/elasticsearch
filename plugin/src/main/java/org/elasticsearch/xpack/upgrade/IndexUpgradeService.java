@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 public class IndexUpgradeService extends AbstractComponent {
-    public static final IndicesOptions UPGRADE_INDEX_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     private final List<IndexUpgradeCheck> upgradeChecks;
 

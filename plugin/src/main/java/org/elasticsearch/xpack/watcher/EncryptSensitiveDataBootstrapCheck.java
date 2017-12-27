@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,19 +24,19 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         if (Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings)
-                && Watcher.ENCRYPTION_KEY_SETTING.exists(context.settings) == false) {
-            final Path systemKeyPath = environment.configFile().resolve(XPackPlugin.NAME).resolve("system_key").toAbsolutePath();
+                && WatcherField.ENCRYPTION_KEY_SETTING.exists(context.settings) == false) {
+            final Path systemKeyPath = environment.configFile().resolve(XpackField.NAME).resolve("system_key").toAbsolutePath();
             final String message;
             if (Files.exists(systemKeyPath)) {
                 message = "Encryption of sensitive data requires the key to be placed in the secure setting store. Run " +
-                        "'bin/elasticsearch-keystore add-file " + Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
+                        "'bin/elasticsearch-keystore add-file " + WatcherField.ENCRYPTION_KEY_SETTING.getKey() + " " +
                         systemKeyPath +
                         "' to import the file.\nAfter importing, the system_key file should be removed from the " +
                         "filesystem.\nRepeat this on every node in the cluster.";
             } else {
                 message = "Encryption of sensitive data requires a key to be placed in the secure setting store. First run the " +
                         "bin/x-pack/syskeygen tool to generate a key file.\nThen run 'bin/elasticsearch-keystore add-file " +
-                        Watcher.ENCRYPTION_KEY_SETTING.getKey() + " " +
+                        WatcherField.ENCRYPTION_KEY_SETTING.getKey() + " " +
                         systemKeyPath + "' to import the key into" +
                         " the secure setting store. Finally, remove the system_key file from the filesystem.\n" +
                         "Repeat this on every node in the cluster";

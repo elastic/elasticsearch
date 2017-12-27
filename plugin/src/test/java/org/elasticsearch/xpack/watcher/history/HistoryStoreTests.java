@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
@@ -133,7 +133,7 @@ public class HistoryStoreTests extends ESTestCase {
         JiraAccount account = new JiraAccount("_account", settings, httpClient);
 
         JiraIssue jiraIssue = account.createIssue(singletonMap("foo", "bar"), null);
-        ActionWrapper.Result result = new ActionWrapper.Result(JiraAction.TYPE, new JiraAction.Executed(jiraIssue));
+        ActionWrapperResult result = new ActionWrapperResult(JiraAction.TYPE, new JiraAction.Executed(jiraIssue));
 
         DateTime now = new DateTime(0, UTC);
         Wid wid = new Wid("_name", now);

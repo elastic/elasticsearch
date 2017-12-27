@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
@@ -73,7 +73,7 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "testWatchWithPagerDutyAction()"))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("pd", actionBuilder))
                 .execute().get();
 

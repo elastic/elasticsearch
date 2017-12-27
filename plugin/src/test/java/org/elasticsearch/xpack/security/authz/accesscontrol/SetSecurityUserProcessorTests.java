@@ -10,6 +10,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor.Property;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -28,7 +29,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
                 Collections.singletonMap("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
@@ -48,7 +49,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         // test when user holds no data:
         threadContext = new ThreadContext(Settings.EMPTY);
         user = new User(null, null, null);
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
         ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
@@ -68,7 +69,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         User user = new User("_username", null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.of(Property.USERNAME));
@@ -84,7 +85,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         User user = new User(null, "role1", "role2");
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.of(Property.ROLES));
@@ -102,7 +103,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         User user = new User(null, null, "_full_name", null, null, true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.of(Property.FULL_NAME));
@@ -118,7 +119,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         User user = new User(null, null, null, "_email", null, true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.of(Property.EMAIL));
@@ -134,7 +135,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         User user = new User(null, null, null, null, Collections.singletonMap("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.of(Property.METADATA));

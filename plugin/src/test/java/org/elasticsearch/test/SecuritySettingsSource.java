@@ -22,6 +22,7 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -111,7 +112,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public Settings nodeSettings(int nodeOrdinal) {
         final Path home = nodePath(parentFolder, subfolderPrefix, nodeOrdinal);
         SecurityTestUtils.createFolder(home);
-        final Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        final Path xpackConf = home.resolve("config").resolve(XpackField.NAME);
         SecurityTestUtils.createFolder(xpackConf);
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());

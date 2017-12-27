@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
@@ -40,13 +41,13 @@ import static org.joda.time.DateTimeZone.UTC;
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
     private final Clock clock;
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final Client client;
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   Watch.Parser parser, Client client) {
+                                   WatchParser parser, Client client) {
         super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, PutWatchRequest::new);
         this.clock = clock;

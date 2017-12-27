@@ -26,6 +26,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeAction;
+import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeInfoAction;
 
@@ -66,8 +68,8 @@ public class Upgrade implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-                new ActionHandler<>(IndexUpgradeInfoAction.INSTANCE, IndexUpgradeInfoAction.TransportAction.class),
-                new ActionHandler<>(IndexUpgradeAction.INSTANCE, IndexUpgradeAction.TransportAction.class)
+                new ActionHandler<>(IndexUpgradeInfoAction.INSTANCE, TransportIndexUpgradeInfoAction.class),
+                new ActionHandler<>(IndexUpgradeAction.INSTANCE, TransportIndexUpgradeAction.class)
         );
     }
 

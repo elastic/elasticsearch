@@ -77,7 +77,7 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
         jobBuilder.setJobVersion(Version.V_6_0_1);
         ForecastJobAction.Request request = new ForecastJobAction.Request();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> ForecastJobAction.TransportAction.validate(jobBuilder.build(), request));
+                () -> TransportForecastJobAction.validate(jobBuilder.build(), request));
         assertEquals(
                 "Cannot run forecast because jobs created prior to version 6.1 are not supported",
                 e.getMessage());
@@ -88,7 +88,7 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
 
         ForecastJobAction.Request request = new ForecastJobAction.Request();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> ForecastJobAction.TransportAction.validate(jobBuilder.build(), request));
+                () -> TransportForecastJobAction.validate(jobBuilder.build(), request));
         assertEquals(
                 "Cannot run forecast because jobs created prior to version 6.1 are not supported",
                 e.getMessage());
@@ -100,7 +100,7 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
         ForecastJobAction.Request request = new ForecastJobAction.Request();
         request.setDuration(TimeValue.timeValueMinutes(1));
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> ForecastJobAction.TransportAction.validate(jobBuilder.build(new Date()), request));
+                () -> TransportForecastJobAction.validate(jobBuilder.build(new Date()), request));
         assertEquals("[duration] must be greater or equal to the bucket span: [1m/1h]", e.getMessage());
     }
 

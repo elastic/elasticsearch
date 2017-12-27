@@ -18,6 +18,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
@@ -164,7 +165,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         MlMetadata mlMetadata = mock(MlMetadata.class);
         when(mlMetadata.getJobs()).thenReturn(jobsMap);
         MetaData metadata = mock(MetaData.class);
-        when(metadata.custom(MlMetadata.TYPE)).thenReturn(mlMetadata);
+        when(metadata.custom(MLMetadataField.TYPE)).thenReturn(mlMetadata);
         when(clusterState.getMetaData()).thenReturn(metadata);
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 
 public abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends HandledTransportAction<Request, Response> {
@@ -41,7 +41,7 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
         if (licenseState.isWatcherAllowed()) {
             super.doExecute(task, request, listener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.WATCHER));
+            listener.onFailure(LicenseUtils.newComplianceException(XpackField.WATCHER));
         }
     }
 }

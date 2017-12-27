@@ -19,29 +19,53 @@
 
 package org.elasticsearch.common.settings;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.Set;
 
 /**
- * An accessor for settings which are securely stored. See {@link SecureSetting}.
+ * A container for settings which are securely stored at rest (on disk). See the
+ * {@link SecureSetting} accessor.
  */
-public interface SecureSettings extends Closeable {
+public interface SecureSettings extends AutoCloseable {
 
-    /** Returns true iff the settings are loaded and retrievable. */
-    boolean isLoaded();
+    /** Returns true iff the settings are retrievable. */
+    boolean isUnlocked();
 
-    /** Returns the names of all secure settings available. */
+    /**
+     * Renders settings retrievable. The password argument will be cleared. An
+     * unlock call SHOULD be paired with a lock call, when settings are not to be
+     * accessible anymore. The returned handle facilitates this; closing the
+     * returned handle is equivalent to calling lock. Subsequent unlocks ARE
+     * idempotent as are subsequent locks. Subsequent unlock-lock pairs MAY NOT be
+     * supported by the implementation.
+     */
+    AutoCloseable unlock(char[] password) throws GeneralSecurityException, IOException;
+
+    /**
+     * Should be called as soon as the encapsulated settings are not needed further.
+     * Subsequent calls are idempotent.
+     */
+    void lock();
+
+    /**
+     * Returns the names of all secure settings available. HAS to be available even
+     * when the settings are not retrievable (aka locked). WILL NOT change during
+     * the lifetime of the instance.
+     */
     Set<String> getSettingNames();
 
-    /** Return a string setting. The {@link SecureString} should be closed once it is used. */
+    /**
+     * Return a string setting. The {@link SecureString} should be closed once it is
+     * used. It is a programming error to call this when the settings are locked.
+     */
     SecureString getString(String setting) throws GeneralSecurityException;
 
-    /** Return a file setting. The {@link InputStream} should be closed once it is used. */
+    /**
+     * Return a file setting. The {@link InputStream} should be closed once it is
+     * used. It is a programming error to call this when the settings are locked.
+     */
     InputStream getFile(String setting) throws GeneralSecurityException;
 
-    @Override
-    void close() throws IOException;
 }

@@ -23,6 +23,7 @@ package org.elasticsearch.common.settings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -42,17 +43,21 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
+        Optional<KeyStoreWrapper> keystore = KeyStoreWrapper.load(env.configFile());
+        if (keystore.isPresent() == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
 
-        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-
-        List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
-        Collections.sort(sortedEntries);
-        for (String entry : sortedEntries) {
-            terminal.println(entry);
+        /* TODO: prompt for password when they are supported */
+        // password should not be required when listing entries, unless keystore version
+        // is 1
+        assert keystore.get().hasPassword() == false;
+        try (AutoCloseable ignored = keystore.get().unlock(new char[0])) {
+            List<String> sortedEntries = new ArrayList<>(keystore.get().getSettingNames());
+            Collections.sort(sortedEntries);
+            for (String entry : sortedEntries) {
+                terminal.println(entry);
+            }
         }
     }
 }

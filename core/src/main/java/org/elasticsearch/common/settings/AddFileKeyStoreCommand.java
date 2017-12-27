@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -59,45 +60,53 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
+        // check arguments
+        final List<String> argumentValues = arguments.values(options);
+        if (argumentValues.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "Missing setting name");
+        }
+        final String settingName = argumentValues.get(0);
+        if (argumentValues.size() == 1) {
+            throw new UserException(ExitCodes.USAGE, "Missing file name");
+        }
+        final Path file = getPath(argumentValues.get(1));
+        if (Files.exists(file) == false) {
+            throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
+        }
+        if (argumentValues.size() > 2) {
+            throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments ["
+                    + String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
+        }
+        // load or create keystore
+        Optional<KeyStoreWrapper> keystore = KeyStoreWrapper.load(env.configFile());
+        if (keystore.isPresent() == false) {
             if (options.has(forceOption) == false &&
                 terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
-            keystore = KeyStoreWrapper.create(new char[0] /* always use empty passphrase for auto created keystore */);
-            keystore.save(env.configFile());
+            // create and save empty keystore
+            try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(new char[0])) {
+                builder.save(env.configFile());
+            }
             terminal.println("Created elasticsearch keystore in " + env.configFile());
-        } else {
-            keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
+            keystore = KeyStoreWrapper.load(env.configFile());
         }
-
-        List<String> argumentValues = arguments.values(options);
-        if (argumentValues.size() == 0) {
-            throw new UserException(ExitCodes.USAGE, "Missing setting name");
-        }
-        String setting = argumentValues.get(0);
-        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                terminal.println("Exiting without modifying keystore.");
-                return;
+        assert keystore.isPresent();
+        /* TODO: prompt for password when they are supported */
+        try (AutoCloseable ignored = keystore.get().unlock(new char[0])) {
+            if (keystore.get().getSettingNames().contains(settingName) && options.has(forceOption) == false) {
+                if (terminal.promptYesNo("Setting " + settingName + " already exists. Overwrite?", false) == false) {
+                    terminal.println("Exiting without modifying keystore.");
+                    return;
+                }
+            }
+            try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(keystore.get())) {
+                builder.setFile(settingName, Files.readAllBytes(file)).save(env.configFile());
+            } catch (IllegalArgumentException e) {
+                throw new UserException(ExitCodes.DATA_ERROR, "Keystore exception.", e);
             }
         }
-
-        if (argumentValues.size() == 1) {
-            throw new UserException(ExitCodes.USAGE, "Missing file name");
-        }
-        Path file = getPath(argumentValues.get(1));
-        if (Files.exists(file) == false) {
-            throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
-        }
-        if (argumentValues.size() > 2) {
-            throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments [" +
-                String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
-        }
-        keystore.setFile(setting, Files.readAllBytes(file));
-        keystore.save(env.configFile());
     }
 
     @SuppressForbidden(reason="file arg for cli")

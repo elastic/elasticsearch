@@ -46,16 +46,16 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
             }
         }
 
-
-        char[] password = new char[0];// terminal.readSecret("Enter passphrase (empty for no passphrase): ");
+        // terminal.readSecret("Enter passphrase (empty for no passphrase): ");
         /* TODO: uncomment when entering passwords on startup is supported
         char[] passwordRepeat = terminal.readSecret("Enter same passphrase again: ");
         if (Arrays.equals(password, passwordRepeat) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
         }*/
 
-        KeyStoreWrapper keystore = KeyStoreWrapper.create(password);
-        keystore.save(env.configFile());
+        try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(new char[0])) {
+            builder.save(env.configFile());
+        }
         terminal.println("Created elasticsearch keystore in " + env.configFile());
     }
 }

@@ -56,9 +56,11 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -218,29 +220,30 @@ final class Bootstrap {
         };
     }
 
-    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        final KeyStoreWrapper keystore;
+    static Optional<KeyStoreWrapper> loadSecureSettings(Environment initialEnv) throws BootstrapException {
         try {
-            keystore = KeyStoreWrapper.load(initialEnv.configFile());
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-        if (keystore == null) {
-            return null; // no keystore
-        }
-
-        try {
-            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
+            Optional<KeyStoreWrapper> keystore = KeyStoreWrapper.load(initialEnv.configFile());
+            if (keystore.isPresent() && keystore.get().requiresUpdate()) {
+                // update keystore
+                assert keystore.get().hasPassword() == false;
+                try (AutoCloseable ignored = keystore.get().unlock(new char[0])) {
+                    // overwrite keystore
+                    try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(keystore.get())) {
+                        builder.save(initialEnv.configFile());
+                    }
+                }
+                // reread updated keystore
+                return KeyStoreWrapper.load(initialEnv.configFile());
+            }
+            return keystore;
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
-        return keystore;
     }
 
     private static Environment createEnvironment(
             final Path pidFile,
-            final SecureSettings secureSettings,
+            final Optional<? extends SecureSettings> secureSettings,
             final Settings initialSettings,
             final Path configPath) {
         Settings.Builder builder = Settings.builder();
@@ -248,8 +251,8 @@ final class Bootstrap {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
-        if (secureSettings != null) {
-            builder.setSecureSettings(secureSettings);
+        if (secureSettings.isPresent()) {
+            builder.setSecureSettings(secureSettings.get());
         }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
     }
@@ -281,52 +284,53 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final Optional<KeyStoreWrapper> keystore = loadSecureSettings(initialEnv);
+        if (keystore.isPresent()) {
+            assert keystore.get().hasPassword() == false;
+            try {
+                keystore.get().unlock(new char[0]);
+            } catch (GeneralSecurityException | IOException e) {
+                throw new BootstrapException(e);
+            }
+        }
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
             LogConfigurator.configure(environment);
+            if (environment.pidFile() != null) {
+                PidFile.create(environment.pidFile(), true);
+            }
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        if (environment.pidFile() != null) {
-            try {
-                PidFile.create(environment.pidFile(), true);
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
-        }
 
         final boolean closeStandardStreams = (foreground == false) || quiet;
-        try {
-            if (closeStandardStreams) {
-                final Logger rootLogger = ESLoggerFactory.getRootLogger();
-                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-                if (maybeConsoleAppender != null) {
-                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
-                }
-                closeSystOut();
+        if (closeStandardStreams) {
+            final Logger rootLogger = ESLoggerFactory.getRootLogger();
+            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+            if (maybeConsoleAppender != null) {
+                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
+            closeSystOut();
+        }
 
-            // fail if somebody replaced the lucene jars
-            checkLucene();
+        // fail if somebody replaced the lucene jars
+        checkLucene();
 
-            // install the default uncaught exception handler; must be done before security is
-            // initialized as we do not want to grant the runtime permission
-            // setDefaultUncaughtExceptionHandler
-            Thread.setDefaultUncaughtExceptionHandler(
+        // install the default uncaught exception handler; must be done before security
+        // is
+        // initialized as we do not want to grant the runtime permission
+        // setDefaultUncaughtExceptionHandler
+        Thread.setDefaultUncaughtExceptionHandler(
                 new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
 
-            INSTANCE.setup(true, environment);
+        INSTANCE.setup(true, environment);
 
-            try {
-                // any secure settings must be read during node construction
-                IOUtils.close(keystore);
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
+        if (keystore.isPresent()) {
+            keystore.get().lock();
+        }
 
+        try {
             INSTANCE.start();
-
             if (closeStandardStreams) {
                 closeSysError();
             }

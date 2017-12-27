@@ -156,10 +156,10 @@ public class DependenciesInfoTask extends DefaultTask {
                 spdx = 'LGPL-3.0'
                 break
             case ~/.*${CDDL_1_0}.*/:
-                spdx = 'CDDL_1_0'
+                spdx = 'CDDL-1.0'
                 break
             case ~/.*${CDDL_1_1}.*/:
-                spdx = 'CDDL_1_1'
+                spdx = 'CDDL-1.1'
                 break
             case ~/.*${ICU}.*/:
                 spdx = 'ICU'

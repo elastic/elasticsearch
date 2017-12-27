@@ -89,26 +89,8 @@ public class QueryContainer {
         this.columns = refs == null || refs.isEmpty() ? emptyList() : refs;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
-
-        int aggLevel = 0;
-        boolean onlyAggs = true;
-
-        for (ColumnReference ref : this.columns) {
-            if (ref.depth() > aggLevel) {
-                aggLevel = ref.depth();
-            }
-            if (ref instanceof ComputedRef) {
-                // check field references
-                if (((ComputedRef) ref).processor().anyMatch(p -> p instanceof ReferenceInput && ((ReferenceInput) p).context() instanceof FieldReference)) {
-                    onlyAggs = false;
-                }
-            }
-            if (ref instanceof FieldReference) {
-                onlyAggs = false;
-            }
-        }
-        aggsOnly = onlyAggs;
-        aggDepth = aggLevel;
+        aggsOnly = columns.stream().allMatch(ColumnReference::supportedByAggsOnlyQuery);
+        aggDepth = columns.stream().mapToInt(ColumnReference::depth).max().orElse(0);
     }
 
     public Query query() {

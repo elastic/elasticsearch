@@ -44,20 +44,25 @@ public class AggPathInput extends NonExecutableInput<String> {
     }
 
     @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(context(), innerKey);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         AggPathInput other = (AggPathInput) obj;
         return Objects.equals(context(), other.context())
                 && Objects.equals(innerKey, other.innerKey)

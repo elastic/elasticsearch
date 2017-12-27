@@ -45,7 +45,7 @@ public abstract class LeafInput<T> extends ProcessorDefinition {
         }
 
         AggPathInput other = (AggPathInput) obj;
-        return Objects.equals(context(), other.context()) 
+        return Objects.equals(context(), other.context())
                 && Objects.equals(expression(), other.expression());
     }
 }

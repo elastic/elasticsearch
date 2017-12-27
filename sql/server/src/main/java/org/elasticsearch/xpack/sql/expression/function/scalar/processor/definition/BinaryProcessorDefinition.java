@@ -28,6 +28,11 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
     }
 
     @Override
+    public boolean supportedByAggsOnlyQuery() {
+        return left.supportedByAggsOnlyQuery() && right.supportedByAggsOnlyQuery();
+    }
+
+    @Override
     public boolean resolved() {
         return left().resolved() && right().resolved();
     }

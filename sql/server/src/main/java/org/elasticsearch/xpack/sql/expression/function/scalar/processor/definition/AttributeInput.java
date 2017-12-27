@@ -13,4 +13,9 @@ public class AttributeInput extends NonExecutableInput<Attribute> {
     public AttributeInput(Expression expression, Attribute context) {
         super(expression, context);
     }
+
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
 }

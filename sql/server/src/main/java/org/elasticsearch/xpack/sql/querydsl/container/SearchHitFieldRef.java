@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
-public class SearchHitFieldRef implements FieldReference {
+public class SearchHitFieldRef extends FieldReference {
     private final String name;
     private final boolean docValue;
     private final String hitName;

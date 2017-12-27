@@ -24,7 +24,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     public static class TypeResolution {
         private final boolean failed;
         private final String message;
-        
+
         public static final TypeResolution TYPE_RESOLVED = new TypeResolution(false, StringUtils.EMPTY);
 
         public TypeResolution(String message, Object... args) {

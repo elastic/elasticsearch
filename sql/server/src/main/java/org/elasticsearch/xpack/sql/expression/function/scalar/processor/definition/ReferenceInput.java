@@ -13,4 +13,9 @@ public class ReferenceInput extends NonExecutableInput<ColumnReference> {
     public ReferenceInput(Expression expression, ColumnReference context) {
         super(expression, context);
     }
+
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return false;
+    }
 }

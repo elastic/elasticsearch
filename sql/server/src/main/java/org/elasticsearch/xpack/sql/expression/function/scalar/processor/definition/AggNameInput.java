@@ -12,4 +12,9 @@ public class AggNameInput extends NonExecutableInput<String> {
     public AggNameInput(Expression expression, String context) {
         super(expression, context);
     }
+
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
 }

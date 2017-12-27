@@ -19,4 +19,9 @@ public class ConstantInput extends LeafInput<Object> {
     public Processor asProcessor() {
         return new ConstantProcessor(context());
     }
+
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
 }

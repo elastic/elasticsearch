@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
-public class NonExecutableInput<T> extends LeafInput<T> {
+public abstract class NonExecutableInput<T> extends LeafInput<T> {
 
     NonExecutableInput(Expression expression, T context) {
         super(expression, context);

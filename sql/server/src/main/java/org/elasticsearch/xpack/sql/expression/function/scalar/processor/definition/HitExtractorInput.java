@@ -20,4 +20,9 @@ public class HitExtractorInput extends LeafInput<HitExtractor> {
     public Processor asProcessor() {
         return new HitExtractorProcessor(context());
     }
+
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
 }

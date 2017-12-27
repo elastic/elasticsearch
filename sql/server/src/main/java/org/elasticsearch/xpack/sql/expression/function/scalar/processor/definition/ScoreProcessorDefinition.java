@@ -34,4 +34,8 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
         sourceBuilder.trackScores();
     }
 
+    @Override
+    public boolean supportedByAggsOnlyQuery() {
+        return false;
+    }
 }

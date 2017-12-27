@@ -5,17 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-public interface FieldReference extends ColumnReference {
+public abstract class FieldReference implements ColumnReference {
+    /**
+     * Field name.
+     *
+     * @return field name.
+     */
+    public abstract String name();
 
     @Override
-    default int depth() {
+    public final int depth() {
         return 0;
     }
 
-    /**
-     * Field name.
-     * 
-     * @return field name.
-     */
-    String name();
+    @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return false;
+    }
 }

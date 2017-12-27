@@ -34,20 +34,25 @@ public class AggValueInput extends LeafInput<Supplier<Object>> {
     }
 
     @Override
+    public final boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(context(), innerKey);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         AggValueInput other = (AggValueInput) obj;
         return Objects.equals(context(), other.context())
                 && Objects.equals(innerKey, other.innerKey);

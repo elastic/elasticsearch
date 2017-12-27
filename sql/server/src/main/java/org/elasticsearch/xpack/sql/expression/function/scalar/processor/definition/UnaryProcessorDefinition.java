@@ -43,6 +43,11 @@ public class UnaryProcessorDefinition extends ProcessorDefinition {
     }
 
     @Override
+    public boolean supportedByAggsOnlyQuery() {
+        return child.supportedByAggsOnlyQuery();
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(expression(), child, action);
     }
@@ -52,11 +57,11 @@ public class UnaryProcessorDefinition extends ProcessorDefinition {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         UnaryProcessorDefinition other = (UnaryProcessorDefinition) obj;
         return Objects.equals(action, other.action)
                 && Objects.equals(child, other.child)

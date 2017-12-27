@@ -35,4 +35,9 @@ public class AggRef implements ColumnReference {
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         // Aggregations do not need any special fields
     }
+
+    @Override
+    public boolean supportedByAggsOnlyQuery() {
+        return true;
+    }
 }

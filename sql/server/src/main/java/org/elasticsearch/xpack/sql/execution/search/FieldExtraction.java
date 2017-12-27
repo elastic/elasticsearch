@@ -19,4 +19,9 @@ public interface FieldExtraction {
      */
     void collectFields(SqlSourceBuilder sourceBuilder);
 
+    /**
+     * Is this aggregation supported in an "aggregation only" query
+     * ({@code true}) or should it force a scroll query ({@code false})?
+     */
+    boolean supportedByAggsOnlyQuery();
 }

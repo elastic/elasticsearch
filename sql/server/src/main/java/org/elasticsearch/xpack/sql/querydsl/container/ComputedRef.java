@@ -43,6 +43,11 @@ public class ComputedRef implements ColumnReference {
     }
 
     @Override
+    public boolean supportedByAggsOnlyQuery() {
+        return processor.supportedByAggsOnlyQuery();
+    }
+
+    @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         processor.collectFields(sourceBuilder);
         processor.forEachUp(ri -> ri.context().collectFields(sourceBuilder), ReferenceInput.class);

@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionPool;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPInterface;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -16,6 +21,8 @@ import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 @Network
 public class AbstractActiveDirectoryIntegTests extends ESTestCase {
@@ -77,5 +84,25 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
                     .put("ssl.truststore.password", "changeit");
         }
         return builder.build();
+    }
+
+    protected static void assertConnectionCanReconnect(LDAPInterface conn) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    if (conn instanceof LDAPConnection) {
+                        ((LDAPConnection) conn).reconnect();
+                    } else if (conn instanceof LDAPConnectionPool) {
+                        try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                            c.reconnect();
+                        }
+                    }
+                } catch (LDAPException e) {
+                    fail("Connection is not valid. It will not work on follow referral flow.");
+                }
+                return null;
+            }
+        });
     }
 }

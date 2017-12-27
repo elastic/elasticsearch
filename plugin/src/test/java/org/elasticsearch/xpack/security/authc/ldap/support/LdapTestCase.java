@@ -7,8 +7,13 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
+
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -27,6 +32,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
@@ -159,5 +166,25 @@ public abstract class LdapTestCase extends ESTestCase {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.unauthenticatedSession(username, future);
         return future.actionGet();
+    }
+
+    protected static void assertConnectionCanReconnect(LDAPInterface conn) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    if (conn instanceof LDAPConnection) {
+                        ((LDAPConnection) conn).reconnect();
+                    } else if (conn instanceof LDAPConnectionPool) {
+                        try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                            c.reconnect();
+                        }
+                    }
+                } catch (LDAPException e) {
+                    fail("Connection is not valid. It will not work on follow referral flow.");
+                }
+                return null;
+            }
+        });
     }
 }

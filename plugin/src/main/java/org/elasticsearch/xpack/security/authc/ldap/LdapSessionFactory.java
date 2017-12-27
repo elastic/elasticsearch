@@ -86,7 +86,6 @@ public class LdapSessionFactory extends SessionFactory {
                     listener.onResponse(
                             (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
                                     groupResolver, metaDataResolver, timeout, null)));
-                    Arrays.fill(passwordBytes, (byte) 0);
                 }
 
                 @Override
@@ -103,7 +102,6 @@ public class LdapSessionFactory extends SessionFactory {
                     } else if (loopIndex == userDnTemplates.length) {
                         // loop break
                         IOUtils.closeWhileHandlingException(connection);
-                        Arrays.fill(passwordBytes, (byte) 0);
                         listener.onFailure(containerException);
                     } else {
                         loop();

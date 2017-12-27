@@ -25,7 +25,7 @@ public class LdapSession implements Releasable {
 
     protected final Logger logger;
     protected final RealmConfig realm;
-    protected final LDAPInterface ldap;
+    protected final LDAPInterface connection;
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
     private LdapMetaDataResolver metaDataResolver;
@@ -44,7 +44,7 @@ public class LdapSession implements Releasable {
                        LdapMetaDataResolver metaDataResolver, TimeValue timeout, Collection<Attribute> attributes) {
         this.logger = logger;
         this.realm = realm;
-        this.ldap = connection;
+        this.connection = connection;
         this.userDn = userDn;
         this.groupsResolver = groupsResolver;
         this.metaDataResolver = metaDataResolver;
@@ -59,8 +59,8 @@ public class LdapSession implements Releasable {
     public void close() {
         // Only if it is an LDAPConnection do we need to close it, otherwise it is a connection pool and we will close all of the
         // connections in the pool
-        if (ldap instanceof LDAPConnection) {
-            ((LDAPConnection) ldap).close();
+        if (connection instanceof LDAPConnection) {
+            ((LDAPConnection) connection).close();
         }
     }
 
@@ -79,14 +79,21 @@ public class LdapSession implements Releasable {
     }
 
     /**
+     * @return the connection to the LDAP/AD server of this session
+     */
+    public LDAPInterface getConnection() {
+        return connection;
+    }
+
+    /**
      * Asynchronously retrieves a list of group distinguished names
      */
     public void groups(ActionListener<List<String>> listener) {
-        groupsResolver.resolve(ldap, userDn, timeout, logger, attributes, listener);
+        groupsResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
     public void metaData(ActionListener<Map<String, Object>> listener) {
-        metaDataResolver.resolve(ldap, userDn, timeout, logger, attributes, listener);
+        metaDataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
     public void resolve(ActionListener<LdapUserData> listener) {

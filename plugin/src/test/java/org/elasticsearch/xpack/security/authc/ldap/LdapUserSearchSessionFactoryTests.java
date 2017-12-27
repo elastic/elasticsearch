@@ -138,12 +138,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -221,12 +223,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -304,12 +308,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -378,12 +384,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
@@ -422,6 +430,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, new SecureString(ActiveDirectorySessionFactoryTests.PASSWORD))) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
                 assertThat(groups, containsInAnyOrder(
@@ -433,6 +442,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
                 assertThat(groups, containsInAnyOrder(

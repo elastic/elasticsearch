@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -282,9 +281,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     listener.onResponse(new LdapSession(logger, realm, connection, entry.getDN(), groupsResolver,
                                             metaDataResolver, timeout, null));
                                 }
-                                Arrays.fill(passwordBytes, (byte) 0);
                             }, e -> {
-                                Arrays.fill(passwordBytes, (byte) 0);
                                 listener.onFailure(e);
                             }));
                         }
@@ -315,9 +312,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             listener.onResponse(
                                     new LdapSession(logger, realm, pool, entry.getDN(), groupsResolver, metaDataResolver, timeout, null));
                         }
-                        Arrays.fill(passwordBytes, (byte) 0);
                     }, e -> {
-                        Arrays.fill(passwordBytes, (byte) 0);
                         listener.onFailure(e);
                     }));
                 }
@@ -457,11 +452,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     ActionListener.wrap(
                                             results -> {
                                                 IOUtils.close(searchConnection);
-                                                Arrays.fill(passwordBytes, (byte) 0);
                                                 handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
                                             }, e -> {
                                                 IOUtils.closeWhileHandlingException(searchConnection);
-                                                Arrays.fill(passwordBytes, (byte) 0);
                                                 listener.onFailure(e);
                                             }),
                                     "ncname");

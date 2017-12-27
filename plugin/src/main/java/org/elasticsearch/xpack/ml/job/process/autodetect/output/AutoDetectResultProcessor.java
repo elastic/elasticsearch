@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 
@@ -224,14 +225,18 @@ public class AutoDetectResultProcessor {
             LOGGER.trace("Received Forecast Stats [{}]", forecastRequestStats.getId());
             context.bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
 
-            double forecastProgress = forecastRequestStats.getProgress();
-
-            // persist if progress is 0 (probably some error condition) or 1 (finished),
+            // execute the bulk request only in some cases or in doubt
             // otherwise rely on the count-based trigger
-            if (forecastProgress == 0.0 || forecastProgress >= 1.0) {
-                // if forecast stats progress is 1.0 it marks the end of a forecast,
-                // therefore commit whatever we have
-                context.bulkResultsPersister.executeRequest();
+            switch (forecastRequestStats.getStatus()) {
+                case OK:
+                case STARTED:
+                    break;
+                case FAILED:
+                case SCHEDULED:
+                case FINISHED:
+                default:
+                    context.bulkResultsPersister.executeRequest();
+
             }
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();

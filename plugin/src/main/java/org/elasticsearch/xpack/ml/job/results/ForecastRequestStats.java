@@ -198,6 +198,10 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         return forecastId;
     }
 
+    public static String documentId(String jobId, String forecastId) {
+        return jobId + "_model_forecast_request_stats_" + forecastId;
+    }
+
     /**
      * Return the document ID used for indexing. As there is 1 and only 1 document
      * per forecast request, the id has no dynamic parts.
@@ -205,7 +209,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
      * @return id
      */
     public String getId() {
-        return jobId + "_model_forecast_request_stats_" + forecastId;
+        return documentId(jobId, forecastId);
     }
 
     public void setRecordCount(long recordCount) {

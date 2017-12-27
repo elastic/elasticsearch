@@ -50,6 +50,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.Result;
@@ -471,6 +473,18 @@ public class JobProvider {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
+            return null;
+        }
+    }
+
+    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser, 
+                                 Consumer<Exception> errorHandler) {
+        BytesReference source = getResponse.getSourceAsBytesRef();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, source)) {
+            return objectParser.apply(parser, null);
+        } catch (IOException e) {
+            errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
             return null;
         }
     }
@@ -904,6 +918,19 @@ public class JobProvider {
                 ), client::search);
     }
 
+    private <U, T> void getResult(String jobId, String resultDescription, GetRequest get, BiFunction<XContentParser, U, T> objectParser,
+            Consumer<Result<T>> handler, Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, get, ActionListener.<GetResponse>wrap(getDocResponse -> {
+            if (getDocResponse.isExists()) {
+                handler.accept(new Result<>(getDocResponse.getIndex(), parseGetHit(getDocResponse, objectParser, errorHandler)));
+            } else {
+                LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
+                handler.accept(new Result<>(null, notFoundSupplier.get()));
+            }
+        }, errorHandler), client::get);
+    }
+
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
         return client.prepareSearch(indexName)
                 .setSize(1)
@@ -1041,6 +1068,16 @@ public class JobProvider {
                         },
                         handler::onFailure)
                 , client::search);
+    }
+
+    public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
+            Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        GetRequest getRequest = new GetRequest(indexName, ElasticsearchMappings.DOC_TYPE,
+                ForecastRequestStats.documentId(jobId, forecastId));
+
+        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.PARSER,
+                result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
     public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -30,13 +31,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.results.Forecast;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats; 
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.action.ForecastJobAction.Request.DURATION;
 
@@ -250,13 +256,15 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
     public static class TransportAction extends TransportJobTaskAction<Request, Response> {
 
+        private final JobProvider jobProvider;
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                AutodetectProcessManager processManager) {
+                JobProvider jobProvider, AutodetectProcessManager processManager) {
             super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new, ThreadPool.Names.SAME,
                     processManager);
+            this.jobProvider = jobProvider;
             // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
@@ -286,7 +294,26 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             ForecastParams params = paramsBuilder.build();
             processManager.forecastJob(task, params, e -> {
                 if (e == null) {
-                    listener.onResponse(new Response(true, params.getForecastId()));
+                    Consumer<ForecastRequestStats> forecastRequestStatsHandler = forecastRequestStats -> {
+                        if (forecastRequestStats == null) {
+                            // paranoia case, it should not happen that we do not retrieve a result
+                            listener.onFailure(new ElasticsearchException("Cannot run forecast: internal error, please check the logs"));
+                        } else if (forecastRequestStats.getStatus() == ForecastRequestStatus.FAILED) {
+                            List<String> messages = forecastRequestStats.getMessages();
+                            if (messages.size() > 0) {
+                                listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: " + messages.get(0)));
+                            } else {
+                                // paranoia case, it should not be possible to have an empty message list
+                                listener.onFailure(
+                                        new ElasticsearchException("Cannot run forecast: internal error, please check the logs"));
+                            }
+                        } else {
+                            listener.onResponse(new Response(true, params.getForecastId()));
+                        }
+                    };
+
+                    jobProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(), forecastRequestStatsHandler,
+                            listener::onFailure);
                 } else {
                     listener.onFailure(e);
                 }

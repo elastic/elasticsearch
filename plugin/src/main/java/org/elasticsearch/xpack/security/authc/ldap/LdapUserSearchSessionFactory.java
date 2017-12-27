@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-import java.util.Arrays;
-
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
@@ -109,12 +107,10 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                     protected void doRun() throws Exception {
                         listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
                                 entry.getAttributes()));
-                        Arrays.fill(passwordBytes, (byte) 0);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        Arrays.fill(passwordBytes, (byte) 0);
                         listener.onFailure(e);
                     }
                 });
@@ -155,12 +151,10 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                                 protected void doRun() throws Exception {
                                     listener.onResponse(new LdapSession(logger, config, connection, dn, groupResolver, metaDataResolver,
                                             timeout, entry.getAttributes()));
-                                    Arrays.fill(passwordBytes, (byte) 0);
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    Arrays.fill(passwordBytes, (byte) 0);
                                     IOUtils.closeWhileHandlingException(connection);
                                     listener.onFailure(e);
                                 }

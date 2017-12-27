@@ -67,6 +67,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             String userName = "ironman";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
                 assertThat(groups, containsInAnyOrder(
                         containsString("Geniuses"),
@@ -90,6 +91,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             String userName = "ades\\ironman";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
                 assertThat(groups, containsInAnyOrder(
                         containsString("Geniuses"),
@@ -132,6 +134,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
             String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow"};
             for (String user : users) {
                 try (LdapSession ldap = session(sessionFactory, user, SECURED_PASSWORD)) {
+                    assertConnectionCanReconnect(ldap.getConnection());
                     assertThat("group avenger test for user " + user, groups(ldap), hasItem(containsString("Avengers")));
                 }
             }
@@ -148,6 +151,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
                 assertThat(groups, containsInAnyOrder(
@@ -172,6 +176,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
                 assertThat(groups, containsInAnyOrder(
@@ -200,6 +205,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
                 assertThat(groups, hasItem(containsString("Avengers")));
@@ -218,6 +224,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
             //Login with the UserPrincipalName
             String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
             try (LdapSession ldap = session(sessionFactory, "erik.selvig", SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
                 assertThat(ldap.userDn(), is(userDN));
                 assertThat(groups, containsInAnyOrder(
@@ -238,6 +245,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
             //login with sAMAccountName
             String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
             try (LdapSession ldap = session(sessionFactory, "selvig", SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 assertThat(ldap.userDn(), is(userDN));
 
                 List<String> groups = groups(ldap);
@@ -263,6 +271,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
             //Login with the UserPrincipalName
             try (LdapSession ldap = session(sessionFactory, "erik.selvig", SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
                 assertThat(groups, containsInAnyOrder(
                         containsString("CN=Geniuses"),
@@ -297,6 +306,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
         String user = "Bruce Banner";
         try (LdapSession ldap = session(sessionFactory, user, SECURED_PASSWORD)) {
+            assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
 
             assertThat(groups, containsInAnyOrder(
@@ -308,6 +318,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3369")
     public void testHandlingLdapReferralErrors() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -361,6 +372,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
         String user = "Bruce Banner";
         try (LdapSession ldap = session(sessionFactory, user, SECURED_PASSWORD)) {
+            assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
 
             assertThat(groups, containsInAnyOrder(
@@ -419,6 +431,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
                     "ADES\\cap", "ADES\\hawkeye", "ADES\\hulk", "ADES\\ironman", "ADES\\thor", "ADES\\blackwidow"));
             for (String user : users) {
                 try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
+                    assertConnectionCanReconnect(ldap.getConnection());
                     assertNotNull("ldap session was null for user " + user, ldap);
                     assertThat("group avenger test for user " + user, groups(ldap), hasItem(containsString("Avengers")));
                 }

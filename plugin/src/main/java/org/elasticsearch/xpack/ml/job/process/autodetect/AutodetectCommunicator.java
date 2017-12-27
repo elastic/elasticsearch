@@ -42,6 +42,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -238,10 +239,25 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void forecastJob(ForecastParams params, BiConsumer<Void, Exception> handler) {
+        BiConsumer<Void, Exception> forecastConsumer = (aVoid, e) -> {
+            if (e == null) {
+                FlushJobParams flushParams = FlushJobParams.builder().build();
+                flushJob(flushParams, (flushAcknowledgement, flushException) -> {
+                    if (flushException != null) {
+                        String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", job.getId());
+                        handler.accept(null, ExceptionsHelper.serverError(msg, e));
+                    } else {
+                        handler.accept(null, null);
+                    }
+                });
+            } else {
+                handler.accept(null, e);
+            }
+        };
         submitOperation(() -> {
             autodetectProcess.forecastJob(params);
             return null;
-        }, handler);
+        }, forecastConsumer);
     }
 
     @Nullable

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -16,11 +17,13 @@ import org.elasticsearch.xpack.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
 import org.junit.After;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -154,6 +157,96 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 TimeValue.timeValueMinutes(10), null));
         assertThat(e.getMessage(),
                 equalTo("[duration] must be greater or equal to the bucket span: [10m/1h]"));
+    }
+
+    public void testNoData() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("forecast-it-test-no-data");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
+        assertThat(e.getMessage(),
+                equalTo("Cannot run forecast: Forecast cannot be executed as job requires data to have been processed and modeled"));
+    }
+
+    public void testMemoryStatus() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+        detector.setByFieldName("clientIP");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("forecast-it-test-memory-status");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        // Set the memory limit to 30MB
+        AnalysisLimits limits = new AnalysisLimits(30L, null);
+        job.setAnalysisLimits(limits);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+        createDataWithLotsOfClientIps(bucketSpan, job);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
+        assertThat(e.getMessage(), equalTo("Cannot run forecast: Forecast cannot be executed as model memory status is not OK"));
+    }
+
+    public void testMemoryLimit() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+        detector.setByFieldName("clientIP");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("forecast-it-test-memory-limit");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+        createDataWithLotsOfClientIps(bucketSpan, job);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
+        assertThat(e.getMessage(),
+                equalTo("Cannot run forecast: Forecast cannot be executed as forecast memory usage is predicted to exceed 20MB"));
+    }
+
+    private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        while (timestamp < now) {
+            for (int i = 1; i < 256; i++) {
+                List<String> data = new ArrayList<>();
+                for (int j = 1; j < 100; j++) {
+                    Map<String, Object> record = new HashMap<>();
+                    record.put("time", timestamp);
+                    record.put("value", 10.0);
+                    record.put("clientIP", String.format(Locale.ROOT, "192.168.%d.%d", i, j));
+                    data.add(createJsonRecord(record));
+                }
+                postData(job.getId(), data.stream().collect(Collectors.joining()));
+                timestamp += bucketSpan.seconds();
+            }
+        }
+        flushJob(job.getId(), false);
     }
 
     private static Map<String, Object> createRecord(long timestamp, double value) {

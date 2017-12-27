@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
@@ -89,7 +89,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         if (licenseState.isGraphAllowed()) {
             new AsyncGraphAction(request, listener).start();
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.GRAPH));
+            listener.onFailure(LicenseUtils.newComplianceException(XpackField.GRAPH));
         }  
     }
 

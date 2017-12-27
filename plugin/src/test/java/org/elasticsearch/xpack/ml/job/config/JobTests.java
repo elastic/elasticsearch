@@ -19,9 +19,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,7 +145,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> builder.validateModelMemoryLimit(new ByteSizeValue(1000L, ByteSizeUnit.MB)));
         assertEquals("model_memory_limit [4gb] must be less than the value of the " +
-                MachineLearning.MAX_MODEL_MEMORY_LIMIT.getKey() + " setting [1000mb]", e.getMessage());
+                MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT.getKey() + " setting [1000mb]", e.getMessage());
 
         builder.validateModelMemoryLimit(new ByteSizeValue(8192L, ByteSizeUnit.MB));
     }
@@ -411,14 +411,15 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_setsDefaultIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT, job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT,
+                job.getResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows() {

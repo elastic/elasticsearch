@@ -11,15 +11,16 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Objects;
 
+// TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
+// That interface can be removed
 public class Authentication {
-
-    public static final String AUTHENTICATION_KEY = "_xpack_security_authentication";
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -38,7 +39,7 @@ public class Authentication {
     }
 
     public Authentication(StreamInput in) throws IOException {
-        this.user = User.readFrom(in);
+        this.user = InternalUserSerializationHelper.readFrom(in);
         this.authenticatedBy = new RealmRef(in);
         if (in.readBoolean()) {
             this.lookedUpBy = new RealmRef(in);
@@ -66,13 +67,13 @@ public class Authentication {
 
     public static Authentication readFromContext(ThreadContext ctx)
             throws IOException, IllegalArgumentException {
-        Authentication authentication = ctx.getTransient(AUTHENTICATION_KEY);
+        Authentication authentication = ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY);
         if (authentication != null) {
-            assert ctx.getHeader(AUTHENTICATION_KEY) != null;
+            assert ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null;
             return authentication;
         }
 
-        String authenticationHeader = ctx.getHeader(AUTHENTICATION_KEY);
+        String authenticationHeader = ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY);
         if (authenticationHeader == null) {
             return null;
         }
@@ -80,19 +81,19 @@ public class Authentication {
     }
 
     public static Authentication getAuthentication(ThreadContext context) {
-        return context.getTransient(Authentication.AUTHENTICATION_KEY);
+        return context.getTransient(AuthenticationField.AUTHENTICATION_KEY);
     }
 
     static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx)
             throws IOException, IllegalArgumentException {
-        assert ctx.getTransient(AUTHENTICATION_KEY) == null;
+        assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
 
         byte[] bytes = Base64.getDecoder().decode(header);
         StreamInput input = StreamInput.wrap(bytes);
         Version version = Version.readVersion(input);
         input.setVersion(version);
         Authentication authentication = new Authentication(input);
-        ctx.putTransient(AUTHENTICATION_KEY, authentication);
+        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         return authentication;
     }
 
@@ -104,13 +105,13 @@ public class Authentication {
             throws IOException, IllegalArgumentException {
         ensureContextDoesNotContainAuthentication(ctx);
         String header = encode();
-        ctx.putTransient(AUTHENTICATION_KEY, this);
-        ctx.putHeader(AUTHENTICATION_KEY, header);
+        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, this);
+        ctx.putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
     }
 
     void ensureContextDoesNotContainAuthentication(ThreadContext ctx) {
-        if (ctx.getTransient(AUTHENTICATION_KEY) != null) {
-            if (ctx.getHeader(AUTHENTICATION_KEY) == null) {
+        if (ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) != null) {
+            if (ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null) {
                 throw new IllegalStateException("authentication present as a transient but not a header");
             }
             throw new IllegalStateException("authentication is already present in the context");
@@ -126,7 +127,7 @@ public class Authentication {
     }
 
     void writeTo(StreamOutput out) throws IOException {
-        User.writeTo(user, out);
+        InternalUserSerializationHelper.writeTo(user, out);
         authenticatedBy.writeTo(out);
         if (lookedUpBy != null) {
             out.writeBoolean(true);

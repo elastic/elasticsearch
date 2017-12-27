@@ -5,21 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -39,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -54,6 +46,7 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -64,13 +57,11 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,7 +73,7 @@ public class WatcherServiceTests extends ESTestCase {
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.validate(anyObject())).thenReturn(true);
-        Watch.Parser parser = mock(Watch.Parser.class);
+        WatchParser parser = mock(WatchParser.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
                 executionService, parser, mock(Client.class));
@@ -107,7 +98,7 @@ public class WatcherServiceTests extends ESTestCase {
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.validate(anyObject())).thenReturn(true);
-        Watch.Parser parser = mock(Watch.Parser.class);
+        WatchParser parser = mock(WatchParser.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);

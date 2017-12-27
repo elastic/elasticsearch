@@ -274,11 +274,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result.getUser(), is(user));
 
-        String userStr = threadContext.getHeader(Authentication.AUTHENTICATION_KEY);
+        String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
         assertThat(userStr, notNullValue());
         assertThat(userStr, equalTo("_signed_auth"));
 
-        Authentication ctxAuth = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
+        Authentication ctxAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
         assertThat(ctxAuth, is(result));
     }
 
@@ -399,7 +399,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(authentication.getUser(), sameInstance(user1));
                 assertThreadContextContainsAuthentication(authentication);
                 authRef.set(authentication);
-                authHeaderRef.set(threadContext.getHeader(Authentication.AUTHENTICATION_KEY));
+                authHeaderRef.set(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
                 setCompletedToTrue(completed);
             }, this::logAndFail));
         }
@@ -415,11 +415,11 @@ public class AuthenticationServiceTests extends ESTestCase {
                     new DefaultAuthenticationFailureHandler(), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService);
 
 
-            threadContext1.putTransient(Authentication.AUTHENTICATION_KEY, authRef.get());
-            threadContext1.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
+            threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
+            threadContext1.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
             service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
                 assertThat(ctxAuth, sameInstance(authRef.get()));
-                assertThat(threadContext1.getHeader(Authentication.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
+                assertThat(threadContext1.getHeader(AuthenticationField.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
                 setCompletedToTrue(completed);
             }, this::logAndFail));
             assertTrue(completed.compareAndSet(true, false));
@@ -437,17 +437,17 @@ public class AuthenticationServiceTests extends ESTestCase {
             try (ThreadContext.StoredContext ignore = threadContext2.stashContext()) {
                 service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
                         new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
-                threadContext2.putHeader(Authentication.AUTHENTICATION_KEY, authHeaderRef.get());
+                threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
                 BytesStreamOutput output = new BytesStreamOutput();
                 threadContext2.writeTo(output);
                 StreamInput input = output.bytes().streamInput();
                 threadContext2 = new ThreadContext(Settings.EMPTY);
                 threadContext2.readHeaders(input);
-                header = threadContext2.getHeader(Authentication.AUTHENTICATION_KEY);
+                header = threadContext2.getHeader(AuthenticationField.AUTHENTICATION_KEY);
             }
 
-            threadPool2.getThreadContext().putHeader(Authentication.AUTHENTICATION_KEY, header);
+            threadPool2.getThreadContext().putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
                     new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
             service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
@@ -464,7 +464,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateTamperedUser() throws Exception {
         InternalMessage message = new InternalMessage();
-        threadContext.putHeader(Authentication.AUTHENTICATION_KEY, "_signed_auth");
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "_signed_auth");
 
         try {
             authenticateBlocking("_action", message, randomBoolean() ? SystemUser.INSTANCE : null);
@@ -608,7 +608,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmLookupThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -627,7 +627,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmLookupThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -646,7 +646,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsLookupSameRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         final User user = new User("lookup user", new String[]{"user"}, "lookup user", "lookup@foo.foo",
@@ -693,7 +693,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsLookupDifferentRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -730,7 +730,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testRunAsWithEmptyRunAsUsernameRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         User user = new User("lookup user", new String[]{"user"});
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, user);
@@ -747,7 +747,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testRunAsWithEmptyRunAsUsername() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         User user = new User("lookup user", new String[]{"user"});
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, user);
@@ -763,7 +763,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateTransportDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -783,7 +783,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateRestDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
-        threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -890,10 +890,10 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     void assertThreadContextContainsAuthentication(Authentication authentication) throws IOException {
-        Authentication contextAuth = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
+        Authentication contextAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
         assertThat(contextAuth, notNullValue());
         assertThat(contextAuth, is(authentication));
-        assertThat(threadContext.getHeader(Authentication.AUTHENTICATION_KEY), equalTo((Object) authentication.encode()));
+        assertThat(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), equalTo((Object) authentication.encode()));
     }
 
     private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {

@@ -17,7 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.ml.action.GetJobsStatsAction.TransportAction.determineNonDeletedJobIdsWithoutLiveStats;
+import static org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction.determineNonDeletedJobIdsWithoutLiveStats;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,10 +80,10 @@ public class GetJobsStatsActionTests extends ESTestCase {
     }
 
     public void testDurationToTimeValue() {
-        assertNull(GetJobsStatsAction.TransportAction.durationToTimeValue(Optional.empty()));
+        assertNull(TransportGetJobsStatsAction.durationToTimeValue(Optional.empty()));
 
         Duration duration = Duration.ofSeconds(10L);
-        TimeValue timeValue = GetJobsStatsAction.TransportAction.durationToTimeValue(Optional.of(duration));
+        TimeValue timeValue = TransportGetJobsStatsAction.durationToTimeValue(Optional.of(duration));
         assertEquals(10L, timeValue.getSeconds());
     }
 }

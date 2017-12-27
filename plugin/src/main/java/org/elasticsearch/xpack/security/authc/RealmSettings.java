@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 /**
  * Configures the {@link Setting#groupSetting(String, Consumer, Setting.Property...) group setting} for security

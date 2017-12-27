@@ -15,22 +15,22 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         TimeValue sevenDays = TimeValue.timeValueHours(7 * 24);
 
         // 7 days
-        assertEquals(sevenDays, Monitoring.HISTORY_DURATION.get(Settings.EMPTY));
+        assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(Settings.EMPTY));
         // Note: this verifies the semantics because this is taken for granted that it never returns null!
-        assertEquals(sevenDays, Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), null)));
+        assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), null)));
     }
 
     public void testHistoryDurationMinimum24Hours() {
         // hit the minimum
-        assertEquals(Monitoring.HISTORY_DURATION_MINIMUM,
-                Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), "24h")));
+        assertEquals(MonitoringField.HISTORY_DURATION_MINIMUM,
+                MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h")));
     }
 
     public void testHistoryDurationMinimum24HoursBlocksLower() {
         // 1 ms early!
-        final String oneSecondEarly = (Monitoring.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
+        final String oneSecondEarly = (MonitoringField.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
         expectThrows(IllegalArgumentException.class,
-                () -> Monitoring.HISTORY_DURATION.get(buildSettings(Monitoring.HISTORY_DURATION.getKey(), oneSecondEarly)));
+                () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly)));
     }
 
     private Settings buildSettings(String key, String value) {

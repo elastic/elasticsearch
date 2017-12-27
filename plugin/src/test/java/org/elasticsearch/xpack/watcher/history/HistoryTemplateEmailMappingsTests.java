@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
@@ -68,7 +68,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_email", emailAction(EmailTemplate.builder()
                         .from("from@example.com")
                         .to("to1@example.com", "to2@example.com")

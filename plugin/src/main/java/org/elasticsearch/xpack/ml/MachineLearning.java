@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,14 +46,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
-import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
-import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
-import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -64,6 +61,7 @@ import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
@@ -78,6 +76,7 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutCalendarAction;
@@ -87,6 +86,50 @@ import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
+import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
+import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
+import org.elasticsearch.xpack.ml.action.TransportGetBucketsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetCalendarsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetFiltersAction;
+import org.elasticsearch.xpack.ml.action.TransportGetInfluencersAction;
+import org.elasticsearch.xpack.ml.action.TransportGetJobsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
+import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
+import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
+import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.TransportPostDataAction;
+import org.elasticsearch.xpack.ml.action.TransportPreviewDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
+import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
+import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
+import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
+import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
+import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
@@ -177,9 +220,9 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.XPackPlugin.MACHINE_LEARNING;
+import static org.elasticsearch.xpack.XpackField.MACHINE_LEARNING;
 
-public class MachineLearning implements ActionPlugin {
+public class MachineLearning implements MachineLearningClientActionPlugin, ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
@@ -195,12 +238,8 @@ public class MachineLearning implements ActionPlugin {
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
-    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
-            Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", new ByteSizeValue(0), Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
-
-    public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -221,8 +260,8 @@ public class MachineLearning implements ActionPlugin {
         this.licenseState = licenseState;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.tribeNode = XPackPlugin.isTribeNode(settings);
-        this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
+        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
+        this.tribeNodeClient = XPackClientActionPlugin.isTribeClientNode(settings);
     }
 
     public List<Setting<?>> getSettings() {
@@ -410,8 +449,8 @@ public class MachineLearning implements ActionPlugin {
         }
 
         return Arrays.asList(
-                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
-                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
+                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
         );
     }
 
@@ -487,49 +526,49 @@ public class MachineLearning implements ActionPlugin {
             return emptyList();
         }
         return Arrays.asList(
-                new ActionHandler<>(GetJobsAction.INSTANCE, GetJobsAction.TransportAction.class),
-                new ActionHandler<>(GetJobsStatsAction.INSTANCE, GetJobsStatsAction.TransportAction.class),
-                new ActionHandler<>(PutJobAction.INSTANCE, PutJobAction.TransportAction.class),
-                new ActionHandler<>(UpdateJobAction.INSTANCE, UpdateJobAction.TransportAction.class),
-                new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
-                new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
-                new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
-                new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
-                new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),
-                new ActionHandler<>(KillProcessAction.INSTANCE, KillProcessAction.TransportAction.class),
-                new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
-                new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
-                new ActionHandler<>(GetOverallBucketsAction.INSTANCE, GetOverallBucketsAction.TransportAction.class),
-                new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
-                new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
-                new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
-                new ActionHandler<>(FinalizeJobExecutionAction.INSTANCE, FinalizeJobExecutionAction.TransportAction.class),
-                new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
-                new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
-                new ActionHandler<>(ValidateJobConfigAction.INSTANCE, ValidateJobConfigAction.TransportAction.class),
-                new ActionHandler<>(GetCategoriesAction.INSTANCE, GetCategoriesAction.TransportAction.class),
-                new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
-                new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(UpdateModelSnapshotAction.INSTANCE, UpdateModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(GetDatafeedsAction.INSTANCE, GetDatafeedsAction.TransportAction.class),
-                new ActionHandler<>(GetDatafeedsStatsAction.INSTANCE, GetDatafeedsStatsAction.TransportAction.class),
-                new ActionHandler<>(PutDatafeedAction.INSTANCE, PutDatafeedAction.TransportAction.class),
-                new ActionHandler<>(UpdateDatafeedAction.INSTANCE, UpdateDatafeedAction.TransportAction.class),
-                new ActionHandler<>(DeleteDatafeedAction.INSTANCE, DeleteDatafeedAction.TransportAction.class),
-                new ActionHandler<>(PreviewDatafeedAction.INSTANCE, PreviewDatafeedAction.TransportAction.class),
-                new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
-                new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
-                new ActionHandler<>(IsolateDatafeedAction.INSTANCE, IsolateDatafeedAction.TransportAction.class),
-                new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class),
-                new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class),
-                new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class),
-                new ActionHandler<>(GetCalendarsAction.INSTANCE, GetCalendarsAction.TransportAction.class),
-                new ActionHandler<>(PutCalendarAction.INSTANCE, PutCalendarAction.TransportAction.class),
-                new ActionHandler<>(DeleteCalendarAction.INSTANCE, DeleteCalendarAction.TransportAction.class),
-                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, UpdateCalendarJobAction.TransportAction.class),
-                new ActionHandler<>(GetCalendarEventsAction.INSTANCE, GetCalendarEventsAction.TransportAction.class),
-                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, PostCalendarEventsAction.TransportAction.class)
+                new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
+                new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
+                new ActionHandler<>(PutJobAction.INSTANCE, TransportPutJobAction.class),
+                new ActionHandler<>(UpdateJobAction.INSTANCE, TransportUpdateJobAction.class),
+                new ActionHandler<>(DeleteJobAction.INSTANCE, TransportDeleteJobAction.class),
+                new ActionHandler<>(OpenJobAction.INSTANCE, TransportOpenJobAction.class),
+                new ActionHandler<>(GetFiltersAction.INSTANCE, TransportGetFiltersAction.class),
+                new ActionHandler<>(PutFilterAction.INSTANCE, TransportPutFilterAction.class),
+                new ActionHandler<>(DeleteFilterAction.INSTANCE, TransportDeleteFilterAction.class),
+                new ActionHandler<>(KillProcessAction.INSTANCE, TransportKillProcessAction.class),
+                new ActionHandler<>(GetBucketsAction.INSTANCE, TransportGetBucketsAction.class),
+                new ActionHandler<>(GetInfluencersAction.INSTANCE, TransportGetInfluencersAction.class),
+                new ActionHandler<>(GetOverallBucketsAction.INSTANCE, TransportGetOverallBucketsAction.class),
+                new ActionHandler<>(GetRecordsAction.INSTANCE, TransportGetRecordsAction.class),
+                new ActionHandler<>(PostDataAction.INSTANCE, TransportPostDataAction.class),
+                new ActionHandler<>(CloseJobAction.INSTANCE, TransportCloseJobAction.class),
+                new ActionHandler<>(FinalizeJobExecutionAction.INSTANCE, TransportFinalizeJobExecutionAction.class),
+                new ActionHandler<>(FlushJobAction.INSTANCE, TransportFlushJobAction.class),
+                new ActionHandler<>(ValidateDetectorAction.INSTANCE, TransportValidateDetectorAction.class),
+                new ActionHandler<>(ValidateJobConfigAction.INSTANCE, TransportValidateJobConfigAction.class),
+                new ActionHandler<>(GetCategoriesAction.INSTANCE, TransportGetCategoriesAction.class),
+                new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, TransportGetModelSnapshotsAction.class),
+                new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, TransportRevertModelSnapshotAction.class),
+                new ActionHandler<>(UpdateModelSnapshotAction.INSTANCE, TransportUpdateModelSnapshotAction.class),
+                new ActionHandler<>(GetDatafeedsAction.INSTANCE, TransportGetDatafeedsAction.class),
+                new ActionHandler<>(GetDatafeedsStatsAction.INSTANCE, TransportGetDatafeedsStatsAction.class),
+                new ActionHandler<>(PutDatafeedAction.INSTANCE, TransportPutDatafeedAction.class),
+                new ActionHandler<>(UpdateDatafeedAction.INSTANCE, TransportUpdateDatafeedAction.class),
+                new ActionHandler<>(DeleteDatafeedAction.INSTANCE, TransportDeleteDatafeedAction.class),
+                new ActionHandler<>(PreviewDatafeedAction.INSTANCE, TransportPreviewDatafeedAction.class),
+                new ActionHandler<>(StartDatafeedAction.INSTANCE, TransportStartDatafeedAction.class),
+                new ActionHandler<>(StopDatafeedAction.INSTANCE, TransportStopDatafeedAction.class),
+                new ActionHandler<>(IsolateDatafeedAction.INSTANCE, TransportIsolateDatafeedAction.class),
+                new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, TransportDeleteModelSnapshotAction.class),
+                new ActionHandler<>(UpdateProcessAction.INSTANCE, TransportUpdateProcessAction.class),
+                new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, TransportDeleteExpiredDataAction.class),
+                new ActionHandler<>(ForecastJobAction.INSTANCE, TransportForecastJobAction.class),
+                new ActionHandler<>(GetCalendarsAction.INSTANCE, TransportGetCalendarsAction.class),
+                new ActionHandler<>(PutCalendarAction.INSTANCE, TransportPutCalendarAction.class),
+                new ActionHandler<>(DeleteCalendarAction.INSTANCE, TransportDeleteCalendarAction.class),
+                new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
+                new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
+                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class)
         );
     }
 

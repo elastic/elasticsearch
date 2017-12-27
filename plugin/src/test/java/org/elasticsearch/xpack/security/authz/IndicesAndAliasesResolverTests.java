@@ -64,8 +64,8 @@ import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.Resolved
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -148,7 +148,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         roleMap.put("dash", new RoleDescriptor("dash", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() }, null));
         roleMap.put("test", new RoleDescriptor("role", new String[] { "monitor" }, null, null));
-        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        roleMap.put(ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName(), ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
                 ActionListener callback =

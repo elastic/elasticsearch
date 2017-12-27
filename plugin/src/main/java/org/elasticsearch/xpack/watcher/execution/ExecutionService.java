@@ -35,6 +35,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapperResult;
+import org.elasticsearch.xpack.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.common.stats.Counters;
@@ -45,6 +47,8 @@ import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchField;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
@@ -80,7 +84,7 @@ public class ExecutionService extends AbstractComponent {
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
     private final ThreadPool threadPool;
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final ClusterService clusterService;
     private final Client client;
     private final TimeValue indexDefaultTimeout;
@@ -89,7 +93,7 @@ public class ExecutionService extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            Clock clock, ThreadPool threadPool, Watch.Parser parser, ClusterService clusterService,
+                            Clock clock, ThreadPool threadPool, WatchParser parser, ClusterService clusterService,
                             Client client) {
         super(settings);
         this.historyStore = historyStore;
@@ -356,7 +360,7 @@ public class ExecutionService extends AbstractComponent {
         ToXContent.MapParams params = new ToXContent.MapParams(parameters);
         XContentBuilder source = JsonXContent.contentBuilder().
                 startObject()
-                .field(Watch.Field.STATUS.getPreferredName(), watch.status(), params)
+                .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
                 .endObject();
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
@@ -470,7 +474,7 @@ public class ExecutionService extends AbstractComponent {
             ctx.beforeActions();
             for (ActionWrapper action : watch.actions()) {
                 long now = System.currentTimeMillis();
-                ActionWrapper.Result actionResult = action.execute(ctx);
+                ActionWrapperResult actionResult = action.execute(ctx);
                 long executionTime = System.currentTimeMillis() - now;
                 String type = action.action().type();
                 actionByTypeExecutionTime.putIfAbsent(type, new MeanMetric());

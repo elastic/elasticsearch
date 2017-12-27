@@ -38,7 +38,7 @@ import java.util.List;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 /**
  * A simple http client for usage in command line tools. This client only uses internal jdk classes and does

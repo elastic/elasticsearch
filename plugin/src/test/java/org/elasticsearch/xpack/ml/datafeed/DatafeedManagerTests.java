@@ -23,10 +23,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.StartDatafeedAction.DatafeedTask;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.StartDatafeedActionTests;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -91,7 +92,7 @@ public class DatafeedManagerTests extends ESTestCase {
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlMetadata.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
 
@@ -255,8 +256,8 @@ public class DatafeedManagerTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -270,8 +271,8 @@ public class DatafeedManagerTests extends ESTestCase {
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         addJobTask("another_job", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder anotherJobCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", anotherJobCs.build(), cs.build()));
 
@@ -281,8 +282,8 @@ public class DatafeedManagerTests extends ESTestCase {
         tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder jobOpenedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(
                 new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs.build()));
@@ -295,8 +296,8 @@ public class DatafeedManagerTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -309,8 +310,8 @@ public class DatafeedManagerTests extends ESTestCase {
         tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.FAILED, tasksBuilder);
         ClusterState.Builder updatedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", updatedCs.build(), cs.build()));
 
@@ -323,8 +324,8 @@ public class DatafeedManagerTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -341,8 +342,8 @@ public class DatafeedManagerTests extends ESTestCase {
         tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder updatedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, clusterService.state().getMetaData().custom(MlMetadata.TYPE))
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
+                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", cs.build(), updatedCs.build()));
 

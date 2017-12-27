@@ -10,7 +10,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
@@ -62,7 +62,7 @@ public class ScheduleEngineTriggerBenchmark {
         List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
             watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(logger),
-                    AlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null));
+                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
 

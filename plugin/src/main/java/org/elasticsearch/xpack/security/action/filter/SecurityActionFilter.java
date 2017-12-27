@@ -24,7 +24,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
@@ -81,7 +81,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
-            throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
+            throw LicenseUtils.newComplianceException(XpackField.SECURITY);
         }
 
         if (licenseState.isAuthAllowed()) {
@@ -116,7 +116,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.SECURITY));
+            listener.onFailure(LicenseUtils.newComplianceException(XpackField.SECURITY));
         } else {
             chain.proceed(task, action, request, listener);
         }

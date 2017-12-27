@@ -26,21 +26,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.notification.email.DataAttachment;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
-import org.elasticsearch.xpack.watcher.notification.email.Profile;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
@@ -55,13 +40,20 @@ import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.common.http.HttpClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
+import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
@@ -75,8 +67,16 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
+import org.elasticsearch.xpack.watcher.notification.email.DataAttachment;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.watcher.notification.email.Profile;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.Month;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -184,7 +185,7 @@ public class WatchTests extends ESTestCase {
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
 
-        Condition condition = AlwaysConditionTests.randomCondition(scriptService);
+        ExecutableCondition condition = AlwaysConditionTests.randomCondition(scriptService);
         ConditionRegistry conditionRegistry = conditionRegistry();
 
         ExecutableTransform transform = randomTransform();
@@ -206,7 +207,7 @@ public class WatchTests extends ESTestCase {
 
         BytesReference bytes = jsonBuilder().value(watch).bytes();
         logger.info("{}", bytes.utf8ToString());
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON);
 
@@ -249,7 +250,7 @@ public class WatchTests extends ESTestCase {
         }
         WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
 
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, builder.bytes(), XContentType.JSON);
         assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
@@ -277,7 +278,7 @@ public class WatchTests extends ESTestCase {
                 .startObject()
                     .startArray("actions").endArray()
                 .endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes(), XContentType.JSON);
             fail("This watch should fail to parse as actions is an array");
@@ -299,16 +300,16 @@ public class WatchTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(Watch.Field.TRIGGER.getPreferredName())
+        builder.startObject(WatchField.TRIGGER.getPreferredName())
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
         Watch watch = watchParser.parse("failure", false, builder.bytes(), XContentType.JSON);
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
         assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
-        assertThat(watch.condition(), instanceOf(AlwaysCondition.class));
+        assertThat(watch.condition(), instanceOf(InternalAlwaysCondition.class));
         assertThat(watch.transform(), nullValue());
         assertThat(watch.actions(), notNullValue());
         assertThat(watch.actions().size(), is(0));
@@ -324,7 +325,7 @@ public class WatchTests extends ESTestCase {
         InputRegistry inputRegistry = registry(SearchInput.TYPE);
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
         WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry());
 
@@ -376,6 +377,7 @@ public class WatchTests extends ESTestCase {
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
     }
+
 
     private static Schedule randomSchedule() {
         String type = randomFrom(CronSchedule.TYPE, HourlySchedule.TYPE, DailySchedule.TYPE, WeeklySchedule.TYPE, MonthlySchedule.TYPE,
@@ -457,7 +459,7 @@ public class WatchTests extends ESTestCase {
 
     private ConditionRegistry conditionRegistry() {
         Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
+        parsers.put(InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
         parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
         parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));

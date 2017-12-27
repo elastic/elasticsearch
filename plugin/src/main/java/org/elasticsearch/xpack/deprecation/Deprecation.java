@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 public class Deprecation implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(DeprecationInfoAction.INSTANCE, DeprecationInfoAction.TransportAction.class));
+        return Collections.singletonList(new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class));
     }
 
     @Override

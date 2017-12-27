@@ -16,7 +16,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -68,7 +68,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
             }
             keyPath = parsePath(args.get(0));
         } else {
-            keyPath = env.configFile().resolve(XPackPlugin.NAME).resolve("system_key");
+            keyPath = env.configFile().resolve(XpackField.NAME).resolve("system_key");
         }
 
         // write the key

@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
  */
 public class XPackUser extends User {
 
-    public static final String NAME = "_xpack";
-    public static final String ROLE_NAME = NAME;
+    public static final String NAME = UsernamesField.XPACK_NAME;
+    public static final String ROLE_NAME = UsernamesField.XPACK_ROLE;
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME, new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/").privileges("all").build(),

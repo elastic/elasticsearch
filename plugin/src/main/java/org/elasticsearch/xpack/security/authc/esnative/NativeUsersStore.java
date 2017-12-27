@@ -35,7 +35,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
@@ -87,7 +87,7 @@ public class NativeUsersStore extends AbstractComponent {
     public NativeUsersStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackPlugin.isTribeNode(settings);
+        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 
@@ -221,7 +221,7 @@ public class NativeUsersStore extends AbstractComponent {
         }
 
         final String docType;
-        if (ReservedRealm.isReserved(username, settings)) {
+        if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
         } else {
             docType = USER_DOC_TYPE;
@@ -425,7 +425,7 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         }
 
-        if (ReservedRealm.isReserved(username, settings)) {
+        if (ClientReservedRealm.isReserved(username, settings)) {
             setReservedUserEnabled(username, enabled, refreshPolicy, true, listener);
         } else {
             setRegularUserEnabled(username, enabled, refreshPolicy, listener);

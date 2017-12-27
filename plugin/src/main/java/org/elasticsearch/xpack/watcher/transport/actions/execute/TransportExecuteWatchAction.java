@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.XpackField;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -57,14 +58,14 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final ExecutionService executionService;
     private final Clock clock;
     private final TriggerService triggerService;
-    private final Watch.Parser watchParser;
+    private final WatchParser watchParser;
     private final Client client;
 
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        ExecutionService executionService, Clock clock, XPackLicenseState licenseState,
-                                       Watch.Parser watchParser, Client client, TriggerService triggerService,
+                                       WatchParser watchParser, Client client, TriggerService triggerService,
                                        ClusterService clusterService) {
         super(settings, ExecuteWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, clusterService, ExecuteWatchRequest::new, ExecuteWatchResponse::new);
@@ -112,7 +113,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private void executeWatch(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener,
                               Watch watch, boolean knownWatch) {
 
-        threadPool.executor(XPackPlugin.WATCHER).submit(() -> {
+        threadPool.executor(XpackField.WATCHER).submit(() -> {
             try {
                 // ensure that the headers from the incoming request are used instead those of the stored watch
                 // otherwise the watch would run as the user who stored the watch, but it needs to be run as the user who
@@ -135,7 +136,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                     ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
                 }
                 if (request.isIgnoreCondition()) {
-                    ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
+                    ctxBuilder.withCondition(InternalAlwaysCondition.RESULT_INSTANCE);
                 }
                 ctxBuilder.recordExecution(request.isRecordExecution());
 

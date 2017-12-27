@@ -47,7 +47,7 @@ public final class CompareCondition extends AbstractCompareCondition {
         return value;
     }
 
-    public static Condition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
+    public static CompareCondition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] " +
                     "instead", TYPE, watchId, parser.currentToken());

@@ -37,7 +37,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
@@ -64,7 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.authz.RoleDescriptor.ROLE_TYPE;
 
 /**
@@ -95,7 +95,7 @@ public class NativeRolesStore extends AbstractComponent {
                             SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackPlugin.isTribeNode(settings);
+        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;
         this.securityLifecycleService = securityLifecycleService;

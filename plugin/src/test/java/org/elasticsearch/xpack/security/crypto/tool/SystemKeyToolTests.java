@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.junit.After;
 
 import java.nio.file.FileSystem;
@@ -78,7 +78,7 @@ public class SystemKeyToolTests extends CommandTestCase {
     public void testGeneratePathInSettings() throws Exception {
         final Path homeDir = initFileSystem(false);
 
-        Path xpackConf = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConf = homeDir.resolve("config").resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
         execute("-Epath.home=" + homeDir.toString());
         byte[] bytes = Files.readAllBytes(xpackConf.resolve("system_key"));

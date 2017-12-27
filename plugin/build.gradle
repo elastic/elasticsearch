@@ -35,11 +35,7 @@ dependencyLicenses {
   ignoreSha 'elasticsearch-rest-client'
   ignoreSha 'transport-netty4'
   ignoreSha 'elasticsearch-rest-client-sniffer'
-}
-
-licenseHeaders {
-  approvedLicenses << 'BCrypt (BSD-like)'
-  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+  ignoreSha 'x-pack-core'
 }
 
 configurations {
@@ -57,6 +53,9 @@ configurations {
 dependencies {
   // CLI deps
   compile project(path: ':core:cli', configuration: 'runtime')
+
+  // Core project deps (this is temporary)
+  compile project(':x-pack-elasticsearch:plugin:core')
 
   // security deps
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')

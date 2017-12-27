@@ -184,7 +184,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken();
 
-        ArrayCompareCondition condition = (ArrayCompareCondition) ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
+        ArrayCompareCondition condition = ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getArrayPath(), is("key1.key2"));

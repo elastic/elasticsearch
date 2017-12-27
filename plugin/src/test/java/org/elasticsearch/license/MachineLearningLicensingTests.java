@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -67,7 +67,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
             assertThat(e.getMessage(), containsString("non-compliant"));
-            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.MACHINE_LEARNING));
+            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XpackField.MACHINE_LEARNING));
         }
 
         // Pick a license that does allow machine learning
@@ -110,7 +110,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
             assertThat(e.getMessage(), containsString("non-compliant"));
-            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.MACHINE_LEARNING));
+            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XpackField.MACHINE_LEARNING));
         }
 
         // Pick a license that does allow machine learning
@@ -162,7 +162,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
             assertThat(e.getMessage(), containsString("non-compliant"));
-            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.MACHINE_LEARNING));
+            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XpackField.MACHINE_LEARNING));
         }
 
         // Pick a license that does allow machine learning
@@ -331,7 +331,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
             assertThat(e.getMessage(), containsString("non-compliant"));
-            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.MACHINE_LEARNING));
+            assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XpackField.MACHINE_LEARNING));
         }
 
         // Pick a license that does allow machine learning

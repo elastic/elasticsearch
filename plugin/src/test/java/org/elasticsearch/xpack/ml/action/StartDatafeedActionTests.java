@@ -31,7 +31,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job, false)
                 .build();
         Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> StartDatafeedAction.validate("some-datafeed", mlMetadata, null));
+                () -> TransportStartDatafeedAction.validate("some-datafeed", mlMetadata, null));
         assertThat(e.getMessage(), equalTo("No datafeed with id [some-datafeed] exists"));
     }
 
@@ -46,7 +46,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1, null)
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
+                () -> TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
         assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] is closed"));
     }
 
@@ -63,7 +63,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1, null)
                 .build();
 
-        StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
+        TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
     }
 
     public void testValidate_jobOpened() {
@@ -79,14 +79,15 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1, null)
                 .build();
 
-        StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
+        TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
     }
 
-    public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
-                                                                      TaskId parentTaskId,
-                                                                      StartDatafeedAction.DatafeedParams params,
-                                                                      DatafeedManager datafeedManager) {
-        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(id, type, action, parentTaskId, params);
+    public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
+                                                                               TaskId parentTaskId,
+                                                                               StartDatafeedAction.DatafeedParams params,
+                                                                               DatafeedManager datafeedManager) {
+        TransportStartDatafeedAction.DatafeedTask task = new TransportStartDatafeedAction.DatafeedTask(id, type, action, parentTaskId,
+                params);
         task.datafeedManager = datafeedManager;
         return task;
     }

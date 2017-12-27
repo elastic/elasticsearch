@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.action.get;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
@@ -35,7 +35,7 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
                 .get();
 

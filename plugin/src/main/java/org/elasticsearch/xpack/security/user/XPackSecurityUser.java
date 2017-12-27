@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.security.user;
  */
 public class XPackSecurityUser extends User {
 
-    public static final String NAME = "_xpack_security";
+    public static final String NAME = UsernamesField.XPACK_SECURITY_NAME;
     public static final XPackSecurityUser INSTANCE = new XPackSecurityUser();
-    private static final String ROLE_NAME = "superuser";
+    private static final String ROLE_NAME = UsernamesField.XPACK_SECURITY_ROLE;
 
     private XPackSecurityUser() {
         super(NAME, ROLE_NAME);

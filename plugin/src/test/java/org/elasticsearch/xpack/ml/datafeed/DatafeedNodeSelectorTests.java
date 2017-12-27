@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -315,7 +316,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata)
+                        .putCustom(MLMetadataField.TYPE, mlMetadata)
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
                         .put(indexMetaData, false))
                 .nodes(nodes)

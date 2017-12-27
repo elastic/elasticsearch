@@ -9,6 +9,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
@@ -50,12 +51,12 @@ public class ManualExecutionContext extends WatchExecutionContext {
             boolean throttleAll = allMode == ActionExecutionMode.SKIP;
             for (ActionWrapper action : watch.actions()) {
                 if (throttleAll) {
-                    onActionResult(new ActionWrapper.Result(action.id(),
+                    onActionResult(new ActionWrapperResult(action.id(),
                             new Action.Result.Throttled(action.action().type(), "manually skipped")));
                 } else {
                     ActionExecutionMode mode = actionModes.get(action.id());
                     if (mode == ActionExecutionMode.SKIP) {
-                        onActionResult(new ActionWrapper.Result(action.id(),
+                        onActionResult(new ActionWrapperResult(action.id(),
                                 new Action.Result.Throttled(action.action().type(), "manually skipped")));
                     }
                 }

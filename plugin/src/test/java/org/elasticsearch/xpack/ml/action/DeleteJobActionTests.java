@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -20,18 +21,18 @@ public class DeleteJobActionTests extends ESTestCase {
         MlMetadata mlMetadata = MlMetadata.EMPTY_METADATA;
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata))
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlMetadata))
                 .build();
 
-        assertTrue(DeleteJobAction.TransportAction.jobIsDeletedFromState("job_id_1", clusterState));
+        assertTrue(TransportDeleteJobAction.jobIsDeletedFromState("job_id_1", clusterState));
 
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date()), false);
         mlMetadata = mlBuilder.build();
         clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata))
+                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlMetadata))
                 .build();
 
-        assertFalse(DeleteJobAction.TransportAction.jobIsDeletedFromState("job_id_1", clusterState));
+        assertFalse(TransportDeleteJobAction.jobIsDeletedFromState("job_id_1", clusterState));
     }
 }

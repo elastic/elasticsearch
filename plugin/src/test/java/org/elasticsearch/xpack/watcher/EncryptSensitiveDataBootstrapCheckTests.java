@@ -35,7 +35,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
 
     public void testKeyInKeystore() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), CryptoServiceTests.generateKey());
+        secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), CryptoServiceTests.generateKey());
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)

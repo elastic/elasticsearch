@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import java.util.Arrays;
-import java.util.Collections;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -98,18 +98,27 @@ public class UserTests extends ESTestCase {
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(SystemUser.INSTANCE, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
         assertThat(readFrom.authenticatedUser(), is(SystemUser.INSTANCE));
     }
 
+    public void testSystemUserFailsRead() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
+        AssertionError e = expectThrows(AssertionError.class, () -> User.readFrom(output.bytes().streamInput()));
+
+        assertThat(e.getMessage(), is("should always return false. Internal users should use the InternalUserSerializationHelper"));
+    }
+
     public void testXPackUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(XPackUser.INSTANCE, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        InternalUserSerializationHelper.writeTo(XPackUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
         assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
@@ -120,7 +129,7 @@ public class UserTests extends ESTestCase {
         output.writeBoolean(true);
         output.writeString(randomAlphaOfLengthBetween(4, 30));
         try {
-            User.readFrom(output.bytes().streamInput());
+            InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
             fail("system user had wrong name");
         } catch (IllegalStateException e) {
             // expected
@@ -157,7 +166,7 @@ public class UserTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         Version version = randomFrom(Version.V_5_0_0, Version.V_5_5_0, Version.V_5_3_1, Version.V_5_6_0);
         output.setVersion(version);
-        User.writeTo(XPackSecurityUser.INSTANCE, output);
+        InternalUserSerializationHelper.writeTo(XPackSecurityUser.INSTANCE, output);
 
         // pre 5.6 needs to use regular user serialization, not the internal user one
         User readFrom = User.readFrom(output.bytes().streamInput());
@@ -165,8 +174,8 @@ public class UserTests extends ESTestCase {
 
         output = new BytesStreamOutput();
         output.setVersion(Version.V_5_6_1);
-        User.writeTo(XPackSecurityUser.INSTANCE, output);
-        readFrom = User.readFrom(output.bytes().streamInput());
+        InternalUserSerializationHelper.writeTo(XPackSecurityUser.INSTANCE, output);
+        readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
         assertThat(readFrom, sameInstance(XPackSecurityUser.INSTANCE));
     }
 }

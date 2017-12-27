@@ -14,11 +14,12 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
  */
 public class ElasticUser extends User {
 
-    public static final String NAME = "elastic";
+    public static final String NAME = UsernamesField.ELASTIC_NAME;
     // used for testing in a different package
-    public static final String ROLE_NAME = "superuser";
+    public static final String ROLE_NAME = UsernamesField.ELASTIC_ROLE;
 
     public ElasticUser(boolean enabled) {
         super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }
+

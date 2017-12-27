@@ -52,7 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
 
 /**
@@ -809,7 +809,7 @@ public class SSLService extends AbstractComponent {
 
     private static List<Settings> getRealmsSSLSettings(Settings settings) {
         List<Settings> sslSettings = new ArrayList<>();
-        Settings realmsSettings = settings.getByPrefix(Security.setting("authc.realms."));
+        Settings realmsSettings = settings.getByPrefix(SecurityField.setting("authc.realms."));
         for (String name : realmsSettings.names()) {
             Settings realmSSLSettings = realmsSettings.getAsSettings(name).getByPrefix("ssl.");
             if (realmSSLSettings.isEmpty() == false) {

@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.MlMetadata.Builder;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction.Request;
@@ -62,22 +63,22 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
     public void testValidate() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlMetadata.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MLMetadataField.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L), new Assignment("node_id", ""));
-        tasksBuilder.updateTaskStatus(MlMetadata.datafeedTaskId("foo"), DatafeedState.STARTED);
+        tasksBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId("foo"), DatafeedState.STARTED);
         tasksBuilder.build();
 
         Job job = createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
         Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> StopDatafeedAction.validateDatafeedTask("foo", mlMetadata1));
+                () -> TransportStopDatafeedAction.validateDatafeedTask("foo", mlMetadata1));
         assertThat(e.getMessage(), equalTo("No datafeed with id [foo] exists"));
 
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
                 .putDatafeed(datafeedConfig, null)
                 .build();
-        StopDatafeedAction.validateDatafeedTask("foo", mlMetadata2);
+        TransportStopDatafeedAction.validateDatafeedTask("foo", mlMetadata2);
     }
 
     public void testResolveDataFeedIds_GivenDatafeedId() {
@@ -99,14 +100,14 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_1"), mlMetadata, tasks, startedDatafeeds,
+        TransportStopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_1"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
+        TransportStopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
@@ -136,14 +137,14 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("_all"), mlMetadata, tasks, startedDatafeeds,
+        TransportStopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("_all"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_3"), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
+        TransportStopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
                 stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
@@ -151,9 +152,9 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
                                PersistentTasksCustomMetaData.Builder taskBuilder) {
-        taskBuilder.addTask(MlMetadata.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
+        taskBuilder.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
-        taskBuilder.updateTaskStatus(MlMetadata.datafeedTaskId(datafeedId), state);
+        taskBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
     }
 
 }

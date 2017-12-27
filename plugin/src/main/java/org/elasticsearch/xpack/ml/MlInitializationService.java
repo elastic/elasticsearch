@@ -61,19 +61,19 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
     }
 
     private void installMlMetadata(MetaData metaData) {
-        if (metaData.custom(MlMetadata.TYPE) == null) {
+        if (metaData.custom(MLMetadataField.TYPE) == null) {
             if (installMlMetadataCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() ->
                     clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             // If the metadata has been added already don't try to update
-                            if (currentState.metaData().custom(MlMetadata.TYPE) != null) {
+                            if (currentState.metaData().custom(MLMetadataField.TYPE) != null) {
                                 return currentState;
                             }
                             ClusterState.Builder builder = new ClusterState.Builder(currentState);
                             MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                            metadataBuilder.putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA);
+                            metadataBuilder.putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA);
                             builder.metaData(metadataBuilder.build());
                             return builder.build();
                         }

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.ArrayList;
@@ -64,14 +65,14 @@ public class WatcherService extends AbstractComponent {
     private final ExecutionService executionService;
     private final TimeValue scrollTimeout;
     private final int scrollSize;
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final Client client;
     // package-private for testing
     final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
     private final TimeValue defaultSearchTimeout;
 
     public WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                          ExecutionService executionService, Watch.Parser parser, Client client) {
+                          ExecutionService executionService, WatchParser parser, Client client) {
         super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;

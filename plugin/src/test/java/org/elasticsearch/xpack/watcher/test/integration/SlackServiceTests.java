@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
@@ -94,7 +94,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "testWatchWithSlackAction()"))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("slack", actionBuilder))
                 .execute().get();
 

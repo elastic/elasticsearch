@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
 public class InternalWatchExecutor implements WatchExecutor {
 
-    public static final String THREAD_POOL_NAME = XPackPlugin.WATCHER;
+    public static final String THREAD_POOL_NAME = XpackField.WATCHER;
 
     private final ThreadPool threadPool;
 

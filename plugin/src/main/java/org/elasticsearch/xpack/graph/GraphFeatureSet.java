@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 
 public class GraphFeatureSet implements XPackFeatureSet {
 
@@ -31,7 +31,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackPlugin.GRAPH;
+        return XpackField.GRAPH;
     }
 
     @Override
@@ -66,7 +66,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
         }
 
         public Usage(boolean available, boolean enabled) {
-            super(XPackPlugin.GRAPH, available, enabled);
+            super(XpackField.GRAPH, available, enabled);
         }
     }
 }

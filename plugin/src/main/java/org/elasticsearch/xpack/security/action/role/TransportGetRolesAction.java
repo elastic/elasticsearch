@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
@@ -45,7 +46,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
-                if (ReservedRolesStore.isReserved(role)) {
+                if (ClientReservedRoles.isReserved(role)) {
                     RoleDescriptor rd = reservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         roles.add(rd);

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -84,7 +84,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
@@ -124,7 +124,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
@@ -157,7 +157,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 

@@ -21,7 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -64,7 +64,7 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
         if (licenseState.isWatcherAllowed()) {
             super.doExecute(task, request, listener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.WATCHER));
+            listener.onFailure(LicenseUtils.newComplianceException(XpackField.WATCHER));
         }
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -103,7 +104,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
     }
 
     private ClusterState markJobAsDeleted(String jobId, ClusterState currentState) {
-        MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
         assertNotNull(mlMetadata);
 
         MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
@@ -111,14 +112,16 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         builder.markJobAsDeleted(jobId, tasks, true);
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build()).build();
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+                .build();
     }
 
     private ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
+        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MLMetadataField.TYPE));
         builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build()).build();
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+                .build();
     }
 }

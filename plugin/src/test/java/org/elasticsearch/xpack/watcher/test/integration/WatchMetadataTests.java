@@ -10,7 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
@@ -78,7 +78,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050")))
                         .input(noneInput())
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("testLogger", loggingAction)
                         .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
                         .metadata(metadata))

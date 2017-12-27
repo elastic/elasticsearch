@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -168,7 +168,7 @@ public abstract class Collector extends AbstractComponent {
 
     protected static String collectionSetting(final String settingName) {
         Objects.requireNonNull(settingName, "setting name must not be null");
-        return XPackPlugin.featureSettingPrefix(Monitoring.NAME) + ".collection." + settingName;
+        return XpackField.featureSettingPrefix(Monitoring.NAME) + ".collection." + settingName;
     }
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {

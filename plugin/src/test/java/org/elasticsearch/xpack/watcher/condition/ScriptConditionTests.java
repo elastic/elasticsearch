@@ -115,7 +115,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ScriptCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
+        ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);

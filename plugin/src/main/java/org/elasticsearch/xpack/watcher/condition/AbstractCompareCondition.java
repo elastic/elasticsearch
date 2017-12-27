@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
@@ -12,22 +13,23 @@ import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-abstract class AbstractCompareCondition
-        extends Condition {
+abstract class AbstractCompareCondition implements ExecutableCondition {
     static final Pattern DATE_MATH_PATTERN = Pattern.compile("<\\{(.+)\\}>");
     static final Pattern PATH_PATTERN = Pattern.compile("\\{\\{(.+)\\}\\}");
 
     private final Clock clock;
+    private final String type;
 
     protected AbstractCompareCondition(String type, Clock clock) {
-        super(type);
         this.clock = clock;
+        this.type = type;
     }
 
     @Override
@@ -60,4 +62,14 @@ abstract class AbstractCompareCondition
     }
 
     protected abstract Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues);
+
+    @Override
+    public String type() {
+        return type;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().endObject();
+    }
 }

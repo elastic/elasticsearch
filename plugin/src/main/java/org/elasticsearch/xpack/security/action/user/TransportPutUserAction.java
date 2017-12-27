@@ -15,8 +15,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
@@ -36,7 +36,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     @Override
     protected void doExecute(final PutUserRequest request, final ActionListener<PutUserResponse> listener) {
         final String username = request.username();
-        if (ReservedRealm.isReserved(username, settings)) {
+        if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
                 return;

@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -66,7 +66,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Path xpackConf = env.configFile().resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
 
@@ -82,7 +82,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Path xpackConf = env.configFile().resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
@@ -119,7 +119,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Path xpackConf = env.configFile().resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
         Path testUsers = xpackConf.resolve("users");
         Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);

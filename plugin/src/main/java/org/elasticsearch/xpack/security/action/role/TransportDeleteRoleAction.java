@@ -15,8 +15,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
 public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRoleRequest, DeleteRoleResponse> {
 
@@ -33,7 +33,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
 
     @Override
     protected void doExecute(DeleteRoleRequest request, ActionListener<DeleteRoleResponse> listener) {
-        if (ReservedRolesStore.isReserved(request.name())) {
+        if (ClientReservedRoles.isReserved(request.name())) {
             listener.onFailure(new IllegalArgumentException("role [" + request.name() + "] is reserved and cannot be deleted"));
             return;
         }

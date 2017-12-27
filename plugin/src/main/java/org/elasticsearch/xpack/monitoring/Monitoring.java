@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,13 +19,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -62,7 +61,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
-import static org.elasticsearch.xpack.XPackPlugin.MONITORING;
+import static org.elasticsearch.xpack.XpackField.MONITORING;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
@@ -74,26 +73,6 @@ public class Monitoring implements ActionPlugin {
 
     public static final String NAME = "monitoring";
 
-    /**
-     * The minimum amount of time allowed for the history duration.
-     */
-    public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
-
-    /**
-     * The default retention duration of the monitoring history data.
-     * <p>
-     * Expected values:
-     * <ul>
-     * <li>Default: 7 days</li>
-     * <li>Minimum: 1 day</li>
-     * </ul>
-     *
-     * @see #HISTORY_DURATION_MINIMUM
-     */
-    public static final Setting<TimeValue> HISTORY_DURATION = timeSetting("xpack.monitoring.history.duration",
-                                                                          TimeValue.timeValueHours(7 * 24), // default value (7 days)
-                                                                          HISTORY_DURATION_MINIMUM,         // minimum value
-                                                                          Setting.Property.Dynamic, Setting.Property.NodeScope);
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
      */
@@ -112,7 +91,7 @@ public class Monitoring implements ActionPlugin {
         this.licenseState = licenseState;
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.tribeNode = XPackPlugin.isTribeNode(settings);
+        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
     }
 
     public static Collection<? extends NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -186,7 +165,7 @@ public class Monitoring implements ActionPlugin {
 
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
-                Arrays.asList(HISTORY_DURATION,
+                Arrays.asList(MonitoringField.HISTORY_DURATION,
                               CLEAN_WATCHER_HISTORY,
                               MonitoringService.INTERVAL,
                               Exporters.EXPORTERS_SETTINGS,

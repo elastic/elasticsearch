@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.netty4.Netty4Transport;
-import org.elasticsearch.transport.netty4.NettyTcpChannel;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -36,7 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;

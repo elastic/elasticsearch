@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -251,7 +251,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
     private Watch createWatch(String name, Schedule schedule) {
         return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(logger),
-                AlwaysCondition.INSTANCE, null, null,
+                InternalAlwaysCondition.INSTANCE, null, null,
                 Collections.emptyList(), null, null);
     }
 }

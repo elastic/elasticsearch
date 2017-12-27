@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
@@ -160,7 +160,7 @@ public final class WatcherTestUtils {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                AlwaysCondition.INSTANCE,
+                InternalAlwaysCondition.INSTANCE,
                 null,
                 null,
                 new ArrayList<>(),
@@ -206,7 +206,7 @@ public final class WatcherTestUtils {
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo"))), logger),
-                AlwaysCondition.INSTANCE,
+                InternalAlwaysCondition.INSTANCE,
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                 new TimeValue(0),
                 actions,

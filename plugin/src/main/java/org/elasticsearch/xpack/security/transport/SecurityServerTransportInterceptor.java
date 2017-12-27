@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
 

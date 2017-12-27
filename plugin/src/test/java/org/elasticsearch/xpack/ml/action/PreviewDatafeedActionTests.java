@@ -61,7 +61,7 @@ public class PreviewDatafeedActionTests extends ESTestCase {
     public void testPreviewDatafed_GivenEmptyStream() throws IOException {
         when(dataExtractor.next()).thenReturn(Optional.empty());
 
-        PreviewDatafeedAction.TransportAction.previewDatafeed(dataExtractor, actionListener);
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
 
         assertThat(capturedResponse, equalTo("[]"));
         assertThat(capturedFailure, is(nullValue()));
@@ -73,7 +73,7 @@ public class PreviewDatafeedActionTests extends ESTestCase {
         InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
         when(dataExtractor.next()).thenReturn(Optional.of(stream));
 
-        PreviewDatafeedAction.TransportAction.previewDatafeed(dataExtractor, actionListener);
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
 
         assertThat(capturedResponse, equalTo("[{\"a\":1, \"b\":2},{\"c\":3, \"d\":4},{\"e\":5, \"f\":6}]"));
         assertThat(capturedFailure, is(nullValue()));
@@ -83,7 +83,7 @@ public class PreviewDatafeedActionTests extends ESTestCase {
     public void testPreviewDatafed_GivenFailure() throws IOException {
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();
 
-        PreviewDatafeedAction.TransportAction.previewDatafeed(dataExtractor, actionListener);
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
 
         assertThat(capturedResponse, is(nullValue()));
         assertThat(capturedFailure.getMessage(), equalTo("failed"));

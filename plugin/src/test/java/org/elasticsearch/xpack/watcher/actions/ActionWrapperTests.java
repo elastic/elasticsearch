@@ -34,7 +34,7 @@ public class ActionWrapperTests extends ESTestCase {
         WatchStatus watchStatus = new WatchStatus(now, Collections.singletonMap("_action", createActionStatus(State.ACKED)));
         when(watch.status()).thenReturn(watchStatus);
 
-        ActionWrapper.Result result = actionWrapper.execute(mockExecutionContent(watch));
+        ActionWrapperResult result = actionWrapper.execute(mockExecutionContent(watch));
         assertThat(result.condition().met(), is(false));
         assertThat(result.action().status(), is(Action.Result.Status.CONDITION_FAILED));
         assertThat(watch.status().actionStatus("_action").ackStatus().state(), is(State.AWAITS_SUCCESSFUL_EXECUTION));

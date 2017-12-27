@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class NeverConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
-        Condition executable = NeverCondition.INSTANCE;
+        ExecutableCondition executable = NeverCondition.INSTANCE;
         assertFalse(executable.execute(null).met());
     }
 
@@ -26,7 +26,7 @@ public class NeverConditionTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        Condition executable = NeverCondition.parse("_id", parser);
+        ExecutableCondition executable = NeverCondition.parse("_id", parser);
         assertFalse(executable.execute(null).met());
     }
 
@@ -40,7 +40,7 @@ public class NeverConditionTests extends ESTestCase {
         try {
             NeverCondition.parse("_id", parser);
             fail("expected a condition exception trying to parse an invalid condition XContent, ["
-                    + AlwaysCondition.TYPE + "] condition should not parse with a body");
+                    + InternalAlwaysCondition.TYPE + "] condition should not parse with a body");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("expected an empty object but found [foo]"));
         }

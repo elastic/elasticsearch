@@ -18,14 +18,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -76,7 +77,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
         // code version in the transport or tribe client - the controller process won't be running.
         if (enabled && XPackPlugin.transportClientMode(environment.settings()) == false
-                && XPackPlugin.isTribeClientNode(environment.settings()) == false) {
+                && XPackClientActionPlugin.isTribeClientNode(environment.settings()) == false) {
             try {
                 if (isRunningOnMlPlatform(true)) {
                     NativeController nativeController = NativeControllerHolder.getNativeController(environment);
@@ -110,7 +111,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackPlugin.MACHINE_LEARNING;
+        return XpackField.MACHINE_LEARNING;
     }
 
     @Override
@@ -136,7 +137,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.getMetaData().custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
 
         // Handle case when usage is called but MlMetadata has not been installed yet
         if (mlMetadata == null) {
@@ -161,7 +162,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
         public Usage(boolean available, boolean enabled, Map<String, Object> jobsUsage,
                        Map<String, Object> datafeedsUsage) {
-            super(XPackPlugin.MACHINE_LEARNING, available, enabled);
+            super(XpackField.MACHINE_LEARNING, available, enabled);
             this.jobsUsage = Objects.requireNonNull(jobsUsage);
             this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);
         }

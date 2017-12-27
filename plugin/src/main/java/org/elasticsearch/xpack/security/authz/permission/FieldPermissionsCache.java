@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 /**
  * A service for managing the caching of {@link FieldPermissions} as these may often need to be combined or created and internally they

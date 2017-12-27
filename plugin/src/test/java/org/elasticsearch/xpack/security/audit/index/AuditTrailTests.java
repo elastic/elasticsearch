@@ -29,7 +29,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -87,7 +87,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/.security/_search",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, EXECUTE_USER));
+                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, EXECUTE_USER));
             fail("request should have failed");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -109,7 +109,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
             getRestClient().performRequest("GET", "/.security/_search",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, ""));
+                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));

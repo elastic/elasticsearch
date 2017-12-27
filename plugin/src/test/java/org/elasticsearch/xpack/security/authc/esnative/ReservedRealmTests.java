@@ -17,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -241,20 +240,20 @@ public class ReservedRealmTests extends ESTestCase {
     public void testIsReserved() {
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
-        assertThat(ReservedRealm.isReserved(principal, Settings.EMPTY), is(true));
+        assertThat(ClientReservedRealm.isReserved(principal, Settings.EMPTY), is(true));
 
         final String notExpected = randomFrom("foobar", "", randomAlphaOfLengthBetween(1, 30));
-        assertThat(ReservedRealm.isReserved(notExpected, Settings.EMPTY), is(false));
+        assertThat(ClientReservedRealm.isReserved(notExpected, Settings.EMPTY), is(false));
     }
 
     public void testIsReservedDisabled() {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
-        assertThat(ReservedRealm.isReserved(principal, settings), is(false));
+        assertThat(ClientReservedRealm.isReserved(principal, settings), is(false));
 
         final String notExpected = randomFrom("foobar", "", randomAlphaOfLengthBetween(1, 30));
-        assertThat(ReservedRealm.isReserved(notExpected, settings), is(false));
+        assertThat(ClientReservedRealm.isReserved(notExpected, settings), is(false));
     }
 
     public void testGetUsers() {

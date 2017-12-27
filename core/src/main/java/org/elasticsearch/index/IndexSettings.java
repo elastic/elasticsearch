@@ -132,11 +132,11 @@ public final class IndexSettings {
 
     /**
      * Index setting describing the maximum number of terms that can be used in Terms Query.
-     * The default maximum of 2000 terms is defensive, as extra processing and memory is involved
+     * The default maximum of 65536 terms is defensive, as extra processing and memory is involved
      * for each additional term, and a large number of terms degrade the cluster performance.
      */
     public static final Setting<Integer> MAX_TERMS_COUNT_SETTING =
-        Setting.intSetting("index.max_terms_count", 2000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.max_terms_count", 65536, 1, Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter

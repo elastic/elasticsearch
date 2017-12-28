@@ -192,7 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final GlobalCheckpointTracker globalCheckpointTracker;
 
     protected volatile ShardRouting shardRouting;
-    protected final AtomicReference<IndexShardState> state;
+    protected volatile IndexShardState state;
     protected volatile long primaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
@@ -289,7 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
-        state = new AtomicReference<>(IndexShardState.CREATED);
+        state = IndexShardState.CREATED;
         this.path = path;
         this.circuitBreakerService = circuitBreakerService;
         /* create engine config */
@@ -404,7 +404,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
             }
 
-            if (state.get() == IndexShardState.POST_RECOVERY && newRouting.active()) {
+            if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
                 // we want to refresh *before* we move to internal STARTED state
                 try {
@@ -416,16 +416,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
                     globalCheckpointTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());
                 }
-                changeState(IndexShardState.POST_RECOVERY, IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-            } else if (state.get() == IndexShardState.RELOCATED &&
+
+                changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+            } else if (state == IndexShardState.RELOCATED &&
                 (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
                 // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
                 // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
                 // active primaries.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
-            assert newRouting.active() == false || state.get() == IndexShardState.STARTED || state.get() == IndexShardState.RELOCATED ||
-                state.get() == IndexShardState.PROMOTING || state.get() == IndexShardState.CLOSED :
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.PROMOTING || state == IndexShardState.CLOSED :
                 "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
@@ -459,8 +460,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * incremented.
                      */
                     // to prevent primary relocation handoff while resync is not completed
-                    changeState(IndexShardState.STARTED, IndexShardState.PROMOTING, "Promoting to primary");
-
+                    final IndexShardState prevState = changeState(IndexShardState.PROMOTING, "Promoting to primary");
+                    if (prevState != IndexShardState.STARTED) {
+                        throw new IllegalIndexShardStateException(shardId, prevState, "cannot start resync while it's already in progress");
+                    }
                     indexShardOperationPermits.asyncBlockOperations(
                         30,
                         TimeUnit.MINUTES,
@@ -494,16 +497,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         logger.info("primary-replica resync completed with {} operations",
                                             resyncTask.getResyncedOperations());
                                         synchronized (mutex) {
-                                            changeState(IndexShardState.PROMOTING, IndexShardState.STARTED, "Resync was completed");
+                                            final IndexShardState prevState = changeState(IndexShardState.STARTED, "Resync is completed");
+                                            if (prevState != IndexShardState.PROMOTING) {
+                                                throw new IllegalIndexShardStateException(shardId, prevState, "primary-replica resync finished but was not started");
+                                            }
                                         }
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
                                         synchronized (mutex) {
-                                            changeState(IndexShardState.PROMOTING, IndexShardState.STARTED, "Resync was failed");
+                                            final IndexShardState prevState = changeState(IndexShardState.STARTED, "Resync is failed");
+                                            if (prevState != IndexShardState.PROMOTING) {
+                                                throw new IllegalIndexShardStateException(shardId, prevState, "primary-replica resync finished but was not started");
+                                            }
                                         }
-                                        if (state.get() == IndexShardState.CLOSED) {
+                                        if (state == IndexShardState.CLOSED) {
                                             // ignore, shutting down
                                         } else {
                                             failShard("exception during primary-replica resync", e);
@@ -534,14 +543,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
      */
-    public void markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
+    public IndexShardState markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
         IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
-            final IndexShardState state = state();
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
             }
-            if (state == IndexShardState.STARTED) {
+            if (state == IndexShardState.STARTED || state == IndexShardState.PROMOTING) {
                 throw new IndexShardStartedException(shardId);
             }
             if (state == IndexShardState.RELOCATED) {
@@ -554,7 +562,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new IndexShardRecoveringException(shardId);
             }
             this.recoveryState = recoveryState;
-            changeState(IndexShardState.CREATED, IndexShardState.RECOVERING, reason);
+            return changeState(IndexShardState.RECOVERING, reason);
         }
     }
 
@@ -585,7 +593,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
-                        changeState(IndexShardState.STARTED, IndexShardState.RELOCATED, reason);
+                        changeState(IndexShardState.RELOCATED, reason);
                     }
                     globalCheckpointTracker.completeRelocationHandoff();
                 } catch (final Exception e) {
@@ -607,11 +615,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void verifyRelocatingState() {
-        final IndexShardState state = state();
-        if (state == IndexShardState.PROMOTING) {
-            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
-                ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
-        }
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }
@@ -629,26 +632,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Override
     public IndexShardState state() {
-        return state.get();
+        return state;
     }
 
     /**
      * Changes the state of the current shard
      *
-     * @param expectedState the expected current state of this shard
-     * @param newState      the new shard state
-     * @param reason        the reason for the state change
+     * @param newState the new shard state
+     * @param reason   the reason for the state change
+     * @return the previous shard state
      */
-    private void changeState(IndexShardState expectedState, IndexShardState newState, String reason) {
+    private IndexShardState changeState(IndexShardState newState, String reason) {
         assert Thread.holdsLock(mutex);
-        final IndexShardState currentState = state();
-        logger.debug("state: [{}]->[{}], reason [{}]", currentState, newState, reason);
-        final boolean updated = this.state.compareAndSet(expectedState, newState);
-        if (updated == false) {
-            throw new IllegalIndexShardStateException(shardId, currentState,
-                "Unable to change state, expected state [{}], was [{}], reason to change [{}]", expectedState, currentState, reason);
-        }
-        this.indexEventListener.indexShardStateChanged(this, expectedState, newState, reason);
+        logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
+        IndexShardState previousState = state;
+        state = newState;
+        this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
+        return previousState;
     }
 
     public Engine.IndexResult applyIndexOperationOnPrimary(long version, VersionType versionType, SourceToParse sourceToParse,
@@ -987,7 +987,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         Engine engine = getEngine();
         if (engine.isRecovering()) {
-            throw new IllegalIndexShardStateException(shardId(), state.get(), "syncFlush is only allowed if the engine is not recovery" +
+            throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +
                 " from translog");
         }
         return engine.syncFlush(syncId, expectedCommitId);
@@ -1013,7 +1013,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine.isRecovering()) {
             throw new IllegalIndexShardStateException(
                     shardId(),
-                    state.get(),
+                    state,
                     "flush is only allowed if the engine is not recovery from translog");
         }
         final long time = System.nanoTime();
@@ -1089,7 +1089,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
     public Engine.IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException {
-        final IndexShardState state = state(); // one time volatile read
+        IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.PROMOTING || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
             return getEngine().acquireIndexCommit(flushFirst);
@@ -1172,7 +1172,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
-                changeState(state(), IndexShardState.CLOSED, reason);
+                changeState(IndexShardState.CLOSED, reason);
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -1191,11 +1191,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (mutex) {
-            final IndexShardState state = state();
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
             }
-            if (state == IndexShardState.STARTED) {
+            if (state == IndexShardState.STARTED || state == IndexShardState.PROMOTING) {
                 throw new IndexShardStartedException(shardId);
             }
             if (state == IndexShardState.RELOCATED) {
@@ -1206,7 +1205,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // responded to in addRefreshListener.
             getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
-            changeState(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, reason);
+            changeState(IndexShardState.POST_RECOVERY, reason);
         }
         return this;
     }
@@ -1215,7 +1214,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * called before starting to copy index files over
      */
     public void prepareForIndexRecovery() {
-        final IndexShardState state = state();
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1312,7 +1310,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
-        final IndexShardState state = state();
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1387,7 +1384,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void performRecoveryRestart() throws IOException {
         synchronized (mutex) {
-            final IndexShardState state = state();
             if (state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
@@ -1435,7 +1431,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
-        final IndexShardState state = state();
+        IndexShardState state = this.state; // one time volatile read
         if (readAllowedStates.contains(state) == false) {
             throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
@@ -1443,11 +1439,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /** returns true if the {@link IndexShardState} allows reading */
     public boolean isReadAllowed() {
-        return readAllowedStates.contains(state.get());
+        return readAllowedStates.contains(state);
     }
 
     private void ensureWriteAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
-        final IndexShardState state = state();
+        IndexShardState state = this.state; // one time volatile read
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
             verifyPrimary();
@@ -1487,7 +1483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void verifyNotClosed(Exception suppressed) throws IllegalIndexShardStateException {
-        final IndexShardState state = state();
+        IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.CLOSED) {
             final IllegalIndexShardStateException exc = new IndexShardClosedException(shardId, "operation only allowed when not closed");
             if (suppressed != null) {
@@ -1498,7 +1494,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     protected final void verifyActive() throws IllegalIndexShardStateException {
-        final IndexShardState state = state();
+        IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.PROMOTING && state != IndexShardState.RELOCATED) {
             throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard is active");
         }
@@ -1672,7 +1668,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void handleRefreshException(Exception e) {
-        final IndexShardState state = state();
         if (e instanceof AlreadyClosedException) {
             // ignore
         } else if (e instanceof RefreshFailedEngineException) {
@@ -1803,7 +1798,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeSyncGlobalCheckpoint(final String reason) {
         verifyPrimary();
         verifyNotClosed();
-        if (state.get() == IndexShardState.RELOCATED) {
+        if (state == IndexShardState.RELOCATED) {
             return;
         }
         // only sync if there are not operations in flight
@@ -1939,7 +1934,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (!status.clean) {
-                if (state.get() == IndexShardState.CLOSED) {
+                if (state == IndexShardState.CLOSED) {
                     // ignore if closed....
                     return;
                 }
@@ -2112,7 +2107,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
-            if (state.get() == IndexShardState.CLOSED) {
+            if (state == IndexShardState.CLOSED) {
                 throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
             assert this.currentEngineReference.get() == null;
@@ -2367,7 +2362,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final AbstractRunnable flush = new AbstractRunnable() {
                         @Override
                         public void onFailure(final Exception e) {
-                            if (state.get() != IndexShardState.CLOSED) {
+                            if (state != IndexShardState.CLOSED) {
                                 logger.warn("failed to flush index", e);
                             }
                         }
@@ -2389,7 +2384,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final AbstractRunnable roll = new AbstractRunnable() {
                         @Override
                         public void onFailure(final Exception e) {
-                            if (state.get() != IndexShardState.CLOSED) {
+                            if (state != IndexShardState.CLOSED) {
                                 logger.warn("failed to roll translog generation", e);
                             }
                         }

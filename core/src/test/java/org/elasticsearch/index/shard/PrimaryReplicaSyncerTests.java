@@ -82,7 +82,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         logger.info("Total ops: {}, global checkpoint: {}", numDocs, globalCheckPoint);
 
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-        shard.state.set(IndexShardState.PROMOTING);
+        shard.state = IndexShardState.PROMOTING;
         syncer.resync(shard, fut);
         fut.get();
 
@@ -127,7 +127,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
             new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
-        shard.state.set(IndexShardState.PROMOTING);
+        shard.state = IndexShardState.PROMOTING;
 
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
         threadPool.generic().execute(() -> {

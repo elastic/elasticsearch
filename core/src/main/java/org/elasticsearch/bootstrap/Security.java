@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.UberPluginInfo;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -138,16 +139,13 @@ final class Security {
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
         // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
-        if (Files.exists(environment.pluginsFile())) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
-                for (Path plugin : stream) {
-                    if (pluginsAndModules.add(plugin) == false) {
-                        throw new IllegalStateException("duplicate plugin: " + plugin);
-                    }
-                }
-            }
-        }
+        Set<Path> pluginsAndModules = new LinkedHashSet<>();
+
+        PluginInfo.extractAllPlugins(environment.pluginsFile())
+            .stream()
+            .map((info) -> info.getPath(environment.pluginsFile()))
+            .forEach(pluginsAndModules::add);
+
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
                 for (Path module : stream) {

@@ -37,7 +37,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
@@ -53,25 +53,25 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesNameMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir);
+        PluginTestUtil.writePluginProperties(pluginDir);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
 
-        PluginTestUtil.writeProperties(pluginDir, "name", "");
+        PluginTestUtil.writePluginProperties(pluginDir, "name", "");
         e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
     }
 
     public void testReadFromPropertiesDescriptionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir, "name", "fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir, "name", "fake-plugin");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[description] is missing"));
     }
 
     public void testReadFromPropertiesVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 pluginDir, "description", "fake desc", "name", "fake-plugin");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[version] is missing"));
@@ -79,7 +79,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0");
@@ -89,7 +89,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
             "elasticsearch.version", Version.CURRENT.toString(),
@@ -101,7 +101,7 @@ public class PluginInfoTests extends ESTestCase {
     public void testReadFromPropertiesJavaVersionIncompatible() throws Exception {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", pluginName,
             "elasticsearch.version", Version.CURRENT.toString(),
@@ -115,7 +115,7 @@ public class PluginInfoTests extends ESTestCase {
     public void testReadFromPropertiesBadJavaVersionFormat() throws Exception {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
                 "description", "fake desc",
                 "name", pluginName,
                 "elasticsearch.version", Version.CURRENT.toString(),
@@ -129,7 +129,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "version", "1.0",
             "name", "my_plugin",
@@ -140,7 +140,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesOldElasticsearchVersion() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
@@ -151,7 +151,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
@@ -163,11 +163,11 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo(null, "c", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo(null, "b", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo(null, "e", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo(null, "a", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo(null, "d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
@@ -177,7 +177,7 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testUnknownProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writeProperties(pluginDir,
+        PluginTestUtil.writePluginProperties(pluginDir,
             "extra", "property",
             "unknown", "property",
             "description", "fake desc",

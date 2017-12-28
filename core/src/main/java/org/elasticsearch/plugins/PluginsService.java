@@ -34,7 +34,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -88,7 +87,8 @@ public class PluginsService extends AbstractComponent {
 
     /**
      * Constructs a new PluginService
-     * @param settings The settings of the system
+     *
+     * @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
@@ -103,7 +103,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false, false);
+            PluginInfo pluginInfo = new PluginInfo(null, pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -215,7 +215,9 @@ public class PluginsService extends AbstractComponent {
         return builders;
     }
 
-    /** Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}. */
+    /**
+     * Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}.
+     */
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
@@ -272,16 +274,16 @@ public class PluginsService extends AbstractComponent {
         Set<Bundle> bundles = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {
-                PluginInfo info = PluginInfo.readFromProperties(module);
+                PluginInfo info = PluginInfo.readFromProperties(null, module);
                 Set<URL> urls = new LinkedHashSet<>();
                 // gather urls for jar files
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(module, "*.jar")) {
                     for (Path jar : jarStream) {
                         // normalize with toRealPath to get symlinks out of our hair
                         URL url = jar.toRealPath().toUri().toURL();
-                            if (urls.add(url) == false) {
-                                throw new IllegalStateException("duplicate codebase: " + url);
-                            }
+                        if (urls.add(url) == false) {
+                            throw new IllegalStateException("duplicate codebase: " + url);
+                        }
                     }
                 }
                 if (bundles.add(new Bundle(info, urls)) == false) {
@@ -304,16 +306,20 @@ public class PluginsService extends AbstractComponent {
                 final String fileName = removing.getFileName().toString();
                 final String name = fileName.substring(1 + fileName.indexOf("-"));
                 final String message = String.format(
-                        Locale.ROOT,
-                        "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
-                        removing,
-                        name);
+                    Locale.ROOT,
+                    "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
+                    removing,
+                    name);
                 throw new IllegalStateException(message);
             }
         }
     }
 
     static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
+        return getPluginBundles(pluginsDirectory, Collections.emptySet());
+    }
+
+    static Set<Bundle> getPluginBundles(Path pluginsDirectory, Set<String> excludes) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
 
         // TODO: remove this leniency, but tests bogusly rely on it
@@ -325,36 +331,24 @@ public class PluginsService extends AbstractComponent {
 
         checkForFailedPluginRemovals(pluginsDirectory);
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
-            for (Path plugin : stream) {
-                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
-                    continue;
-                }
-                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-                final PluginInfo info;
-                try {
-                    info = PluginInfo.readFromProperties(plugin);
-                } catch (IOException e) {
-                    throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                        + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
-                }
-
-                Set<URL> urls = new LinkedHashSet<>();
-                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                    for (Path jar : jarStream) {
-                        // normalize with toRealPath to get symlinks out of our hair
-                        URL url = jar.toRealPath().toUri().toURL();
-                        if (urls.add(url) == false) {
-                            throw new IllegalStateException("duplicate codebase: " + url);
-                        }
+        List<PluginInfo> infos = PluginInfo.extractAllPlugins(pluginsDirectory, excludes);
+        for (PluginInfo info : infos) {
+            Path plugin = info.getPath(pluginsDirectory);
+            logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+            Set<URL> urls = new LinkedHashSet<>();
+            try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                for (Path jar : jarStream) {
+                    // normalize with toRealPath to get symlinks out of our hair
+                    URL url = jar.toRealPath().toUri().toURL();
+                    if (urls.add(url) == false) {
+                        throw new IllegalStateException("duplicate codebase: " + url);
                     }
                 }
-                if (bundles.add(new Bundle(info, urls)) == false) {
-                    throw new IllegalStateException("duplicate plugin: " + info);
-                }
+            }
+            if (bundles.add(new Bundle(info, urls)) == false) {
+                throw new IllegalStateException("duplicate plugin: " + info);
             }
         }
-
         return bundles;
     }
 

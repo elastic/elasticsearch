@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -29,8 +30,11 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.
@@ -56,16 +60,33 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            terminal.println(Terminal.Verbosity.SILENT, plugin.getFileName().toString());
-            try {
-                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
-                terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
-            } catch (IllegalArgumentException e) {
-                if (e.getMessage().contains("incompatible with version")) {
-                    terminal.println("WARNING: " + e.getMessage());
-                } else {
-                    throw e;
+            if (UberPluginInfo.isUberPlugin(plugin)) {
+                UberPluginInfo info = UberPluginInfo.readFromProperties(plugin);
+                Set<String> subPlugins = Arrays.stream(info.getPlugins()).collect(Collectors.toSet());
+                try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(plugin)) {
+                    for (Path subPlugin : subPaths) {
+                        if (subPlugins.contains(subPlugin.getFileName().toString())) {
+                            printPlugin(env, terminal, subPlugin, info.getName());
+                        }
+                    }
                 }
+            } else {
+                printPlugin(env, terminal, plugin, null);
+            }
+        }
+    }
+
+    private void printPlugin(Environment env, Terminal terminal, Path plugin, @Nullable String uberPlugin) throws IOException {
+        String name = (uberPlugin != null ? uberPlugin + ":" : "") + plugin.getFileName().toString();
+        terminal.println(Terminal.Verbosity.SILENT, name);
+        try {
+            PluginInfo info = PluginInfo.readFromProperties(uberPlugin, env.pluginsFile().resolve(plugin.toAbsolutePath()));
+            terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage().contains("incompatible with version")) {
+                terminal.println("WARNING: " + e.getMessage());
+            } else {
+                throw e;
             }
         }
     }

@@ -22,20 +22,28 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +55,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
+    private final String uberPlugin;
     private final String name;
     private final String description;
     private final String version;
@@ -57,6 +66,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     /**
      * Construct plugin info.
      *
+     * @param uberPlugin          the name of the uber plugin or null if this plugin is a standalone plugin
      * @param name                the name of the plugin
      * @param description         a description of the plugin
      * @param version             the version of Elasticsearch the plugin is built for
@@ -64,8 +74,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param hasNativeController whether or not the plugin has a native controller
      * @param requiresKeystore    whether or not the plugin requires the elasticsearch keystore to be created
      */
-    public PluginInfo(String name, String description, String version, String classname,
+    public PluginInfo(@Nullable String uberPlugin, String name, String description, String version, String classname,
                       boolean hasNativeController, boolean requiresKeystore) {
+        this.uberPlugin = uberPlugin;
         this.name = name;
         this.description = description;
         this.version = version;
@@ -81,6 +92,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @throws IOException if an I/O exception occurred reading the plugin info from the stream
      */
     public PluginInfo(final StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            this.uberPlugin = in.readOptionalString();
+        } else {
+            this.uberPlugin = null;
+        }
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
@@ -99,6 +115,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(uberPlugin);
+        }
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
@@ -111,7 +130,80 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
     }
 
-    /** reads (and validates) plugin metadata descriptor file */
+    /**
+     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding uber-plugins if needed.
+     * @param rootPath the path where the plugins are installed
+     * @return A list of all plugins installed in the {@code rootPath}
+     * @throws IOException if an I/O exception occurred reading the plugin descriptors
+     */
+    public static List<PluginInfo> extractAllPlugins(final Path rootPath) throws IOException {
+        return extractAllPlugins(rootPath, Collections.emptySet());
+    }
+
+    /**
+     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding uber-plugins if needed.
+     * @param rootPath the path where the plugins are installed
+     * @param excludePlugins the set of plugins names to exclude
+     * @return A list of all plugins installed in the {@code rootPath}
+     * @throws IOException if an I/O exception occurred reading the plugin descriptors
+     */
+    public static List<PluginInfo> extractAllPlugins(final Path rootPath, final Set<String> excludePlugins) throws IOException {
+        final List<PluginInfo> plugins = new LinkedList<>(); // order is already lost, but some filesystems have it
+        final Set<String> seen = new HashSet<>();
+        if (Files.exists(rootPath)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
+                for (Path plugin : stream) {
+                    if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                        continue;
+                    }
+                    if (excludePlugins.contains(plugin.getFileName().toString())) {
+                        continue;
+                    }
+                    if (UberPluginInfo.isUberPlugin(plugin)) {
+                        final UberPluginInfo uberInfo;
+                        try {
+                            uberInfo = UberPluginInfo.readFromProperties(plugin);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("Could not load uber plugin descriptor for existing uber plugin ["
+                                + plugin.getFileName() + "].", e);
+                        }
+                        Set<String> subPlugins = Arrays.stream(uberInfo.getPlugins()).collect(Collectors.toSet());
+                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
+                            for (Path subPlugin : subStream) {
+                                String filename = subPlugin.getFileName().toString();
+                                if (UberPluginInfo.ES_UBER_PLUGIN_PROPERTIES.equals(filename) ||
+                                        FileSystemUtils.isDesktopServicesStore(plugin)) {
+                                    continue;
+                                }
+                                if (subPlugins.contains(filename) == false) {
+                                    throw new IllegalStateException(
+                                        "invalid plugin: " + subPlugin + " for uber-plugin: " + uberInfo.getName());
+                                }
+                                final PluginInfo info = PluginInfo.readFromProperties(uberInfo.getName(), subPlugin);
+                                if (seen.add(info.getName()) == false) {
+                                    throw new IllegalStateException("duplicate plugin: " + info.getName());
+                                }
+                                plugins.add(info);
+                            }
+                        }
+                    } else {
+                        final PluginInfo info;
+                        try {
+                            info = PluginInfo.readFromProperties(plugin);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
+                                + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+                        }
+                        if (seen.add(info.getName()) == false) {
+                            throw new IllegalStateException("duplicate plugin: " + plugin);
+                        }
+                        plugins.add(info);
+                    }
+                }
+            }
+        }
+        return plugins;
+    }
 
     /**
      * Reads and validates the plugin descriptor file.
@@ -121,6 +213,18 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
     public static PluginInfo readFromProperties(final Path path) throws IOException {
+        return readFromProperties(null, path);
+    }
+
+    /**
+     * Reads and validates the plugin descriptor file.
+     *
+     * @param uberPlugin the name of the uber plugin or null if this plugin is a standalone plugin
+     * @param path the path to the root directory for the plugin
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    public static PluginInfo readFromProperties(@Nullable final String uberPlugin, final Path path) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
@@ -216,7 +320,25 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(name, description, version, classname, hasNativeController, requiresKeystore);
+        return new PluginInfo(uberPlugin, name, description, version, classname, hasNativeController, requiresKeystore);
+    }
+
+    /**
+     * Resolves {@code rootPath} to the path where the plugin should be installed
+     * @param rootPath The root path for all plugins
+     * @return The path of this plugin
+     */
+    public Path getPath(Path rootPath) {
+        return uberPlugin != null ? rootPath.resolve(uberPlugin).resolve(name) : rootPath.resolve(name);
+    }
+
+    /**
+     * The name of the uber-plugin that installed this plugin or null if this plugin is a standalone plugin.
+     *
+     * @return The name of the uber-plugin
+     */
+    public String getUberPlugin() {
+        return uberPlugin;
     }
 
     /**
@@ -226,6 +348,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * The name of the plugin prefixed with the {@code uberPlugin} name.
+     * @return the full name of the plugin
+     */
+    public String getFullName() {
+        return (uberPlugin != null ? uberPlugin + ":" : "")  + name;
     }
 
     /**
@@ -277,6 +407,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
+            if (uberPlugin != null) {
+                builder.field("uber_plugin", uberPlugin);
+            }
             builder.field("name", name);
             builder.field("version", version);
             builder.field("description", description);
@@ -309,15 +442,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        final StringBuilder information = new StringBuilder()
-                .append("- Plugin information:\n")
-                .append("Name: ").append(name).append("\n")
-                .append("Description: ").append(description).append("\n")
-                .append("Version: ").append(version).append("\n")
-                .append("Native Controller: ").append(hasNativeController).append("\n")
-                .append("Requires Keystore: ").append(requiresKeystore).append("\n")
-                .append(" * Classname: ").append(classname);
+        final StringBuilder information = new StringBuilder().append("- Plugin information:\n");
+        if (uberPlugin != null) {
+            information.append("Uber Plugin: ").append(uberPlugin).append("\n");
+        }
+        information
+            .append("Name: ").append(name).append("\n")
+            .append("Description: ").append(description).append("\n")
+            .append("Version: ").append(version).append("\n")
+            .append("Native Controller: ").append(hasNativeController).append("\n")
+            .append("Requires Keystore: ").append(requiresKeystore).append("\n")
+            .append(" * Classname: ").append(classname);
         return information.toString();
     }
-
 }

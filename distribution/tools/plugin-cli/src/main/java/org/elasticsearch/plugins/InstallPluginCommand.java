@@ -74,6 +74,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.plugins.UberPluginInfo.ES_UBER_PLUGIN_PROPERTIES;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
@@ -86,7 +87,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * </ul>
  *
  * Plugins are packaged as zip files. Each packaged plugin must contain a
- * plugin properties file. See {@link PluginInfo}.
+ * plugin properties file See {@link PluginInfo} or an uber-plugin properties file See {@link UberPluginInfo}.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -104,6 +105,11 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * files specific to the plugin. The config files be installed into a subdirectory of the
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
+ * <p>
+ * If the plugin is an uber-plugin, the installation process installs each sub-plugin separately
+ * inside the uber-plugin directory. The {@code bin} and {@code config} directory are also moved
+ * inside the uber-plugin directory.
+ * </p>
  */
 class InstallPluginCommand extends EnvironmentAwareCommand {
 
@@ -526,22 +532,43 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return Files.createTempDirectory(pluginsDir, ".installing-");
     }
 
-    /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
-        // read and validate the plugin descriptor
-        PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
-
-        // checking for existing version of the plugin
-        final Path destination = env.pluginsFile().resolve(info.getName());
+    // checking for existing version of the plugin
+    private void verifyPluginName(Path pluginPath, String pluginName, String installDirName) throws UserException, IOException {
+        final Path destination = pluginPath.resolve(pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
                 destination.toAbsolutePath(),
-                info.getName());
+                pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }
+        // checks uber plugins too
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginPath)) {
+            for (Path plugin : stream) {
+                if (installDirName.equals(plugin.getFileName().toString())) {
+                    continue;
+                }
+                if (UberPluginInfo.isUberPlugin(plugin)) {
+                    if (Files.exists(plugin.resolve(pluginName))) {
+                        final String message = String.format(
+                            Locale.ROOT,
+                            "plugin directory [%s] already exists; if you need to update the plugin, " +
+                                "uninstall it first using command 'remove %s'",
+                            destination.toAbsolutePath(),
+                            pluginName);
+                        throw new UserException(PLUGIN_EXISTS, message);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Verify that the plugin can be installed with no errors. */
+    private void verify(Terminal terminal, Path pluginRoot, PluginInfo info, boolean isBatch, Environment env) throws Exception {
+        Path excludePath = info.getUberPlugin() != null ? pluginRoot.getParent() : pluginRoot;
+        verifyPluginName(env.pluginsFile(), info.getName(), excludePath.getFileName().toString());
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
@@ -555,7 +582,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
 
         // check for jar hell before any copying
-        jarHellCheck(pluginRoot, env.pluginsFile());
+        jarHellCheck(info, pluginRoot, env.pluginsFile());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user
@@ -563,17 +590,18 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(policy)) {
             PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
         }
-
-        return info;
     }
 
     /** check a candidate plugin for jar hell before installing it */
-    void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+    void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
-        // read existing bundles. this does some checks on the installation too.
-        PluginsService.getPluginBundles(pluginsDir);
+
+        // read existing bundles excluding the current candidate.
+        // this does some checks on the installation too.
+        Path excludePath = candidateInfo.getUberPlugin() != null ? candidate.getParent() : candidate;
+        PluginsService.getPluginBundles(pluginsDir, Collections.singleton(excludePath.getFileName().toString()));
 
         // add plugin jars to the list
         Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
@@ -589,62 +617,38 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         JarHell.checkJarHell(jars);
     }
 
-    /**
-     * Installs the plugin from {@code tmpRoot} into the plugins dir.
-     * If the plugin has a bin dir and/or a config dir, those are copied.
-     */
     private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {
         List<Path> deleteOnFailure = new ArrayList<>();
         deleteOnFailure.add(tmpRoot);
-
         try {
-            PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
-            final Path destination = env.pluginsFile().resolve(info.getName());
+            if (UberPluginInfo.isUberPlugin(tmpRoot)) {
+                final UberPluginInfo uberInfo = UberPluginInfo.readFromProperties(tmpRoot);
+                verifyPluginName(env.pluginsFile(), uberInfo.getName(), tmpRoot.getFileName().toString());
+                final Path uberPath = env.pluginsFile().resolve(uberInfo.getName());
+                terminal.println(VERBOSE, uberInfo.toString());
 
-            Path tmpBinDir = tmpRoot.resolve("bin");
-            if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(info.getName());
-                deleteOnFailure.add(destBinDir);
-                installBin(info, tmpBinDir, destBinDir);
-            }
+                // creates the uber-plugin directory where all plugins are copied
+                Files.createDirectory(uberPath);
+                deleteOnFailure.add(uberPath);
+                setFileAttributes(uberPath, PLUGIN_DIR_PERMS);
 
-            Path tmpConfigDir = tmpRoot.resolve("config");
-            if (Files.exists(tmpConfigDir)) {
-                // some files may already exist, and we don't remove plugin config files on plugin removal,
-                // so any installed config files are left on failure too
-                installConfig(info, tmpConfigDir, env.configFile().resolve(info.getName()));
-            }
+                // copy the uber-plugin properties file in the uber-plugin directory
+                Path uberInfoDest = uberPath.resolve(ES_UBER_PLUGIN_PROPERTIES);
+                Files.copy(tmpRoot.resolve(ES_UBER_PLUGIN_PROPERTIES), uberInfoDest);
+                setFileAttributes(uberInfoDest, PLUGIN_FILES_PERMS);
 
-            Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
-            Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                    if ("bin".equals(file.getParent().getFileName().toString())) {
-                        setFileAttributes(file, BIN_FILES_PERMS);
-                    } else {
-                        setFileAttributes(file, PLUGIN_FILES_PERMS);
-                    }
-                    return FileVisitResult.CONTINUE;
+                // install all sub-plugin
+                for (String plugin : uberInfo.getPlugins()) {
+                    final PluginInfo info = PluginInfo.readFromProperties(uberInfo.getName(), tmpRoot.resolve(plugin));
+                    installPlugin(terminal, isBatch, tmpRoot.resolve(plugin), info, env, deleteOnFailure);
                 }
-
-                @Override
-                public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
-                    setFileAttributes(dir, PLUGIN_DIR_PERMS);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-
-            if (info.requiresKeystore()) {
-                KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-                if (keystore == null) {
-                    terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-                    keystore = KeyStoreWrapper.create(new char[0]);
-                    keystore.save(env.configFile());
-                }
+                // clean up installation
+                IOUtils.rm(tmpRoot);
+                terminal.println("-> Installed " + uberInfo.getName());
+            } else {
+                final PluginInfo info = PluginInfo.readFromProperties(null, tmpRoot);
+                installPlugin(terminal, isBatch, tmpRoot, info, env, deleteOnFailure);
             }
-
-            terminal.println("-> Installed " + info.getName());
-
         } catch (Exception installProblem) {
             try {
                 IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
@@ -655,12 +659,67 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
+    /**
+     * Installs the plugin from {@code tmpRoot} into the plugins dir.
+     * If the plugin has a bin dir and/or a config dir, those are copied.
+     */
+    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
+                               PluginInfo info, Environment env,  List<Path> deleteOnFailure) throws Exception {
+        verify(terminal, tmpRoot, info, isBatch, env);
+        final Path destination = info.getPath(env.pluginsFile());
+        deleteOnFailure.add(destination);
+
+        Path tmpBinDir = tmpRoot.resolve("bin");
+        if (Files.exists(tmpBinDir)) {
+            Path destBinDir = info.getPath(env.binFile());
+            deleteOnFailure.add(destBinDir);
+            installBin(info, tmpBinDir, destBinDir);
+        }
+
+        Path tmpConfigDir = tmpRoot.resolve("config");
+        if (Files.exists(tmpConfigDir)) {
+            // some files may already exist, and we don't remove plugin config files on plugin removal,
+            // so any installed config files are left on failure too
+            Path destConfigDir = info.getPath(env.configFile());
+            installConfig(info, tmpConfigDir, destConfigDir);
+        }
+
+        Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
+        Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                if ("bin".equals(file.getParent().getFileName().toString())) {
+                    setFileAttributes(file, BIN_FILES_PERMS);
+                } else {
+                    setFileAttributes(file, PLUGIN_FILES_PERMS);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
+                setFileAttributes(dir, PLUGIN_DIR_PERMS);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        if (info.requiresKeystore()) {
+            KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+            if (keystore == null) {
+                terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
+                keystore = KeyStoreWrapper.create(new char[0]);
+                keystore.save(env.configFile());
+            }
+        }
+        terminal.println("-> Installed " + info.getName());
+    }
+
+
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
-        Files.createDirectory(destBinDir);
+        Files.createDirectories(destBinDir);
         setFileAttributes(destBinDir, BIN_DIR_PERMS);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {

@@ -142,13 +142,14 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginInfo> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
-                plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                String uberPlugin = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
+                plugins.add(new PluginInfo(uberPlugin, randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean(), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
-                modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                modules.add(new PluginInfo(null, randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean(), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);

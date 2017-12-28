@@ -1,0 +1,63 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// An uber-plugin packaging example that bundles two sub-plugins in a single zip.
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+File plugins = new File(buildDir, 'plugins-unzip')
+
+// unzip the rescore plugin in a tmp directory
+task unzipRescorePlugins(type:Copy, dependsOn:':example-plugins:rescore:bundlePlugin') {
+    File pluginsRescore = new File(plugins, 'example-rescore')
+    from(zipTree(project(':example-plugins:rescore').bundlePlugin.outputs.files.singleFile))
+    eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
+    into pluginsRescore
+}
+
+// Unzip the script-expert-scoring plugin in a tmp directory
+task unzipScriptScoringPlugins(type:Copy, dependsOn:':example-plugins:script-expert-scoring:bundlePlugin') {
+    File pluginsScript = new File(plugins, 'script-expert-scoring')
+    from(zipTree(project(':example-plugins:script-expert-scoring').bundlePlugin.outputs.files.singleFile))
+    eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
+    into pluginsScript
+}
+
+// Build the uber-plugin zip from the sub-plugin directories
+task buildZip(type:Zip, dependsOn: ['unzipRescorePlugins', 'unzipScriptScoringPlugins']) {
+    from plugins
+    from 'src/main/resources/uber-plugin-descriptor.properties'
+    into 'elasticsearch'
+    includeEmptyDirs false
+}
+
+integTestCluster {
+    dependsOn buildZip
+
+    // This is important, so that all the modules are available too.
+    // There are index templates that use token filters that are in analysis-module and
+    // processors are being used that are in ingest-common module.
+    distribution = 'zip'
+
+    // Install the uber-plugin before start.
+    setupCommand 'installUberPlugin',
+            'bin/elasticsearch-plugin', 'install', 'file:' + buildZip.archivePath
+}
+check.dependsOn integTest

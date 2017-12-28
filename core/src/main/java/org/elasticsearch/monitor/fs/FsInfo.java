@@ -497,11 +497,22 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Path res = new Path();
         Set<String> seenDevices = new HashSet<>(paths.length);
         Set<String> seenMounts = new HashSet<>(paths.length);
+        boolean seenDevice;
+        boolean seenMount;
         for (Path subPath : paths) {
             if (subPath.path != null) {
-                if (!seenDevices.add(subPath.path) || !seenMounts.add(subPath.mount)) {
-                    continue; // already added numbers for this device/mount point;
-                }
+                seenDevice = !seenDevices.add(subPath.path);
+            } else {
+                seenDevice = true;
+            }
+            if (subPath.mount != null) {
+                seenMount = !seenMounts.add(subPath.mount);
+            } else {
+                seenMount = true;
+            }
+
+            if (seenMount || (seenDevice && seenMount)) {
+                continue; // already added numbers for this device/mount point;
             }
             res.add(subPath);
         }

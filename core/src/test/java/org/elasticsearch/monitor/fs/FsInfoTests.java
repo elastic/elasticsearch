@@ -49,6 +49,64 @@ public class FsInfoTests extends ESTestCase {
         assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
     }
 
+    public void testFsInfoSameDevices() {
+        FsInfo.Path[] paths = randomPaths();
+        final String path = randomAlphaOfLength(10);
+        Arrays.stream(paths).forEach(p -> p.path = path);
+        final long timestamp = randomLong();
+        FsInfo fsInfo = new FsInfo(timestamp, null, paths);
+
+        long size = Arrays.stream(paths).map(n -> n.getTotal().getBytes()).mapToLong(n -> n).sum();
+        assertThat(timestamp, equalTo(fsInfo.getTimestamp()));
+        assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
+    }
+
+    public void testFsInfoNullMount() {
+        FsInfo.Path[] paths = randomPaths();
+        paths[0].mount = null;
+        final long timestamp = randomLong();
+        FsInfo fsInfo = new FsInfo(timestamp, null, paths);
+
+        long size = Arrays.stream(paths).filter(n -> n.mount != null).map(n -> n.getTotal().getBytes()).mapToLong(n -> n).sum();
+        assertThat(timestamp, equalTo(fsInfo.getTimestamp()));
+        assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
+    }
+
+    public void testFsInfoNullDevice() {
+        FsInfo.Path[] paths = randomPaths();
+        paths[0].path = null;
+        final long timestamp = randomLong();
+        FsInfo fsInfo = new FsInfo(timestamp, null, paths);
+
+        long size = Arrays.stream(paths).map(n -> n.getTotal().getBytes()).mapToLong(n -> n).sum();
+        assertThat(timestamp, equalTo(fsInfo.getTimestamp()));
+        assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
+    }
+
+    public void testFsInfoSamePathNullDeviceNullMount() {
+        FsInfo.Path[] paths = randomPaths();
+        paths[0].path = null;
+        paths[0].mount = null;
+        final long timestamp = randomLong();
+        FsInfo fsInfo = new FsInfo(timestamp, null, paths);
+
+        long size = Arrays.stream(paths).filter(n -> n.mount != null).map(n -> n.getTotal().getBytes()).mapToLong(n -> n).sum();
+        assertThat(timestamp, equalTo(fsInfo.getTimestamp()));
+        assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
+    }
+
+    public void testFsInfoDifferentPathNullDeviceNullMount() {
+        FsInfo.Path[] paths = randomPaths();
+        paths[0].path = null;
+        paths[1].mount = null;
+        final long timestamp = randomLong();
+        FsInfo fsInfo = new FsInfo(timestamp, null, paths);
+
+        long size = Arrays.stream(paths).filter(n -> n.mount != null).map(n -> n.getTotal().getBytes()).mapToLong(n -> n).sum();
+        assertThat(timestamp, equalTo(fsInfo.getTimestamp()));
+        assertThat(size, equalTo(fsInfo.getTotal().getTotal().getBytes()));
+    }
+
     private FsInfo.Path[] randomPaths() {
         final int totalPaths = randomIntBetween(2, 4);
         FsInfo.Path[] paths = new FsInfo.Path[totalPaths];

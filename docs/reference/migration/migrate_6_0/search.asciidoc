@@ -191,3 +191,11 @@ Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
 In future versions we will return a `400 - Bad request` instead of just ignoring
 the hint.
 Scroll queries are not meant to be cached.
+
+==== Limiting the number of terms that can be used in a Terms Query request
+
+Executing a Terms Query with a lot of terms may degrade the cluster performance,
+as each additional term demands extra processing and memory.
+To safeguard against this, the maximum number of terms that can be used in a
+Terms Query request has been limited to 65536. This default maximum can be changed
+for a particular index with the index setting `index.max_terms_count`.

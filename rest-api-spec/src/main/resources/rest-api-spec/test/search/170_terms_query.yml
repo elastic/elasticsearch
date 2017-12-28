@@ -1,0 +1,58 @@
+---
+"Terms Query with No.of terms exceeding index.max_terms_count should produce a warning":
+  - skip:
+      version: " - 6.1.99"
+      reason: index.max_terms_count setting has been added in 6.2
+      features: "warnings"
+  - do:
+      indices.create:
+          index: test_index
+          body:
+              settings:
+                  number_of_shards: 1
+                  index.max_terms_count: 2
+              mappings:
+                  test_type:
+                      properties:
+                          user:
+                              type: keyword
+                          followers:
+                              type: keyword
+  - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u1"}}'
+              - '{"user": "u1", "followers": ["u2", "u3"]}'
+              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u2"}}'
+              - '{"user": "u2", "followers": ["u1", "u3", "u4"]}'
+              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u3"}}'
+              - '{"user": "u3", "followers": ["u1"]}'
+              - '{"index": {"_index": "test_index", "_type": "test_type", "_id": "u4"}}'
+              - '{"user": "u4", "followers": ["u3"]}'
+
+  - do:
+      search:
+          index: test_index
+          body: {"query" : {"terms" : {"user" : ["u1", "u2"]}}}
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+          index: test_index
+          body: {"query" : {"terms" : {"user" : ["u1", "u2", "u3"]}}}
+      warnings:
+          - "Deprecated: the number of terms [3] used in the Terms Query request has exceeded the allowed maximum of [2]. This maximum can be set by changing the [index.max_terms_count] index level setting."
+
+  - do:
+      search:
+          index: test_index
+          body: {"query" : {"terms" : {"user" : {"index" : "test_index", "type" : "test_type", "id" : "u1", "path" : "followers"}}}}
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+          index: test_index
+          body: {"query" : {"terms" : {"user" : {"index" : "test_index", "type" : "test_type", "id" : "u2", "path" : "followers"}}}}
+      warnings:
+          - "Deprecated: the number of terms [3] used in the Terms Query request has exceeded the allowed maximum of [2]. This maximum can be set by changing the [index.max_terms_count] index level setting."

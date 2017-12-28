@@ -85,8 +85,7 @@ public class MockFSIndexStore extends IndexStore {
     }
 
     private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
-            IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY
-    );
+        IndexShardState.STARTED, IndexShardState.PROMOTING, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
     private static final class Listener implements IndexEventListener {
 
         private final Map<IndexShard, Boolean> shardSet = Collections.synchronizedMap(new IdentityHashMap<>());

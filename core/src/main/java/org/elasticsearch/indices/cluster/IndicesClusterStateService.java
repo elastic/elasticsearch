@@ -589,7 +589,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         final IndexShardState state = shard.state();
-        if (shardRouting.initializing() && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)) {
+        if (shardRouting.initializing()
+            && (state == IndexShardState.STARTED || state == IndexShardState.PROMOTING || state == IndexShardState.POST_RECOVERY)) {
             // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
             // for master to confirm a shard started message (either master failover, or a cluster event before
             // we managed to tell the master we started), mark us as started

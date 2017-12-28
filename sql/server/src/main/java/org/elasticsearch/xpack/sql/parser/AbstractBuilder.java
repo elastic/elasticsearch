@@ -16,6 +16,16 @@ import org.elasticsearch.xpack.sql.util.Check;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Base parsing visitor class offering utility methods.
+ *
+ * Implementation note: ANTLR 4 generates sources with a parameterized signature that isn't really useful for SQL.
+ * That is mainly because it forces <i>each</i> visitor method to return a node inside the generated AST which
+ * might be or not the case.
+ * Since the parser generates two types of trees ({@code LogicalPlan} and {@code Expression}) plus string handling,
+ * the generic signature does not fit and does give any advantage hence why it is <i>erased</i>, each subsequent
+ * child class acting as a layer for parsing and building its respective type
+ */
 abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
 
     @Override
@@ -33,7 +43,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         }
 
         throw new ParsingException(source(ctx), "Invalid query '%s'[%s] given; expected %s but found %s",
-                        ctx.getText(), ctx.getClass().getSimpleName(), 
+                        ctx.getText(), ctx.getClass().getSimpleName(),
                         type.getSimpleName(), (result != null ? result.getClass().getSimpleName() : "null"));
     }
 
@@ -44,7 +54,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return visitList(ctxs, LogicalPlan.class);
     }
-    
+
     protected <T> List<T> visitList(List<? extends ParserRuleContext> contexts, Class<T> clazz) {
         List<T> results = new ArrayList<>(contexts.size());
         for (ParserRuleContext context : contexts) {
@@ -83,7 +93,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     }
 
     /**
-     * Extracts the actual unescaped string (literal) value of a token. 
+     * Extracts the actual unescaped string (literal) value of a token.
      */
     static String string(Token token) {
         return token == null ? null : unquoteString(token.getText());

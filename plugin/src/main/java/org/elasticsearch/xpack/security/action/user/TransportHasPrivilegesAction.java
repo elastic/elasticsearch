@@ -79,11 +79,11 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             final ClusterPrivilege rolePrivilege = userRole.cluster().privilege();
             cluster.put(checkAction, testPrivilege(checkPrivilege, rolePrivilege.getAutomaton()));
         }
+        boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
 
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
 
         final Map<String, HasPrivilegesResponse.IndexPrivileges> indices = new LinkedHashMap<>();
-        boolean allMatch = true;
         for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
             for (String index : check.getIndices()) {
                 final Map<String, Boolean> privileges = new HashMap<>();

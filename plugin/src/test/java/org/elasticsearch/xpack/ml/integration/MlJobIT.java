@@ -17,6 +17,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 
@@ -199,7 +200,7 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
@@ -244,11 +245,11 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
 
         client().performRequest("post", "_refresh");
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName + "/_count");
+        response = client().performRequest("get", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "/_count");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":0"));
@@ -273,8 +274,8 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping contains the first by_field_name
-        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX
-                + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
+        response = client().performRequest("get", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -286,8 +287,8 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping now contains both fields
-        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX
-                + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
+        response = client().performRequest("get", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -313,7 +314,8 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping contains the first by_field_name
-        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
+        response = client().performRequest("get",
+                AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -325,7 +327,8 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping now contains both fields
-        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
+        response = client().performRequest("get",
+                AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -370,7 +373,7 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob() throws Exception {
         String jobId = "delete-job-job";
-        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/indices");
@@ -407,7 +410,7 @@ public class MlJobIT extends ESRestTestCase {
     public void testDeleteJobAfterMissingIndex() throws Exception {
         String jobId = "delete-job-after-missing-index-job";
         String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/indices");
@@ -438,7 +441,7 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-after-missing-alias-job";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/aliases");
@@ -464,7 +467,7 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testMultiIndexDelete() throws Exception {
         String jobId = "multi-index-delete-job";
-        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("put", indexName + "-001");

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -124,6 +125,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try (LdapSession ldap = session(sessionFactory, user, userPass)) {
+            assertConnectionCanReconnect(ldap.getConnection());
             String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         }
@@ -163,6 +165,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try (LdapSession ldap = session(ldapFac, user, userPass)) {
+            assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -178,6 +181,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         String user = "Horatio Hornblower";
         try (LdapSession ldap = session(ldapFac, user, new SecureString("pass"))) {
+            assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -195,6 +199,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try (LdapSession ldap = session(ldapFac, user, userPass)) {
+            assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
             assertThat(groups.size(), is(1));
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));

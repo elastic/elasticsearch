@@ -16,7 +16,6 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
 
@@ -27,7 +26,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
     }
 
@@ -78,7 +77,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
             "[[type: testBooleanCoercion, field: my_boolean], [type: testBooleanCoercion, field: my_inner_boolean]," +
                 " [type: testBooleanCoercion, field: my_text, multifield: raw]]");
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
     }
 
@@ -118,7 +117,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking_60_mappings_changes.html#_unrecognized_literal_match_mapping_type_literal_options_not_silently_ignored",
             "[type: test, dynamicFieldDefinitionintegers, unknown match_mapping_type[UNKNOWN_VALUE]]");
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
     }
 

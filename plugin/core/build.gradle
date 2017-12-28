@@ -6,9 +6,16 @@ dependencies {
 
 archivesBaseName = 'x-pack-core'
 
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+//compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
 // TODO: enable this once we have tests
 test.enabled=false
-licenseHeaders.enabled = false
+
+licenseHeaders {
+  approvedLicenses << 'BCrypt (BSD-like)'
+  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+}
 
 parent.bundlePlugin {
     from jar

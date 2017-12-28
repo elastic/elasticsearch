@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse.IndexPrivileges;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
@@ -60,7 +61,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 x -> null, null);
 
         final Authentication authentication = mock(Authentication.class);
-        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         when(authentication.getUser()).thenReturn(user);
@@ -169,18 +170,10 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .cluster(ClusterPrivilege.MONITOR)
                 .build();
 
-        final HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(user.principal());
-        request.clusterPrivileges(Strings.EMPTY_ARRAY);
-        request.indexPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+        final HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices("academy")
                 .privileges("read", "write")
-                .build());
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
-
-        final HasPrivilegesResponse response = future.get();
-        assertThat(response, notNullValue());
+                .build(), Strings.EMPTY_ARRAY);
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
         final IndexPrivileges result = response.getIndexPrivileges().get(0);
@@ -261,20 +254,10 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .add(IndexPrivilege.DELETE, "apache-2016-*")
                 .build();
 
-        final HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(user.principal());
-        request.clusterPrivileges(Strings.EMPTY_ARRAY);
-        request.indexPrivileges(
-                RoleDescriptor.IndicesPrivileges.builder()
-                        .indices("apache-2016-12", "apache-2017-01")
-                        .privileges("index", "delete")
-                        .build()
-        );
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
-
-        final HasPrivilegesResponse response = future.get();
-        assertThat(response, notNullValue());
+        final HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices("apache-2016-12", "apache-2017-01")
+                .privileges("index", "delete")
+                .build(), Strings.EMPTY_ARRAY);
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
@@ -286,6 +269,39 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                                 .put("index", true).put("delete", false).map()
                 )
         ));
+    }
+
+    public void testIsCompleteMatch() throws Exception {
+        role = Role.builder("test-write")
+                .cluster(ClusterPrivilege.MONITOR)
+                .add(IndexPrivilege.READ, "read-*")
+                .add(IndexPrivilege.ALL, "all-*")
+                .build();
+
+        assertThat(hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), "monitor").isCompleteMatch(), is(true));
+        assertThat(hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), "manage").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), "monitor").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), "manage").isCompleteMatch(), is(false));
+    }
+
+    private RoleDescriptor.IndicesPrivileges indexPrivileges(String priv, String... indices) {
+        return RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indices)
+                .privileges(priv)
+                .build();
+    }
+
+    private HasPrivilegesResponse hasPrivileges(RoleDescriptor.IndicesPrivileges indicesPrivileges, String... clusterPrivileges)
+            throws Exception {
+        final HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(user.principal());
+        request.clusterPrivileges(clusterPrivileges);
+        request.indexPrivileges(indicesPrivileges);
+        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
+        action.doExecute(request, future);
+        final HasPrivilegesResponse response = future.get();
+        assertThat(response, notNullValue());
+        return response;
     }
 
     private static MapBuilder<String, Boolean> mapBuilder() {

@@ -5,19 +5,13 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DeprecationChecksTests extends ESTestCase {
@@ -33,7 +27,7 @@ public class DeprecationChecksTests extends ESTestCase {
         for (int i = 0; i < numChecksPassed; i++) {
             checks.add(() -> null);
         }
-        List<DeprecationIssue> filteredIssues = DeprecationChecks.filterChecks(checks, Supplier::get);
+        List<DeprecationIssue> filteredIssues = DeprecationInfoAction.filterChecks(checks, Supplier::get);
         assertThat(filteredIssues.size(), equalTo(numChecksFailed));
     }
 }

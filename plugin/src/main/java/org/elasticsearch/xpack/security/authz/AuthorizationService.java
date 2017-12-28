@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.Automatons;
@@ -77,7 +78,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class AuthorizationService extends AbstractComponent {
@@ -466,7 +467,7 @@ public class AuthorizationService extends AbstractComponent {
 
         if (roleNames.isEmpty()) {
             roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        } else if (roleNames.contains(ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
         } else {
             rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
@@ -587,7 +588,7 @@ public class AuthorizationService extends AbstractComponent {
 
     static boolean isSuperuser(User user) {
         return Arrays.stream(user.roles())
-                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
+                .anyMatch(ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

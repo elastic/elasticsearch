@@ -46,8 +46,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import javax.crypto.Cipher;
@@ -109,13 +109,13 @@ public final class TokenService extends AbstractComponent {
     private static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
-    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackPlugin.SECURITY +
+    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XpackField.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token expired\"";
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackPlugin.SECURITY +
+    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XpackField.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
     private static final String TYPE = "doc";
 
-    public static final String THREAD_POOL_NAME = XPackPlugin.SECURITY + "-token-key";
+    public static final String THREAD_POOL_NAME = XpackField.SECURITY + "-token-key";
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
             TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",

@@ -152,7 +152,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
             }
             Integer index = inputFieldIndexes.get(field);
             if (index == null) {
-                String msg = String.format(Locale.ROOT, "Field configured for analysis '%s' is not in the CSV header '%s'",
+                String msg = String.format(Locale.ROOT, "ThrottlerField configured for analysis '%s' is not in the CSV header '%s'",
                         field, Arrays.toString(header));
 
                 LOGGER.error(msg);

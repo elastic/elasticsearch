@@ -105,7 +105,7 @@ public class MlInitializationServiceTests extends ESTestCase {
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+                        .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().build()))
                 .build();
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);

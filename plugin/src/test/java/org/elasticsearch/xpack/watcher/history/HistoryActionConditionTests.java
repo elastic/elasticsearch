@@ -14,9 +14,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -49,13 +50,14 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
     private final Input input = simpleInput("key", 15).build();
 
-    private final Condition scriptConditionPasses = mockScriptCondition("return true;");
-    private final Condition compareConditionPasses = new CompareCondition("ctx.payload.key", CompareCondition.Op.GTE, 15);
-    private final Condition conditionPasses = randomFrom(AlwaysCondition.INSTANCE, scriptConditionPasses, compareConditionPasses);
+    private final ExecutableCondition scriptConditionPasses = mockScriptCondition("return true;");
+    private final ExecutableCondition compareConditionPasses = new CompareCondition("ctx.payload.key", CompareCondition.Op.GTE, 15);
+    private final ExecutableCondition conditionPasses = randomFrom(InternalAlwaysCondition.INSTANCE,
+                                                                   scriptConditionPasses, compareConditionPasses);
 
-    private final Condition scriptConditionFails = mockScriptCondition("return false;");
-    private final Condition compareConditionFails = new CompareCondition("ctx.payload.key", CompareCondition.Op.LT, 15);
-    private final Condition conditionFails = randomFrom(NeverCondition.INSTANCE, scriptConditionFails, compareConditionFails);
+    private final ExecutableCondition scriptConditionFails = mockScriptCondition("return false;");
+    private final ExecutableCondition compareConditionFails = new CompareCondition("ctx.payload.key", CompareCondition.Op.LT, 15);
+    private final ExecutableCondition conditionFails = randomFrom(NeverCondition.INSTANCE, scriptConditionFails, compareConditionFails);
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -88,9 +90,9 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     public void testActionConditionWithHardFailures() throws Exception {
         final String id = "testActionConditionWithHardFailures";
 
-        final Condition scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
-        final List<Condition> actionConditionsWithFailure =
-                Arrays.asList(scriptConditionFailsHard, conditionPasses, AlwaysCondition.INSTANCE);
+        final ExecutableCondition scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
+        final List<ExecutableCondition> actionConditionsWithFailure =
+                Arrays.asList(scriptConditionFailsHard, conditionPasses, InternalAlwaysCondition.INSTANCE);
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
@@ -135,7 +137,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
-        final Condition[] actionConditionsWithFailure = new Condition[] { conditionFails, conditionPasses, AlwaysCondition.INSTANCE };
+        final ExecutableCondition[] actionConditionsWithFailure = new ExecutableCondition[] {
+                conditionFails,
+                conditionPasses,
+                InternalAlwaysCondition.INSTANCE
+        };
         Collections.shuffle(Arrays.asList(actionConditionsWithFailure), random());
 
         final int failedIndex = Arrays.asList(actionConditionsWithFailure).indexOf(conditionFails);
@@ -175,13 +181,13 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
-        final List<Condition> actionConditions = new ArrayList<>();
+        final List<ExecutableCondition> actionConditions = new ArrayList<>();
         //actionConditions.add(conditionPasses);
-        actionConditions.add(AlwaysCondition.INSTANCE);
+        actionConditions.add(InternalAlwaysCondition.INSTANCE);
 
         /*
         if (randomBoolean()) {
-            actionConditions.add(AlwaysCondition.INSTANCE);
+            actionConditions.add(InternalAlwaysCondition.INSTANCE);
         }
 
         Collections.shuffle(actionConditions, random());
@@ -237,7 +243,10 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param actionConditions The conditions to add to the Watch
      */
     private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) {
-        WatchSourceBuilder source = watchBuilder().trigger(schedule(interval("5s"))).input(input).condition(AlwaysCondition.INSTANCE);
+        WatchSourceBuilder source = watchBuilder()
+                .trigger(schedule(interval("5s")))
+                .input(input)
+                .condition(InternalAlwaysCondition.INSTANCE);
 
         for (int i = 0; i < actionConditions.length; ++i) {
             source.addAction("action" + i, actionConditions[i], loggingAction(Integer.toString(i)));
@@ -256,7 +265,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param inlineScript The script to "compile" and run
      * @return Never {@code null}
      */
-    private static Condition mockScriptCondition(String inlineScript) {
+    private static ExecutableCondition mockScriptCondition(String inlineScript) {
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, inlineScript, Collections.emptyMap());
         return new ScriptCondition(script);
     }

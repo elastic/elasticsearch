@@ -18,9 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 
 public class WatcherFeatureSet implements XPackFeatureSet {
 
@@ -37,7 +36,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackPlugin.WATCHER;
+        return XpackField.WATCHER;
     }
 
     @Override
@@ -76,7 +75,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
         }
 
         public Usage(boolean available, boolean enabled, Map<String, Object> stats) {
-            super(XPackPlugin.WATCHER, available, enabled);
+            super(XpackField.WATCHER, available, enabled);
             this.stats = stats;
         }
 

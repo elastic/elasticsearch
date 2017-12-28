@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -93,7 +94,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     public void testThatConnectionToServerTypeConnectionWorks() throws IOException, NodeValidationException {
         Path home = createTempDir();
-        Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConf = home.resolve("config").resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
@@ -124,7 +125,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException, InterruptedException {
         Path home = createTempDir();
-        Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConf = home.resolve("config").resolve(XpackField.NAME);
         Files.createDirectories(xpackConf);
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());

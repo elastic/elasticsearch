@@ -143,7 +143,7 @@ public class FileRolesStore extends AbstractComponent {
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings);
                     if (descriptor != null) {
-                        if (ReservedRolesStore.isReserved(descriptor.getName())) {
+                        if (ClientReservedRoles.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
                         } else if (flsDlsLicensed == false && descriptor.isUsingDocumentOrFieldLevelSecurity()) {

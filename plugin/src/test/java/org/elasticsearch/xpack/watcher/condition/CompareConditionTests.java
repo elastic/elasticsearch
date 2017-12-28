@@ -171,7 +171,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken();
 
-        CompareCondition condition = (CompareCondition) CompareCondition.parse(ClockMock.frozen(), "_id", parser);
+        CompareCondition condition = CompareCondition.parse(ClockMock.frozen(), "_id", parser);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getPath(), is("key1.key2"));

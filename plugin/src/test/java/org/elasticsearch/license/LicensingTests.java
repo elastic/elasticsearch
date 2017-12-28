@@ -32,7 +32,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -244,7 +244,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {
         ElasticsearchSecurityException ee = expectThrows(ElasticsearchSecurityException.class, runnable);
-        assertThat(ee.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.SECURITY));
+        assertThat(ee.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XpackField.SECURITY));
         assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 

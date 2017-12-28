@@ -23,7 +23,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
@@ -160,7 +160,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
         for (XPackFeatureSet.Usage usage : Arrays.asList(mlUsage, serializedUsage)) {
             assertThat(usage, is(notNullValue()));
-            assertThat(usage.name(), is(XPackPlugin.MACHINE_LEARNING));
+            assertThat(usage.name(), is(XpackField.MACHINE_LEARNING));
             assertThat(usage.enabled(), is(true));
             assertThat(usage.available(), is(true));
             XContentSource source;
@@ -240,7 +240,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
                 .metaData(new MetaData.Builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MLMetadataField.TYPE, mlMetadataBuilder.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 

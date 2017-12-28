@@ -103,7 +103,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
             // let's run as without authorization
             try {
-                Map<String, String> headers = Collections.singletonMap(AuthenticationService.RUN_AS_USER_HEADER,
+                Map<String, String> headers = Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER,
                         SecuritySettingsSource.TEST_USER_NAME);
                 client.filterWithHeader(headers)
                         .admin().cluster().prepareHealth().get();
@@ -116,7 +116,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             Map<String, String> headers = new HashMap<>();
             headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                     new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray())));
-            headers.put(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
+            headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
             // lets set the user
             ClusterHealthResponse response = client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
             assertThat(response.isTimedOut(), is(false));
@@ -130,7 +130,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
                                     TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
+                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -154,7 +154,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                 TEST_PASSWORD_SECURE_STRING)),
-                new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
+                new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
@@ -170,7 +170,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                         new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray())));
-                headers.put(AuthenticationService.RUN_AS_USER_HEADER, "");
+                headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
                 fail("run as header should not be allowed to be empty");
@@ -186,7 +186,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                     TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, ""));
+                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
@@ -205,7 +205,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                         new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray())));
-                headers.put(AuthenticationService.RUN_AS_USER_HEADER, "idontexist");
+                headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "idontexist");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
                 fail("run as header should not accept non-existent users");
@@ -221,7 +221,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                     TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, "idontexist"));
+                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "idontexist"));
             fail("request should have failed");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));

@@ -113,8 +113,8 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -597,7 +597,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRunAsRequestWithoutLookedUpBy() {
         AuthenticateRequest request = new AuthenticateRequest("run as me");
-        roleMap.put("can run as", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        roleMap.put("can run as", ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR);
         User user = new User("run as me", Strings.EMPTY_ARRAY, new User("test user", new String[] { "can run as" }));
         Authentication authentication = new Authentication(user, new RealmRef("foo", "bar", "baz"), null);
         assertNotEquals(user.authenticatedUser(), user);
@@ -605,7 +605,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 () -> authorize(authentication, AuthenticateAction.NAME, request),
                 AuthenticateAction.NAME, "test user", "run as me"); // run as [run as me]
         verify(auditTrail).runAsDenied(user, AuthenticateAction.NAME, request,
-                new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() });
+                new String[] { ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName() });
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -777,8 +777,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSuperusersCanExecuteOperationAgainstSecurityIndex() {
-        final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
-        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final User superuser = new User("custom_admin", ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        roleMap.put(ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName(), ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
@@ -816,8 +816,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
-        final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
-        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final User superuser = new User("custom_admin", ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        roleMap.put(ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR.getName(), ClientReservedRoles.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()

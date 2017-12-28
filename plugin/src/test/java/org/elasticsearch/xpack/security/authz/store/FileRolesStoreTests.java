@@ -17,8 +17,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
@@ -302,7 +302,7 @@ public class FileRolesStoreTests extends ESTestCase {
         try {
             Path roles = getDataPath("roles.yml");
             Path home = createTempDir();
-            Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+            Path xpackConf = home.resolve("config").resolve(XpackField.NAME);
             Files.createDirectories(xpackConf);
             Path tmp = xpackConf.resolve("roles.yml");
             try (OutputStream stream = Files.newOutputStream(tmp)) {

@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
-import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchField;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -71,12 +72,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     public void testLoadMalformedWatchRecord() throws Exception {
         client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_id")
                 .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Field.TRIGGER.getPreferredName())
+                        .startObject(WatchField.TRIGGER.getPreferredName())
                         .startObject("schedule")
                         .field("cron", "0/5 * * * * ? 2050")
                         .endObject()
                         .endObject()
-                        .startObject(Watch.Field.ACTIONS.getPreferredName())
+                        .startObject(WatchField.ACTIONS.getPreferredName())
                         .endObject()
                         .endObject())
                 .get();
@@ -85,17 +86,17 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        Condition condition = AlwaysCondition.INSTANCE;
+        ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
         String index = HistoryStore.getHistoryIndexNameForTime(now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
                         .endObject()
-                        .startObject(Watch.Field.CONDITION.getPreferredName())
+                        .startObject(WatchField.CONDITION.getPreferredName())
                         .field(condition.type(), condition)
                         .endObject()
-                        .startObject(Watch.Field.INPUT.getPreferredName())
+                        .startObject(WatchField.INPUT.getPreferredName())
                         .startObject("none").endObject()
                         .endObject()
                         .endObject())
@@ -110,10 +111,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
                         .endObject()
-                        .startObject(Watch.Field.CONDITION.getPreferredName())
+                        .startObject(WatchField.CONDITION.getPreferredName())
                         .startObject("unknown").endObject()
                         .endObject()
-                        .startObject(Watch.Field.INPUT.getPreferredName())
+                        .startObject(WatchField.INPUT.getPreferredName())
                         .startObject("none").endObject()
                         .endObject()
                         .endObject())
@@ -128,10 +129,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .startObject("unknown").endObject()
                         .endObject()
-                        .startObject(Watch.Field.CONDITION.getPreferredName())
+                        .startObject(WatchField.CONDITION.getPreferredName())
                         .field(condition.type(), condition)
                         .endObject()
-                        .startObject(Watch.Field.INPUT.getPreferredName())
+                        .startObject(WatchField.INPUT.getPreferredName())
                         .startObject("none").endObject()
                         .endObject()
                         .endObject())
@@ -195,7 +196,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? 2050")))
                     .input(searchInput(request))
-                    .condition(AlwaysCondition.INSTANCE)
+                    .condition(InternalAlwaysCondition.INSTANCE)
                     .addAction("_id", indexAction("output", "test"))
                     .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
             ).get();
@@ -239,7 +240,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? 2050")))
                 .input(searchInput(request))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_id", indexAction("output", "test"))
                 .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
         ).get();

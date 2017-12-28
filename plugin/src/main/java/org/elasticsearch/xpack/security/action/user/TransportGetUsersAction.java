@@ -14,6 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -51,7 +52,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         final List<String> realmLookup = new ArrayList<>();
         if (specificUsersRequested) {
             for (String username : requestedUsers) {
-                if (ReservedRealm.isReserved(username, settings)) {
+                if (ClientReservedRealm.isReserved(username, settings)) {
                     realmLookup.add(username);
                 } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
                     listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));

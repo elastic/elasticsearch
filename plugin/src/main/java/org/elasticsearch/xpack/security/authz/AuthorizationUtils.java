@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.ClientHelper;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -58,7 +59,7 @@ public final class AuthorizationUtils {
 
         // there is no authentication object AND we are executing in a system context OR an internal action
         // AND there
-        Authentication authentication = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
+        Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
         if (authentication == null && threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME) == null) {
             return true;
         }
@@ -81,7 +82,7 @@ public final class AuthorizationUtils {
      */
     public static boolean shouldSetUserBasedOnActionOrigin(ThreadContext context) {
         final String actionOrigin = context.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
-        final Authentication authentication = context.getTransient(Authentication.AUTHENTICATION_KEY);
+        final Authentication authentication = context.getTransient(AuthenticationField.AUTHENTICATION_KEY);
         return actionOrigin != null && authentication == null;
     }
 

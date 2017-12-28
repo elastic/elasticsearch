@@ -23,6 +23,7 @@ subprojects {
     testCompile(project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')) {
       transitive = false
     }
+    testCompile project(':x-pack-elasticsearch:plugin:core')
   }
 
   integTestCluster {

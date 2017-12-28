@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatMessage;
@@ -170,7 +170,7 @@ public class HipChatServiceTests extends XPackSingleNodeTestCase {
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch(id).setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "HipChatServiceTests#testWatchWithHipChatAction"))
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("hipchat", actionBuilder))
                 .execute().get();
 

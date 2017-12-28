@@ -34,8 +34,8 @@ import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimi
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
  * allowed for a specific field.
- * Field permissions are configured via a list of strings that are patterns a field has to match. Two lists determine whether or not a
- * field is granted access to:
+ * ThrottlerField permissions are configured via a list of strings that are patterns a field has to match. Two lists determine whether or
+ * not a field is granted access to:
  * 1. It has to match the patterns in grantedFieldsArray
  * 2. it must not match the patterns in deniedFieldsArray
  */

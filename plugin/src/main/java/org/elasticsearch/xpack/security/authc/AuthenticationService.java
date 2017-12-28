@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.net.InetSocketAddress;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,9 +20,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -39,18 +36,12 @@ import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 
-import static org.elasticsearch.xpack.security.Security.setting;
-
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
  * This service also supports request level caching of authenticated users (i.e. once a user authenticated
  * successfully, it is set on the request context to avoid subsequent redundant authentication process)
  */
 public class AuthenticationService extends AbstractComponent {
-
-    public static final Setting<Boolean> RUN_AS_ENABLED =
-            Setting.boolSetting(setting("authc.run_as.enabled"), true, Property.NodeScope);
-    public static final String RUN_AS_USER_HEADER = "es-security-runas-user";
 
     private final Realms realms;
     private final AuditTrail auditTrail;
@@ -72,7 +63,7 @@ public class AuthenticationService extends AbstractComponent {
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
-        this.runAsEnabled = RUN_AS_ENABLED.get(settings);
+        this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.tokenService = tokenService;
     }
@@ -367,7 +358,7 @@ public class AuthenticationService extends AbstractComponent {
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 if (runAsEnabled) {
-                    final String runAsUsername = threadContext.getHeader(RUN_AS_USER_HEADER);
+                    final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
                     if (runAsUsername != null && runAsUsername.isEmpty() == false) {
                         lookupRunAsUser(user, runAsUsername, this::finishAuthentication);
                     } else if (runAsUsername == null) {
@@ -605,6 +596,6 @@ public class AuthenticationService extends AbstractComponent {
     }
 
     public static void addSettings(List<Setting<?>> settings) {
-        settings.add(RUN_AS_ENABLED);
+        settings.add(AuthenticationServiceField.RUN_AS_ENABLED);
     }
 }

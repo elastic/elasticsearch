@@ -15,8 +15,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.security.authc.AuthenticationServiceField;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -61,15 +61,15 @@ public class MlClientHelperTests extends ESTestCase {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-foo", "foo");
         builder.setIndices(Collections.singletonList("foo-index"));
         Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
-                .put(Authentication.AUTHENTICATION_KEY, "anything")
-                .put(AuthenticationService.RUN_AS_USER_HEADER, "anything")
+                .put(AuthenticationField.AUTHENTICATION_KEY, "anything")
+                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")
                 .map();
         builder.setHeaders(headers);
 
         assertRunAsExecution(builder.build(), h -> {
             assertThat(h.keySet(), hasSize(2));
-            assertThat(h, hasEntry(Authentication.AUTHENTICATION_KEY, "anything"));
-            assertThat(h, hasEntry(AuthenticationService.RUN_AS_USER_HEADER, "anything"));
+            assertThat(h, hasEntry(AuthenticationField.AUTHENTICATION_KEY, "anything"));
+            assertThat(h, hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything"));
         });
     }
 
@@ -94,8 +94,8 @@ public class MlClientHelperTests extends ESTestCase {
 
             // Check that headers are not set
             Map<String, String> headers = client.threadPool().getThreadContext().getHeaders();
-            assertThat(headers, not(hasEntry(Authentication.AUTHENTICATION_KEY, "anything")));
-            assertThat(headers, not(hasEntry(AuthenticationService.RUN_AS_USER_HEADER, "anything")));
+            assertThat(headers, not(hasEntry(AuthenticationField.AUTHENTICATION_KEY, "anything")));
+            assertThat(headers, not(hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")));
 
             return client.search(new SearchRequest()).actionGet();
         });

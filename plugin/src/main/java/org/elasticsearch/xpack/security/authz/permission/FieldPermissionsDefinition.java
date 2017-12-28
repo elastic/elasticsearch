@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * Represents the definition of a {@link FieldPermissions}. Field permissions are defined as a
+ * Represents the definition of a {@link FieldPermissions}. ThrottlerField permissions are defined as a
  * collections of grant and exclude definitions where the exclude definition must be a subset of
  * the grant definition.
  */

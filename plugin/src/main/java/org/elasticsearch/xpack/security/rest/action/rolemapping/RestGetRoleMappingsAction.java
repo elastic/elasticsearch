@@ -25,7 +25,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * Rest endpoint to retrieve a role-mapping from the {@link org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore}
+ * Rest endpoint to retrieve a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
 public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
 

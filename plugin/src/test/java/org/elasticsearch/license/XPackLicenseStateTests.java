@@ -7,8 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.logstash.Logstash;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.hamcrest.Matchers;
 
@@ -186,25 +185,25 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
-        assertAckMesssages(XPackPlugin.SECURITY, BASIC, toMode, 0);
+        assertAckMesssages(XpackField.SECURITY, BASIC, toMode, 0);
     }
 
     public void testSecurityAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(XPackPlugin.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMesssages(XpackField.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSecurityAckTrialStandardGoldOrPlatinumToBasic() {
-        assertAckMesssages(XPackPlugin.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
+        assertAckMesssages(XpackField.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
     }
 
     public void testSecurityAckAnyToStandard() {
         OperationMode from = randomFrom(BASIC, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(XPackPlugin.SECURITY, from, STANDARD, 4);
+        assertAckMesssages(XpackField.SECURITY, from, STANDARD, 4);
     }
 
     public void testSecurityAckBasicStandardTrialOrPlatinumToGold() {
         OperationMode from = randomFrom(BASIC, PLATINUM, TRIAL, STANDARD);
-        assertAckMesssages(XPackPlugin.SECURITY, from, GOLD, 2);
+        assertAckMesssages(XpackField.SECURITY, from, GOLD, 2);
     }
 
     public void testMonitoringAckBasicToAny() {
@@ -390,11 +389,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSqlAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(XPackPlugin.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMesssages(XpackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSqlAckTrialOrPlatinumToNotTrialOrPlatinum() {
-        assertAckMesssages(XPackPlugin.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+        assertAckMesssages(XpackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
 }

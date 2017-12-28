@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege;
 
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 /**
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the

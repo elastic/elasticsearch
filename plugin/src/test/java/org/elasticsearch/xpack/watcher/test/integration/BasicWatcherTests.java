@@ -16,7 +16,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -268,7 +268,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                             .trigger(schedule(interval(-5, IntervalSchedule.Interval.Unit.SECONDS)))
                             .input(simpleInput("key", "value"))
-                            .condition(AlwaysCondition.INSTANCE)
+                            .condition(InternalAlwaysCondition.INSTANCE)
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
@@ -281,7 +281,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                             .trigger(schedule(hourly().minutes(-10).build()))
                             .input(simpleInput("key", "value"))
-                            .condition(AlwaysCondition.INSTANCE)
+                            .condition(InternalAlwaysCondition.INSTANCE)
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
@@ -294,7 +294,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                             .trigger(schedule(daily().atRoundHour(-10).build()))
                             .input(simpleInput("key", "value"))
-                            .condition(AlwaysCondition.INSTANCE)
+                            .condition(InternalAlwaysCondition.INSTANCE)
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
@@ -308,7 +308,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                             .trigger(schedule(weekly().time(WeekTimes.builder().atRoundHour(-10).build()).build()))
                             .input(simpleInput("key", "value"))
-                            .condition(AlwaysCondition.INSTANCE)
+                            .condition(InternalAlwaysCondition.INSTANCE)
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
@@ -322,7 +322,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                             .trigger(schedule(monthly().time(MonthTimes.builder().atRoundHour(-10).build()).build()))
                             .input(simpleInput("key", "value"))
-                            .condition(AlwaysCondition.INSTANCE)
+                            .condition(InternalAlwaysCondition.INSTANCE)
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");

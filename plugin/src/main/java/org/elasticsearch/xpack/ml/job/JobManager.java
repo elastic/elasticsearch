@@ -24,7 +24,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MLMetadataField;
+import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -88,9 +89,9 @@ public class JobManager extends AbstractComponent {
         this.client = Objects.requireNonNull(client);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
 
-        maxModelMemoryLimit = MachineLearning.MAX_MODEL_MEMORY_LIMIT.get(settings);
+        maxModelMemoryLimit = MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+                .addSettingsUpdateConsumer(MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -117,7 +118,7 @@ public class JobManager extends AbstractComponent {
      * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
     public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
         Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
@@ -135,7 +136,7 @@ public class JobManager extends AbstractComponent {
      * @return A {@link QueryPage} containing the matching {@code Job}s
      */
     public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
         if (mlMetadata == null) {
             mlMetadata = MlMetadata.EMPTY_METADATA;
         }
@@ -169,7 +170,7 @@ public class JobManager extends AbstractComponent {
             DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use JSON instead.");
         }
 
-        MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);
         if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             return;
@@ -337,7 +338,7 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+                        MlMetadata currentMlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
                         if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
                             // We wouldn't have got here if the job never existed so
                             // the Job must have been deleted by another action.
@@ -427,13 +428,13 @@ public class JobManager extends AbstractComponent {
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {
-        MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+        MlMetadata currentMlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
         return new MlMetadata.Builder(currentMlMetadata);
     }
 
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
         return newState.build();
     }
 

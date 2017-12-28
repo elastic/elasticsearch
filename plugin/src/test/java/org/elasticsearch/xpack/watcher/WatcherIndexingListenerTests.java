@@ -30,6 +30,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
@@ -72,7 +73,7 @@ import static org.mockito.Mockito.when;
 public class WatcherIndexingListenerTests extends ESTestCase {
 
     private WatcherIndexingListener listener;
-    private Watch.Parser parser = mock(Watch.Parser.class);
+    private WatchParser parser = mock(WatchParser.class);
     private ClockMock clock = new ClockMock();
     private TriggerService triggerService = mock(TriggerService.class);
 

@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +35,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
     @Override
     protected void doExecute(DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
         final String username = request.username();
-        if (ReservedRealm.isReserved(username, settings)) {
+        if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be deleted"));
                 return;

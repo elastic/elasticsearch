@@ -6,22 +6,22 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
-public final class NeverCondition extends Condition {
+public final class NeverCondition implements ExecutableCondition {
 
     public static final String TYPE = "never";
     public static final Result RESULT_INSTANCE = new Result(null, TYPE, false);
-    public static final Condition INSTANCE = new NeverCondition();
+    public static final NeverCondition INSTANCE = new NeverCondition();
 
-    private NeverCondition() {
-        super(TYPE);
-    }
+    private NeverCondition() { }
 
-    public static Condition parse(String watchId, XContentParser parser) throws IOException {
+    public static NeverCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                     TYPE, watchId, parser.currentName());
@@ -48,5 +48,15 @@ public final class NeverCondition extends Condition {
     public int hashCode() {
         // All instances has to produce the same hashCode because they are all equal
         return 0;
+    }
+
+    @Override
+    public String type() {
+        return TYPE;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().endObject();
     }
 }

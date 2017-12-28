@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.modelsnapshots;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -36,7 +37,7 @@ public class GetModelSnapshotsTests extends ESTestCase {
         ModelSnapshot m2 = new ModelSnapshot.Builder("jobId").build();
 
         QueryPage<ModelSnapshot> page = new QueryPage<>(Arrays.asList(m1, m2), 2, new ParseField("field"));
-        page = GetModelSnapshotsAction.TransportAction.clearQuantiles(page);
+        page = TransportGetModelSnapshotsAction.clearQuantiles(page);
         assertEquals(2, page.results().size());
         for (ModelSnapshot modelSnapshot : page.results()) {
             assertNull(modelSnapshot.getQuantiles());

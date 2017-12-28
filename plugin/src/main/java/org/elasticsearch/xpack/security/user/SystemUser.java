@@ -14,8 +14,8 @@ import java.util.function.Predicate;
  */
 public class SystemUser extends User {
 
-    public static final String NAME = "_system";
-    public static final String ROLE_NAME = "_system";
+    public static final String NAME = UsernamesField.SYSTEM_NAME;
+    public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
     public static final User INSTANCE = new SystemUser();
 

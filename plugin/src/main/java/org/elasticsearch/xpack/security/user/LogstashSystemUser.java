@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
  */
 public class LogstashSystemUser extends User {
 
-    public static final String NAME = "logstash_system";
-    public static final String ROLE_NAME = "logstash_system";
+    public static final String NAME = UsernamesField.LOGSTASH_NAME;
+    public static final String ROLE_NAME = UsernamesField.LOGSTASH_ROLE;
     public static final Version DEFINED_SINCE = Version.V_5_2_0;
     public static final BuiltinUserInfo USER_INFO = new BuiltinUserInfo(NAME, ROLE_NAME, DEFINED_SINCE);
 

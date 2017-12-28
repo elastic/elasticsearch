@@ -99,18 +99,27 @@ public class UserTests extends ESTestCase {
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(SystemUser.INSTANCE, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
         assertThat(readFrom.authenticatedUser(), is(SystemUser.INSTANCE));
     }
 
+    public void testSystemUserFailsRead() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
+        AssertionError e = expectThrows(AssertionError.class, () -> User.readFrom(output.bytes().streamInput()));
+
+        assertThat(e.getMessage(), is("should always return false. Internal users should use the InternalUserSerializationHelper"));
+    }
+
     public void testXPackUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(XPackUser.INSTANCE, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        InternalUserSerializationHelper.writeTo(XPackUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
         assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
@@ -121,7 +130,7 @@ public class UserTests extends ESTestCase {
         output.writeBoolean(true);
         output.writeString(randomAlphaOfLengthBetween(4, 30));
         try {
-            User.readFrom(output.bytes().streamInput());
+            InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
             fail("system user had wrong name");
         } catch (IllegalStateException e) {
             // expected

@@ -81,7 +81,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;

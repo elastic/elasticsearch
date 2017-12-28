@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -38,7 +38,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? 2099")))
                         .input(simpleInput("foo", "bar"))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("log", loggingAction("_text")))
                 .get();
 
@@ -81,7 +81,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
                         .trigger(schedule(interval("1s"))) // run every second so we can ack it
                         .input(simpleInput("foo", "bar"))
                         .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
-                        .condition(AlwaysCondition.INSTANCE)
+                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("log", loggingAction("_text")))
                 .get();
 

@@ -53,15 +53,4 @@ public class DeprecationChecks {
             IndexDeprecationChecks::indexStoreTypeCheck,
             IndexDeprecationChecks::storeThrottleSettingsCheck));
 
-    /**
-     * helper utility function to reduce repeat of running a specific {@link Set} of checks.
-     *
-     * @param checks The functional checks to execute using the mapper function
-     * @param mapper The function that executes the lambda check with the appropriate arguments
-     * @param <T> The signature of the check (BiFunction, Function, including the appropriate arguments)
-     * @return The list of {@link DeprecationIssue} that were found in the cluster
-     */
-    static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
-        return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
-    }
 }

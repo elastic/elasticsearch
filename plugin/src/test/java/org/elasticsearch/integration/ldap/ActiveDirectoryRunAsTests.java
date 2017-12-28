@@ -16,15 +16,11 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.Realm;
-import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -67,7 +63,7 @@ public class ActiveDirectoryRunAsTests extends AbstractAdLdapRealmTestCase {
     protected Client runAsClient(String user) {
         final Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
                 .put(BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD))
-                .put(AuthenticationService.RUN_AS_USER_HEADER, user)
+                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
                 .map();
         return client().filterWithHeader(headers);
     }

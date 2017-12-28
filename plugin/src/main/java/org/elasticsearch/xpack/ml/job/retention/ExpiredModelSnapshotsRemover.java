@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotField;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -70,7 +71,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
 
         QueryBuilder activeSnapshotFilter = QueryBuilders.termQuery(
-                ModelSnapshot.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
+                ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
         QueryBuilder retainFilter = QueryBuilders.termQuery(ModelSnapshot.RETAIN.getPreferredName(), true);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
                 .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))

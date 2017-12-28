@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import org.joda.time.DateTime;
 
@@ -56,12 +57,12 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
 
     static final Configuration INACTIVE = new Configuration(null, Collections.emptyMap());
 
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final Clock clock;
     private final TriggerService triggerService;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(Settings settings, Watch.Parser parser, Clock clock, TriggerService triggerService) {
+    WatcherIndexingListener(Settings settings, WatchParser parser, Clock clock, TriggerService triggerService) {
         super(settings);
         this.parser = parser;
         this.clock = clock;

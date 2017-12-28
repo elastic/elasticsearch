@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachment;
@@ -173,7 +173,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(noneInput())
-                .condition(AlwaysCondition.INSTANCE)
+                .condition(InternalAlwaysCondition.INSTANCE)
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
 

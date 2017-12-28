@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleAction;
@@ -109,22 +110,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
     public void testIsReserved() {
-        assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
-        assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
-        assertThat(ReservedRolesStore.isReserved("foobar"), is(false));
-        assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(true));
-        assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
-        assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("ingest_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("remote_monitoring_agent"), is(true));
-        assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
+        assertThat(ClientReservedRoles.isReserved("kibana_system"), is(true));
+        assertThat(ClientReservedRoles.isReserved("superuser"), is(true));
+        assertThat(ClientReservedRoles.isReserved("foobar"), is(false));
+        assertThat(ClientReservedRoles.isReserved(SystemUser.ROLE_NAME), is(true));
+        assertThat(ClientReservedRoles.isReserved("transport_client"), is(true));
+        assertThat(ClientReservedRoles.isReserved("kibana_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved("ingest_admin"), is(true));
+        assertThat(ClientReservedRoles.isReserved("remote_monitoring_agent"), is(true));
+        assertThat(ClientReservedRoles.isReserved("monitoring_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved("reporting_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved("machine_learning_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved("machine_learning_admin"), is(true));
+        assertThat(ClientReservedRoles.isReserved("watcher_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved("watcher_admin"), is(true));
+        assertThat(ClientReservedRoles.isReserved("kibana_dashboard_only_user"), is(true));
+        assertThat(ClientReservedRoles.isReserved(XPackUser.ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -506,7 +507,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "foo");
         assertOnlyReadAllowed(role, MlMetaIndex.INDEX_NAME);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT);
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, Auditor.NOTIFICATIONS_INDEX);
     }
 
@@ -556,7 +557,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "foo");
         assertNoAccessAllowed(role, MlMetaIndex.INDEX_NAME);
         assertNoAccessAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT);
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, Auditor.NOTIFICATIONS_INDEX);
     }
 

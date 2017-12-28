@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchField;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
@@ -41,13 +43,13 @@ import static org.joda.time.DateTimeZone.UTC;
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {
 
     private final Clock clock;
-    private final Watch.Parser parser;
+    private final WatchParser parser;
     private final Client client;
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   Watch.Parser parser, Client client) {
+                                   WatchParser parser, Client client) {
         super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, AckWatchRequest::new);
         this.clock = clock;
@@ -72,7 +74,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         watch.status().version(response.getVersion());
                         String[] actionIds = request.getActionIds();
                         if (actionIds == null || actionIds.length == 0) {
-                            actionIds = new String[]{Watch.ALL_ACTIONS_ID};
+                            actionIds = new String[]{WatchField.ALL_ACTIONS_ID};
                         }
 
                         // exit early in case nothing changes
@@ -88,7 +90,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                         XContentBuilder builder = jsonBuilder();
                         builder.startObject()
-                                .startObject(Watch.Field.STATUS.getPreferredName())
+                                .startObject(WatchField.STATUS.getPreferredName())
                                 .startObject("actions");
 
                         List<String> actionIdsAsList = Arrays.asList(actionIds);

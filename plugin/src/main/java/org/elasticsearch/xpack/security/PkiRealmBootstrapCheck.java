@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityField.setting;
 
 class PkiRealmBootstrapCheck implements BootstrapCheck {
 

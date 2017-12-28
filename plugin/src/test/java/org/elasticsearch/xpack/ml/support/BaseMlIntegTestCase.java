@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -268,7 +269,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
         try {
             logger.info("Closing all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
@@ -308,7 +309,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);

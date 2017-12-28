@@ -20,9 +20,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.junit.AfterClass;
@@ -67,7 +67,7 @@ public class UsersToolTests extends CommandTestCase {
     public void setupHome() throws IOException {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(homeDir);
-        confDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        confDir = homeDir.resolve("config").resolve(XpackField.NAME);
         Files.createDirectories(confDir);
         String defaultPassword = SecuritySettingsSource.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
@@ -492,7 +492,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testUserAddNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConfDir = homeDir.resolve("config").resolve(XpackField.NAME);
         IOUtils.rm(confDir);
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
@@ -505,7 +505,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testUserListNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConfDir = homeDir.resolve("config").resolve(XpackField.NAME);
         IOUtils.rm(confDir);
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
@@ -518,7 +518,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testUserDelNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConfDir = homeDir.resolve("config").resolve(XpackField.NAME);
         IOUtils.rm(confDir);
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
@@ -531,7 +531,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testListUserRolesNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Path xpackConfDir = homeDir.resolve("config").resolve(XpackField.NAME);
         IOUtils.rm(confDir);
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";

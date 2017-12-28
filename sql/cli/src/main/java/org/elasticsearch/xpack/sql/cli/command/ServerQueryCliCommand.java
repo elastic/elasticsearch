@@ -5,34 +5,29 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
-import org.elasticsearch.xpack.sql.cli.PlainResponse;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.plugin.CliFormatter;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.SQLException;
 
 public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
-        PlainResponse response = null;
-        CliHttpClient cliClient = cliSession.getClient();
+        SqlResponse response = null;
+        HttpClient cliClient = cliSession.getClient();
+        CliFormatter cliFormatter;
+        String data;
         try {
             response = cliClient.queryInit(line, cliSession.getFetchSize());
-            if (response.data.startsWith("digraph ")) {
-                handleGraphviz(terminal, response.data);
-                return true;
-            }
+            cliFormatter = new CliFormatter(response);
+            data = cliFormatter.formatWithHeader(response);
             while (true) {
-                handleText(terminal, response.data);
-                if (response.cursor.isEmpty()) {
+                handleText(terminal, data);
+                if (response.cursor().isEmpty()) {
                     // Successfully finished the entire query!
                     terminal.flush();
                     return true;
@@ -40,7 +35,8 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                 if (false == cliSession.getFetchSeparator().equals("")) {
                     terminal.println(cliSession.getFetchSeparator());
                 }
-                response = cliSession.getClient().nextPage(response.cursor);
+                response = cliSession.getClient().nextPage(response.cursor());
+                data = cliFormatter.formatWithoutHeader(response);
             }
         } catch (SQLException e) {
             if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
@@ -50,7 +46,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
             }
             if (response != null) {
                 try {
-                    cliClient.queryClose(response.cursor);
+                    cliClient.queryClose(response.cursor());
                 } catch (SQLException ex) {
                     terminal.error("Could not close cursor", ex.getMessage());
                 }
@@ -62,17 +58,4 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
     private void handleText(CliTerminal terminal, String str) {
         terminal.print(str);
     }
-
-    @SuppressForbidden(reason = "cli application")
-    private void handleGraphviz(CliTerminal terminal, String str) {
-        try {
-            // save the content to a temp file
-            Path dotTempFile = Files.createTempFile(Paths.get("."), "sql-gv", ".dot");
-            Files.write(dotTempFile, str.getBytes(StandardCharsets.UTF_8));
-            terminal.println("Saved graph file at " + dotTempFile);
-        } catch (IOException ex) {
-            terminal.error("Cannot save graph file ", ex.getMessage());
-        }
-    }
-
 }

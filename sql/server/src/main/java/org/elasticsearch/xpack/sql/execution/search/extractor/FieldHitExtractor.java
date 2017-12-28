@@ -72,11 +72,7 @@ public class FieldHitExtractor implements HitExtractor {
         if (useDocValue) {
             DocumentField field = hit.field(fieldName);
             if (field != null) {
-                checkMultiValue(field.getValues());
-                value = field.getValue();
-                if (value instanceof ReadableInstant) {
-                    value = ((ReadableInstant) value).getMillis();
-                }
+                value = unwrapMultiValue(field.getValues());
             }
         } else {
             Map<String, Object> source = hit.getSourceAsMap();
@@ -87,29 +83,50 @@ public class FieldHitExtractor implements HitExtractor {
         return value;
     }
 
-    private void checkMultiValue(Object values) {
-        if (!ARRAYS_LENIENCY && values != null && values instanceof List && ((List<?>) values).size() > 1) {
-            throw new ExecutionException("Arrays (returned by [%s]) are not supported", fieldName);
+    private Object unwrapMultiValue(Object values) {
+        if (values == null) {
+            return null;
         }
+        if (values instanceof List) {
+            List<?> list = (List<?>) values;
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                if (ARRAYS_LENIENCY || list.size() == 1) {
+                    return unwrapMultiValue(list.get(0));
+                } else {
+                    throw new ExecutionException("Arrays (returned by [%s]) are not supported", fieldName);
+                }
+            }
+        }
+        if (values instanceof Map) {
+            throw new ExecutionException("Objects (returned by [%s]) are not supported", fieldName);
+        }
+        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+            return values;
+        }
+        if (values instanceof ReadableInstant) {
+            return ((ReadableInstant) values).getMillis();
+        }
+        throw new ExecutionException("Type %s (returned by [%s]) is not supported", values.getClass().getSimpleName(), fieldName);
     }
 
     @SuppressWarnings("unchecked")
     Object extractFromSource(Map<String, Object> map) {
-        Object value = null;
+        Object value = map;
+        boolean first = true;
         // each node is a key inside the map
         for (String node : path) {
-            // if it's not the first step, start unpacking
-            if (value != null) {
-                if (value instanceof Map) {
-                    map = (Map<String, Object>) value;
-                } else {
-                    throw new ExecutionException("Cannot extract value [%s] from source", fieldName);
-                }
+            if (value == null) {
+                return null;
+            } else if (first || value instanceof Map) {
+                first = false;
+                value = ((Map<String, Object>) value).get(node);
+            } else {
+                throw new ExecutionException("Cannot extract value [%s] from source", fieldName);
             }
-            value = map.get(node);
         }
-        checkMultiValue(value);
-        return value;
+        return unwrapMultiValue(value);
     }
 
     @Override

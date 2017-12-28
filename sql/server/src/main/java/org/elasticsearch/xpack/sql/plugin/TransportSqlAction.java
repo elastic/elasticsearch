@@ -87,8 +87,6 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
 
         return new SqlResponse(
                 Cursor.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
-                rowSet.size(),
-                rowSet.columnCount(),
                 columns,
                 rows);
     }

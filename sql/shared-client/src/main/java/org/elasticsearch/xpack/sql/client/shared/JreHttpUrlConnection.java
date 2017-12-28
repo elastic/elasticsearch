@@ -162,6 +162,7 @@ public class JreHttpUrlConnection implements Closeable {
             con.setRequestMethod(requestMethod);
             con.setDoOutput(true);
             con.setRequestProperty("Content-Type", "application/json");
+            con.setRequestProperty("Accept", "application/json");
             if (doc != null) {
                 try (OutputStream out = con.getOutputStream()) {
                     doc.accept(new DataOutputStream(out));

@@ -12,10 +12,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -62,7 +65,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
             List<Object> documentFieldValues = new ArrayList<>();
             if (randomBoolean()) {
-                documentFieldValues.add(new Object());
+                documentFieldValues.add(randomValue());
             }
 
             SearchHit hit = new SearchHit(1);
@@ -85,12 +88,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         for (int i = 0; i < times; i++) {
             /* We use values that are parsed from json as "equal" to make the
              * test simpler. */
-            @SuppressWarnings("unchecked")
-            Supplier<Object> valueSupplier = randomFrom(
-                    () -> randomAlphaOfLength(5),
-                    () -> randomInt(),
-                    () -> randomDouble());
-            Object value = valueSupplier.get();
+            Object value = randomValue();
             SearchHit hit = new SearchHit(1);
             XContentBuilder source = JsonXContent.contentBuilder();
             boolean hasGrandparent = randomBoolean();
@@ -129,7 +127,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         for (int i = 0; i < times; i++) {
             List<Object> documentFieldValues = new ArrayList<>();
             if (randomBoolean()) {
-                documentFieldValues.add(new Object());
+                documentFieldValues.add(randomValue());
             }
             SearchHit hit = new SearchHit(1);
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
@@ -147,12 +145,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         for (int i = 0; i < times; i++) {
             /* We use values that are parsed from json as "equal" to make the
              * test simpler. */
-            @SuppressWarnings("unchecked")
-            Supplier<Object> valueSupplier = randomFrom(
-                    () -> randomAlphaOfLength(5),
-                    () -> randomInt(),
-                    () -> randomDouble());
-            Object value = valueSupplier.get();
+            Object value = randomValue();
             SearchHit hit = new SearchHit(1);
             XContentBuilder source = JsonXContent.contentBuilder();
             source.startObject(); {
@@ -182,16 +175,46 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
+    public void testMultiValuedSourceValue() throws IOException {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, false);
+        SearchHit hit = new SearchHit(1);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject(); {
+            source.field(fieldName, asList("a", "b"));
+        }
+        source.endObject();
+        BytesReference sourceRef = source.bytes();
+        hit.sourceRef(sourceRef);
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.get(hit));
+        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+    }
+
+    public void testSingleValueArrayInSource() throws IOException {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, false);
+        SearchHit hit = new SearchHit(1);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        Object value = randomValue();
+        source.startObject(); {
+            source.field(fieldName, Collections.singletonList(value));
+        }
+        source.endObject();
+        BytesReference sourceRef = source.bytes();
+        hit.sourceRef(sourceRef);
+        assertEquals(value, fe.get(hit));
+    }
+
     public void testExtractSourcePath() {
         FieldHitExtractor fe = new FieldHitExtractor("a.b.c", false);
-        Object value = new Object();
+        Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         assertThat(fe.extractFromSource(map), is(value));
     }
 
     public void testExtractSourceIncorrectPath() {
         FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", false);
-        Object value = new Object();
+        Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d] from source"));
@@ -199,9 +222,26 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testMultiValuedSource() {
         FieldHitExtractor fe = new FieldHitExtractor("a", false);
-        Object value = new Object();
+        Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
         ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
+    }
+
+    public Object randomValue() {
+        Supplier<Object> value = randomFrom(Arrays.asList(
+                () -> randomAlphaOfLength(10),
+                ESTestCase::randomLong,
+                ESTestCase::randomDouble,
+                () -> null));
+        return value.get();
+    }
+
+    public Object randomNonNullValue() {
+        Supplier<Object> value = randomFrom(Arrays.asList(
+                () -> randomAlphaOfLength(10),
+                ESTestCase::randomLong,
+                ESTestCase::randomDouble));
+        return value.get();
     }
 }

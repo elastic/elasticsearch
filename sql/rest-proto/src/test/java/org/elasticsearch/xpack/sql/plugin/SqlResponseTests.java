@@ -3,69 +3,32 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.sql.action;
+package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
-import org.elasticsearch.xpack.sql.plugin.CliFormatter;
-import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
-import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
-import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
-import org.elasticsearch.xpack.sql.plugin.SqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
-import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
+public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResponse> {
+
     static String randomStringCursor() {
-        return Cursor.encodeToString(Version.CURRENT, randomCursor());
-    }
-
-    static Cursor randomCursor() {
-        return randomBoolean() ? Cursor.EMPTY : randomNonEmptyCursor();
-    }
-
-    static Cursor randomNonEmptyCursor() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return ScrollCursorTests.randomScrollCursor();
-            case 1:
-                int typeNum = randomIntBetween(0, 10);
-                List<JDBCType> types = new ArrayList<>();
-                for (int i = 0; i < typeNum; i++) {
-                    types.add(randomFrom(JDBCType.values()));
-                }
-                return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
-            case 2:
-                SqlResponse response = createRandomInstance("");
-                if (response.columns() != null && response.rows() != null) {
-                    return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
-                } else {
-                    return ScrollCursorTests.randomScrollCursor();
-                }
-            default:
-                throw new IllegalArgumentException("Unexpected random value ");
-        }
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(SqlPlugin.getNamedWriteables());
+        return randomBoolean() ? "" : randomAlphaOfLength(10);
     }
 
     @Override
@@ -93,13 +56,18 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
                 for (int c = 0; c < columnCount; c++) {
-                    row.add(randomBoolean() ? randomAlphaOfLength(10) : randomInt());
+                    Supplier<Object> value = randomFrom(Arrays.asList(
+                            () -> randomAlphaOfLength(10),
+                            ESTestCase::randomLong,
+                            ESTestCase::randomDouble,
+                            () -> null));
+                    row.add(value.get());
+
                 }
                 rows.add(row);
             }
         }
-
-        return new SqlResponse(cursor, randomNonNegativeLong(), columnCount, columns, rows);
+        return new SqlResponse(cursor, columns, rows);
     }
 
     @Override
@@ -110,12 +78,15 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
     public void testToXContent() throws IOException {
         SqlResponse testInstance = createTestInstance();
 
-        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        boolean jdbcEnabled = randomBoolean();
+        ToXContent.Params params =
+                new ToXContent.MapParams(Collections.singletonMap(SqlResponse.JDBC_ENABLED_PARAM, Boolean.toString(jdbcEnabled)));
+
+        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), params);
         Map<String, Object> rootMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         logger.info(builder.string());
 
-        assertEquals(testInstance.size(), rootMap.get("size"));
         if (testInstance.columns() != null) {
             List<?> columns = (List<?>) rootMap.get("columns");
             assertThat(columns, hasSize(testInstance.columns().size()));
@@ -124,6 +95,13 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
                 ColumnInfo columnInfo = testInstance.columns().get(i);
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
+                if (jdbcEnabled) {
+                    assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
+                    assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
+                } else {
+                    assertNull(columnMap.get("display_size"));
+                    assertNull(columnMap.get("jdbc_type"));
+                }
             }
         } else {
             assertNull(rootMap.get("columns"));
@@ -141,17 +119,8 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
         }
     }
 
-    public void testVersionHandling() {
-        Cursor cursor = randomNonEmptyCursor();
-        assertEquals(cursor, Cursor.decodeFromString(Cursor.encodeToString(Version.CURRENT, cursor)));
-
-        Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
-
-        String encodedWithWrongVersion = Cursor.encodeToString(nextMinorVersion, cursor);
-        RuntimeException exception = expectThrows(RuntimeException.class, () -> {
-            Cursor.decodeFromString(encodedWithWrongVersion);
-        });
-
-        assertEquals(exception.getMessage(), "Unsupported scroll version " + nextMinorVersion);
+    @Override
+    protected SqlResponse doParseInstance(XContentParser parser) {
+        return SqlResponse.fromXContent(parser);
     }
 }

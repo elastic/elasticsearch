@@ -196,7 +196,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                     if (!licenseState.isJdbcAllowed()) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
-                })
+                },
+                () -> licenseState.isJdbcAllowed())
         );
         // Check if the node is a transport client.
         if (transportClientMode == false) {

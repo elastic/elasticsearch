@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.Version;
@@ -111,7 +112,7 @@ public class Cli extends LoggingAwareCommand {
         try (CliTerminal cliTerminal = new JLineTerminal()) {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
             ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation);
-            CliSession cliSession = new CliSession(new CliHttpClient(con));
+            CliSession cliSession = new CliSession(new HttpClient(con));
             cliSession.setDebug(debug);
             if (checkConnection) {
                 checkConnection(cliSession, cliTerminal, con);

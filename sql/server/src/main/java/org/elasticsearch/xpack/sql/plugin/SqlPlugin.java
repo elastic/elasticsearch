@@ -64,7 +64,7 @@ public class SqlPlugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new RestSqlAction(settings, restController),
+        return Arrays.asList(new RestSqlAction(settings, restController, sqlLicenseChecker),
                              new SqlTranslateAction.RestAction(settings, restController),
                              new RestSqlJdbcAction(settings, restController, sqlLicenseChecker, indexResolver),
                              new RestSqlClearCursorAction(settings, restController));

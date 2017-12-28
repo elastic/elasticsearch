@@ -59,12 +59,11 @@ Which returns:
 --------------------------------------------------
 {
     "columns": [
-        {"name": "author",       "type": "text"},
-        {"name": "name",         "type": "text"},
-        {"name": "page_count",   "type": "short"},
-        {"name": "release_date", "type": "date"}
+        {"name": "author",       "type": "text",  "jdbc_type": 12, "display_size": 0},
+        {"name": "name",         "type": "text",  "jdbc_type": 12, "display_size": 0},
+        {"name": "page_count",   "type": "short", "jdbc_type": 5,  "display_size": 6},
+        {"name": "release_date", "type": "date",  "jdbc_type": 93, "display_size": 20}
     ],
-    "size": 5,
     "rows": [
         ["Peter F. Hamilton",  "Pandora's Star",       768, 1078185600000],
         ["Vernor Vinge",       "A Fire Upon the Deep", 613,  707356800000],
@@ -96,7 +95,6 @@ Which looks like:
 [source,js]
 --------------------------------------------------
 {
-    "size" : 5,
     "rows" : [
         ["Dan Simmons",        "Hyperion",             482,  612144000000],
         ["Iain M. Banks",      "Consider Phlebas",     471,  546134400000],

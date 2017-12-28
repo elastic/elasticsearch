@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.xpack.sql.cli.CliHttpClient;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
@@ -17,17 +17,17 @@ import java.sql.SQLException;
  * Stores information about the current session
  */
 public class CliSession {
-    private final CliHttpClient cliHttpClient;
+    private final HttpClient httpClient;
     private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
 
-    public CliSession(CliHttpClient cliHttpClient) {
-        this.cliHttpClient = cliHttpClient;
+    public CliSession(HttpClient httpClient) {
+        this.httpClient = httpClient;
     }
 
-    public CliHttpClient getClient() {
-        return cliHttpClient;
+    public HttpClient getClient() {
+        return httpClient;
     }
 
     public void setFetchSize(int fetchSize) {
@@ -60,7 +60,7 @@ public class CliSession {
     public void checkConnection() throws ClientException {
         MainResponse response;
         try {
-            response = cliHttpClient.serverInfo();
+            response = httpClient.serverInfo();
         } catch (SQLException ex) {
             throw new ClientException(ex);
         }

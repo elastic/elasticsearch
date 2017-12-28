@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import java.util.function.Supplier;
+
 /**
  * Determines if different features of SQL should be enabled
  */
@@ -12,10 +14,12 @@ public class SqlLicenseChecker {
 
     private final Runnable checkIfSqlAllowed;
     private final Runnable checkIfJdbcAllowed;
+    private final Supplier<Boolean> isJdbcAllowed;
 
-    public SqlLicenseChecker(Runnable checkIfSqlAllowed, Runnable checkIfJdbcAllowed) {
+    public SqlLicenseChecker(Runnable checkIfSqlAllowed, Runnable checkIfJdbcAllowed, Supplier<Boolean> isJdbcAllowed) {
         this.checkIfSqlAllowed = checkIfSqlAllowed;
         this.checkIfJdbcAllowed = checkIfJdbcAllowed;
+        this.isJdbcAllowed = isJdbcAllowed;
     }
 
     /**
@@ -30,5 +34,9 @@ public class SqlLicenseChecker {
      */
     public void checkIfJdbcAllowed() {
         checkIfJdbcAllowed.run();
+    }
+
+    public boolean isJdbcAllowed() {
+        return isJdbcAllowed.get();
     }
 }

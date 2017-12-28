@@ -19,6 +19,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.UnsupportedCharsetException;
+import java.sql.JDBCType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,9 +101,8 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
 
     private void assertCount(RestClient client, int count) throws IOException {
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("COUNT(1)", "long")));
+        expected.put("columns", singletonList(columnInfo("COUNT(1)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
-        expected.put("size", 1);
 
         Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", singletonMap("format", "json"),
                 new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));

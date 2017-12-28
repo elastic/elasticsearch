@@ -1,11 +1,19 @@
 description = 'Code shared between jdbc and cli'
 
 dependencies {
+  compile project(':x-pack-elasticsearch:sql:rest-proto')
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 }
 
 dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /rest-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
+  mapping from: /lucene-.*/, to: 'lucene'
+  ignoreSha 'rest-proto'
+  ignoreSha 'shared-proto'
+  ignoreSha 'elasticsearch'
 }
 
 forbiddenApisMain {

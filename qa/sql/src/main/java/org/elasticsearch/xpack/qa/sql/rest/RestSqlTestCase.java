@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.sql.JDBCType;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -45,10 +46,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     /**
      * Builds that map that is returned in the header for each column.
      */
-    public static Map<String, Object> columnInfo(String name, String type) {
+    public static Map<String, Object> columnInfo(String name, String type, JDBCType jdbcType, int size) {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
+        column.put("jdbc_type", jdbcType.getVendorTypeNumber());
+        column.put("display_size", size);
         return unmodifiableMap(column);
     }
 
@@ -57,9 +60,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             "{\"test\":\"test\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("test", "text")));
+        expected.put("columns", singletonList(columnInfo("test", "text", JDBCType.VARCHAR, 0)));
         expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
-        expected.put("size", 2);
         assertResponse(expected, runSql("SELECT * FROM test"));
     }
 
@@ -90,21 +92,19 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             Map<String, Object> expected = new HashMap<>();
             if (i == 0) {
                 expected.put("columns", Arrays.asList(
-                        columnInfo("text", "text"),
-                        columnInfo("number", "long"),
-                        columnInfo("s", "double"),
-                        columnInfo("SCORE()", "float")));
+                        columnInfo("text", "text", JDBCType.VARCHAR, 0),
+                        columnInfo("number", "long", JDBCType.BIGINT, 20),
+                        columnInfo("s", "double", JDBCType.DOUBLE, 25),
+                        columnInfo("SCORE()", "float", JDBCType.REAL, 15)));
             }
             expected.put("rows", Arrays.asList(
                     Arrays.asList("text" + i, i, Math.sin(i), 1.0),
                     Arrays.asList("text" + (i + 1), i + 1, Math.sin(i + 1), 1.0)));
-            expected.put("size", 2);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
             assertNotNull(cursor);
         }
         Map<String, Object> expected = new HashMap<>();
-        expected.put("size", 0);
         expected.put("rows", emptyList());
         assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
     }
@@ -133,12 +133,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-            columnInfo("name", "text"),
-            columnInfo("score", "long"),
-            columnInfo("SCORE()", "float")));
+            columnInfo("name", "text", JDBCType.VARCHAR, 0),
+            columnInfo("score", "long", JDBCType.BIGINT, 20),
+            columnInfo("SCORE()", "float", JDBCType.REAL, 15)));
         expected.put("rows", singletonList(Arrays.asList(
             "test", 10, 1.0)));
-        expected.put("size", 1);
 
         assertResponse(expected, runSql("SELECT *, SCORE() FROM test ORDER BY SCORE()"));
         assertResponse(expected, runSql("SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()"));
@@ -356,9 +355,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             "{\"test\":\"bar\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("test", "text")));
+        expected.put("columns", singletonList(columnInfo("test", "text", JDBCType.VARCHAR, 0)));
         expected.put("rows", singletonList(singletonList("foo")));
-        expected.put("size", 1);
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
                 ContentType.APPLICATION_JSON)));
     }
@@ -445,7 +443,6 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             assertNotNull(cursor);
         }
         Map<String, Object> expected = new HashMap<>();
-        expected.put("size", 0);
         expected.put("rows", emptyList());
         assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
 

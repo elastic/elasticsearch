@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -16,8 +16,8 @@ public class CliCommandsTests extends ESTestCase {
 
     public void testCliCommands() {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         CliCommands cliCommands = new CliCommands(
                 (terminal, session, line) -> line.equals("foo"),
                 (terminal, session, line) -> line.equals("bar"),
@@ -29,6 +29,6 @@ public class CliCommandsTests extends ESTestCase {
         assertTrue(cliCommands.handle(testTerminal, cliSession, "baz"));
         assertFalse(cliCommands.handle(testTerminal, cliSession, ""));
         assertFalse(cliCommands.handle(testTerminal, cliSession, "something"));
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 }

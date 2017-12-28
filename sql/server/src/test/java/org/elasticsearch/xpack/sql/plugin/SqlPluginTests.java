@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 public class SqlPluginTests  extends ESTestCase {
 
     public void testSqlDisabled() {
-        SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker(() -> {}, () -> {}));
+        SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker(() -> {}, () -> {}, () -> true));
         assertThat(plugin.createComponents(mock(Client.class)), empty());
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),

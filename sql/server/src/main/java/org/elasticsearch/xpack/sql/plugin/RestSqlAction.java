@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -22,15 +24,19 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlAction extends BaseRestHandler {
-    public RestSqlAction(Settings settings, RestController controller) {
+    private final SqlLicenseChecker sqlLicenseChecker;
+
+    public RestSqlAction(Settings settings, RestController controller, SqlLicenseChecker sqlLicenseChecker) {
         super(settings);
         controller.registerHandler(GET, SqlAction.REST_ENDPOINT, this);
         controller.registerHandler(POST, SqlAction.REST_ENDPOINT, this);
+        this.sqlLicenseChecker = sqlLicenseChecker;
     }
 
     @Override
@@ -43,7 +49,17 @@ public class RestSqlAction extends BaseRestHandler {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
         if (xContentType != null) {
             // The client expects us to send back results in a XContent format
-            return channel -> client.executeLocally(SqlAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
+            return channel -> client.executeLocally(SqlAction.INSTANCE, sqlRequest, new RestToXContentListener<SqlResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(SqlResponse response, XContentBuilder builder) throws Exception {
+                    // Make sure we only display JDBC-related data if JDBC is enabled
+                    ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                            Collections.singletonMap(SqlResponse.JDBC_ENABLED_PARAM, Boolean.toString(sqlLicenseChecker.isJdbcAllowed())),
+                            channel.request());
+                    response.toXContent(builder, params);
+                    return new BytesRestResponse(getStatus(response), builder);
+                }
+            });
     }
         // The client accepts plain text
         long startNanos = System.nanoTime();

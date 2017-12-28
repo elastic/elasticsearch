@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,13 +38,12 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void queryWorksAsAdmin() throws Exception {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(
-                    columnInfo("a", "long"),
-                    columnInfo("b", "long"),
-                    columnInfo("c", "long")));
+                    columnInfo("a", "long", JDBCType.BIGINT, 20),
+                    columnInfo("b", "long", JDBCType.BIGINT, 20),
+                    columnInfo("c", "long", JDBCType.BIGINT, 20)));
             expected.put("rows", Arrays.asList(
                     Arrays.asList(1, 2, 3),
                     Arrays.asList(4, 5, 6)));
-            expected.put("size", 2);
 
             assertResponse(expected, runSql(null, "SELECT * FROM test ORDER BY a"));
         }
@@ -83,14 +83,13 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectDescribe(Map<String, String> columns, String user) throws Exception {
             Map<String, Object> expected = new HashMap<>(3);
             expected.put("columns", Arrays.asList(
-                    columnInfo("column", "keyword"),
-                    columnInfo("type", "keyword")));
+                    columnInfo("column", "keyword", JDBCType.VARCHAR, 0),
+                    columnInfo("type", "keyword", JDBCType.VARCHAR, 0)));
             List<List<String>> rows = new ArrayList<>(columns.size());
             for (Map.Entry<String, String> column : columns.entrySet()) {
                 rows.add(Arrays.asList(column.getKey(), column.getValue()));
             }
             expected.put("rows", rows);
-            expected.put("size", columns.size());
 
             assertResponse(expected, runSql(user, "DESCRIBE test"));
         }
@@ -98,13 +97,12 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", singletonList(columnInfo("table", "keyword")));
+            expected.put("columns", singletonList(columnInfo("table", "keyword", JDBCType.VARCHAR, 0)));
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 rows.add(singletonList(table));
             }
             expected.put("rows", rows);
-            expected.put("size", tables.size());
             assertResponse(expected, runSql(user, "SHOW TABLES"));
         }
 

@@ -14,7 +14,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class CliFormatterTests extends ESTestCase {
-    private final SqlResponse firstResponse = new SqlResponse("", 10, 5,
+    private final SqlResponse firstResponse = new SqlResponse("",
             Arrays.asList(
                     new ColumnInfo("foo", "string", JDBCType.VARCHAR, 0),
                     new ColumnInfo("bar", "long", JDBCType.BIGINT, 15),
@@ -47,7 +47,7 @@ public class CliFormatterTests extends ESTestCase {
      * truncation of long columns.
      */
     public void testFormatWithoutHeader() {
-        String[] result = formatter.formatWithoutHeader(new SqlResponse("", 10, 5, null,
+        String[] result = formatter.formatWithoutHeader(new SqlResponse("", null,
                 Arrays.asList(
                         Arrays.asList("ohnotruncateddata", 4, 1, 77, "wombat"),
                         Arrays.asList("dog", 2, 123124.888, 9912, "goat")))).split("\n");

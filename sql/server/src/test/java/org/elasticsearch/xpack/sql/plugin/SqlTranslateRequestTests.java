@@ -15,8 +15,8 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilter;
-import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilterOrNull;
+import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilter;
+import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilterOrNull;
 
 public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTranslateAction.Request> {
 

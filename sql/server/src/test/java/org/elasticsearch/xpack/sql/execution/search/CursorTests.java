@@ -5,16 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.plugin.CliFormatter;
+import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.mockito.ArgumentCaptor;
 
+import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,5 +56,56 @@ public class CursorTests extends ESTestCase {
         assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
         verifyZeroInteractions(listenerMock);
     }
+
+    private static SqlResponse createRandomSqlResponse() {
+        int columnCount = between(1, 10);
+
+        List<SqlResponse.ColumnInfo> columns = null;
+        if (randomBoolean()) {
+            columns = new ArrayList<>(columnCount);
+            for (int i = 0; i < columnCount; i++) {
+                columns.add(new SqlResponse.ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomFrom(JDBCType.values()), randomInt(25)));
+            }
+        }
+        return new SqlResponse("", columns, Collections.emptyList());
+    }
+
+    static Cursor randomNonEmptyCursor() {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                return ScrollCursorTests.randomScrollCursor();
+            case 1:
+                int typeNum = randomIntBetween(0, 10);
+                List<JDBCType> types = new ArrayList<>();
+                for (int i = 0; i < typeNum; i++) {
+                    types.add(randomFrom(JDBCType.values()));
+                }
+                return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
+            case 2:
+                SqlResponse response = createRandomSqlResponse();
+                if (response.columns() != null && response.rows() != null) {
+                    return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                } else {
+                    return ScrollCursorTests.randomScrollCursor();
+                }
+            default:
+                throw new IllegalArgumentException("Unexpected random value ");
+        }
+    }
+
+    public void testVersionHandling() {
+        Cursor cursor = randomNonEmptyCursor();
+        assertEquals(cursor, Cursor.decodeFromString(Cursor.encodeToString(Version.CURRENT, cursor)));
+
+        Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
+
+        String encodedWithWrongVersion = Cursor.encodeToString(nextMinorVersion, cursor);
+        RuntimeException exception = expectThrows(RuntimeException.class, () -> {
+            Cursor.decodeFromString(encodedWithWrongVersion);
+        });
+
+        assertEquals(exception.getMessage(), "Unsupported scroll version " + nextMinorVersion);
+    }
+
 
 }

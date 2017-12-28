@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
-import org.elasticsearch.xpack.sql.cli.PlainResponse;
+import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 
+import java.sql.JDBCType;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -24,7 +27,7 @@ public class ServerQueryCliCommandTests extends ESTestCase {
 
     public void testExceptionHandling() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient client = mock(CliHttpClient.class);
+        HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         when(client.queryInit("blah", 1000)).thenThrow(new SQLException("test exception"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
@@ -36,28 +39,29 @@ public class ServerQueryCliCommandTests extends ESTestCase {
 
     public void testOnePageQuery() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient client = mock(CliHttpClient.class);
+        HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(10);
-        when(client.queryInit("test query", 10)).thenReturn(new PlainResponse(123, "", "some command response"));
+        when(client.queryInit("test query", 10)).thenReturn(fakeResponse("", true, "foo"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("some command response<flush/>", testTerminal.toString());
+        assertEquals("     field     \n---------------\nfoo            \n<flush/>", testTerminal.toString());
         verify(client, times(1)).queryInit(eq("test query"), eq(10));
         verifyNoMoreInteractions(client);
     }
 
     public void testThreePageQuery() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient client = mock(CliHttpClient.class);
+        HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(10);
-        when(client.queryInit("test query", 10)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
-        when(client.nextPage("my_cursor1")).thenReturn(new PlainResponse(345, "my_cursor2", "second"));
-        when(client.nextPage("my_cursor2")).thenReturn(new PlainResponse(678, "", "third"));
+        when(client.queryInit("test query", 10)).thenReturn(fakeResponse("my_cursor1", true, "first"));
+        when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("my_cursor2", false, "second"));
+        when(client.nextPage("my_cursor2")).thenReturn(fakeResponse("", false, "third"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("firstsecondthird<flush/>", testTerminal.toString());
+        assertEquals("     field     \n---------------\nfirst          \nsecond         \nthird          \n<flush/>",
+                testTerminal.toString());
         verify(client, times(1)).queryInit(eq("test query"), eq(10));
         verify(client, times(2)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -65,16 +69,17 @@ public class ServerQueryCliCommandTests extends ESTestCase {
 
     public void testTwoPageQueryWithSeparator() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient client = mock(CliHttpClient.class);
+        HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(15);
         // Set a separator
         cliSession.setFetchSeparator("-----");
-        when(client.queryInit("test query", 15)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
-        when(client.nextPage("my_cursor1")).thenReturn(new PlainResponse(345, "", "second"));
+        when(client.queryInit("test query", 15)).thenReturn(fakeResponse("my_cursor1", true, "first"));
+        when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("", false, "second"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("first-----\nsecond<flush/>", testTerminal.toString());
+        assertEquals("     field     \n---------------\nfirst          \n-----\nsecond         \n<flush/>",
+                testTerminal.toString());
         verify(client, times(1)).queryInit(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -82,19 +87,35 @@ public class ServerQueryCliCommandTests extends ESTestCase {
 
     public void testCursorCleanupOnError() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient client = mock(CliHttpClient.class);
+        HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         cliSession.setFetchSize(15);
-        when(client.queryInit("test query", 15)).thenReturn(new PlainResponse(123, "my_cursor1", "first"));
+        when(client.queryInit("test query", 15)).thenReturn(fakeResponse("my_cursor1", true, "first"));
         when(client.nextPage("my_cursor1")).thenThrow(new SQLException("test exception"));
         when(client.queryClose("my_cursor1")).thenReturn(true);
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("first<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());
+        assertEquals("     field     \n---------------\nfirst          \n" +
+                "<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());
         verify(client, times(1)).queryInit(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verify(client, times(1)).queryClose(eq("my_cursor1"));
         verifyNoMoreInteractions(client);
     }
 
+    private SqlResponse fakeResponse(String cursor, boolean includeColumns, String val) {
+        List<List<Object>> rows;
+        List<SqlResponse.ColumnInfo> columns;
+        if (includeColumns) {
+            columns = Collections.singletonList(new SqlResponse.ColumnInfo("field", "string", JDBCType.VARCHAR, 0));
+        } else {
+            columns = null;
+        }
+        if (val != null) {
+            rows = Collections.singletonList(Collections.singletonList(val));
+        } else {
+            rows = Collections.singletonList(Collections.emptyList());
+        }
+        return new SqlResponse(cursor, columns, rows);
+    }
 }

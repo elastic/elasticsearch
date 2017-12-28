@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.cli.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -18,29 +18,29 @@ public class BuiltinCommandTests extends ESTestCase {
 
     public void testInvalidCommand() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         assertFalse(new ClearScreenCliCommand().handle(testTerminal, cliSession, "something"));
         assertFalse(new FetchSeparatorCliCommand().handle(testTerminal, cliSession, "something"));
         assertFalse(new FetchSizeCliCommand().handle(testTerminal, cliSession, "something"));
         assertFalse(new PrintLogoCommand().handle(testTerminal, cliSession, "something"));
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 
     public void testClearScreen() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         testTerminal.print("not clean");
         assertTrue(new ClearScreenCliCommand().handle(testTerminal, cliSession, "cls"));
         assertEquals("", testTerminal.toString());
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 
     public void testFetchSeparator() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         FetchSeparatorCliCommand cliCommand = new FetchSeparatorCliCommand();
         assertFalse(cliCommand.handle(testTerminal, cliSession, "fetch"));
         assertEquals("", cliSession.getFetchSeparator());
@@ -58,13 +58,13 @@ public class BuiltinCommandTests extends ESTestCase {
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch separator=\"baz\""));
         assertEquals("baz", cliSession.getFetchSeparator());
         assertEquals("fetch separator set to \"<em>baz</em>\"<flush/>", testTerminal.toString());
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 
     public void testFetchSize() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         FetchSizeCliCommand cliCommand = new FetchSizeCliCommand();
         assertFalse(cliCommand.handle(testTerminal, cliSession, "fetch"));
         assertEquals(1000L, cliSession.getFetchSize());
@@ -83,17 +83,17 @@ public class BuiltinCommandTests extends ESTestCase {
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_size = -10"));
         assertEquals(10L, cliSession.getFetchSize());
         assertEquals("<b>Invalid fetch size [</b><i>-10</i><b>]. Must be > 0.</b><flush/>", testTerminal.toString());
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 
     public void testPrintLogo() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
-        CliHttpClient cliHttpClient = mock(CliHttpClient.class);
-        CliSession cliSession = new CliSession(cliHttpClient);
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
         testTerminal.print("not clean");
         assertTrue(new PrintLogoCommand().handle(testTerminal, cliSession, "logo"));
         assertThat(testTerminal.toString(), containsString("SQL"));
-        verifyNoMoreInteractions(cliHttpClient);
+        verifyNoMoreInteractions(httpClient);
     }
 
 }

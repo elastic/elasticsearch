@@ -21,8 +21,10 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -70,8 +72,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     }
 
     @Override
-    public V newInstance() {
-        return handler.newInstance();
+    public V read(StreamInput in) throws IOException {
+        return handler.read(in);
     }
 
     @Override

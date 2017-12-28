@@ -96,7 +96,7 @@ values occur.
 This function supports the following properties:
 
 * `by_field_name` (required)
-* `over_field_name` (optional)
+* `over_field_name` (required)
 * `partition_field_name` (optional)
 
 For more information about those properties, see

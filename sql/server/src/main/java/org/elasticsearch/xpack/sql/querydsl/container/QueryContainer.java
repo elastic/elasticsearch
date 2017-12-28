@@ -233,18 +233,28 @@ public class QueryContainer {
             }
             proc = sfa.processorDef();
         }
-        AtomicReference<QueryContainer> containerRef = new AtomicReference<>(this);
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
-        proc = proc.transformUp(l -> {
-            Attribute attr = aliases.getOrDefault(l.context(), l.context());
-            Tuple<QueryContainer, ColumnReference> ref = containerRef.get().toReference(attr);
-            containerRef.set(ref.v1());
-            return new ReferenceInput(l.expression(), ref.v2());
-        }, AttributeInput.class);
+        class QueryAttributeResolver implements ProcessorDefinition.AttributeResolver {
+            private QueryContainer container;
 
-        QueryContainer qContainer = containerRef.get();
+            private QueryAttributeResolver(QueryContainer container) {
+                this.container = container;
+            }
+
+            @Override
+            public ColumnReference resolve(Attribute attribute) {
+                Attribute attr = aliases.getOrDefault(attribute, attribute);
+                Tuple<QueryContainer, ColumnReference> ref = container.toReference(attr);
+                container = ref.v1();
+                return ref.v2();
+            }
+        }
+        QueryAttributeResolver resolver = new QueryAttributeResolver(this);
+        proc = proc.resolveAttributes(resolver);
+        QueryContainer qContainer = resolver.container;
+
         // update proc
         Map<Attribute, ProcessorDefinition> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
         procs.put(name, proc);

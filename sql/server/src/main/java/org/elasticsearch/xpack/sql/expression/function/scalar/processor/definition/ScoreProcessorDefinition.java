@@ -38,4 +38,9 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
     public boolean supportedByAggsOnlyQuery() {
         return false;
     }
+
+    @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
 }

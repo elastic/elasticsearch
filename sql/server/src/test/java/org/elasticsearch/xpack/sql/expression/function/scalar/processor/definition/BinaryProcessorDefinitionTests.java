@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import static java.util.Collections.emptyList;
@@ -15,25 +16,58 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         ProcessorDefinition supported = new DummyProcessorDefinition(true);
         ProcessorDefinition unsupported = new DummyProcessorDefinition(false);
 
-        assertFalse(newBinaryProcessor(unsupported, unsupported).supportedByAggsOnlyQuery());
-        assertFalse(newBinaryProcessor(unsupported, supported).supportedByAggsOnlyQuery());
-        assertFalse(newBinaryProcessor(supported, unsupported).supportedByAggsOnlyQuery());
-        assertTrue(newBinaryProcessor(supported, supported).supportedByAggsOnlyQuery());
+        assertFalse(new DummyBinaryProcessorDefinition(unsupported, unsupported).supportedByAggsOnlyQuery());
+        assertFalse(new DummyBinaryProcessorDefinition(unsupported, supported).supportedByAggsOnlyQuery());
+        assertFalse(new DummyBinaryProcessorDefinition(supported, unsupported).supportedByAggsOnlyQuery());
+        assertTrue(new DummyBinaryProcessorDefinition(supported, supported).supportedByAggsOnlyQuery());
     }
 
-    private ProcessorDefinition newBinaryProcessor(ProcessorDefinition left, ProcessorDefinition right) {
-        return new BinaryProcessorDefinition(null, left, right) {
+    public void testResolveAttributes() {
+        ProcessorDefinition needsNothing = new DummyProcessorDefinition(randomBoolean());
+        ProcessorDefinition resolvesTo = new DummyProcessorDefinition(randomBoolean());
+        ProcessorDefinition needsResolution = new DummyProcessorDefinition(randomBoolean()) {
             @Override
-            public Processor asProcessor() {
-                return null;
+            public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+                return resolvesTo;
             }
         };
+        AttributeResolver resolver = a -> {
+            fail("not exepected");
+            return null;
+        };
+
+        ProcessorDefinition d = new DummyBinaryProcessorDefinition(needsNothing, needsNothing);
+        assertSame(d, d.resolveAttributes(resolver));
+
+        d = new DummyBinaryProcessorDefinition(needsNothing, needsResolution);
+        ProcessorDefinition expected = new DummyBinaryProcessorDefinition(needsNothing, resolvesTo);
+        assertEquals(expected, d.resolveAttributes(resolver));
+
+        d = new DummyBinaryProcessorDefinition(needsResolution, needsNothing);
+        expected = new DummyBinaryProcessorDefinition(resolvesTo, needsNothing);
+        assertEquals(expected, d.resolveAttributes(resolver));
     }
 
-    static class DummyProcessorDefinition extends ProcessorDefinition {
+    public static final class DummyBinaryProcessorDefinition extends BinaryProcessorDefinition {
+        public DummyBinaryProcessorDefinition(ProcessorDefinition left, ProcessorDefinition right) {
+            super(null, left, right);
+        }
+
+        @Override
+        public Processor asProcessor() {
+            return null;
+        }
+
+        @Override
+        protected BinaryProcessorDefinition replaceChildren(ProcessorDefinition left, ProcessorDefinition right) {
+            return new DummyBinaryProcessorDefinition(left, right);
+        }
+    }
+
+    public static class DummyProcessorDefinition extends ProcessorDefinition {
         private final boolean supportedByAggsOnlyQuery;
 
-        DummyProcessorDefinition(boolean supportedByAggsOnlyQuery) {
+        public DummyProcessorDefinition(boolean supportedByAggsOnlyQuery) {
             super(null, emptyList());
             this.supportedByAggsOnlyQuery = supportedByAggsOnlyQuery;
         }
@@ -51,6 +85,11 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         @Override
         public Processor asProcessor() {
             return null;
+        }
+
+        @Override
+        public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+            return this;
         }
     }
 }

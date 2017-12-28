@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 
 public class ReferenceInput extends NonExecutableInput<ColumnReference> {
-
     public ReferenceInput(Expression expression, ColumnReference context) {
         super(expression, context);
     }
@@ -17,5 +16,10 @@ public class ReferenceInput extends NonExecutableInput<ColumnReference> {
     @Override
     public final boolean supportedByAggsOnlyQuery() {
         return false;
+    }
+
+    @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
     }
 }

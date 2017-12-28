@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
@@ -33,5 +35,10 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> impl
     @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         // No fields needed
+    }
+
+    public abstract ProcessorDefinition resolveAttributes(AttributeResolver resolver);
+    public interface AttributeResolver {
+        ColumnReference resolve(Attribute attribute);
     }
 }

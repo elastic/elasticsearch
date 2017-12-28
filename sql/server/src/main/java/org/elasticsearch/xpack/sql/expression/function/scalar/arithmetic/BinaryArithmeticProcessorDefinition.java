@@ -26,25 +26,30 @@ public class BinaryArithmeticProcessorDefinition extends BinaryProcessorDefiniti
     }
 
     @Override
+    protected BinaryProcessorDefinition replaceChildren(ProcessorDefinition left, ProcessorDefinition right) {
+        return new BinaryArithmeticProcessorDefinition(expression(), left, right, operation);
+    }
+
+    @Override
     public BinaryArithmeticProcessor asProcessor() {
         return new BinaryArithmeticProcessor(left().asProcessor(), right().asProcessor(), operation);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right(), operation);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         BinaryArithmeticProcessorDefinition other = (BinaryArithmeticProcessorDefinition) obj;
         return Objects.equals(operation, other.operation)
                 && Objects.equals(left(), other.left())

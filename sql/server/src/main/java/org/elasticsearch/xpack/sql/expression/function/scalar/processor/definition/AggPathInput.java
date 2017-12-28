@@ -49,6 +49,11 @@ public class AggPathInput extends NonExecutableInput<String> {
     }
 
     @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(context(), innerKey);
     }

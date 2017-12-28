@@ -39,6 +39,11 @@ public class AggValueInput extends LeafInput<Supplier<Object>> {
     }
 
     @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(context(), innerKey);
     }

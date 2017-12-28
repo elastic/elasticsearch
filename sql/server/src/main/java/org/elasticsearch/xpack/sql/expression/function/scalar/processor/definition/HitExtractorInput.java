@@ -25,4 +25,9 @@ public class HitExtractorInput extends LeafInput<HitExtractor> {
     public final boolean supportedByAggsOnlyQuery() {
         return true;
     }
+
+    @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
 }

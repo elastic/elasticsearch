@@ -13,7 +13,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class UnaryProcessorDefinition extends ProcessorDefinition {
+public final class UnaryProcessorDefinition extends ProcessorDefinition {
 
     private final ProcessorDefinition child;
     private final Processor action;
@@ -45,6 +45,15 @@ public class UnaryProcessorDefinition extends ProcessorDefinition {
     @Override
     public boolean supportedByAggsOnlyQuery() {
         return child.supportedByAggsOnlyQuery();
+    }
+
+    @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        ProcessorDefinition newChild = child.resolveAttributes(resolver);
+        if (newChild == child) {
+            return this;
+        }
+        return new UnaryProcessorDefinition(expression(), newChild, action);
     }
 
     @Override

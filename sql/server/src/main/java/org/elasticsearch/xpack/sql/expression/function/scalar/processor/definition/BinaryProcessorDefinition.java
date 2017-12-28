@@ -33,6 +33,22 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
     }
 
     @Override
+    public final ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        ProcessorDefinition newLeft = left.resolveAttributes(resolver);
+        ProcessorDefinition newRight = right.resolveAttributes(resolver);
+        if (newLeft == left && newRight == right) {
+            return this;
+        }
+        return replaceChildren(newLeft, newRight);
+    }
+
+    /**
+     * Build a copy of this object with new left and right children. Used by
+     * {@link #resolveAttributes(AttributeResolver)}.
+     */
+    protected abstract BinaryProcessorDefinition replaceChildren(ProcessorDefinition left, ProcessorDefinition right);
+
+    @Override
     public boolean resolved() {
         return left().resolved() && right().resolved();
     }

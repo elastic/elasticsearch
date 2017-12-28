@@ -17,4 +17,9 @@ public class AggNameInput extends NonExecutableInput<String> {
     public final boolean supportedByAggsOnlyQuery() {
         return true;
     }
+
+    @Override
+    public final ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
 }

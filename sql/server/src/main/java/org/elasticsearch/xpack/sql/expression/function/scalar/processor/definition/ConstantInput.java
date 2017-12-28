@@ -24,4 +24,9 @@ public class ConstantInput extends LeafInput<Object> {
     public final boolean supportedByAggsOnlyQuery() {
         return true;
     }
+
+    @Override
+    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+        return this;
+    }
 }

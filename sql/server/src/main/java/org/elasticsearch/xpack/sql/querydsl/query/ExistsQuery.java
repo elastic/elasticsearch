@@ -23,4 +23,9 @@ public class ExistsQuery extends LeafQuery {
     public QueryBuilder asBuilder() {
         return existsQuery(name);
     }
+
+    @Override
+    protected String innerToString() {
+        return name;
+    }
 }

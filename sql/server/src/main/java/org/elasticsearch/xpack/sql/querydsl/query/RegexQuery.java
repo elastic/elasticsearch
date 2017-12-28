@@ -39,19 +39,24 @@ public class RegexQuery extends LeafQuery {
     public int hashCode() {
         return Objects.hash(field, regex);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         RegexQuery other = (RegexQuery) obj;
         return Objects.equals(field, other.field)
                 && Objects.equals(regex, other.regex);
+    }
+
+    @Override
+    protected String innerToString() {
+        return field + "~ /" + regex + "/";
     }
 }

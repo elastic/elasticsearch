@@ -161,26 +161,9 @@ public abstract class SourceGenerator {
 
                         nestedSort = newSort;
 
-                        List<QueryBuilder> nestedQuery = new ArrayList<>(1);
-
-                        // copy also the nested queries fr(if any)
                         if (container.query() != null) {
-                            container.query().forEachDown(nq -> {
-                                // found a match
-                                if (nestedPath.equals(nq.path())) {
-                                    // get the child query - the nested wrapping and inner hits are not needed
-                                    nestedQuery.add(nq.child().asBuilder());
-                                }
-                            }, NestedQuery.class);
+                            container.query().enrichNestedSort(nestedSort);
                         }
-
-                        if (nestedQuery.size() > 0) {
-                            if (nestedQuery.size() > 1) {
-                                throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
-                            }
-                            nestedSort.setFilter(nestedQuery.get(0));
-                        }
-
                         sortBuilder = fieldSort;
                     }
                 }

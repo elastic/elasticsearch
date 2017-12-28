@@ -8,18 +8,20 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static java.util.Collections.emptyList;
-
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class MatchAll extends Query {
-
+public class MatchAll extends LeafQuery {
     public MatchAll(Location location) {
-        super(location, emptyList());
+        super(location);
     }
 
     @Override
     public QueryBuilder asBuilder() {
         return matchAllQuery();
+    }
+
+    @Override
+    protected String innerToString() {
+        return "";
     }
 }

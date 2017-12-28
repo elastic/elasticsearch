@@ -38,7 +38,7 @@ public class RangeQuery extends LeafQuery {
     public String field() {
         return field;
     }
-    
+
     public Object lower() {
         return lower;
     }
@@ -54,7 +54,7 @@ public class RangeQuery extends LeafQuery {
     public boolean includeUpper() {
         return includeUpper;
     }
-    
+
     public String format() {
         return format;
     }
@@ -79,11 +79,11 @@ public class RangeQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         RangeQuery other = (RangeQuery) obj;
         return Objects.equals(field, other.field) &&
                 Objects.equals(includeLower, other.includeLower) &&
@@ -91,5 +91,12 @@ public class RangeQuery extends LeafQuery {
                 Objects.equals(lower, other.lower) &&
                 Objects.equals(upper, other.upper) &&
                 Objects.equals(format, other.format);
+    }
+
+    @Override
+    protected String innerToString() {
+        return field + ":"
+            + (includeLower ? "[" : "(") + lower + ", "
+            + upper + (includeUpper ? "]" : ")");
     }
 }

@@ -118,4 +118,9 @@ public class QueryStringQuery extends LeafQuery {
                 && Objects.equals(fields, other.fields)
                 && Objects.equals(predicate, other.predicate);
     }
+
+    @Override
+    protected String innerToString() {
+        return fields + ":" + query;
+    }
 }

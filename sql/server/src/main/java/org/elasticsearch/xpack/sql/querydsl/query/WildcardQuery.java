@@ -39,19 +39,24 @@ public class WildcardQuery extends LeafQuery {
     public int hashCode() {
         return Objects.hash(field, query);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         WildcardQuery other = (WildcardQuery) obj;
         return Objects.equals(field, other.field)
                 && Objects.equals(query, other.query);
+    }
+
+    @Override
+    protected String innerToString() {
+        return field + ":" + query;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,11 +25,11 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
-import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-
+import org.elasticsearch.xpack.sql.tree.Location;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -183,42 +184,40 @@ public class QueryContainer {
     }
 
     private Tuple<QueryContainer, ColumnReference> nestedFieldRef(FieldAttribute attr) {
-        // attach the field to the relevant nested query
+        // Find the nested query for this field. If there isn't one then create it
         List<ColumnReference> nestedRefs = new ArrayList<>();
 
-        String parent = attr.nestedParent().name();
-        String name = aliasName(attr);
+        Query q = rewriteToContainNestedField(query, attr.location(),
+            attr.nestedParent().path(), aliasName(attr), attr.dataType().hasDocValues());
 
-        Query q = query;
-        Map<String, Boolean> field = singletonMap(name, attr.dataType().hasDocValues());
-        if (q == null) {
-            q = new NestedQuery(attr.location(), parent, field, new MatchAll(attr.location()));
-        }
-        else {
-            AtomicBoolean foundMatch = new AtomicBoolean(false);
-            q = q.transformDown(n -> {
-                if (parent.equals(n.path())) {
-                    if (!n.fields().keySet().contains(name)) {
-                        foundMatch.set(true);
-                        Map<String, Boolean> fields = new LinkedHashMap<>(n.fields());
-                        fields.putAll(field);
-                        return new NestedQuery(n.location(), n.path(), fields, n.child());
-                    }
-                }
-                return n;
-            }, NestedQuery.class);
-
-            // no nested query exists for the given field, add one to retrieve its content
-            if (!foundMatch.get()) {
-                NestedQuery nested = new NestedQuery(attr.location(), parent, field, new MatchAll(attr.location()));
-                q = new AndQuery(attr.location(), q, nested);
-            }
-        }
-
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(attr.name(), attr.dataType().hasDocValues(), parent);
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(attr.name(), attr.dataType().hasDocValues(), attr.parent().name());
         nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
+    }
+
+    static Query rewriteToContainNestedField(@Nullable Query query, Location location, String path, String name, boolean hasDocValues) {
+        if (query == null) {
+            /* There is no query so we must add the nested query
+             * ourselves to fetch the field. */
+            return new NestedQuery(location, path, singletonMap(name, hasDocValues), new MatchAll(location));
+        }
+        if (query.containsNestedField(path, name)) {
+            // The query already has the nested field. Nothing to do.
+            return query;
+        }
+        /* The query doesn't have the nested field so we have to ask
+         * it to add it. */
+        Query rewritten = query.addNestedField(path, name, hasDocValues);
+        if (rewritten != query) {
+            /* It successfully added it so we can use the rewritten
+             * query. */
+            return rewritten;
+        }
+        /* There is no nested query with a matching path so we must
+         * add the nested query ourselves just to fetch the field. */
+        NestedQuery nested = new NestedQuery(location, path, singletonMap(name, hasDocValues), new MatchAll(location));
+        return new BoolQuery(location, true, query, nested);
     }
 
     // replace function's input with references

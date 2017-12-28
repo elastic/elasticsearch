@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,5 +42,16 @@ public class MultiMatchQueryTests extends ESTestCase {
         fields.put("bar", 1.0f);
         final MultiMatchQuery mmq = new MultiMatchQuery(location, "eggplant", fields, mmqp);
         return (MultiMatchQueryBuilder) mmq.asBuilder();
+    }
+
+    public void testToString() {
+        final Location location = new Location(1, 1);
+        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(location, "foo,bar", "eggplant", "");
+        // Use a TreeMap so we get the fields in a predictable order.
+        final Map<String, Float> fields = new TreeMap<>();
+        fields.put("foo", 1.0f);
+        fields.put("bar", 1.0f);
+        final MultiMatchQuery mmq = new MultiMatchQuery(location, "eggplant", fields, mmqp);
+        assertEquals("MultiMatchQuery@1:2[{bar=1.0, foo=1.0}:eggplant]", mmq.toString());
     }
 }

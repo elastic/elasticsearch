@@ -83,14 +83,19 @@ public class MultiMatchQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         MultiMatchQuery other = (MultiMatchQuery) obj;
         return Objects.equals(query, other.query)
                 && Objects.equals(fields, other.fields)
                 && Objects.equals(predicate, other.predicate);
+    }
+
+    @Override
+    protected String innerToString() {
+        return fields + ":" + query;
     }
 }

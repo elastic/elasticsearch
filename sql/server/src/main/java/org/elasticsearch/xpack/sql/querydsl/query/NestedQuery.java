@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,45 +18,92 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableMap;
 
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 
-public class NestedQuery extends UnaryQuery {
-
+/**
+ * A query to a nested document.
+ */
+public class NestedQuery extends Query {
     // TODO: make this configurable
     private static final int MAX_INNER_HITS = 99;
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     private final String path;
     private final Map<String, Boolean> fields;
+    private final Query child;
 
     public NestedQuery(Location location, String path, Query child) {
         this(location, path, emptyMap(), child);
     }
 
     public NestedQuery(Location location, String path, Map<String, Boolean> fields, Query child) {
-        super(location, child);
+        super(location);
+        if (path == null) {
+            throw new IllegalArgumentException("path is required");
+        }
+        if (fields == null) {
+            throw new IllegalArgumentException("fields is required");
+        }
+        if (child == null) {
+            throw new IllegalArgumentException("child is required");
+        }
         this.path = path;
         this.fields = fields;
+        this.child = child;
     }
 
-    public String path() {
-        return path;
+    @Override
+    public boolean containsNestedField(String path, String field) {
+        boolean iContainThisField = this.path.equals(path) && fields.containsKey(field);
+        boolean myChildContainsThisField = child.containsNestedField(path, field);
+        return iContainThisField || myChildContainsThisField;
     }
 
-    public Map<String, Boolean> fields() {
-        return fields;
+    @Override
+    public Query addNestedField(String path, String field, boolean hasDocValues) {
+        if (false == this.path.equals(path)) {
+            // I'm not at the right path so let my child query have a crack at it
+            Query rewrittenChild = child.addNestedField(path, field, hasDocValues);
+            if (rewrittenChild == child) {
+                return this;
+            }
+            return new NestedQuery(location(), path, fields, rewrittenChild);
+        }
+        if (fields.containsKey(field)) {
+            // I already have the field, no rewriting needed
+            return this;
+        }
+        Map<String, Boolean> newFields = new HashMap<>(fields.size() + 1);
+        newFields.putAll(fields);
+        newFields.put(field, hasDocValues);
+        return new NestedQuery(location(), path, unmodifiableMap(newFields), child);
+    }
+
+    @Override
+    public void enrichNestedSort(NestedSortBuilder sort) {
+        child.enrichNestedSort(sort);
+        if (false == sort.getPath().equals(path)) {
+            return;
+        }
+        QueryBuilder childAsBuilder = child.asBuilder();
+        if (sort.getFilter() != null && false == sort.getFilter().equals(childAsBuilder)) {
+            throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+        }
+        sort.setFilter(childAsBuilder);
     }
 
     @Override
     public QueryBuilder asBuilder() {
-        // disable source
-
-        NestedQueryBuilder query = nestedQuery(path, child().asBuilder(), ScoreMode.None);
+        // disable score
+        NestedQueryBuilder query = nestedQuery(path, child.asBuilder(), ScoreMode.None);
 
         if (!fields.isEmpty()) {
             InnerHitBuilder ihb = new InnerHitBuilder();
@@ -83,31 +131,42 @@ public class NestedQuery extends UnaryQuery {
                 ihb.setFetchSourceContext(new FetchSourceContext(true, sourceFields.toArray(new String[sourceFields.size()]), null));
             }
 
-
             query.innerHit(ihb);
         }
 
         return query;
     }
-    
+
+    String path() {
+        return path;
+    }
+
+    Map<String, Boolean> fields() {
+        return fields;
+    }
+
+    Query child() {
+        return child;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(path, fields, child());
+        return Objects.hash(super.hashCode(), path, fields, child);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
-        
         NestedQuery other = (NestedQuery) obj;
-        return Objects.equals(path, other.path)
-                && Objects.equals(fields, other.fields)
-                && Objects.equals(child(), other.child());
+        return path.equals(other.path)
+                && fields.equals(other.fields)
+                && child.equals(other.child);
+    }
+
+    @Override
+    protected String innerToString() {
+        return path + "." + fields + "[" + child + "]";
     }
 }

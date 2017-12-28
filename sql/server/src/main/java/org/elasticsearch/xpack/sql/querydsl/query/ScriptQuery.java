@@ -41,12 +41,17 @@ public class ScriptQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ScriptQuery other = (ScriptQuery) obj;
         return Objects.equals(script, other.script);
+    }
+
+    @Override
+    protected String innerToString() {
+        return script.toString();
     }
 }

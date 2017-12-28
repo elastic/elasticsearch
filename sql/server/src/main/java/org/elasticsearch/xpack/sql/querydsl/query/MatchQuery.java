@@ -80,6 +80,10 @@ public class MatchQuery extends LeafQuery {
         return text;
     }
 
+    MatchQueryPredicate predicate() {
+        return predicate;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(text, name, predicate);
@@ -87,17 +91,18 @@ public class MatchQuery extends LeafQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
-        
+
         MatchQuery other = (MatchQuery) obj;
         return Objects.equals(text, other.text)
                 && Objects.equals(name, other.name)
                 && Objects.equals(predicate, other.predicate);
+    }
+
+    @Override
+    protected String innerToString() {
+        return name + ":" + text;
     }
 }

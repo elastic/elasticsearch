@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPred
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,5 +38,13 @@ public class QueryStringQueryTests extends ESTestCase {
         final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", options);
         final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         return (QueryStringQueryBuilder) mmq.asBuilder();
+    }
+
+
+    public void testToString() {
+        final Location location = new Location(1, 1);
+        final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", "");
+        final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        assertEquals("QueryStringQuery@1:2[{foo=1.0}:eggplant]", mmq.toString());
     }
 }

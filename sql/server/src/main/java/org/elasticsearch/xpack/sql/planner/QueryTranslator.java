@@ -70,13 +70,12 @@ import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
-import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.OrQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
@@ -335,7 +334,7 @@ abstract class QueryTranslator {
         if (right == null) {
             return left;
         }
-        return new AndQuery(loc, left, right);
+        return new BoolQuery(loc, true, left, right);
     }
 
     static QueryTranslation or(Location loc, QueryTranslation left, QueryTranslation right) {
@@ -376,7 +375,7 @@ abstract class QueryTranslator {
         if (right == null) {
             return left;
         }
-        return new OrQuery(loc, left, right);
+        return new BoolQuery(loc, false, left, right);
     }
 
     static Query not(Query query) {

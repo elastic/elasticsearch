@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.LocationTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,7 @@ public class UnresolvedRelationTests extends ESTestCase {
         UnresolvedRelation relation = new UnresolvedRelation(location, table, alias, unresolvedMessage);
         List<Function<UnresolvedRelation, UnresolvedRelation>> mutators = new ArrayList<>();
         mutators.add(r -> new UnresolvedRelation(
-            new Location(r.location().getLineNumber() + 1, r.location().getColumnNumber()),
+            LocationTests.mutate(r.location()),
             r.table(),
             r.alias(),
             r.unresolvedMessage()));

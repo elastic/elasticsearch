@@ -5,13 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static java.util.Collections.emptyList;
-
 abstract class LeafQuery extends Query {
-
     LeafQuery(Location location) {
-        super(location, emptyList());
+        super(location);
+    }
+
+    @Override
+    public final boolean containsNestedField(String path, String field) {
+        // No leaf queries are nested
+        return false;
+    }
+
+    @Override
+    public Query addNestedField(String path, String field, boolean hasDocValues) {
+        // No leaf queries are nested
+        return this;
+    }
+
+    @Override
+    public void enrichNestedSort(NestedSortBuilder sort) {
+        // No leaf queries are nested
     }
 }

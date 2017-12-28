@@ -33,7 +33,7 @@ public class SqlParser {
      * Time zone in which the SQL is parsed. This is attached to functions
      * that deal with dates and times.
      */
-    private DateTimeZone timeZone;
+    private final DateTimeZone timeZone;
 
     public SqlParser(DateTimeZone timeZone) {
         this.timeZone = timeZone;
@@ -55,42 +55,35 @@ public class SqlParser {
     }
 
     private <T> T invokeParser(String name, String sql, Function<SqlBaseParser, ParserRuleContext> parseFunction, BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+        SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
+
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+
+        CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+        SqlBaseParser parser = new SqlBaseParser(tokenStream);
+
+        parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+
+        ParserRuleContext tree;
         try {
-            SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
+            // first, try parsing with potentially faster SLL mode
+            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            tree = parseFunction.apply(parser);
+        } catch (Exception ex) {
+            // if we fail, parse with LL mode
+            tokenStream.reset(); // rewind input stream
+            parser.reset();
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
-
-            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
-            SqlBaseParser parser = new SqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            ParserRuleContext tree;
-            try {
-                // first, try parsing with potentially faster SLL mode
-                parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
-                tree = parseFunction.apply(parser);
-            }
-            catch (Exception ex) {
-                // if we fail, parse with LL mode
-                tokenStream.reset(); // rewind input stream
-                parser.reset();
-
-                parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
-                tree = parseFunction.apply(parser);
-            }
-
-            postProcess(lexer, parser, tree);
-
-            return visitor.apply(new AstBuilder(timeZone), tree);
+            parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+            tree = parseFunction.apply(parser);
         }
 
-        catch (StackOverflowError e) {
-            throw new ParsingException(name + " is too large (stack overflow while parsing)");
-        }
+        postProcess(lexer, parser, tree);
+
+        return visitor.apply(new AstBuilder(timeZone), tree);
     }
 
     protected void postProcess(SqlBaseLexer lexer, SqlBaseParser parser, ParserRuleContext tree) {

@@ -43,7 +43,7 @@ public final class ResyncFailedInfo implements Writeable, ToXContentFragment {
     }
 
     ResyncFailedInfo(StreamInput in) throws IOException {
-        this.reason = in.readOptionalString();
+        this.reason = in.readString();
         this.failure = in.readException();
     }
 
@@ -57,7 +57,7 @@ public final class ResyncFailedInfo implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(reason);
+        out.writeString(reason);
         out.writeException(failure);
     }
 
@@ -80,7 +80,9 @@ public final class ResyncFailedInfo implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(reason, failure);
+        int result = reason.hashCode();
+        result = 31 * result + failure.hashCode();
+        return result;
     }
 
     @Override

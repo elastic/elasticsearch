@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
@@ -29,8 +30,11 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataTypes.KEYWORD;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class FieldAttributeTests extends ESTestCase {
 
@@ -115,16 +119,27 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testDottedFieldPath() {
-        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some] (type object) only its subfields"));
+        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some], type [object] only its subfields"));
     }
 
     public void testDottedFieldPathDeeper() {
         assertThat(error("some.dotted"),
-                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted] (type object) only its subfields"));
+                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted], type [object] only its subfields"));
     }
 
     public void testDottedFieldPathTypo() {
         assertThat(error("some.dotted.fild"),
                 is("Found 1 problem(s)\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
+    }
+
+    public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
+        LogicalPlan plan = plan("SELECT * FROM test");
+        List<? extends NamedExpression> list = ((Project) plan).projections();
+        assertThat(list, hasSize(7));
+        List<String> names = Expressions.names(list);
+        assertThat(names, not(hasItem("some")));
+        assertThat(names, not(hasItem("some.dotted")));
+        assertThat(names, not(hasItem("unsupported")));
+        assertThat(names, hasItems("bool", "text", "keyword", "int"));
     }
 }

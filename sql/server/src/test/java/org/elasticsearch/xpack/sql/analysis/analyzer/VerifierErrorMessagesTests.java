@@ -112,4 +112,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:31: Cannot use an aggregate [AVG] for grouping",
                 verify("SELECT int FROM test GROUP BY AVG(int) + 2"));
     }
+
+    public void testUnsupportedType() {
+        assertEquals("1:8: Cannot use field [unsupported], its type [ip_range] is unsupported",
+                verify("SELECT unsupported FROM test"));
+    }
 }

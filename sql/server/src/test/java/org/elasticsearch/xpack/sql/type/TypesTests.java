@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 
 import java.io.InputStream;
 import java.util.List;
@@ -19,7 +18,6 @@ import static org.elasticsearch.xpack.sql.type.DataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataTypes.TEXT;
-import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -182,13 +180,15 @@ public class TypesTests extends ESTestCase {
     }
 
     public void testGeoField() throws Exception {
-        MappingException ex = expectThrows(MappingException.class, () -> loadMapping("mapping-geo.json"));
-        assertThat(ex.getMessage(), is("Unsupported mapping type geo_point"));
+        Map<String, DataType> mapping = loadMapping("mapping-geo.json");
+        DataType dt = mapping.get("location");
+        assertThat(dt.esName(), is("geo_point"));
     }
 
     public void testUnsupportedTypes() throws Exception {
-        MappingException ex = expectThrows(MappingException.class, () -> loadMapping("mapping-unsupported.json"));
-        assertThat(ex.getMessage(), startsWith("Unsupported mapping type"));
+        Map<String, DataType> mapping = loadMapping("mapping-unsupported.json");
+        DataType dt = mapping.get("range");
+        assertThat(dt.esName(), is("integer_range"));
     }
 
     public static Map<String, DataType> loadMapping(String name) {

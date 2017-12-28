@@ -3,7 +3,8 @@
         "bool" : { "type" : "boolean" },
         "int" : { "type" : "integer" },
         "text" : { "type" : "text" },
-        "keyword" : { "type" : "keyword" }, 
+        "keyword" : { "type" : "keyword" },
+        "unsupported" : { "type" : "ip_range" },
         "some" : {
             "properties" : {
                 "dotted" : {

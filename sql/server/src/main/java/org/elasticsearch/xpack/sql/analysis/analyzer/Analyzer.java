@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.sql.type.UnsupportedDataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTimeZone;
 
@@ -165,7 +166,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         for (Attribute attribute : attrList) {
             if (!attribute.synthetic()) {
-                boolean match = qualified ? 
+                boolean match = qualified ?
                         Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
                         Objects.equals(u.name(), attribute.name());
                 if (match) {
@@ -349,10 +350,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
                         // if it's a object/compound type, keep it unresolved with a nice error message
-                        if (named instanceof FieldAttribute && !((FieldAttribute) named).dataType().isPrimitive()) {
+                        if (named instanceof FieldAttribute) {
                             FieldAttribute fa = (FieldAttribute) named;
-                            named = u.withUnresolvedMessage(
-                                    "Cannot use field [" + fa.name() + "] (type " + fa.dataType().esName() + ") only its subfields");
+                            if (fa.dataType() instanceof UnsupportedDataType) {
+                                named = u.withUnresolvedMessage(
+                                        "Cannot use field [" + fa.name() + "], its type [" + fa.dataType().esName() + "] is unsupported");
+                            }
+                            else if (!fa.dataType().isPrimitive()) {
+                                named = u.withUnresolvedMessage(
+                                        "Cannot use field [" + fa.name() + "], type [" + fa.dataType().esName() + "] only its subfields");
+                            }
                         }
 
                         if (log.isTraceEnabled()) {
@@ -372,59 +379,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Attribute> output = child.output();
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
-                    UnresolvedStar us = (UnresolvedStar) ne;
-
-                    // a qualifier is specified - since this is a star, it should be a CompoundDataType
-                    if (us.qualifier() != null) {
-                        // resolve the so-called qualifier first
-                        // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                        Attribute q = resolveAgainstList(us.qualifier(), output, false);
-
-                        // now use the resolved 'qualifier' to match
-                        for (Attribute attr : output) {
-                            // filter the attributes that match based on their path
-                            if (attr instanceof FieldAttribute) {
-                                FieldAttribute fa = (FieldAttribute) attr;
-                                if (q.qualifier() != null) {
-                                    if (Objects.equals(q.qualifiedName(), fa.qualifiedName())) {
-                                        result.add(fa.withLocation(attr.location()));
-                                    }
-                                } else {
-                                    // use the path only to match non-compound types
-                                    if (Objects.equals(q.name(), fa.path())) {
-                                        result.add(fa.withLocation(attr.location()));
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // add only primitives
-                        // but filter out multi fields
-                        Set<Attribute> seenMultiFields = new LinkedHashSet<>();
-
-                        for (Attribute a : output) {
-                            if (a.dataType().isPrimitive()) {
-                                if (a instanceof FieldAttribute) {
-                                    FieldAttribute fa = (FieldAttribute) a;
-                                    if (!seenMultiFields.contains(fa.parent())) {
-                                        result.add(a);
-                                        seenMultiFields.add(a);
-                                    }
-                                } else {
-                                    result.add(a);
-                                }
-                            }
-                        }
-                    }
+                    result.addAll(expandStar((UnresolvedStar) ne, output));
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
-                        // add only primitives
-                        for (Attribute a : output) {
-                            if (a.dataType().isPrimitive()) {
-                                result.add(a);
-                            }
-                        }
+                        result.addAll(expandStar((UnresolvedStar) ua.child(), output));
                     }
                 } else {
                     result.add(ne);
@@ -432,6 +391,58 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             return result;
+        }
+
+        private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
+            List<NamedExpression> expanded = new ArrayList<>();
+
+            // a qualifier is specified - since this is a star, it should be a CompoundDataType
+            if (us.qualifier() != null) {
+                // resolve the so-called qualifier first
+                // since this is an unresolved start we don't know whether it's a path or an actual qualifier
+                Attribute q = resolveAgainstList(us.qualifier(), output, false);
+
+                // now use the resolved 'qualifier' to match
+                for (Attribute attr : output) {
+                    // filter the attributes that match based on their path
+                    if (attr instanceof FieldAttribute) {
+                        FieldAttribute fa = (FieldAttribute) attr;
+                        if (fa.dataType() instanceof UnsupportedDataType) {
+                            continue;
+                        }
+                        if (q.qualifier() != null) {
+                            if (Objects.equals(q.qualifiedName(), fa.qualifiedName())) {
+                                expanded.add(fa.withLocation(attr.location()));
+                            }
+                        } else {
+                            // use the path only to match non-compound types
+                            if (Objects.equals(q.name(), fa.path())) {
+                                expanded.add(fa.withLocation(attr.location()));
+                            }
+                        }
+                    }
+                }
+            } else {
+                // add only primitives
+                // but filter out multi fields
+                Set<Attribute> seenMultiFields = new LinkedHashSet<>();
+
+                for (Attribute a : output) {
+                    if (!(a.dataType() instanceof UnsupportedDataType) && a.dataType().isPrimitive()) {
+                        if (a instanceof FieldAttribute) {
+                            FieldAttribute fa = (FieldAttribute) a;
+                            if (!seenMultiFields.contains(fa.parent())) {
+                                expanded.add(a);
+                                seenMultiFields.add(a);
+                            }
+                        } else {
+                            expanded.add(a);
+                        }
+                    }
+                }
+            }
+
+            return expanded;
         }
 
         // generate a new (right) logical plan with different IDs for all conflicting attributes

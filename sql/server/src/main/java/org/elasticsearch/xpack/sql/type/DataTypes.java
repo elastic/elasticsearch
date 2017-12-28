@@ -31,7 +31,6 @@ public abstract class DataTypes {
     public static final DataType DATE = DateType.DEFAULT;
 
     public static final DataType BINARY = new BinaryType(true);
-    public static final DataType UNKNOWN = new UnknownDataType();
 
     private static final Map<String, DataType> ES_PRIMITIVES_DEFAULT = new LinkedHashMap<>();
     private static final Map<String, DataType> ES_PRIMITIVES_NO_DOC_VALUES = new LinkedHashMap<>();
@@ -50,7 +49,6 @@ public abstract class DataTypes {
         initDefault(IP_TYPE);
         // text and keyword are handled separately
         initDefault(BINARY);
-        initDefault(UNKNOWN);
 
         //init(GEO_POINT);
 
@@ -69,7 +67,6 @@ public abstract class DataTypes {
         initNoDocValues(new HalfFloatType(false));
         initNoDocValues(new IpType(false));
         initNoDocValues(new BinaryType(false));
-        initNoDocValues(UNKNOWN);
     }
 
     private static void initDefault(DataType type) {
@@ -114,11 +111,8 @@ public abstract class DataTypes {
         throw new SqlIllegalArgumentException("No idea what's the DataType for %s", value.getClass());
     }
 
-    public static DataType from(JDBCType type) {
-        return JDBC_TO_TYPES.get(type);
-    }
-
     public static DataType fromEsName(String typeString, boolean docValuesEnabled) {
-        return docValuesEnabled ? ES_PRIMITIVES_DEFAULT.get(typeString) : ES_PRIMITIVES_NO_DOC_VALUES.get(typeString);
+        DataType t = docValuesEnabled ? ES_PRIMITIVES_DEFAULT.get(typeString) : ES_PRIMITIVES_NO_DOC_VALUES.get(typeString);
+        return t != null ? t : new UnsupportedDataType(typeString);
     }
 }

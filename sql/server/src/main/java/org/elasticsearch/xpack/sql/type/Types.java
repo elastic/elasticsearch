@@ -46,34 +46,30 @@ public abstract class Types {
         KNOWN_TYPES = unmodifiableSet(types);
     }
 
-    public static Map<String, DataType> fromEs(Map<String, Object> asMap) {
-        return fromEs(asMap, false);
-    }
-
     @SuppressWarnings("unchecked")
-    public static Map<String, DataType> fromEs(Map<String, Object> asMap, boolean ignoreUnsupported) {
+    public static Map<String, DataType> fromEs(Map<String, Object> asMap) {
         Map<String, Object> props = null;
         if (asMap != null && !asMap.isEmpty()) {
             props = (Map<String, Object>) asMap.get("properties");
         }
-        return props == null || props.isEmpty() ? emptyMap() : startWalking(props, ignoreUnsupported);
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
     }
 
-    private static Map<String, DataType> startWalking(Map<String, Object> mapping, boolean ignoreUnsupported) {
+    private static Map<String, DataType> startWalking(Map<String, Object> mapping) {
         Map<String, DataType> types = new LinkedHashMap<>();
 
         if (mapping == null) {
             return emptyMap();
         }
         for (Entry<String, Object> entry : mapping.entrySet()) {
-            walkMapping(entry.getKey(), entry.getValue(), types, ignoreUnsupported);
+            walkMapping(entry.getKey(), entry.getValue(), types);
         }
 
         return types;
     }
 
     @SuppressWarnings("unchecked")
-    private static void walkMapping(String name, Object value, Map<String, DataType> mapping, boolean ignoreUnsupported) {
+    private static void walkMapping(String name, Object value, Map<String, DataType> mapping) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
@@ -88,12 +84,13 @@ public abstract class Types {
                         mapping.put(name, new NestedType(fromEs(content)));
                     } else {
                         // check dates first to account for the format
-                        mapping.put(name, createPrimitiveType(st, content, ignoreUnsupported));
+                        DataType primitiveType = createPrimitiveType(st, content);
+                        if (primitiveType != null) {
+                            mapping.put(name, primitiveType);
+                        }
                     }
                 } else {
-                    if (!ignoreUnsupported) {
-                        throw new MappingException("Unsupported mapping type %s", type);
-                    }
+                    mapping.put(name, new UnsupportedDataType(st));
                 }
             }
             // object type ?
@@ -110,7 +107,7 @@ public abstract class Types {
     }
 
     @SuppressWarnings("unchecked")
-    private static DataType createPrimitiveType(String typeString, Map<String, Object> content, boolean ignoreUnsupported) {
+    private static DataType createPrimitiveType(String typeString, Map<String, Object> content) {
         // since this setting is available in most types, search for it regardless
 
         DataType type = null;
@@ -131,7 +128,7 @@ public abstract class Types {
                 Object value = content.get("fields");
                 Map<String, DataType> fields = emptyMap();
                 if (value instanceof Map) {
-                    fields = startWalking((Map<String, Object>) value, ignoreUnsupported);
+                    fields = startWalking((Map<String, Object>) value);
                 }
                 type = TextType.from(fieldData, fields);
                 break;
@@ -141,7 +138,7 @@ public abstract class Types {
                 fields = emptyMap();
                 value = content.get("fields");
                 if (value instanceof Map) {
-                    fields = startWalking((Map<String, Object>) value, ignoreUnsupported);
+                    fields = startWalking((Map<String, Object>) value);
                 }
                 type = KeywordType.from(docValues, length, normalized, fields);
                 break;

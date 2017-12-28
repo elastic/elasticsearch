@@ -58,8 +58,10 @@ public class ShardRoutingTests extends ESTestCase {
 
     private ShardRouting randomShardRouting(String index, int shard) {
         ShardRoutingState state = randomFrom(ShardRoutingState.values());
+        final ResyncFailedInfo resyncFailedInfo = randomBoolean() ? null :
+            new ResyncFailedInfo(randomAlphaOfLengthBetween(10, 100), new IOException(randomAlphaOfLengthBetween(10, 100)));
         return TestShardRouting.newShardRouting(index, shard, state == ShardRoutingState.UNASSIGNED ? null : "1",
-            state == ShardRoutingState.RELOCATING ? "2" : null, state != ShardRoutingState.UNASSIGNED && randomBoolean(), state);
+            state == ShardRoutingState.RELOCATING ? "2" : null, state != ShardRoutingState.UNASSIGNED && randomBoolean(), state, resyncFailedInfo);
     }
 
     public void testIsSourceTargetRelocation() {
@@ -122,13 +124,13 @@ public class ShardRoutingTests extends ESTestCase {
                     ShardId shardId = new ShardId(new Index("blubb", randomAlphaOfLength(10)), otherRouting.id());
                     otherRouting = new ShardRouting(shardId, otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
-                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize(), null);
                     break;
                 case 1:
                     // change shard id
                     otherRouting = new ShardRouting(new ShardId(otherRouting.index(), otherRouting.id() + 1), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
-                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize(), null);
                     break;
                 case 2:
                     // change current node
@@ -137,7 +139,7 @@ public class ShardRoutingTests extends ESTestCase {
                     } else {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId() + "_1", otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
-                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize(), null);
                     }
                     break;
                 case 3:
@@ -147,7 +149,7 @@ public class ShardRoutingTests extends ESTestCase {
                     } else {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId() + "_1",
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
-                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize(), null);
                     }
                     break;
                 case 4:
@@ -158,7 +160,7 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(),
                             new RecoverySource.SnapshotRecoverySource(new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())), Version.CURRENT, "test"),
-                            otherRouting.unassignedInfo(), otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                            otherRouting.unassignedInfo(), otherRouting.allocationId(), otherRouting.getExpectedShardSize(), null);
                     }
                     break;
                 case 5:

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,6 +76,7 @@ public class ShardStateAction extends AbstractComponent {
 
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
+    public static final String SHARD_RESYNC_FAILED_ACTION_NAME = "internal:cluster/shard/resync-failure";
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -90,16 +92,21 @@ public class ShardStateAction extends AbstractComponent {
 
         transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
+        transportService.registerRequestHandler(SHARD_RESYNC_FAILED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardResyncFailedTransportHandler(clusterService, allocationService,  logger));
     }
 
-    private void sendShardAction(final String actionName, final ClusterState currentState, final ShardEntry shardEntry, final Listener listener) {
+    private void sendShardAction(final String actionName, final ClusterState currentState, final ShardEntry shardEntry, final Listener listener, final Version masterNodeMinimumVersion) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
-            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate, masterNodeMinimumVersion);
         } else {
+            if (masterNodeMinimumVersion != null && masterNode.getVersion().before(masterNodeMinimumVersion)) {
+                listener.onSuccess();
+                return;
+            }
             logger.debug("{} sending [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode.getId(), shardEntry);
             transportService.sendRequest(masterNode,
                 actionName, shardEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
@@ -111,7 +118,7 @@ public class ShardStateAction extends AbstractComponent {
                     @Override
                     public void handleException(TransportException exp) {
                         if (isMasterChannelException(exp)) {
-                            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+                            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate, masterNodeMinimumVersion);
                         } else {
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while sending request [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode, shardEntry), exp);
                             listener.onFailure(exp instanceof RemoteTransportException ? (Exception) (exp.getCause() instanceof Exception ? exp.getCause() : new ElasticsearchException(exp.getCause())) : exp);
@@ -166,18 +173,18 @@ public class ShardStateAction extends AbstractComponent {
     private void shardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message,
                              @Nullable final Exception failure, Listener listener, ClusterState currentState) {
         ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure);
-        sendShardAction(SHARD_FAILED_ACTION_NAME, currentState, shardEntry, listener);
+        sendShardAction(SHARD_FAILED_ACTION_NAME, currentState, shardEntry, listener, null);
     }
 
     // visible for testing
-    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate) {
+    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate, Version masterNodeMinimumVersion) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state, shardEntry);
                 }
-                sendShardAction(actionName, state, shardEntry, listener);
+                sendShardAction(actionName, state, shardEntry, listener, masterNodeMinimumVersion);
             }
 
             @Override
@@ -213,37 +220,7 @@ public class ShardStateAction extends AbstractComponent {
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
-                new ClusterStateTaskListener() {
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception channelException) {
-                            channelException.addSuppressed(e);
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
-                        }
-                    }
-
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
-                        try {
-                            channel.sendResponse(new NotMasterException(source));
-                        } catch (Exception channelException) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
-                        }
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        try {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        } catch (Exception channelException) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
-                        }
-                    }
-                }
+                new LoggingClusterStateTaskListener("failed shard", channel, request, logger)
             );
         }
     }
@@ -357,7 +334,7 @@ public class ShardStateAction extends AbstractComponent {
     }
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener, ClusterState currentState) {
         ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, null);
-        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener);
+        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener, null);
     }
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<ShardEntry> {
@@ -451,6 +428,77 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
+    /**
+     * Sends a request to the master node to mark the given shard resync-failed. This action will neither fail nor mark
+     * this shard as stale. This shard will be failed in the subsequent writes if it does not remove the resync-failed marker.
+     */
+    public void markShardResyncFailed(ShardId shardId, String allocationId, long primaryTerm,
+                                      String message, Exception failure, Listener listener) {
+        assert primaryTerm > 0L : "primary term should be strictly positive";
+        final ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure);
+        logger.info("Mark shard as resync failed [{}]", shardEntry);
+        sendShardAction(SHARD_RESYNC_FAILED_ACTION_NAME, clusterService.state(), shardEntry, listener, Version.V_7_0_0_alpha1);
+    }
+
+    static class ShardResyncFailedTransportHandler implements TransportRequestHandler<ShardEntry> {
+        private final ClusterService clusterService;
+        private final AllocationService allocationService;
+        private final Logger logger;
+
+        ShardResyncFailedTransportHandler(ClusterService clusterService, AllocationService allocationService, Logger logger) {
+            this.clusterService = clusterService;
+            this.allocationService = allocationService;
+            this.logger = logger;
+        }
+
+        @Override
+        public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
+            logger.info(new ParameterizedMessage("{} received resync-failed request [{}]", request.shardId, request), request.failure);
+            clusterService.submitStateUpdateTask("resync-failed", request, ClusterStateTaskConfig.build(Priority.HIGH),
+                new ShardResyncFailedClusterStateTaskExecutor(allocationService),
+                new LoggingClusterStateTaskListener("mark shard resync-failed", channel, request, logger));
+        }
+    }
+
+    static class ShardResyncFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry> {
+        private final AllocationService allocationService;
+
+        ShardResyncFailedClusterStateTaskExecutor(AllocationService allocationService) {
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        public ClusterTasksResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
+            final ClusterTasksResult.Builder<ShardEntry> resultBuilder = ClusterTasksResult.builder();
+            final List<ShardEntry> tasksToBeApplied = new ArrayList<>();
+            final List<FailedShard> shardsToMark = new ArrayList<>();
+            for (ShardEntry task : tasks) {
+                final IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
+                if (indexMetaData == null) {
+                    // tasks that correspond to non-existent indices are marked as successful
+                    resultBuilder.success(task);
+                } else {
+                    final long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
+                    if (currentPrimaryTerm != task.primaryTerm) {
+                        assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +
+                            "current cluster state (received [" + task.primaryTerm + "] but current is [" + currentPrimaryTerm + "])";
+                        resultBuilder.failure(task, new NoLongerPrimaryShardException(task.shardId,
+                            "primary term [" + task.primaryTerm + "] did not match current primary term [" + currentPrimaryTerm + "]"));
+                        continue;
+                    }
+                    final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+                    if (matched != null) {
+                        tasksToBeApplied.add(task);
+                        shardsToMark.add(new FailedShard(matched, task.message, task.failure));
+                    }
+                }
+            }
+            resultBuilder.successes(tasksToBeApplied);
+            final ClusterState newState = allocationService.markShardsResyncFailed(currentState, shardsToMark);
+            return resultBuilder.build(newState);
+        }
+    }
+
     public static class ShardEntry extends TransportRequest {
         ShardId shardId;
         String allocationId;
@@ -508,6 +556,53 @@ public class ShardStateAction extends AbstractComponent {
                 components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
             }
             return String.join(", ", components);
+        }
+    }
+
+    static class LoggingClusterStateTaskListener implements ClusterStateTaskListener {
+        private final String action;
+        private final TransportChannel channel;
+        private final ShardEntry request;
+        private final Logger logger;
+
+        LoggingClusterStateTaskListener(String action, TransportChannel channel, ShardEntry request, Logger logger) {
+            this.channel = channel;
+            this.action = action;
+            this.request = request;
+            this.logger = logger;
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            logger.error(new ParameterizedMessage("{}: {} unexpected failure [{}]", action, request.shardId, request), e);
+            try {
+                channel.sendResponse(e);
+            } catch (Exception channelException) {
+                channelException.addSuppressed(e);
+                logger.warn(new ParameterizedMessage("{}: {} failed to send failure [{}] [{}]",
+                    action, request.shardId, e, request), channelException);
+            }
+        }
+
+        @Override
+        public void onNoLongerMaster(String source) {
+            logger.error("{}: {} no longer master [{}]", action, request.shardId, request);
+            try {
+                channel.sendResponse(new NotMasterException(source));
+            } catch (Exception channelException) {
+                logger.warn(new ParameterizedMessage("{}: {} failed to send no longer master [{}]",
+                    action, request.shardId, request), channelException);
+            }
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            try {
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } catch (Exception channelException) {
+                logger.warn(new ParameterizedMessage("{}: {} failed to send response [{}]",
+                    action, request.shardId, request), channelException);
+            }
         }
     }
 

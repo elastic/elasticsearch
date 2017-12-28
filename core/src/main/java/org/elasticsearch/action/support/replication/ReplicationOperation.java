@@ -150,6 +150,11 @@ public class ReplicationOperation<
                 continue;
             }
 
+            if (shard.resyncFailedInfo() != null) {
+                failResyncFailedShard(shard);
+                continue;
+            }
+
             if (shard.currentNodeId().equals(localNodeId) == false) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint);
             }
@@ -207,6 +212,19 @@ public class ReplicationOperation<
                 }
             }
         });
+    }
+
+    private void failResyncFailedShard(ShardRouting shardRouting) {
+        assert shardRouting.resyncFailedInfo() != null : "Resync-failed shard must have resyncFailedInfo";
+        pendingActions.incrementAndGet();
+        totalShards.incrementAndGet();
+        replicasProxy.failShardIfNeeded(shardRouting,
+            "Fail resync-failed shard; original reason [" + shardRouting.resyncFailedInfo().getReason() + "]",
+            shardRouting.resyncFailedInfo().getFailure(),
+            ReplicationOperation.this::decPendingAndFinishIfNeeded,
+            ReplicationOperation.this::onPrimaryDemoted,
+            throwable -> decPendingAndFinishIfNeeded()
+        );
     }
 
     private void onPrimaryDemoted(Exception demotionFailure) {

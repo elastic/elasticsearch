@@ -20,10 +20,12 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -89,9 +91,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate, Version masterNodeMinimumVersion) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+            super.waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate, masterNodeMinimumVersion);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }

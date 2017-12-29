@@ -20,8 +20,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     private final String name;
     private final boolean distinct;
     private final String unresolvedMsg;
-    // flag to indicate analysis has been applied and there's no point in doing it again
-    // this is an optimization to prevent searching for a better unresolved message over and over again
+    /**
+     * Flag to indicate analysis has been applied and there's no point in
+     * doing it again this is an optimization to prevent searching for a
+     * better unresolved message over and over again.
+     */
     private final boolean analyzed;
 
     public UnresolvedFunction(Location location, String name, boolean distinct, List<Expression> children) {
@@ -29,9 +32,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     /**
-     * Constructor used for specifying a more descriptive message (typically 'did you mean') instead of the default one.
+     * Constructor used for specifying a more descriptive message (typically
+     * 'did you mean') instead of the default one.
      */
-    public UnresolvedFunction(Location location, String name, boolean distinct, List<Expression> children, boolean analyzed, String unresolvedMessage) {
+    public UnresolvedFunction(Location location, String name, boolean distinct, List<Expression> children,
+            boolean analyzed, String unresolvedMessage) {
         super(location, children);
         this.name = name;
         this.distinct = distinct;

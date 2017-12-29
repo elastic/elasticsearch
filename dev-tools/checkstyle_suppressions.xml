@@ -19,15 +19,6 @@
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]LiteralAttribute.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]TypedAttribute.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]UnresolvedAttribute.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]UnresolvedFunction.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]aggregate[/\\]AggregateFunctionAttribute.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]aggregate[/\\]InnerAggregate.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]Cast.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]ScalarFunctionAttribute.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]arithmetic[/\\]ArithmeticFunction.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]arithmetic[/\\]BinaryArithmeticProcessorDefinition.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]arithmetic[/\\]Neg.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]datetime[/\\]DateTimeFunction.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]optimizer[/\\]Optimizer.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]CommandBuilder.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]ExpressionBuilder.java" checks="LineLength" />

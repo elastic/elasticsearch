@@ -47,6 +47,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE));
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+                new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE));
     }
 }

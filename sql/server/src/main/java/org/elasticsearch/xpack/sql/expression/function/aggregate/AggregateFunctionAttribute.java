@@ -18,11 +18,13 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     private final String propertyPath;
 
-    AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId, String propertyPath) {
+    AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
+            String functionId, String propertyPath) {
         this(location, name, dataType, null, false, id, false, functionId, propertyPath);
     }
 
-    AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
+    AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
+            boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
     }
@@ -37,14 +39,16 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, DataType dataType, String qualifier,
+            boolean nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
         return new AggregateFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId(), propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
-        return new AggregateFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId, propertyPath);
+        return new AggregateFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(),
+                id(), synthetic(), functionId, propertyPath);
     }
 
     @Override

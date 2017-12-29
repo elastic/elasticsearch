@@ -22,13 +22,14 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     private final Expression orderBy;
     private final ProcessorDefinition processorDef;
 
-    ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId, ScriptTemplate script,
-            Expression orderBy, ProcessorDefinition processorDef) {
+    ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
+            String functionId, ScriptTemplate script, Expression orderBy, ProcessorDefinition processorDef) {
         this(location, name, dataType, null, true, id, false, functionId, script, orderBy, processorDef);
     }
 
-    ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
-            boolean synthetic, String functionId, ScriptTemplate script, Expression orderBy, ProcessorDefinition processorDef) {
+    ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
+            boolean nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
+            Expression orderBy, ProcessorDefinition processorDef) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.script = script;
         this.orderBy = orderBy;
@@ -49,14 +50,15 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, functionId(), script, orderBy,
-                processorDef);
+        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false,
+                functionId(), script, orderBy, processorDef);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
-        return new ScalarFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId(), script, orderBy,
-                processorDef);
+    protected Attribute clone(Location location, String name, DataType dataType, String qualifier,
+            boolean nullable, ExpressionId id, boolean synthetic) {
+        return new ScalarFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic,
+                functionId(), script, orderBy, processorDef);
     }
 
     @Override

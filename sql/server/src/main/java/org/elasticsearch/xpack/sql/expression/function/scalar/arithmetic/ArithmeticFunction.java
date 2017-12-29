@@ -73,7 +73,9 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     }
 
     protected final BinaryArithmeticProcessorDefinition makeProcessorDefinition() {
-        return new BinaryArithmeticProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(left()), ProcessorDefinitions.toProcessorDefinition(right()), operation);
+        return new BinaryArithmeticProcessorDefinition(this,
+                ProcessorDefinitions.toProcessorDefinition(left()),
+                ProcessorDefinitions.toProcessorDefinition(right()), operation);
     }
 
     @Override

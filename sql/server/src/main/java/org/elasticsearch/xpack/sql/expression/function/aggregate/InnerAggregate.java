@@ -50,7 +50,7 @@ public class InnerAggregate extends AggregateFunction {
     public DataType dataType() {
         return inner.dataType();
     }
-    
+
     @Override
     public String functionId() {
         return outer.id().toString();
@@ -59,7 +59,8 @@ public class InnerAggregate extends AggregateFunction {
     @Override
     public AggregateFunctionAttribute toAttribute() {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(location(), name(), dataType(), outer.id(), functionId(), AggPath.metricValue(functionId(), innerId));
+        return new AggregateFunctionAttribute(location(), name(), dataType(), outer.id(), functionId(),
+                AggPath.metricValue(functionId(), innerId));
     }
 
     @Override

@@ -16,7 +16,8 @@ public class BinaryArithmeticProcessorDefinition extends BinaryProcessorDefiniti
 
     private final BinaryArithmeticOperation operation;
 
-    public BinaryArithmeticProcessorDefinition(Expression expression, ProcessorDefinition left, ProcessorDefinition right, BinaryArithmeticOperation operation) {
+    public BinaryArithmeticProcessorDefinition(Expression expression, ProcessorDefinition left,
+            ProcessorDefinition right, BinaryArithmeticOperation operation) {
         super(expression, left, right);
         this.operation = operation;
     }

@@ -74,7 +74,8 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+                new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
     }
 
     @Override

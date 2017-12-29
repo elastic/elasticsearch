@@ -53,9 +53,11 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return field().dataType().same(DataTypes.DATE) ?
-                    TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Function '%s' cannot be applied on a non-date expression ('%s' of type '%s')", functionName(), Expressions.name(field()), field().dataType().esName());
+        if (field().dataType().same(DataTypes.DATE)) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
+                + Expressions.name(field()) + "] of type [" + field().dataType().esName() + "])");
     }
 
     @Override
@@ -69,14 +71,17 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
             params.variable(field.name());
         } else {
             // TODO ewwww
-            /* This uses the Java 8 time API because Painless doesn't whitelist creation of new
-             * Joda classes. */
+            /*
+             * This uses the Java 8 time API because Painless doesn't whitelist creation of new
+             * Joda classes.
+             *
+             * The actual script is
+             * ZonedDateTime.ofInstant(Instant.ofEpochMilli(<insert doc field>.value.millis),
+             *      ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
+             */
 
-            // ideally JodaTime should be used since that's internally used and there are subtle differences between that and the JDK API
-            // all variables are externalized to reuse the script across invocations
-            // the actual script is ZonedDateTime.ofInstant(Instant.ofEpochMilli(<insert doc field>.value.millis), ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
-
-            template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), ZoneId.of({})).get(ChronoField.valueOf({}))");
+            template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), "
+                    + "ZoneId.of({})).get(ChronoField.valueOf({}))");
             params.variable(field.name())
                   .variable(timeZone.getID())
                   .variable(chronoField().name());
@@ -102,7 +107,8 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new DateTimeProcessor(extractor(), timeZone));
+        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+                new DateTimeProcessor(extractor(), timeZone));
     }
 
     protected abstract DateTimeExtractor extractor();

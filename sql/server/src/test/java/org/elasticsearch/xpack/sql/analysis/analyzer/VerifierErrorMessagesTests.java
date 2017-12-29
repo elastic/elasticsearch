@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
-import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -27,7 +27,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String verify(GetIndexResult getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(new DefaultFunctionRegistry(), getIndexResult, DateTimeZone.UTC);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, DateTimeZone.UTC);
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";

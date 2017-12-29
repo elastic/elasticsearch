@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
-import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -38,7 +37,7 @@ public class PlanExecutor {
     public PlanExecutor(Client client, IndexResolver indexResolver) {
         this.client = client;
         this.indexResolver = indexResolver;
-        this.functionRegistry = new DefaultFunctionRegistry();
+        this.functionRegistry = new FunctionRegistry();
 
         this.preAnalyzer = new PreAnalyzer();
         this.optimizer = new Optimizer();

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -45,7 +44,7 @@ public class FieldAttributeTests extends ESTestCase {
 
     public FieldAttributeTests() {
         parser = new SqlParser(DateTimeZone.UTC);
-        functionRegistry = new DefaultFunctionRegistry();
+        functionRegistry = new FunctionRegistry();
 
         Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 

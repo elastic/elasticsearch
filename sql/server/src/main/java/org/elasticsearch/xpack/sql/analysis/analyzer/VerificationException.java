@@ -6,28 +6,30 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import java.util.Collection;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
+import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import static java.lang.String.format;
 
 public class VerificationException extends AnalysisException {
 
-    private final Collection<Failure> failures; 
+    private final Collection<Failure> failures;
 
     protected VerificationException(Collection<Failure> sources) {
         super(null, StringUtils.EMPTY);
         failures = sources;
     }
-    
+
     @Override
     public String getMessage() {
         return failures.stream()
-                .map(f -> format(Locale.ROOT, "line %s:%s: %s", f.source().location().getLineNumber(), f.source().location().getColumnNumber(), f.message()))
+                .map(f -> {
+                    Location l = f.source().location();
+                    return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
+                })
                 .collect(Collectors.joining(StringUtils.NEW_LINE, "Found " + failures.size() + " problem(s)\n", StringUtils.EMPTY));
     }
 }

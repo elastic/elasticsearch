@@ -62,13 +62,18 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         for (final Path plugin : plugins) {
             if (UberPluginInfo.isUberPlugin(plugin)) {
                 UberPluginInfo info = UberPluginInfo.readFromProperties(plugin);
-                Set<String> subPlugins = Arrays.stream(info.getPlugins()).collect(Collectors.toSet());
+                Set<String> subPluginNames = Arrays.stream(info.getPlugins()).collect(Collectors.toSet());
+                List<Path> subPluginPaths = new ArrayList<>();
                 try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(plugin)) {
                     for (Path subPlugin : subPaths) {
-                        if (subPlugins.contains(subPlugin.getFileName().toString())) {
-                            printPlugin(env, terminal, subPlugin, info.getName());
+                        if (subPluginNames.contains(subPlugin.getFileName().toString())) {
+                            subPluginPaths.add(subPlugin);
                         }
                     }
+                }
+                Collections.sort(subPluginPaths);
+                for (Path subPlugin : subPluginPaths) {
+                    printPlugin(env, terminal, subPlugin, info.getName());
                 }
             } else {
                 printPlugin(env, terminal, plugin, null);

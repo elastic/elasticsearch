@@ -45,7 +45,8 @@ public class GroupByScriptAgg extends GroupByColumnAgg {
     }
 
     @Override
-    protected GroupByScriptAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    protected GroupByScriptAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         return new GroupByScriptAgg(id, propertyPath, fieldName, script, subAggs, subPipelines, order, limit());
     }
 

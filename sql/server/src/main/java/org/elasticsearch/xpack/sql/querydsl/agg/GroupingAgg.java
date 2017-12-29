@@ -30,7 +30,8 @@ public abstract class GroupingAgg extends Agg {
         }
 
         @Override
-        protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+        protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+                List<PipelineAgg> subPipelines, Map<String, Direction> order) {
             throw new SqlIllegalArgumentException("Default group cannot be cloned");
         }
     };
@@ -39,7 +40,8 @@ public abstract class GroupingAgg extends Agg {
     private final List<PipelineAgg> subPipelines;
     private final Map<String, Direction> order;
 
-    GroupingAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    GroupingAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         super(id, propertyPath, fieldName);
         this.subAggs = subAggs;
         this.subPipelines = subPipelines;
@@ -53,7 +55,7 @@ public abstract class GroupingAgg extends Agg {
     public List<PipelineAgg> subPipelines() {
         return subPipelines;
     }
-    
+
     public Map<String, Direction> order() {
         return order;
     }
@@ -98,7 +100,8 @@ public abstract class GroupingAgg extends Agg {
         return copy(id(), propertyPath(), fieldName(), subAggs, subPipelines, newOrder);
     }
 
-    protected abstract GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order);
+    protected abstract GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order);
 
     @Override
     public int hashCode() {
@@ -110,19 +113,19 @@ public abstract class GroupingAgg extends Agg {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         GroupByColumnAgg other = (GroupByColumnAgg) obj;
-        return Objects.equals(id(), other.id()) 
+        return Objects.equals(id(), other.id())
                 && Objects.equals(propertyPath(), other.propertyPath())
                 && Objects.equals(fieldName(), other.fieldName())
                 && Objects.equals(subAggs(), other.subAggs())
                 && Objects.equals(subPipelines(), other.subPipelines());
     }
-    
+
     @Override
     public String toString() {
         return super.toString() + "=" + subAggs() + "|" + subPipelines();

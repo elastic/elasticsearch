@@ -25,12 +25,12 @@ public class GroupByDateAgg extends GroupingAgg {
 
     private final String interval;
     private final DateTimeZone timeZone;
-    
+
     public GroupByDateAgg(String id, String propertyPath, String fieldName, String interval, DateTimeZone timeZone) {
         this(id, propertyPath, fieldName, interval, timeZone, emptyList(), emptyList(), emptyMap());
     }
 
-    public GroupByDateAgg(String id, String propertyPath, String fieldName, String interval, DateTimeZone timeZone, 
+    public GroupByDateAgg(String id, String propertyPath, String fieldName, String interval, DateTimeZone timeZone,
             List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         super(id, propertyPath, fieldName, subAggs, subPipelines, order);
         this.interval = interval;
@@ -70,7 +70,8 @@ public class GroupByDateAgg extends GroupingAgg {
     }
 
     @Override
-    protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    protected GroupingAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         return new GroupByDateAgg(id, propertyPath, fieldName, interval, timeZone, subAggs, subPipelines, order);
     }
 }

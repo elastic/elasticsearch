@@ -29,7 +29,8 @@ public class GroupByColumnAgg extends GroupingAgg {
         this(id, propertyPath, fieldName, emptyList(), emptyList(), emptyMap(), -1);
     }
 
-    public GroupByColumnAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order, int limit) {
+    public GroupByColumnAgg(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order, int limit) {
         super(id, propertyPath, fieldName, subAggs, subPipelines, order);
         this.limit = limit < 0 ? DEFAULT_LIMIT : Math.min(limit, DEFAULT_LIMIT);
     }
@@ -74,7 +75,8 @@ public class GroupByColumnAgg extends GroupingAgg {
     }
 
     @Override
-    protected GroupByColumnAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order) {
+    protected GroupByColumnAgg copy(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs,
+            List<PipelineAgg> subPipelines, Map<String, Direction> order) {
         return new GroupByColumnAgg(id, propertyPath, fieldName, subAggs, subPipelines, order, limit);
     }
 

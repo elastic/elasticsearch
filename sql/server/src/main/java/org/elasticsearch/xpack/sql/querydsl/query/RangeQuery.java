@@ -25,7 +25,8 @@ public class RangeQuery extends LeafQuery {
         this(location, field, lower, includeLower, upper, includeUpper, null);
     }
 
-    public RangeQuery(Location location, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper, String format) {
+    public RangeQuery(Location location, String field, Object lower, boolean includeLower, Object upper,
+            boolean includeUpper, String format) {
         super(location);
         this.field = field;
         this.lower = lower;

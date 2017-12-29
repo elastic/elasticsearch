@@ -51,27 +51,6 @@ public class FunctionDefinition {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(clazz);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        FunctionDefinition other = (FunctionDefinition) obj;
-        return Objects.equals(clazz, other.clazz) &&
-                Objects.equals(name, other.name) &&
-                Objects.equals(aliases, aliases);
-    }
-
-    @Override
     public String toString() {
         return format(Locale.ROOT, "%s(%s)", name, aliases.isEmpty() ? "" : aliases.size() == 1 ? aliases.get(0) : aliases );
     }

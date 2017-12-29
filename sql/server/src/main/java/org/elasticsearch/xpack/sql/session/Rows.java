@@ -13,10 +13,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import static java.util.Collections.singletonList;
-
-import static java.util.Arrays.asList;
-
 public abstract class Rows {
 
     public static Schema schema(List<Attribute> attr) {
@@ -28,26 +24,6 @@ public abstract class Rows {
             types.add(a.dataType());
         }
         return new Schema(names, types);
-    }
-
-    public static Schema schema(String n1, DataType t1) {
-        return new Schema(singletonList(n1), singletonList(t1));
-    }
-
-    public static Schema schema(String n1, DataType t1, String n2, DataType t2) {
-        return new Schema(asList(n1, n2), asList(t1, t2));
-    }
-
-    public static Schema schema(String n1, DataType t1, String n2, DataType t2, String n3, DataType t3) {
-        return new Schema(asList(n1, n2, n3), asList(t1, t2, t3));
-    }
-
-    public static Schema schema(String n1, DataType t1, String n2, DataType t2, String n3, DataType t3, String n4, DataType t4) {
-        return new Schema(asList(n1, n2, n3, n4), asList(t1, t2, t3, t4));
-    }
-
-    public static Schema schema(String n1, DataType t1, String n2, DataType t2, String n3, DataType t3, String n4, DataType t4, String n5, DataType t5) {
-        return new Schema(asList(n1, n2, n3, n4, n5), asList(t1, t2, t3, t4, t5));
     }
 
     public static SchemaRowSet of(List<Attribute> attrs, List<List<?>> values) {

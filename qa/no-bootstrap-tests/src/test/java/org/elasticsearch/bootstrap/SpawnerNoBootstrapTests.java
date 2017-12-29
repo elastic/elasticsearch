@@ -290,12 +290,12 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             spawner.spawnNativePluginControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e =
-                    expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
+            final IllegalStateException e =
+                    expectThrows(IllegalStateException.class, () -> spawner.spawnNativePluginControllers(environment));
             if (Constants.WINDOWS) {
-                assertThat(e, instanceOf(NoSuchFileException.class));
+                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e, hasToString(containsString("Not a directory")));
+                assertThat(e.getCause().getMessage(), hasToString(containsString("Not a directory")));
             }
         }
     }

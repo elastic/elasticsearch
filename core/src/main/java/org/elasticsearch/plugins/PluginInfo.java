@@ -172,7 +172,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                             for (Path subPlugin : subStream) {
                                 String filename = subPlugin.getFileName().toString();
                                 if (UberPluginInfo.ES_UBER_PLUGIN_PROPERTIES.equals(filename) ||
-                                        FileSystemUtils.isDesktopServicesStore(plugin)) {
+                                        FileSystemUtils.isDesktopServicesStore(subPlugin)) {
                                     continue;
                                 }
                                 if (subPlugins.contains(filename) == false) {

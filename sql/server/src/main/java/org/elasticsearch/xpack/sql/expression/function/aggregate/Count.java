@@ -7,12 +7,11 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class Count extends AggregateFunction implements DistinctAware {
+public class Count extends AggregateFunction {
 
     private final boolean distinct;
 

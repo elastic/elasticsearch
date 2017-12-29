@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
@@ -14,7 +13,7 @@ import org.joda.time.DateTimeZone;
  * DateTimeFunctions that can be mapped as histogram. This means the dates order is maintained
  * Unfortunately this means only YEAR works since everything else changes the order
  */
-public abstract class DateTimeHistogramFunction extends DateTimeFunction implements TimeZoneAware {
+public abstract class DateTimeHistogramFunction extends DateTimeFunction {
 
     DateTimeHistogramFunction(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

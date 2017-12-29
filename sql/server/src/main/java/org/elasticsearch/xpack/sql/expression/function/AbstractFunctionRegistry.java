@@ -7,48 +7,42 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
-import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
+import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.tree.NodeUtils;
-import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
-import org.elasticsearch.xpack.sql.util.Check;
+import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTimeZone;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
 abstract class AbstractFunctionRegistry implements FunctionRegistry {
+    private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
+    private final Map<String, String> aliases;
 
-    protected final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
-
-    {
-        for (Class<? extends Function> f : functions()) {
-            FunctionDefinition def = def(f, aliases());
-            defs.put(def.name(), def);
-            for (String alias : def.aliases()) {
-                Check.isTrue(defs.containsKey(alias) == false, "Alias %s already exists", alias);
-                // alias should be already normalized but to be double sure
-                defs.put(normalize(alias), def);
+    protected AbstractFunctionRegistry(List<FunctionDefinition> functions) {
+        this.aliases = new HashMap<>();
+        for (FunctionDefinition f : functions) {
+            defs.put(f.name(), f);
+            for (String alias : f.aliases()) {
+                Object old = aliases.put(alias, f.name());
+                if (old != null) {
+                    throw new IllegalArgumentException("alias [" + alias + "] is used by [" + old + "] and [" + f.name() + "]");
+                }
+                defs.put(alias, f);
             }
         }
     }
-
-    //TODO: change this to some type of auto discovery or auto creation of the discovery (annotation or the like)
-    protected abstract Collection<Class<? extends Function>> functions();
-
-    protected abstract Map<String, String> aliases();
-
 
     @Override
     public Function resolveFunction(UnresolvedFunction ur, DateTimeZone timeZone) {
@@ -56,13 +50,13 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
         if (def == null) {
             throw new SqlIllegalArgumentException("Cannot find function %s; this should have been caught during analysis", ur.name());
         }
-        return createInstance(def.clazz(), ur, timeZone);
+        return def.builder().apply(ur, timeZone);
     }
 
     @Override
     public String concreteFunctionName(String alias) {
         String normalized = normalize(alias);
-        return aliases().getOrDefault(normalized, normalized);
+        return aliases.getOrDefault(normalized, normalized);
     }
 
     @Override
@@ -73,7 +67,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
     @Override
     public Collection<FunctionDefinition> listFunctions() {
         return defs.entrySet().stream()
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz()))
+                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -82,101 +76,128 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
         Pattern p = Strings.hasText(pattern) ? StringUtils.likeRegex(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz()))
+                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz(), e.getValue().builder()))
                 .collect(toList());
     }
 
-    private static FunctionDefinition def(Class<? extends Function> function, Map<String, String> aliases) {
-        String primaryName = normalize(function.getSimpleName());
-        List<String> al = aliases.entrySet().stream()
-                .filter(e -> primaryName.equals(e.getValue()))
-                .map(Map.Entry::getKey)
-                .collect(toList());
+    /**
+     * Build a {@linkplain FunctionDefinition} for a no-argument function that
+     * is not aware of time zone and does not support {@code DISTINCT}.
+     */
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+            java.util.function.Function<Location, T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (false == children.isEmpty()) {
+                throw new IllegalArgumentException("expects only a single argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.apply(location);
+        };
+        return def(function, builder, aliases);
+    }
 
-        return new FunctionDefinition(primaryName, al, function);
+    /**
+     * Build a {@linkplain FunctionDefinition} for a unary function that is not
+     * aware of time zone and does not support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+            BiFunction<Location, Expression, T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 1) {
+                throw new IllegalArgumentException("expects only a single argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.apply(location, children.get(0));
+        };
+        return def(function, builder, aliases);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a unary function that is not
+     * aware of time zone but does support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+            DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 1) {
+                throw new IllegalArgumentException("expects only a single argument");
+            }
+            return ctorRef.build(location, children.get(0), distinct);
+        };
+        return def(function, builder, aliases);
+    }
+    protected interface DistinctAwareUnaryFunctionBuilder<T> {
+        T build(Location location, Expression target, boolean distinct);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a unary function that is
+     * aware of time zone and does not support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+            TimeZoneAwareUnaryFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 1) {
+                throw new IllegalArgumentException("expects only a single argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), tz);
+        };
+        return def(function, builder, aliases);
+    }
+    protected interface TimeZoneAwareUnaryFunctionBuilder<T> {
+        T build(Location location, Expression target, DateTimeZone tz);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is
+     * not aware of time zone and does not support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+            BinaryFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 2) {
+                throw new IllegalArgumentException("expects only a single argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1));
+        };
+        return def(function, builder, aliases);
+    }
+    protected interface BinaryFunctionBuilder<T> {
+        T build(Location location, Expression lhs, Expression rhs);
+    }
+
+    private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder, String... aliases) {
+        String primaryName = normalize(function.getSimpleName());
+        BiFunction<UnresolvedFunction, DateTimeZone, Function> realBuilder = (uf, tz) -> {
+            try {
+                return builder.build(uf.location(), uf.children(), uf.distinct(), tz);
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException("error builder [" + primaryName + "]: " + e.getMessage(), e,
+                        uf.location().getLineNumber(), uf.location().getColumnNumber());
+            }
+        };
+        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, realBuilder);
+    }
+    private interface FunctionBuilder {
+        Function build(Location location, List<Expression> children, boolean distinct, DateTimeZone tz);
     }
 
     protected static String normalize(String name) {
         // translate CamelCase to camel_case
         return StringUtils.camelCaseToUnderscore(name);
-    }
-
-    //
-    // Instantiates a function through reflection.
-    // Picks up the constructor by expecting to be of type (Location,Expression) or (Location,List<Expression>) depending on the size of given children, parameters.
-    // If the function has certain 'aware'-ness (based on the interface implemented), the appropriate types are added to the signature
-
-    @SuppressWarnings("rawtypes")
-    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, DateTimeZone timeZone) {
-        NodeInfo info = NodeUtils.info((Class<? extends Node>) clazz);
-        Class<?>[] pTypes = info.ctr.getParameterTypes();
-
-        boolean distinctAware = DistinctAware.class.isAssignableFrom(clazz);
-        boolean timezoneAware = TimeZoneAware.class.isAssignableFrom(clazz);
-
-        // constructor types - location - distinct? - timezone?
-        int expectedParamCount = pTypes.length - (1 + (distinctAware ? 1 : 0) + (timezoneAware ? 1 : 0));
-
-        // check constructor signature
-        if (ur.children().size() != expectedParamCount) {
-            List<String> expected = new ArrayList<>();
-
-            for (int i = 1; i < expectedParamCount; i++) {
-                expected.add(pTypes[i].getSimpleName());
-            }
-
-            throw new ParsingException(ur.location(), "Invalid number of arguments given to function [%s], expected %d argument(s):%s but received %d:%s",
-                    ur.name(), expected.size(), expected.toString(), ur.children().size(), ur.children());
-        }
-
-        // validate distinct ctor
-        if (!distinctAware && ur.distinct()) {
-            throw new ParsingException(ur.location(), "Function [%s] does not support DISTINCT yet it was specified", ur.name());
-        }
-
-        //        List<Class> ctorSignature = new ArrayList<>();
-        //        ctorSignature.add(Location.class);
-        //
-        //        // might be a constant function
-        //        if (expVal instanceof List && ((List) expVal).isEmpty()) {
-        //            noExpression = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
-        //        }
-        //        else {
-        //            ctorSignature.add(exp);
-        //        }
-        //
-        //        // aware stuff
-        //        if (distinctAware) {
-        //            ctorSignature.add(boolean.class);
-        //        }
-        //        if (timezoneAware) {
-        //            ctorSignature.add(DateTimeZone.class);
-        //        }
-        //
-        //        // validate
-        //        Assert.isTrue(Arrays.equals(ctorSignature.toArray(new Class[ctorSignature.size()]), info.ctr.getParameterTypes()),
-        //                "No constructor with signature %s found for [%s], found %s instead", ctorSignature, clazz.getTypeName(), info.ctr);
-
-        // now add the actual values
-        try {
-            List<Object> args = new ArrayList<>();
-
-            // always add location first
-            args.add(ur.location());
-
-            // has multiple arguments
-            args.addAll(ur.children());
-
-            if (distinctAware) {
-                args.add(ur.distinct());
-            }
-            if (timezoneAware) {
-                args.add(timeZone);
-            }
-
-            return (Function) info.ctr.newInstance(args.toArray());
-        } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            throw new SqlIllegalArgumentException(ex, "Cannot create instance of function %s", ur.name());
-        }
     }
 }

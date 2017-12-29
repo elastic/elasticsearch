@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.function.Score;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Correlation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
@@ -57,98 +55,72 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
-import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableList;
 
 public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
-
-    private static final Collection<Class<? extends Function>> FUNCTIONS = unmodifiableList(Arrays.asList(
+    private static final List<FunctionDefinition> FUNCTIONS = unmodifiableList(Arrays.asList(
         // Aggregate functions
-            Avg.class,
-            Count.class,
-            Max.class,
-            Min.class,
-            Sum.class,
+            def(Avg.class, Avg::new),
+            def(Count.class, Count::new),
+            def(Max.class, Max::new),
+            def(Min.class, Min::new),
+            def(Sum.class, Sum::new),
             // Statistics
-            Mean.class,
-            StddevPop.class,
-            VarPop.class,
-            Percentile.class,
-            PercentileRank.class,
-            SumOfSquares.class,
+            def(Mean.class, Mean::new),
+            def(StddevPop.class, StddevPop::new),
+            def(VarPop.class, VarPop::new),
+            def(Percentile.class, Percentile::new),
+            def(PercentileRank.class, PercentileRank::new),
+            def(SumOfSquares.class, SumOfSquares::new),
             // Matrix aggs
-            MatrixCount.class,
-            MatrixMean.class,
-            MatrixVariance.class,
-            Skewness.class,
-            Kurtosis.class,
-            Covariance.class,
-            Correlation.class,
+            def(MatrixCount.class, MatrixCount::new),
+            def(MatrixMean.class, MatrixMean::new),
+            def(MatrixVariance.class, MatrixVariance::new),
+            def(Skewness.class, Skewness::new),
+            def(Kurtosis.class, Kurtosis::new),
+            def(Covariance.class, Covariance::new),
+            def(Correlation.class, Correlation::new),
         // Scalar functions
             // Date
-            DayOfMonth.class,
-            DayOfWeek.class,
-            DayOfYear.class,
-            HourOfDay.class,
-            MinuteOfDay.class,
-            MinuteOfHour.class,
-            SecondOfMinute.class,
-            MonthOfYear.class,
-            Year.class,
+            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
+            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
+            def(DayOfYear.class, DayOfYear::new, "DOY"),
+            def(HourOfDay.class, HourOfDay::new, "HOUR"),
+            def(MinuteOfDay.class, MinuteOfDay::new),
+            def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
+            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+            def(Year.class, Year::new),
             // Math
-            Abs.class,
-            ACos.class,
-            ASin.class,
-            ATan.class,
-            Cbrt.class,
-            Ceil.class,
-            Cos.class,
-            Cosh.class,
-            Degrees.class,
-            E.class,
-            Exp.class,
-            Expm1.class,
-            Floor.class,
-            Log.class,
-            Log10.class,
-            Pi.class,
-            Radians.class,
-            Round.class,
-            Sin.class,
-            Sinh.class,
-            Sqrt.class,
-            Tan.class,
+            def(Abs.class, Abs::new),
+            def(ACos.class, ACos::new),
+            def(ASin.class, ASin::new),
+            def(ATan.class, ATan::new),
+            def(Cbrt.class, Cbrt::new),
+            def(Ceil.class, Ceil::new),
+            def(Cos.class, Cos::new),
+            def(Cosh.class, Cosh::new),
+            def(Degrees.class, Degrees::new),
+            def(E.class, E::new),
+            def(Exp.class, Exp::new),
+            def(Expm1.class, Expm1::new),
+            def(Floor.class, Floor::new),
+            def(Log.class, Log::new),
+            def(Log10.class, Log10::new),
+            def(Pi.class, Pi::new),
+            def(Radians.class, Radians::new),
+            def(Round.class, Round::new),
+            def(Sin.class, Sin::new),
+            def(Sinh.class, Sinh::new),
+            def(Sqrt.class, Sqrt::new),
+            def(Tan.class, Tan::new),
         // Special
-            Score.class));
+            def(Score.class, Score::new)));
 
-    private static final Map<String, String> ALIASES;
-    static {
-        Map<String, String> aliases = new TreeMap<>();
-        aliases.put("DAY", "DAY_OF_MONTH");
-        aliases.put("DOM", "DAY_OF_MONTH");
-        aliases.put("DOW", "DAY_OF_WEEK");
-        aliases.put("DOY", "DAY_OF_YEAR");
-        aliases.put("HOUR", "HOUR_OF_DAY");
-        aliases.put("MINUTE", "MINUTE_OF_HOUR");
-        aliases.put("MONTH", "MONTH_OF_YEAR");
-        aliases.put("SECOND", "SECOND_OF_MINUTE");
-        ALIASES = unmodifiableMap(aliases);
-    }
-
-    @Override
-    protected Collection<Class<? extends Function>> functions() {
-        return FUNCTIONS;
-    }
-
-    @Override
-    protected Map<String, String> aliases() {
-        return ALIASES;
+    public DefaultFunctionRegistry() {
+        super(FUNCTIONS);
     }
 }

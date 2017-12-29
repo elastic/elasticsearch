@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
@@ -27,7 +26,7 @@ import java.time.temporal.ChronoField;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends UnaryScalarFunction implements TimeZoneAware {
+public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     private final DateTimeZone timeZone;
     private final String name;
@@ -42,7 +41,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
 
         this.name = sb.toString();
     }
-    
+
     public DateTimeZone timeZone() {
         return timeZone;
     }
@@ -54,7 +53,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
 
     @Override
     protected TypeResolution resolveType() {
-        return field().dataType().same(DataTypes.DATE) ? 
+        return field().dataType().same(DataTypes.DATE) ?
                     TypeResolution.TYPE_RESOLVED :
                     new TypeResolution("Function '%s' cannot be applied on a non-date expression ('%s' of type '%s')", functionName(), Expressions.name(field()), field().dataType().esName());
     }
@@ -62,7 +61,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
     @Override
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
         ParamsBuilder params = paramsBuilder();
-        
+
         String template = null;
         if (DateTimeZone.UTC.equals(timeZone)) {
             // TODO: it would be nice to be able to externalize the extract function and reuse the script across all extractors
@@ -76,13 +75,13 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
             // ideally JodaTime should be used since that's internally used and there are subtle differences between that and the JDK API
             // all variables are externalized to reuse the script across invocations
             // the actual script is ZonedDateTime.ofInstant(Instant.ofEpochMilli(<insert doc field>.value.millis), ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
-            
+
             template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), ZoneId.of({})).get(ChronoField.valueOf({}))");
             params.variable(field.name())
                   .variable(timeZone.getID())
                   .variable(chronoField().name());
         }
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 

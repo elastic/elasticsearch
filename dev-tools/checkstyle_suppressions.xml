@@ -44,9 +44,6 @@
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]querydsl[/\\]agg[/\\]GroupingAgg.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]querydsl[/\\]query[/\\]RangeQuery.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]tree[/\\]NodeUtils.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]execution[/\\]search[/\\]CursorTests.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]execution[/\\]search[/\\]extractor[/\\]ProcessingHitExtractorTests.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]function[/\\]scalar[/\\]datetime[/\\]DateTimeProcessorTests.java" checks="LineLength" />
 
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]common[/\\]action[/\\]XPackDeleteByQueryAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]action[/\\]StopDatafeedAction.java" checks="LineLength" />

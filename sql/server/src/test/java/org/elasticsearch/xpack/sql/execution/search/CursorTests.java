@@ -64,7 +64,8 @@ public class CursorTests extends ESTestCase {
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new SqlResponse.ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomFrom(JDBCType.values()), randomInt(25)));
+                columns.add(new SqlResponse.ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10),
+                    randomFrom(JDBCType.values()), randomInt(25)));
             }
         }
         return new SqlResponse("", columns, Collections.emptyList());

@@ -30,7 +30,8 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
 
     @Override
     protected DateTimeProcessor mutateInstance(DateTimeProcessor instance) throws IOException {
-        return new DateTimeProcessor(randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values())), DateTimeZone.UTC);
+        DateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values()));
+        return new DateTimeProcessor(replaced, DateTimeZone.UTC);
     }
 
     public void testApply() {

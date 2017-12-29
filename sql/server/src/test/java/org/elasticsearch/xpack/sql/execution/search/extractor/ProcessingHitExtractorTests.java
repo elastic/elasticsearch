@@ -69,7 +69,9 @@ public class ProcessingHitExtractorTests extends AbstractWireSerializingTestCase
 
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
-        ChainingProcessor extractor = new ChainingProcessor(new HitExtractorProcessor(new FieldHitExtractor(fieldName, true)), new MathProcessor(MathOperation.LOG));
+        ChainingProcessor extractor = new ChainingProcessor(
+            new HitExtractorProcessor(new FieldHitExtractor(fieldName, true)),
+            new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {

@@ -510,7 +510,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                             if (state != IndexShardState.PROMOTING) {
                                                 throw new IllegalIndexShardStateException(shardId, state, "primary-replica resync failed but was not started");
                                             }
-                                            changeState(IndexShardState.STARTED, "Resync is completed");
+                                            changeState(IndexShardState.STARTED, "Resync is failed");
                                         }
                                         failShard("exception during primary-replica resync", e);
                                     }

@@ -101,16 +101,21 @@ public class RemoteCli implements Closeable {
         if (false == checkConnectionOnStartup) {
             command += " -check false";
         }
-        out.println(command);
+        /* Don't use println because it emits \r\n on windows but we put the
+        * terminal in unix mode to make the tests consistent. */
+        out.print(command + "\n");
+        out.flush();
 
         // Feed it passwords if needed
         if (security != null && security.keystoreLocation != null) {
             assertEquals("keystore password: ", readUntil(s -> s.endsWith(": ")));
-            out.println(security.keystorePassword);
+            out.print(security.keystorePassword + "\n");
+            out.flush();
         }
         if (security != null) {
             assertEquals("password: ", readUntil(s -> s.endsWith(": ")));
-            out.println(security.password);
+            out.print(security.password + "\n");
+            out.flush();
         }
 
         // Throw out the logo and warnings about making a dumb terminal
@@ -152,7 +157,7 @@ public class RemoteCli implements Closeable {
     public String command(String command) throws IOException {
         assertThat("; automatically added", command, not(endsWith(";")));
         logger.info("out: {};", command);
-        /* Don't use println because it enits \r\n on windows but we put the
+        /* Don't use println because it emits \r\n on windows but we put the
          * terminal in unix mode to make the tests consistent. */
         out.print(command + ";\n");
         out.flush();

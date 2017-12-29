@@ -460,10 +460,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * incremented.
                      */
                     // to prevent primary relocation handoff while resync is not completed
-                    final IndexShardState prevState = changeState(IndexShardState.PROMOTING, "Promoting to primary");
-                    if (prevState != IndexShardState.STARTED) {
-                        throw new IllegalIndexShardStateException(shardId, prevState, "cannot start resync while it's already in progress");
+                    if (state != IndexShardState.STARTED) {
+                        throw new IllegalIndexShardStateException(shardId, state, "cannot start resync while it's already in progress");
                     }
+                    changeState(IndexShardState.PROMOTING, "Promoting to primary");
                     indexShardOperationPermits.asyncBlockOperations(
                         30,
                         TimeUnit.MINUTES,
@@ -497,20 +497,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         logger.info("primary-replica resync completed with {} operations",
                                             resyncTask.getResyncedOperations());
                                         synchronized (mutex) {
-                                            final IndexShardState prevState = changeState(IndexShardState.STARTED, "Resync is completed");
-                                            if (prevState != IndexShardState.PROMOTING) {
-                                                throw new IllegalIndexShardStateException(shardId, prevState, "primary-replica resync finished but was not started");
+                                            if (state != IndexShardState.PROMOTING) {
+                                                throw new IllegalIndexShardStateException(shardId, state, "primary-replica resync finished but was not started");
                                             }
+                                            changeState(IndexShardState.STARTED, "Resync is completed");
                                         }
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        if (state == IndexShardState.CLOSED) {
-                                            // ignore, shutting down
-                                        } else {
-                                            failShard("exception during primary-replica resync", e);
+                                        synchronized (mutex) {
+                                            if (state != IndexShardState.PROMOTING) {
+                                                throw new IllegalIndexShardStateException(shardId, state, "primary-replica resync failed but was not started");
+                                            }
+                                            changeState(IndexShardState.STARTED, "Resync is completed");
                                         }
+                                        failShard("exception during primary-replica resync", e);
                                     }
                                 });
                             } catch (final AlreadyClosedException e) {

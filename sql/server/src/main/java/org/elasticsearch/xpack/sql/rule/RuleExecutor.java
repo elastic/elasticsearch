@@ -68,7 +68,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     }
 
     private final Iterable<Batch> batches = batches();
-    
+
     protected abstract Iterable<RuleExecutor<TreeType>.Batch> batches();
 
     public class Transformation {
@@ -103,7 +103,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     }
 
     public class ExecutionInfo {
-        
+
         private final TreeType before, after;
         private final Map<Batch, List<Transformation>> transformations;
 
@@ -145,12 +145,12 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             boolean hasChanged = false;
             long batchStart = System.currentTimeMillis();
             long batchDuration = 0;
-            
+
             // run each batch until no change occurs or the limit is reached
             do {
                 hasChanged = false;
                 batchRuns++;
-                
+
                 for (Rule<?, TreeType> rule : batch.rules) {
                     Transformation tf = new Transformation(currentPlan, rule);
                     tfs.add(tf);
@@ -168,11 +168,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                         }
                     }
                 }
-                batchDuration = System.currentTimeMillis() - batchStart; 
+                batchDuration = System.currentTimeMillis() - batchStart;
             } while (hasChanged && !batch.limit.reached(batchRuns));
-            
+
             totalDuration += batchDuration;
-            
+
             if (log.isTraceEnabled()) {
                 TreeType before = plan;
                 TreeType after = plan;
@@ -180,14 +180,14 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     before = tfs.get(0).before;
                     after = tfs.get(tfs.size() - 1).after;
                 }
-                log.trace("Batch {} applied took {}\n{}", batch.name, TimeValue.timeValueMillis(batchDuration), NodeUtils.diffString(before, after));
+                log.trace("Batch {} applied took {}\n{}",
+                    batch.name, TimeValue.timeValueMillis(batchDuration), NodeUtils.diffString(before, after));
             }
         }
-        
-        if (!currentPlan.equals(plan)) {
-            if (log.isDebugEnabled()) {
-                log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
-            }
+
+        if (false == currentPlan.equals(plan) && log.isDebugEnabled()) {
+            log.debug("Tree transformation took {}\n{}",
+                TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
         return new ExecutionInfo(plan, currentPlan, transformations);

@@ -12,17 +12,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
-// Rule class that applies a transformation to a tree.
-// In addition, performs type filtering so that a rule that works only on a type node can be skipped if necessary just based on the class signature. 
-
-// Implementation detail:
-// While lambdas are nice, actual node rules tend to be fairly large and are much better suited as full blown classes.
-// In addition as they already embed their type information (all rule implementations end up with the generic information on them)
-// this can be leveraged to perform the type filtering (as mentioned above).
-// As a side note, getting the generic information from lambdas is very hacky and not portable (not without completely messing the JVM SM)
-
-// apply - indicates how to apply the rule (transformUp/Down, transformExpressions..) on the target
-// rule - contains the actual rule logic. 
+/**
+ * Rules that apply transformation to a tree. In addition, performs
+ * type filtering so that a rule that the rule implementation doesn't
+ * have to manually filter.
+ * <p>
+ * Rules <strong>could</strong> could be built as lambdas but most
+ * rules are much larger so we keep them as full blown subclasses.
+ */
 public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOperator<T> {
 
     protected Logger log = Loggers.getLogger(getClass());

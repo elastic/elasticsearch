@@ -422,7 +422,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException(
                 "The number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
                     "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey() + "] index level setting.");
+                    IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
 

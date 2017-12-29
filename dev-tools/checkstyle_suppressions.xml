@@ -20,10 +20,6 @@
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]TypedAttribute.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\]UnresolvedAttribute.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]optimizer[/\\]Optimizer.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]CommandBuilder.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]ExpressionBuilder.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]LogicalPlanBuilder.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]SqlParser.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]plan[/\\]logical[/\\]command[/\\]Explain.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]planner[/\\]PlanningException.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]planner[/\\]QueryFolder.java" checks="LineLength" />

@@ -50,7 +50,8 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                 type = Debug.Type.OPTIMIZED;
             }
         }
-        Debug.Format format = (ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ ? Debug.Format.GRAPHVIZ : Debug.Format.TEXT);
+        boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
+        Debug.Format format = graphViz ? Debug.Format.GRAPHVIZ : Debug.Format.TEXT;
 
         return new Debug(loc, plan(ctx.statement()), type, format);
     }
@@ -92,12 +93,12 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                     type = Explain.Type.ALL;
             }
         }
-        Explain.Format format = (ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT);
+        boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
+        Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
         boolean verify = (ctx.verify != null ? Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true) : true);
 
         return new Explain(loc, plan(ctx.statement()), type, format, verify);
     }
-
 
     @Override
     public Object visitShowFunctions(ShowFunctionsContext ctx) {
@@ -113,7 +114,6 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowSchemas(ShowSchemasContext ctx) {
         return new ShowSchemas(source(ctx));
     }
-
 
     @Override
     public Object visitShowColumns(ShowColumnsContext ctx) {

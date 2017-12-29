@@ -254,7 +254,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitMatchQuery(MatchQueryContext ctx) {
-        return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField), visitQualifiedName(ctx.singleField)), string(ctx.queryString), string(ctx.options));
+        return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField),
+                visitQualifiedName(ctx.singleField)), string(ctx.queryString), string(ctx.options));
     }
 
     @Override
@@ -264,7 +265,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Order visitOrderBy(OrderByContext ctx) {
-        return new Order(source(ctx), expression(ctx.expression()), (ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC));
+        return new Order(source(ctx), expression(ctx.expression()),
+            ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC);
     }
 
     @Override

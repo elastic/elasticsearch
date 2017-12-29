@@ -87,7 +87,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
-            plan = new Limit(source(ctx.limit), new Literal(source(ctx), Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
+            plan = new Limit(source(ctx.limit), new Literal(source(ctx),
+                    Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
         }
 
         return plan;
@@ -95,7 +96,12 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
-        LogicalPlan query = (ctx.fromClause() != null)? plan(ctx.fromClause()) : new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+        LogicalPlan query;
+        if (ctx.fromClause() == null) {
+            query = new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+        } else {
+            query = plan(ctx.fromClause());
+        }
 
         // add WHERE
         if (ctx.where != null) {

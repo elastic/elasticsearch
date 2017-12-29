@@ -99,7 +99,8 @@ public class Scroller {
 
         private final QueryContainer query;
 
-        AggsScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
+        AggsScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+                Schema schema, QueryContainer query) {
             super(listener, client, keepAlive, schema);
             this.query = query;
         }
@@ -280,7 +281,8 @@ public class Scroller {
 
             if (ref instanceof ComputedRef) {
                 ProcessorDefinition proc = ((ComputedRef) ref).processor();
-                proc = proc.transformDown(l -> new HitExtractorInput(l.expression(), createExtractor(l.context())), ReferenceInput.class);
+                proc = proc.transformDown(l -> new HitExtractorInput(l.expression(),
+                        createExtractor(l.context())), ReferenceInput.class);
                 return new ComputingHitExtractor(proc.asProcessor());
             }
 

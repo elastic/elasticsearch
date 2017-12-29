@@ -9,19 +9,26 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Aggregations are returned by Elasticsearch in a tree structure where each nested level can have a different size. 
- * For example a group by a, b, c results in 3-level nested array where each level contains all the relevant values
- * for its parent entry.
+ * Aggregations are returned by Elasticsearch in a tree structure where each
+ * nested level can have a different size. For example a group by a, b, c
+ * results in 3-level nested array where each level contains all the relevant
+ * values for its parent entry.
+ * <p>
  * Assuming there's a total of 2 A's, 3 B's and 5 C's, the values will be
- * A-agg level = { A1, A2 }
- * B-agg level = { { A1B1, A1B2, A1B3 }, { A2B1, A2B2, A2B3 }
- * C-agg level = { { { A1B1C1, A1B1C2 ..}, { A1B2C1, etc... } } } and so on
- *
- * Further more the columns are added in the order in which they are requested (0, 1, 2) eliminating the need for keys as these are implicit (their position in the list).
- * 
- * To help with the iteration, there are two dedicated counters :
- * one that carries (increments) the counter for each level (indicated by the position inside the array) once the children reach their max
- * a flat cursor to indicate the row
+ * <ul>
+ * <li>A-agg level = { A1, A2 }
+ * <li>B-agg level = { { A1B1, A1B2, A1B3 }, { A2B1, A2B2, A2B3 }
+ * <li>C-agg level = { { { A1B1C1, A1B1C2 ..}, { A1B2C1, etc... } } } and so on
+ * </ul>
+ * <p>
+ * Further more the columns are added in the order in which they are requested
+ * (0, 1, 2) eliminating the need for keys as these are implicit (their position
+ * in the list).
+ * <p>
+ * To help with the iteration, there are two dedicated counters:
+ * one that carries (increments) the counter for each level (indicated by the
+ * position inside the array) once the children reach their max a flat cursor
+ * to indicate the row.
  */
 class AggValues {
     private int row = 0;
@@ -78,7 +85,7 @@ class AggValues {
         }
         return sz;
     }
-    
+
     Object column(int column) {
         Object o = columns.get(column);
 
@@ -109,11 +116,11 @@ class AggValues {
         row = 0;
         Arrays.fill(indexPerLevel, 0);
     }
-    
+
     boolean nextRow() {
         if (row < size - 1) {
             row++;
-            // increment leaf counter - the size check is done lazily while retrieving the columns 
+            // increment leaf counter - the size check is done lazily while retrieving the columns
             indexPerLevel[indexPerLevel.length - 1]++;
             return true;
         }

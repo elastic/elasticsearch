@@ -1756,8 +1756,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Called when the recovery process for a shard is ready to open the engine on the target shard.
-     * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
+     * Called when the recovery process for a shard has opened the engine on the target shard. Ensures that the right data structures
+     * have been set up locally to track local checkpoint information for the shard and that the shard is added to the replication group.
      *
      * @param allocationId  the allocation ID of the shard for which recovery was initiated
      */

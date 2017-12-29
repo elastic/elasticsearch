@@ -117,18 +117,17 @@ public class ReplicationOperation<
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
             final long globalCheckpoint = primary.globalCheckpoint();
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
-            markUnavailableShardsAsStale(replicaRequest, replicationGroup.getInSyncAllocationIds(), replicationGroup.getRoutingTable());
-            performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup.getRoutingTable());
+            markUnavailableShardsAsStale(replicaRequest, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup);
         }
 
         successfulShards.incrementAndGet();  // mark primary as successful
         decPendingAndFinishIfNeeded();
     }
 
-    private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, Set<String> inSyncAllocationIds,
-                                              IndexShardRoutingTable indexShardRoutingTable) {
+    private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
         // if inSyncAllocationIds contains allocation ids of shards that don't exist in RoutingTable, mark copies as stale
-        for (String allocationId : Sets.difference(inSyncAllocationIds, indexShardRoutingTable.getAllAllocationIds())) {
+        for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
             // mark copy as stale
             pendingActions.incrementAndGet();
             replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId,
@@ -140,24 +139,15 @@ public class ReplicationOperation<
     }
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final IndexShardRoutingTable indexShardRoutingTable) {
+                                   final ReplicationGroup replicationGroup) {
         final String localNodeId = primary.routingEntry().currentNodeId();
         // If the index gets deleted after primary operation, we skip replication
-        for (final ShardRouting shard : indexShardRoutingTable) {
-            if (shard.unassigned()) {
-                assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
-                totalShards.incrementAndGet();
-                continue;
-            }
-
+        for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
             if (shard.currentNodeId().equals(localNodeId) == false) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint);
             }
-
-            if (shard.relocating() && shard.relocatingNodeId().equals(localNodeId) == false) {
-                performOnReplica(shard.getTargetRelocatingShard(), replicaRequest, globalCheckpoint);
-            }
         }
+        totalShards.addAndGet(replicationGroup.getSkippedShards().size());
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest, final long globalCheckpoint) {

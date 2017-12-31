@@ -22,6 +22,10 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -32,13 +36,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
@@ -56,18 +60,16 @@ public class TestTranslog {
      */
     public static Set<Path> corruptTranslogFiles(Logger logger, Random random, Collection<Path> translogDirs) throws IOException {
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
-
         for (Path translogDir : translogDirs) {
-            logger.info("--> Translog dir: {}", translogDir);
             if (Files.isDirectory(translogDir)) {
-                final Checkpoint checkpoint = Checkpoint.read(translogDir.resolve(CHECKPOINT_FILE_NAME));
-                final long minTranslogGeneration = checkpoint.minTranslogGeneration;
+                final long minUsedTranslogGen = minTranslogGenUsedInRecovery(translogDir);
+                logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minUsedTranslogGen);
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
                     for (Path item : stream) {
                         if (Files.isRegularFile(item)) {
                             // Makes sure that we will corrupt tlog files that are referenced by the Checkpoint.
                             final Matcher matcher = TRANSLOG_FILE_PATTERN.matcher(item.getFileName().toString());
-                            if (matcher.matches() && Long.parseLong(matcher.group(1)) >= minTranslogGeneration) {
+                            if (matcher.matches() && Long.parseLong(matcher.group(1)) >= minUsedTranslogGen) {
                                 candidates.add(item);
                             }
                         }
@@ -83,7 +85,7 @@ public class TestTranslog {
                 Path fileToCorrupt = RandomPicks.randomFrom(random, candidates);
                 try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                     // read
-                    raf.position(RandomNumbers.randomIntBetween(random, 0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    raf.position(RandomNumbers.randomLongBetween(random, 0, raf.size() - 1));
                     long filePointer = raf.position();
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);
@@ -106,5 +108,17 @@ public class TestTranslog {
         }
         assertThat("no translog file corrupted", corruptedFiles, not(empty()));
         return corruptedFiles;
+    }
+
+    /**
+     * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
+     */
+    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
+        try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
+            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+            IndexCommit recoveringCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+            return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        }
     }
 }

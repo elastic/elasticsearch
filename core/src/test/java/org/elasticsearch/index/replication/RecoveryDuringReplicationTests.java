@@ -247,8 +247,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
             assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
-            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
-                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getGlobalCheckpointTracker(newPrimary)
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()).getLocalCheckpoint(),
+                equalTo(totalDocs - 1L));
 
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
@@ -579,7 +580,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint) {
+        public void finalizeRecovery(long globalCheckpoint) throws IOException {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);

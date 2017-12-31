@@ -381,7 +381,7 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                indexShard.skipTranslogRecovery();
+                indexShard.openIndexAndCreateTranslog(true, store.loadSeqNoInfo(null).localCheckpoint);
             } else {
                 // since we recover from local, just fill the files and size
                 try {
@@ -392,9 +392,12 @@ final class StoreRecovery {
                 } catch (IOException e) {
                     logger.debug("failed to list file details", e);
                 }
-                indexShard.performTranslogRecovery(indexShouldExists);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
+                if (indexShouldExists) {
+                    indexShard.openIndexAndTranslog();
+                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
+                } else {
+                    indexShard.createIndexAndTranslog();
+                }
             }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -435,7 +438,17 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
-            indexShard.skipTranslogRecovery();
+            final Store store = indexShard.store();
+            final long localCheckpoint;
+            store.incRef();
+            try {
+                localCheckpoint = store.loadSeqNoInfo(null).localCheckpoint;
+            } finally {
+                store.decRef();
+            }
+            indexShard.openIndexAndCreateTranslog(true, localCheckpoint);
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

@@ -108,7 +108,6 @@ import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -189,6 +188,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     final CircuitBreakerService circuitBreakerService;
 
     private final SearchOperationListener searchOperationListener;
+
+    private final GlobalCheckpointTracker globalCheckpointTracker;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -296,6 +297,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
+        this.globalCheckpointTracker = new GlobalCheckpointTracker(shardId, shardRouting.allocationId().getId(), indexSettings,
+            SequenceNumbers.UNASSIGNED_SEQ_NO);
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
@@ -398,10 +401,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (newRouting.primary()) {
-                final Engine engine = getEngineOrNull();
-                if (engine != null) {
-                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
-                }
+                globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
             }
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
@@ -414,7 +414,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                    globalCheckpointTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());
                 }
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
@@ -489,8 +489,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
-                                    getEngine().seqNoService().getLocalCheckpoint());
+                                globalCheckpointTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(),
+                                    getEngine().getLocalCheckpointTracker().getCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
                                     public void onResponse(ResyncTask resyncTask) {
@@ -516,7 +516,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         },
                         e -> failShard("exception during primary term transition", e));
-                    getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                    globalCheckpointTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());
                     primaryTerm = newPrimaryTerm;
                 }
             }
@@ -582,17 +582,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                final GlobalCheckpointTracker.PrimaryContext primaryContext = getEngine().seqNoService().startRelocationHandoff();
+                final GlobalCheckpointTracker.PrimaryContext primaryContext = globalCheckpointTracker.startRelocationHandoff();
                 try {
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
                         changeState(IndexShardState.RELOCATED, reason);
                     }
-                    getEngine().seqNoService().completeRelocationHandoff();
+                    globalCheckpointTracker.completeRelocationHandoff();
                 } catch (final Exception e) {
                     try {
-                        getEngine().seqNoService().abortRelocationHandoff();
+                        globalCheckpointTracker.abortRelocationHandoff();
                     } catch (final Exception inner) {
                         e.addSuppressed(inner);
                     }
@@ -909,7 +909,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     public SeqNoStats seqNoStats() {
         Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.seqNoService().stats();
+        return engine == null ? null : engine.getLocalCheckpointTracker().getStats(globalCheckpointTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -1275,21 +1275,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
-    /**
-     * After the store has been recovered, we need to start the engine in order to apply operations
-     */
-    public void performTranslogRecovery(boolean indexExists) throws IOException {
-        if (indexExists == false) {
-            // note: these are set when recovering from the translog
-            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
-            translogStats.totalOperations(0);
-            translogStats.totalOperationsOnStart(0);
-        }
-        internalPerformTranslogRecovery(false, indexExists);
-        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    /** creates an empty index and translog and opens the engine **/
+    public void createIndexAndTranslog() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() == false;
+        // note: these are set when recovering from the translog
+        final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+        translogStats.totalOperations(0);
+        translogStats.totalOperationsOnStart(0);
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
     }
 
-    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
+    /** opens the engine on top of the existing lucene engine but creates an empty translog **/
+    public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
+        assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
+            recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
+        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
+        assert commitInfo.localCheckpoint >= globalCheckpoint :
+            "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+                    + globalCheckpoint + "]";
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
+    }
+
+    /**
+     * opens the engine on top of the existing lucene engine and translog.
+     * Operations from the translog will be replayed to bring lucene up to date.
+     **/
+    public void openIndexAndTranslog() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    }
+
+    private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1303,28 +1322,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-        final EngineConfig.OpenMode openMode;
-        /* by default we recover and index and replay the translog but if the index
-         * doesn't exist we create everything from the scratch. Yet, if the index
-         * doesn't exist we don't need to worry about the skipTranslogRecovery since
-         * there is no translog on a non-existing index.
-         * The skipTranslogRecovery invariant is used if we do remote recovery since
-         * there the translog isn't local but on the remote host, hence we can skip it.
-         */
-        if (indexExists == false) {
-            openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
-        } else if (skipTranslogRecovery) {
-            openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
-        } else {
-            openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-        }
 
-        assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
+        assert openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG || assertMaxUnsafeAutoIdInCommit();
 
-        final EngineConfig config = newEngineConfig(openMode);
+
+        final EngineConfig config = newEngineConfig(openMode, forceNewHistoryUUID);
+
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            // we have to set it before we open an engine and recover from the translog because
+            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
+                "read from translog checkpoint");
+        }
         Engine newEngine = createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -1334,6 +1347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             newEngine.recoverFromTranslog();
         }
         assertSequenceNumbersInCommit();
+        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -1362,17 +1376,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected void onNewEngine(Engine newEngine) {
         refreshListeners.setTranslog(newEngine.getTranslog());
-    }
-
-    /**
-     * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
-     * the replay of the transaction log which is required in cases where we restore a previous index or recover from
-     * a remote peer.
-     */
-    public void skipTranslogRecovery() throws IOException {
-        assert getEngineOrNull() == null : "engine was already created";
-        internalPerformTranslogRecovery(true, true);
-        assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
     /**
@@ -1709,7 +1712,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         verifyPrimary();
         verifyNotClosed();
-        getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
+        globalCheckpointTracker.updateLocalCheckpoint(allocationId, checkpoint);
     }
 
     /**
@@ -1721,7 +1724,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
         verifyPrimary();
         verifyNotClosed();
-        getEngine().seqNoService().updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+        globalCheckpointTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
     }
 
     /**
@@ -1731,7 +1734,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        getEngine().seqNoService().waitForOpsToComplete(seqNo);
+        getEngine().getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
     }
 
     /**
@@ -1742,7 +1745,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void initiateTracking(final String allocationId) {
         verifyPrimary();
-        getEngine().seqNoService().initiateTracking(allocationId);
+        globalCheckpointTracker.initiateTracking(allocationId);
     }
 
     /**
@@ -1755,7 +1758,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
         verifyPrimary();
-        getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+        globalCheckpointTracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
     }
 
     /**
@@ -1764,7 +1767,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().seqNoService().getLocalCheckpoint();
+        return getEngine().getLocalCheckpointTracker().getCheckpoint();
     }
 
     /**
@@ -1773,7 +1776,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the global checkpoint
      */
     public long getGlobalCheckpoint() {
-        return getEngine().seqNoService().getGlobalCheckpoint();
+        return globalCheckpointTracker.getGlobalCheckpoint();
     }
 
     /**
@@ -1784,7 +1787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         verifyPrimary();
         verifyNotClosed();
-        return getEngine().seqNoService().getInSyncGlobalCheckpoints();
+        return globalCheckpointTracker.getInSyncGlobalCheckpoints();
     }
 
     /**
@@ -1798,7 +1801,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         // only sync if there are not operations in flight
-        final SeqNoStats stats = getEngine().seqNoService().stats();
+        final SeqNoStats stats = getEngine().getLocalCheckpointTracker().getStats(globalCheckpointTracker.getGlobalCheckpoint());
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final String allocationId = routingEntry().allocationId().getId();
@@ -1824,7 +1827,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public ReplicationGroup getReplicationGroup() {
         verifyPrimary();
         verifyNotClosed();
-        return getEngine().seqNoService().getReplicationGroup();
+        return globalCheckpointTracker.getReplicationGroup();
     }
 
     /**
@@ -1835,8 +1838,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         verifyReplicationTarget();
-        final SequenceNumbersService seqNoService = getEngine().seqNoService();
-        final long localCheckpoint = seqNoService.getLocalCheckpoint();
+        final long localCheckpoint = getEngine().getLocalCheckpointTracker().getCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
             /*
              * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
@@ -1853,7 +1855,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "that is higher than its local checkpoint [" + localCheckpoint + "]";
             return;
         }
-        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
     /**
@@ -1865,9 +1867,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
-            getEngine().seqNoService().getLocalCheckpoint() ==
+            getEngine().getLocalCheckpointTracker().getCheckpoint() ==
                 primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
-        getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
+        globalCheckpointTracker.activateWithPrimaryContext(primaryContext);
     }
 
     /**
@@ -1877,7 +1879,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public boolean pendingInSync() {
         verifyPrimary();
-        return getEngine().seqNoService().pendingInSync();
+        return globalCheckpointTracker.pendingInSync();
     }
 
     /**
@@ -1889,7 +1891,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         internalIndexingStats.noopUpdate(type);
     }
 
-    private void checkIndex() throws IOException {
+    void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
@@ -1928,29 +1930,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else {
             // full checkindex
-            try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
-                checkIndex.setInfoStream(out);
-                CheckIndex.Status status = checkIndex.checkIndex();
-                out.flush();
-
-                if (!status.clean) {
-                    if (state == IndexShardState.CLOSED) {
-                        // ignore if closed....
-                        return;
+            final CheckIndex.Status status = store.checkIndex(out);
+            out.flush();
+            if (!status.clean) {
+                if (state == IndexShardState.CLOSED) {
+                    // ignore if closed....
+                    return;
+                }
+                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                if ("fix".equals(checkIndexOnStartup)) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("fixing index, writing new segments file ...");
                     }
-                    logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                    if ("fix".equals(checkIndexOnStartup)) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("fixing index, writing new segments file ...");
-                        }
-                        checkIndex.exorciseIndex(status);
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
-                        }
-                    } else {
-                        // only throw a failure if we are not going to fix the index
-                        throw new IllegalStateException("index check failure but can't fix it");
+                    store.exorciseIndex(status);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
                     }
+                } else {
+                    // only throw a failure if we are not going to fix the index
+                    throw new IllegalStateException("index check failure but can't fix it");
                 }
             }
         }
@@ -2166,22 +2164,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) {
         Sort indexSort = indexSortSupplier.get();
-        final boolean forceNewHistoryUUID;
-        switch (shardRouting.recoverySource().getType()) {
-            case EXISTING_STORE:
-            case PEER:
-                forceNewHistoryUUID = false;
-                break;
-            case EMPTY_STORE:
-            case SNAPSHOT:
-            case LOCAL_SHARDS:
-                forceNewHistoryUUID = true;
-                break;
-            default:
-                throw new AssertionError("unknown recovery type: [" + shardRouting.recoverySource().getType() + "]");
-        }
         return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
@@ -2189,7 +2173,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, globalCheckpointTracker);
     }
 
     /**
@@ -2254,7 +2238,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     operationPrimaryTerm,
                                     getLocalCheckpoint(),
                                     localCheckpoint);
-                            getEngine().seqNoService().resetLocalCheckpoint(localCheckpoint);
+                            getEngine().getLocalCheckpointTracker().resetCheckpoint(localCheckpoint);
                             getEngine().getTranslog().rollGeneration();
                         });
                         globalCheckpointUpdated = true;
@@ -2454,6 +2438,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     EngineFactory getEngineFactory() {
         return engineFactory;
+    }
+
+    // for tests
+    GlobalCheckpointTracker getGlobalCheckpointTracker() {
+        return globalCheckpointTracker;
     }
 
     /**

@@ -85,6 +85,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureTest(project)
         configurePrecommit(project)
+        configureDependenciesInfo(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -126,7 +127,7 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();
 
-            final GradleVersion minGradle = GradleVersion.version('3.3')
+            final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -408,7 +409,11 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        project.ext.compactProfile = 'compact3'
+        if (project.javaVersion < JavaVersion.VERSION_1_10) {
+            project.ext.compactProfile = 'compact3'
+        } else {
+            project.ext.compactProfile = 'full'
+        }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome
@@ -444,13 +449,6 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
-                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
-                        doFirst {
-                            sourceCompatibility = null
-                            targetCompatibility = null
-                        }
-                    }
                 }
             }
         }
@@ -461,6 +459,10 @@ class BuildPlugin implements Plugin<Project> {
             executable = new File(project.javaHome, 'bin/javadoc')
         }
         configureJavadocJar(project)
+        if (project.javaVersion == JavaVersion.VERSION_1_10) {
+            project.tasks.withType(Javadoc) { it.enabled = false }
+            project.tasks.getByName('javadocJar').each { it.enabled = false }
+        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
@@ -635,5 +637,10 @@ class BuildPlugin implements Plugin<Project> {
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
         project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+    }
+
+    private static configureDependenciesInfo(Project project) {
+        Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
+        deps.dependencies = project.configurations.compile.allDependencies
     }
 }

@@ -64,8 +64,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -567,29 +567,8 @@ public abstract class Engine implements Closeable {
      *
      * @return the sequence number service
      */
-    public abstract SequenceNumbersService seqNoService();
-
-    /**
-     * Read the last segments info from the commit pointed to by the searcher manager
-     */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final ReferenceManager<IndexSearcher> sm, final Store store) throws IOException {
-        IndexSearcher searcher = sm.acquire();
-        try {
-            IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
-            return Lucene.readSegmentInfos(latestCommit);
-        } catch (IOException e) {
-            // Fall back to reading from the store if reading from the commit fails
-            try {
-                return store.readLastCommittedSegmentsInfo();
-            } catch (IOException e2) {
-                e2.addSuppressed(e);
-                throw e2;
-            }
-        } finally {
-            sm.release(searcher);
-        }
-    }
-
+    public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+    
     /**
      * Global stats on segments.
      */

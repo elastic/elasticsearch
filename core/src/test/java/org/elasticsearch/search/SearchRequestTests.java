@@ -82,7 +82,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testValidate() throws IOException {
-
         {
             // if scroll isn't set, validate should never add errors
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
@@ -113,6 +112,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [from] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // scroll and `size` is `0`
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().size(0));
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
         }
     }
 

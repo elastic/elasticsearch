@@ -114,6 +114,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     private void updateTranslogDeletionPolicy() throws IOException {
+        assert Thread.holdsLock(this);
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
         long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         for (ObjectIntCursor<IndexCommit> entry : snapshottedCommits) {

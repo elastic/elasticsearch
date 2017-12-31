@@ -63,17 +63,17 @@ public class EnableAllocationDecider extends AllocationDecider {
     public static final String NAME = "enable";
 
     public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.toString(), Allocation::parse,
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+        new Setting<>("index.routing.allocation.enable", Allocation.ALL.toString(), Allocation::parse,
             Property.Dynamic, Property.IndexScope);
 
     public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.toString(), Rebalance::parse,
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.toString(), Rebalance::parse,
             Property.Dynamic, Property.IndexScope);
 
     private volatile Rebalance enableRebalance;
@@ -219,14 +219,22 @@ public class EnableAllocationDecider extends AllocationDecider {
         public static Allocation parse(String strValue) {
             if (strValue == null) {
                 return null;
+            } else if ("all".equalsIgnoreCase(strValue)) {
+                return ALL;
+            } else if ("primaries".equalsIgnoreCase(strValue)) {
+                return PRIMARIES;
+            } else if ("new_primaries".equalsIgnoreCase(strValue) || "newPrimaries".equalsIgnoreCase(strValue)) {
+                return NEW_PRIMARIES;
+            } else if ("none".equalsIgnoreCase(strValue)) {
+                return NONE;
             } else {
-                strValue = strValue.toUpperCase(Locale.ROOT);
-                try {
-                    return Allocation.valueOf(strValue);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
-                }
+                throw new IllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
             }
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -246,14 +254,22 @@ public class EnableAllocationDecider extends AllocationDecider {
         public static Rebalance parse(String strValue) {
             if (strValue == null) {
                 return null;
+            } else if ("all".equalsIgnoreCase(strValue)) {
+                return ALL;
+            } else if ("primaries".equalsIgnoreCase(strValue)) {
+                return PRIMARIES;
+            } else if ("replicas".equalsIgnoreCase(strValue)) {
+                return REPLICAS;
+            } else if ("none".equalsIgnoreCase(strValue)) {
+                return NONE;
             } else {
-                strValue = strValue.toUpperCase(Locale.ROOT);
-                try {
-                    return Rebalance.valueOf(strValue);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
-                }
+                throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
             }
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

@@ -507,6 +507,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     @Override
                                     public void onFailure(Exception e) {
                                         synchronized (mutex) {
+                                            // ignore, shutting down
+                                            if (state == IndexShardState.CLOSED) {
+                                                return;
+                                            }
                                             if (state != IndexShardState.PROMOTING) {
                                                 throw new IllegalIndexShardStateException(shardId, state, "primary-replica resync failed but was not started");
                                             }

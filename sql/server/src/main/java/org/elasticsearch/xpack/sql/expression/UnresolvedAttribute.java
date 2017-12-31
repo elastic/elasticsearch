@@ -36,7 +36,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(location, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Location location, String name, String qualifier, ExpressionId id, String unresolvedMessage, Object resolutionMetadata) {
+    public UnresolvedAttribute(Location location, String name, String qualifier, ExpressionId id, String unresolvedMessage,
+            Object resolutionMetadata) {
         super(location, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
@@ -58,7 +59,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
+            ExpressionId id, boolean synthetic) {
         return this;
     }
 
@@ -94,7 +96,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
         if (!CollectionUtils.isEmpty(potentialMatches)) {
-            msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]": "any of " + potentialMatches.toString()) + "?";
+            msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0)
+                    + "]": "any of " + potentialMatches.toString()) + "?";
         }
         return msg;
     }

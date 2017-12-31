@@ -109,7 +109,8 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
+            ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
         return new FieldAttribute(location, qualifiedParent, name, dataType, qualifier, nullable, id, synthetic);
     }

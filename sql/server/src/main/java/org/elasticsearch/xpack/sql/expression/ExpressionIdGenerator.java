@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.sql.expression;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-//TODO: this class is thread-safe but used across multiple sessions might cause the id to roll over and potentially generate an already assigned id
+//TODO: this class is thread-safe but used across multiple sessions might cause the
+// id to roll over and potentially generate an already assigned id
 // making this session scope would simplify things
 // (which also begs the question on whether thread-safety is needed than)
 

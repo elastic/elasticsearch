@@ -215,17 +215,21 @@ abstract class Verifier {
      * Check validity of Aggregate/GroupBy.
      * This rule is needed for two reasons:
      * 1. a user might specify an invalid aggregate (SELECT foo GROUP BY bar)
-     * 2. the order/having might contain a non-grouped attribute. This is typically caught by the Analyzer however if wrapped in a function (ABS()) it gets resolved
-     * (because the expression gets resolved little by little without being pushed down, without the Analyzer modifying anything.
+     * 2. the order/having might contain a non-grouped attribute. This is typically
+     * caught by the Analyzer however if wrapped in a function (ABS()) it gets resolved
+     * (because the expression gets resolved little by little without being pushed down,
+     * without the Analyzer modifying anything.
      */
-    private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
+    private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
+            Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
         return checkGroupByAgg(p, localFailures, groupingFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures, resolvedFunctions)
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
 
     // check whether an orderBy failed
-    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures,
+            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
             if (o.child() instanceof Aggregate) {
@@ -250,7 +254,8 @@ abstract class Verifier {
     }
 
 
-    private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
+            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof Filter) {
             Filter f = (Filter) p;
             if (f.child() instanceof Aggregate) {
@@ -275,7 +280,8 @@ abstract class Verifier {
 
 
     // check whether plain columns specified in an agg are mentioned in the group-by
-    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures,
+            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
 
@@ -318,8 +324,8 @@ abstract class Verifier {
         return true;
     }
 
-    private static boolean checkGroupMatch(Expression e, Node<?> source, List<Expression> groupings, Map<Expression, Node<?>> missing, Map<String, Function> functions) {
-
+    private static boolean checkGroupMatch(Expression e, Node<?> source, List<Expression> groupings,
+            Map<Expression, Node<?>> missing, Map<String, Function> functions) {
         // resolve FunctionAttribute to backing functions
         if (e instanceof FunctionAttribute) {
             FunctionAttribute fa = (FunctionAttribute) e;

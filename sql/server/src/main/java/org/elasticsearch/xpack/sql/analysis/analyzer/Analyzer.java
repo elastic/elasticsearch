@@ -450,7 +450,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             AttributeSet conflicting = left.outputSet().intersect(right.outputSet());
 
             if (log.isTraceEnabled()) {
-                log.trace("Trying to resolve conflicts {} between left {} and right {}", conflicting, left.nodeString(), right.nodeString());
+                log.trace("Trying to resolve conflicts " + conflicting + " between left " + left.nodeString()
+                        + " and right " + right.nodeString());
             }
 
             throw new UnsupportedOperationException("don't know how to resolve conficting IDs yet");
@@ -517,12 +518,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp, "Group ordinal %d refers to an aggregate function %s which is not compatible/allowed with GROUP BY", ordinal, reference.nodeName());
+                                throw new AnalysisException(exp, "Group ordinal " + ordinal + " refers to an aggregate function "
+                                        + reference.nodeName() + " which is not compatible/allowed with GROUP BY");
                             }
                             newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, "Invalid ordinal %d specified in Aggregate (valid range is [1, %d])", ordinal, max);
+                            throw new AnalysisException(exp, "Invalid ordinal " + ordinal
+                                    + " specified in Aggregate (valid range is [1, " + max + "])");
                         }
                     }
                     else {
@@ -762,7 +765,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // TODO: might be removed
                         // dedicated count optimization
                         if (name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(),
+                                singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
                         }
                     }
 
@@ -793,7 +797,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
 
                         List<String> matches = StringUtils.findSimilar(normalizedName, names);
-                        String message = matches.isEmpty() ? uf.unresolvedMessage() : UnresolvedFunction.errorMessage(normalizedName, matches);
+                        String message = matches.isEmpty() ?
+                                uf.unresolvedMessage() : UnresolvedFunction.errorMessage(normalizedName, matches);
                         return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), true, message);
                     }
                     // TODO: look into Generator for significant terms, etc..
@@ -930,7 +935,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     missing = findMissingAggregate(agg, condition);
 
                     if (!missing.isEmpty()) {
-                        Aggregate newAgg = new Aggregate(agg.location(), agg.child(), agg.groupings(), combine(agg.aggregates(), missing));
+                        Aggregate newAgg = new Aggregate(agg.location(), agg.child(), agg.groupings(),
+                                combine(agg.aggregates(), missing));
                         Filter newFilter = new Filter(f.location(), newAgg, condition);
                         // preserve old output
                         return new Project(f.location(), newFilter, f.output());

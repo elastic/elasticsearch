@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.planner;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
+import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collection;
@@ -32,7 +33,10 @@ public class PlanningException extends ClientSqlException {
 
     private static String extractMessage(Collection<Failure> failures) {
         return failures.stream()
-                .map(f -> format(Locale.ROOT, "line %s:%s: %s", f.source().location().getLineNumber(), f.source().location().getColumnNumber(), f.message()))
-                .collect(Collectors.joining(StringUtils.NEW_LINE, "Found " + failures.size() + " problem(s)\n", StringUtils.EMPTY));
+                .map(f -> {
+                    Location l = f.source().location();
+                    return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
+                })
+                .collect(Collectors.joining("\n", "Found " + failures.size() + " problem(s)\n", ""));
     }
 }

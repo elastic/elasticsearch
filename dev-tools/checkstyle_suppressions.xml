@@ -10,9 +10,6 @@
 
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]optimizer[/\\]Optimizer.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]plan[/\\]logical[/\\]command[/\\]Explain.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]planner[/\\]PlanningException.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]planner[/\\]QueryFolder.java" checks="LineLength" />
-  <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]planner[/\\]QueryTranslator.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]tree[/\\]NodeUtils.java" checks="LineLength" />
 
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]common[/\\]action[/\\]XPackDeleteByQueryAction.java" checks="LineLength" />

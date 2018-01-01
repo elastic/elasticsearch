@@ -273,7 +273,8 @@ abstract class QueryTranslator {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dthf.interval(), dthf.timeZone());
+                        agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp),
+                                dthf.interval(), dthf.timeZone());
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {
@@ -418,7 +419,8 @@ abstract class QueryTranslator {
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
         }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument %s for function %s", arg.nodeString(), af.nodeString());
+        throw new SqlIllegalArgumentException("Does not know how to convert argument " + arg.nodeString()
+                + " for function " + af.nodeString());
     }
 
     // TODO: need to optimize on ngram
@@ -531,7 +533,8 @@ abstract class QueryTranslator {
         protected QueryTranslation asQuery(BinaryComparison bc, boolean onAggs) {
             Check.isTrue(bc.right().foldable(),
                     "Line %d:%d - Comparisons against variables are not (currently) supported; offender %s in %s",
-                    bc.right().location().getLineNumber(), bc.right().location().getColumnNumber(), bc.right().nodeName(), bc.nodeName());
+                    bc.right().location().getLineNumber(), bc.right().location().getColumnNumber(),
+                    bc.right().nodeName(), bc.nodeName());
 
             if (bc.left() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) bc.left();
@@ -549,7 +552,8 @@ abstract class QueryTranslator {
                     ScriptTemplate scriptTemplate = sfa.script();
 
                     String template = formatTemplate(format(Locale.ROOT, "%s %s {}", scriptTemplate.template(), bc.symbol()));
-                    // no need to bind the wrapped/target agg - it is already available through the nested script (needed to create the script itself)
+                    // no need to bind the wrapped/target agg - it is already available through the nested script
+                    // (needed to create the script itself)
                     Params params = paramsBuilder().script(scriptTemplate.params()).variable(valueOf(bc.right())).build();
                     ScriptTemplate script = new ScriptTemplate(template, params, DataTypes.BOOLEAN);
                     if (onAggs) {
@@ -650,7 +654,8 @@ abstract class QueryTranslator {
                 Attribute at = ne.toAttribute();
 
                 // scalar function can appear in both WHERE and HAVING so handle it first
-                // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter for the latter
+                // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter
+                // for the latter
 
                 if (at instanceof ScalarFunctionAttribute) {
                     ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) at;
@@ -662,7 +667,8 @@ abstract class QueryTranslator {
                                     scriptTemplate.template(),
                                     r.includeUpper() ? "<=" : "<"));
 
-                    // no need to bind the wrapped/target - it is already available through the nested script (needed to create the script itself)
+                    // no need to bind the wrapped/target - it is already available through the nested script (needed to
+                    // create the script itself)
                     Params params = paramsBuilder().variable(lower)
                             .script(scriptTemplate.params())
                             .script(scriptTemplate.params())
@@ -701,7 +707,8 @@ abstract class QueryTranslator {
                                 .build();
 
                     }
-                    aggFilter = new AggFilter(((NamedExpression) r.value()).id().toString(), new ScriptTemplate(template, params, DataTypes.BOOLEAN));
+                    aggFilter = new AggFilter(((NamedExpression) r.value()).id().toString(),
+                            new ScriptTemplate(template, params, DataTypes.BOOLEAN));
                 }
                 //
                 // WHERE

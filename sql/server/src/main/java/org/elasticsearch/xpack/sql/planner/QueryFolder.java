@@ -134,7 +134,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
 
-                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases, queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
+                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases,
+                        queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
                 return new EsQueryExec(exec.location(), exec.index(), project.output(), clone);
             }
             return project;
@@ -151,7 +152,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
 
-                Query query = (qContainer.query() != null || qt.query != null) ? and(plan.location(), qContainer.query(), qt.query) : null;
+                Query query = null;
+                if (qContainer.query() != null || qt.query != null) {
+                    query = and(plan.location(), qContainer.query(), qt.query);
+                }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
                 qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(),
@@ -193,7 +197,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
 
                     if (groupAgg == null) {
-                        throw new FoldingException(fexec, "Cannot find group for agg %s referrenced by agg filter %s(%s)", refId, filter.name(), filter);
+                        throw new FoldingException(fexec, "Cannot find group for agg " + refId
+                                + " referrenced by agg filter " + filter.name() + "(" + filter + ")");
                     }
 
                     String path = groupAgg.asParentPath();
@@ -288,7 +293,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     return p;
                                 }
 
-                                // get the backing expression and check if it belongs to a agg group or whether it's an expression in the first place
+                                // get the backing expression and check if it belongs to a agg group or whether it's
+                                // an expression in the first place
                                 Expression exp = p.expression();
                                 GroupingAgg matchingGroup = null;
                                 if (groupingContext != null) {
@@ -299,16 +305,21 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     // a scalar function can be used only if has already been mentioned for grouping
                                     // (otherwise it is the opposite of grouping)
                                     if (exp instanceof ScalarFunction) {
-                                        throw new FoldingException(exp, "Scalar function %s can be used only if included already in grouping", exp.toString());
+                                        throw new FoldingException(exp, "Scalar function " +exp.toString()
+                                                + " can be used only if included already in grouping");
                                     }
                                 }
 
-                                // found match for expression; if it's an attribute or scalar, end the processing chain with the reference to the backing agg
+                                // found match for expression; if it's an attribute or scalar, end the processing chain with
+                                // the reference to the backing agg
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
-                                        // special handling of dates since aggs return the typed Date object which needs extraction
-                                        // instead of handling this in the scroller, the folder handles this as it already got access to the extraction action
+                                        /*
+                                         * special handling of dates since aggs return the typed Date object which needs
+                                         * extraction instead of handling this in the scroller, the folder handles this
+                                         * as it already got access to the extraction action
+                                         */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryProcessorDefinition) p).action();
                                         }
@@ -318,7 +329,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
                                 // (can happen when dealing with a root group)
                                 if (Functions.isAggregate(exp)) {
-                                    Tuple<QueryContainer, AggPathInput> withFunction = addAggFunction(matchingGroup, (AggregateFunction) exp, compoundAggMap, qC.get());
+                                    Tuple<QueryContainer, AggPathInput> withFunction = addAggFunction(matchingGroup,
+                                            (AggregateFunction) exp, compoundAggMap, qC.get());
                                     qC.set(withFunction.v1());
                                     return withFunction.v2();
                                 }
@@ -334,7 +346,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             queryC = qC.get().addColumn(new ComputedRef(proc));
 
                             // TODO: is this needed?
-                            // redirect the alias to the scalar group id (changing the id altogether doesn't work it is already used in the aggpath)
+                            // redirect the alias to the scalar group id (changing the id altogether doesn't work it is
+                            // already used in the aggpath)
                             //aliases.put(as.toAttribute(), sf.toAttribute());
                         }
                         // apply the same logic above (for function inputs) to non-scalar functions with small variantions:
@@ -352,8 +365,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                             else {
                                 // the only thing left is agg function
-                                Check.isTrue(Functions.isAggregate(child), "Expected aggregate function inside alias; got %s", child.nodeString());
-                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, (AggregateFunction) child, compoundAggMap, queryC);
+                                Check.isTrue(Functions.isAggregate(child),
+                                        "Expected aggregate function inside alias; got %s", child.nodeString());
+                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup,
+                                        (AggregateFunction) child, compoundAggMap, queryC);
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
                                 if (withAgg.v2().innerKey() != null) {
@@ -382,7 +397,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return a;
         }
 
-        private Tuple<QueryContainer, AggPathInput> addAggFunction(GroupingAgg parentAgg, AggregateFunction f, Map<CompoundNumericAggregate, String> compoundAggMap, QueryContainer queryC) {
+        private Tuple<QueryContainer, AggPathInput> addAggFunction(GroupingAgg parentAgg, AggregateFunction f,
+                Map<CompoundNumericAggregate, String> compoundAggMap, QueryContainer queryC) {
             String functionId = f.functionId();
             // handle count as a special case agg
             if (f instanceof Count) {

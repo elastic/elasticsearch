@@ -78,7 +78,8 @@ public abstract class NodeUtils {
 
         // basic sanity check
         List<T> currentChildren = tree.children();
-        Check.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s", currentChildren.size(), newChildren.size());
+        Check.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s",
+                currentChildren.size(), newChildren.size());
 
         NodeInfo info = info(tree.getClass());
         Object[] props = properties(tree, info);
@@ -151,7 +152,9 @@ public abstract class NodeUtils {
             Parameter[] parameters = ctr.getParameters();
             for (int paramIndex = 0; paramIndex < parameters.length; paramIndex++) {
                 Parameter param = parameters[paramIndex];
-                Check.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", clazz.toGenericString());
+                Check.isTrue(param.isNamePresent(),
+                        "Can't find constructor parameter names for [%s]. Is class debug information available?",
+                        clazz.toGenericString());
                 String paramName = param.getName();
 
                 if (paramName.equals("children")) {
@@ -162,7 +165,8 @@ public abstract class NodeUtils {
                 try {
                     getter = clazz.getMethod(paramName);
                 } catch (NoSuchMethodException nsme) {
-                    throw new SqlIllegalArgumentException("class [%s] expected to have method [%s] for retrieving constructor arguments; none found",
+                    throw new SqlIllegalArgumentException(
+                            "class [%s] expected to have method [%s] for retrieving constructor arguments; none found",
                             clazz.getName(), paramName);
                 }
 
@@ -170,7 +174,9 @@ public abstract class NodeUtils {
                 Class<?> expected = param.getType();
                 Class<?> found = getter.getReturnType();
                 // found == Object if we're dealing with generics
-                Check.isTrue(found == Object.class || expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
+                Check.isTrue(found == Object.class || expected.isAssignableFrom(found),
+                    "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz,
+                    expected, getter.toGenericString());
 
                 params.put(paramName, getter);
             }

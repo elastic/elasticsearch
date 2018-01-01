@@ -317,7 +317,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e;
         }
 
-        protected Expression rule(Expression e, Map<Expression, ExtendedStats> seen, Map<String, AggregateFunctionAttribute> promotedIds) {
+        protected Expression rule(Expression e, Map<Expression, ExtendedStats> seen,
+                Map<String, AggregateFunctionAttribute> promotedIds) {
             if (e instanceof ExtendedStatsEnclosed) {
                 AggregateFunction f = (AggregateFunction) e;
 
@@ -582,7 +583,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
         }
 
-        protected Expression rule(Expression e, Map<Expression, Percentiles> percentilesPerField, Map<String, AggregateFunctionAttribute> promotedIds) {
+        protected Expression rule(Expression e, Map<Expression, Percentiles> percentilesPerField,
+                Map<String, AggregateFunctionAttribute> promotedIds) {
             if (e instanceof Percentile) {
                 Percentile p = (Percentile) e;
                 Percentiles percentiles = percentilesPerField.get(p.field());
@@ -639,7 +641,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
         }
 
-        protected Expression rule(Expression e, Map<Expression, PercentileRanks> ranksPerField, Map<String, AggregateFunctionAttribute> promotedIds) {
+        protected Expression rule(Expression e, Map<Expression, PercentileRanks> ranksPerField,
+                Map<String, AggregateFunctionAttribute> promotedIds) {
             if (e instanceof PercentileRank) {
                 PercentileRank p = (PercentileRank) e;
                 PercentileRanks ranks = ranksPerField.get(p.field());
@@ -1034,7 +1037,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean canPropagateFoldable(LogicalPlan p) {
-            return p instanceof Project || p instanceof Filter || p instanceof SubQueryAlias || p instanceof Aggregate || p instanceof Limit || p instanceof OrderBy;
+            return p instanceof Project
+                    || p instanceof Filter
+                    || p instanceof SubQueryAlias
+                    || p instanceof Aggregate
+                    || p instanceof Limit
+                    || p instanceof OrderBy;
         }
     }
 
@@ -1374,7 +1382,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return direction == TransformDirection.DOWN ? plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
+            return direction == TransformDirection.DOWN ?
+                plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
         }
 
         @Override

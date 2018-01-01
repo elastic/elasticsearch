@@ -117,7 +117,8 @@ public class Explain extends Command {
                     }
 
                     // Type.All
-                    listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
+                    listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
+                            mappedPlan, executablePlan)));
                 }, listener::onFailure));
             }
 
@@ -146,7 +147,8 @@ public class Explain extends Command {
                                 return;
                             }
 
-                            listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
+                            listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
+                                    mappedPlan, executablePlan)));
                             return;
                         }
                         // mapped failed
@@ -155,7 +157,8 @@ public class Explain extends Command {
                             return;
                         }
 
-                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)));
+                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
+                                mappedPlan, null)));
                     }, listener::onFailure));
                     // cannot continue
                 } else {
@@ -170,7 +173,8 @@ public class Explain extends Command {
         }, listener::onFailure));
     }
 
-    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan, PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
+    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan,
+            PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             sb.append("Parsed\n");

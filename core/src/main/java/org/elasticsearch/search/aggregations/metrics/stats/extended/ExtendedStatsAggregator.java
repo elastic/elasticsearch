@@ -121,15 +121,23 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        double corrected = value - compensation;
-                        double newSum = sum + corrected;
-                        compensation = (newSum - sum) - corrected;
-                        sum = newSum;
-
-                        double correctedOfSqr = value * value - compensationOfSqr;
-                        double newSumOfSqr = sumOfSqr + correctedOfSqr;
-                        compensationOfSqr = (newSumOfSqr - sumOfSqr) - correctedOfSqr;
-                        sumOfSqr = newSumOfSqr;
+                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                            sum += value;
+                            sumOfSqr += value * value;
+                        } else {
+                            if (Double.isFinite(sum)) {
+                                double corrected = value - compensation;
+                                double newSum = sum + corrected;
+                                compensation = (newSum - sum) - corrected;
+                                sum = newSum;
+                            }
+                            if (Double.isFinite(sumOfSqr)) {
+                                double correctedOfSqr = value * value - compensationOfSqr;
+                                double newSumOfSqr = sumOfSqr + correctedOfSqr;
+                                compensationOfSqr = (newSumOfSqr - sumOfSqr) - correctedOfSqr;
+                                sumOfSqr = newSumOfSqr;
+                            }
+                        }
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }

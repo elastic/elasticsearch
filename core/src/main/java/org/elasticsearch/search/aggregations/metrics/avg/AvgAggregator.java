@@ -89,10 +89,17 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                     double compensation = compensations.get(bucket);
 
                     for (int i = 0; i < valueCount; i++) {
-                        double corrected = values.nextValue() - compensation;
-                        double newSum = sum + corrected;
-                        compensation = (newSum - sum) - corrected;
-                        sum = newSum;
+                        double value = values.nextValue();
+                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                            sum += value;
+                            if (Double.isNaN(sum))
+                                break;
+                        } else if (Double.isFinite(sum)) {
+                            double corrected = value - compensation;
+                            double newSum = sum + corrected;
+                            compensation = (newSum - sum) - corrected;
+                            sum = newSum;
+                        }
                     }
                     sums.set(bucket, sum);
                     compensations.set(bucket, compensation);

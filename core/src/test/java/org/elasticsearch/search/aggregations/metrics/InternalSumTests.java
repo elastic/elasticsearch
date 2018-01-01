@@ -49,15 +49,8 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
     @Override
     protected void assertReduced(InternalSum reduced, List<InternalSum> inputs) {
-        double expectedSum = 0;
-        double compensation = 0;
-        for (InternalSum aggregation : inputs) {
-            double corrected = aggregation.value() - compensation;
-            double newSum = expectedSum + corrected;
-            compensation = (newSum - expectedSum) - corrected;
-            expectedSum = newSum;
-        }
-        assertEquals(expectedSum, reduced.getValue(), 0.000d);
+        double expectedSum = inputs.stream().mapToDouble(InternalSum::getValue).sum();
+        assertEquals(expectedSum, reduced.getValue(), 0.0001d);
     }
 
     public void testSummationAccuracy() throws IOException {

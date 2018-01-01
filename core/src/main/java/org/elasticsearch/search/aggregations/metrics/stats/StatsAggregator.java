@@ -110,10 +110,16 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        double corrected = value - compensation;
-                        double newSum = sum + corrected;
-                        compensation = (newSum - sum) - corrected;
-                        sum = newSum;
+                        if (Double.isNaN(sum) == false) {
+                            if (Double.isNaN(value) || Double.isInfinite(value)) {
+                                sum += value;
+                            } else if (Double.isFinite(sum)) {
+                                double corrected = value - compensation;
+                                double newSum = sum + corrected;
+                                compensation = (newSum - sum) - corrected;
+                                sum = newSum;
+                            }
+                        }
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }

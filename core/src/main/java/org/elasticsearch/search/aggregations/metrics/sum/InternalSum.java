@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -36,7 +35,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     private final double sum;
 
     public InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+                       Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.format = formatter;
@@ -79,10 +78,17 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         double sum = 0;
         double compensation = 0;
         for (InternalAggregation aggregation : aggregations) {
-            double corrected = ((InternalSum) aggregation).sum - compensation;
-            double newSum = sum + corrected;
-            compensation = (newSum - sum) - corrected;
-            sum = newSum;
+            double value = ((InternalSum) aggregation).sum;
+            if (Double.isNaN(value) || Double.isInfinite(value)) {
+                sum += value;
+                if (Double.isNaN(sum))
+                    break;
+            } else if (Double.isFinite(sum)) {
+                double corrected = value - compensation;
+                double newSum = sum + corrected;
+                compensation = (newSum - sum) - corrected;
+                sum = newSum;
+            }
         }
         return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
     }

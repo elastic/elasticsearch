@@ -95,11 +95,18 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
-            count += ((InternalAvg) aggregation).count;
-            double corrected = ((InternalAvg) aggregation).sum - compensation;
-            double newSum = sum + corrected;
-            compensation = (newSum - sum) - corrected;
-            sum = newSum;
+            InternalAvg avg = (InternalAvg) aggregation;
+            count += avg.count;
+            if (Double.isNaN(sum) == false) {
+                if (Double.isNaN(avg.sum) || Double.isInfinite(avg.sum)) {
+                    sum += avg.sum;
+                } else if (Double.isFinite(sum)) {
+                    double corrected = avg.sum - compensation;
+                    double newSum = sum + corrected;
+                    compensation = (newSum - sum) - corrected;
+                    sum = newSum;
+                }
+            }
         }
         return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
     }

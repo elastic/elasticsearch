@@ -82,10 +82,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
-                        double corrected = values.nextValue() - compensation;
-                        double newSum = sum + corrected;
-                        compensation = (newSum - sum) - corrected;
-                        sum = newSum;
+                        double value = values.nextValue();
+                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                            sum += value;
+                            if (Double.isNaN(sum))
+                                break;
+                        } else if (Double.isFinite(sum)) {
+                            double corrected = value - compensation;
+                            double newSum = sum + corrected;
+                            compensation = (newSum - sum) - corrected;
+                            sum = newSum;
+                        }
                     }
                     compensations.set(bucket, compensation);
                     sums.set(bucket, sum);

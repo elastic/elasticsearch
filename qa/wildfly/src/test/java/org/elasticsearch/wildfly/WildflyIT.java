@@ -51,7 +51,8 @@ public class WildflyIT extends LuceneTestCase {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(
                     Locale.ROOT,
-                    "http://localhost:38080/wildfly-%s%s/transport/employees/1",
+                    "http://localhost:%d/wildfly-%s%s/transport/employees/1",
+                    Integer.parseInt(System.getProperty("tests.jboss.http.port")),
                     Version.CURRENT,
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
             final HttpPut put = new HttpPut(new URI(str));

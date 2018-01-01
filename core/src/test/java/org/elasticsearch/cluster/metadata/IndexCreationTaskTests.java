@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -87,7 +86,6 @@ public class IndexCreationTaskTests extends ESTestCase {
     private final Logger logger = mock(Logger.class);
     private final AllocationService allocationService = mock(AllocationService.class);
     private final MetaDataCreateIndexService.IndexValidator validator = mock(MetaDataCreateIndexService.IndexValidator.class);
-    private final ActionListener listener = mock(ActionListener.class);
     private final ClusterState state = mock(ClusterState.class);
     private final Settings.Builder clusterStateSettings = Settings.builder();
     private final MapperService mapper = mock(MapperService.class);
@@ -387,7 +385,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupState();
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
-            logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
+            logger, allocationService, request, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
             validator
         );
         return task.execute(state);

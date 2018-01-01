@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
@@ -39,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -275,6 +278,37 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
             assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
+        }
+    }
+
+    public void testIndexingAndRolloverConcurrently() throws Exception {
+        client().admin().indices().preparePutTemplate("logs")
+            .setPatterns(Collections.singletonList("logs-*"))
+            .addAlias(new Alias("logs-write"))
+            .get();
+        assertAcked(client().admin().indices().prepareCreate("logs-000001").get());
+        ensureYellow("logs-write");
+
+        final AtomicBoolean done = new AtomicBoolean();
+        final Thread rolloverThread = new Thread(() -> {
+            while (done.get() == false) {
+                client().admin().indices()
+                    .prepareRolloverIndex("logs-write")
+                    .addMaxIndexSizeCondition(new ByteSizeValue(1))
+                    .get();
+            }
+        });
+        rolloverThread.start();
+        try {
+            int numDocs = between(20, 500);
+            for (int i = 0; i < numDocs; i++) {
+                logger.info("--> add doc [{}]", i);
+                IndexResponse resp = index("logs-write", "doc", Integer.toString(i), "{}");
+                assertThat(resp.status(), equalTo(RestStatus.CREATED));
+            }
+        } finally {
+            done.set(true);
+            rolloverThread.join();
         }
     }
 }

@@ -88,12 +88,12 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerExecute(currentState, request.actions());
+                    return executeAliasActions(currentState, request.actions());
                 }
             });
     }
 
-    ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
+    ClusterState executeAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {

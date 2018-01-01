@@ -139,7 +139,7 @@ task startWildfly {
 
                     /*
                      * As soon as we know the management port, we fork a process that will ensure the Wildfly process is killed if we
-                     * teardown abnormally. We skip these tests on Windows so we do no need to worry about CLI compatibility here.
+                     * teardown abnormally. We skip these tests on Windows so we do not need to worry about CLI compatibility here.
                      */
                     final File script = new File(project.buildDir, "wildfly/wildfly.killer.sh")
                     script.setText(
@@ -173,7 +173,7 @@ task configureTransportClient(type: LoggedExec) {
 }
 
 task stopWildfly(type: LoggedExec) {
-    // we skip these tests on Windows so we do no need to worry about CLI compatibility here
+    // we skip these tests on Windows so we do not need to worry about CLI compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh", "--controller=localhost:${-> managementPort}", "--connect", "command=shutdown"
 }
 

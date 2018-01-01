@@ -130,7 +130,7 @@ task startWildfly {
                     // set this system property so the test runner knows the port Wildfly is listening for HTTP requests on
                     integTestRunner.systemProperty("tests.jboss.http.port", httpPort)
                 } else if (line.matches('.*Http management interface listening on http://.*:\\d+/management$')) {
-                    assert managementPort
+                    assert managementPort == 0
                     final int colonIndex = line.lastIndexOf(":")
                     assert colonIndex >= 0
                     final int slashIndex = line.lastIndexOf("/")

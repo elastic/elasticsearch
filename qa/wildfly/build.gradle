@@ -123,12 +123,14 @@ task startWildfly {
             int httpPort = 0
             while ((line = br.readLine()) != null) {
                 if (line.matches('.*Undertow HTTP listener default listening on .*:\\d+$')) {
+                    assert httpPort == 0
                     final int index = line.lastIndexOf(":")
                     assert index >= 0
                     httpPort = Integer.parseInt(line.substring(index + 1))
                     // set this system property so the test runner knows the port Wildfly is listening for HTTP requests on
                     integTestRunner.systemProperty("tests.jboss.http.port", httpPort)
                 } else if (line.matches('.*Http management interface listening on http://.*:\\d+/management$')) {
+                    assert managementPort
                     final int colonIndex = line.lastIndexOf(":")
                     assert colonIndex >= 0
                     final int slashIndex = line.lastIndexOf("/")

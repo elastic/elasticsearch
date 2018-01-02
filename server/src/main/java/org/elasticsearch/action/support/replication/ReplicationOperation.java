@@ -128,7 +128,6 @@ public class ReplicationOperation<
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
         // if inSyncAllocationIds contains allocation ids of shards that don't exist in RoutingTable, mark copies as stale
         for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
-            // mark copy as stale
             pendingActions.incrementAndGet();
             replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId,
                 ReplicationOperation.this::decPendingAndFinishIfNeeded,
@@ -140,14 +139,15 @@ public class ReplicationOperation<
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
                                    final ReplicationGroup replicationGroup) {
-        final String localNodeId = primary.routingEntry().currentNodeId();
-        // If the index gets deleted after primary operation, we skip replication
+        totalShards.addAndGet(replicationGroup.getSkippedShards().size());
+
+        final ShardRouting primaryRouting = primary.routingEntry();
+
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
-            if (shard.currentNodeId().equals(localNodeId) == false) {
+            if (shard.isSameAllocation(primaryRouting) == false) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint);
             }
         }
-        totalShards.addAndGet(replicationGroup.getSkippedShards().size());
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest, final long globalCheckpoint) {

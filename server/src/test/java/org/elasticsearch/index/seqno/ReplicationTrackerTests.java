@@ -134,7 +134,9 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId), emptySet());
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
         allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId.getId(), allocations.get(aId)));
 
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minLocalCheckpoint));

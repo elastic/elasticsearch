@@ -196,7 +196,7 @@ public class RecoverySourceHandler {
              * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
              * This means that any document indexed into the primary after this will be replicated to this replica as well
              * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
-             * all documents up to maxSeqNo
+             * all documents up to maxSeqNo in phase2.
              */
             runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()));
 

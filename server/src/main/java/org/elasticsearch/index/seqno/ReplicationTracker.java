@@ -150,7 +150,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         boolean inSync;
 
         /**
-         * whether this shard is tracked in the replication group
+         * whether this shard is tracked in the replication group, i.e., should receive document updates from the primary.
          */
         boolean tracked;
 
@@ -168,7 +168,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 this.tracked = in.readBoolean();
             } else {
-                this.tracked = false;
+                this.tracked = inSync;
             }
         }
 
@@ -216,7 +216,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
             if (localCheckpoint != that.localCheckpoint) return false;
             if (globalCheckpoint != that.globalCheckpoint) return false;
-            return inSync == that.inSync && tracked == that.tracked;
+            if (inSync != that.inSync) return false;
+            return tracked == that.tracked;
         }
 
         @Override

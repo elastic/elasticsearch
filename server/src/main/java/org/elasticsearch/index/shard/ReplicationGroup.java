@@ -33,16 +33,17 @@ import java.util.Set;
 public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
-    private final Set<String> trackingAllocationIds;
+    private final Set<String> trackedAllocationIds;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
-    private final List<ShardRouting> replicationTargets;
-    private final List<ShardRouting> skippedShards;
+    private final List<ShardRouting> replicationTargets; // derived from the other fields
+    private final List<ShardRouting> skippedShards; // derived from the other fields
 
-    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackingAllocationIds) {
+    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
-        this.trackingAllocationIds = trackingAllocationIds;
+        this.trackedAllocationIds = trackedAllocationIds;
+
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
@@ -51,14 +52,14 @@ public class ReplicationGroup {
                 assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);
             } else {
-                if (trackingAllocationIds.contains(shard.allocationId().getId())) {
+                if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
                     skippedShards.add(shard);
                 }
                 if (shard.relocating()) {
                     ShardRouting relocationTarget = shard.getTargetRelocatingShard();
-                    if (trackingAllocationIds.contains(relocationTarget.allocationId().getId())) {
+                    if (trackedAllocationIds.contains(relocationTarget.allocationId().getId())) {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
@@ -76,6 +77,9 @@ public class ReplicationGroup {
         return inSyncAllocationIds;
     }
 
+    /**
+     * Returns the set of shard allocation ids that are in the in-sync set but have no assigned routing entry
+     */
     public Set<String> getUnavailableInSyncShards() {
         return unavailableInSyncShards;
     }
@@ -87,6 +91,9 @@ public class ReplicationGroup {
         return replicationTargets;
     }
 
+    /**
+     * Returns the subset of shards in the routing table that are unassigned or not required to replicate to. Includes relocation targets.
+     */
     public List<ShardRouting> getSkippedShards() {
         return skippedShards;
     }
@@ -101,14 +108,14 @@ public class ReplicationGroup {
 
         if (!routingTable.equals(that.routingTable)) return false;
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
-        return trackingAllocationIds.equals(that.trackingAllocationIds);
+        return trackedAllocationIds.equals(that.trackedAllocationIds);
     }
 
     @Override
     public int hashCode() {
         int result = routingTable.hashCode();
         result = 31 * result + inSyncAllocationIds.hashCode();
-        result = 31 * result + trackingAllocationIds.hashCode();
+        result = 31 * result + trackedAllocationIds.hashCode();
         return result;
     }
 
@@ -117,7 +124,7 @@ public class ReplicationGroup {
         return "ReplicationGroup{" +
             "routingTable=" + routingTable +
             ", inSyncAllocationIds=" + inSyncAllocationIds +
-            ", trackingAllocationIds=" + trackingAllocationIds +
+            ", trackedAllocationIds=" + trackedAllocationIds +
             '}';
     }
 

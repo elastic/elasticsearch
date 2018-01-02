@@ -9,6 +9,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.MINUTES;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging("org.elasticsearch.client:TRACE")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After

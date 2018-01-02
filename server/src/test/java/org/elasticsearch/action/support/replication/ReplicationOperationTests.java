@@ -270,7 +270,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
         final long primaryTerm = initialState.getMetaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
-        final ShardRouting primaryShard = replicationGroup.get().getRoutingTable().primaryShard();
+        final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get) {
             @Override
             public Result perform(Request request) throws Exception {

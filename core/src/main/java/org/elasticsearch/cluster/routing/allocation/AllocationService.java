@@ -181,7 +181,8 @@ public class AllocationService extends AbstractComponent {
                         shardToFail.shardId(), shardToFail, failedShard);
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
-                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShardEntry.getMessage(),
+                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
+                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
                     AllocationStatus.NO_ATTEMPT);
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetaData, allocation.changes());

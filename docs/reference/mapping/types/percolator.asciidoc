@@ -563,11 +563,6 @@ GET /my_queries1/_search
               "my_field.prefix": "abc"
             }
           }
-        },
-        "fields": {
-          "_percolator_document_slot": [
-            0
-          ]
         }
       }
     ]

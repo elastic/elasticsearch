@@ -46,7 +46,7 @@ public interface RoutingChangesObserver {
     /**
      * Called when a shard is failed or cancelled.
      */
-    void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo);
+    void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo, boolean markAsStale);
 
     /**
      * Called on relocation source when relocation completes after relocation target is started.
@@ -103,7 +103,7 @@ public interface RoutingChangesObserver {
         }
 
         @Override
-        public void shardFailed(ShardRouting activeShard, UnassignedInfo unassignedInfo) {
+        public void shardFailed(ShardRouting activeShard, UnassignedInfo unassignedInfo, boolean markAsStale) {
 
         }
 
@@ -170,9 +170,9 @@ public interface RoutingChangesObserver {
         }
 
         @Override
-        public void shardFailed(ShardRouting activeShard, UnassignedInfo unassignedInfo) {
+        public void shardFailed(ShardRouting activeShard, UnassignedInfo unassignedInfo, boolean markAsStale) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.shardFailed(activeShard, unassignedInfo);
+                routingChangesObserver.shardFailed(activeShard, unassignedInfo, markAsStale);
             }
         }
 

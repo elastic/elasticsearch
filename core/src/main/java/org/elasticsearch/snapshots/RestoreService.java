@@ -540,7 +540,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         }
 
         @Override
-        public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+        public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo, boolean markAsStale) {
             if (failedShard.primary() && failedShard.initializing()) {
                 RecoverySource recoverySource = failedShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {

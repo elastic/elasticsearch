@@ -65,7 +65,7 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo, boolean markAsStale) {
         assert failedShard.assignedToNode() : "expected assigned shard " + failedShard;
         setChanged();
     }

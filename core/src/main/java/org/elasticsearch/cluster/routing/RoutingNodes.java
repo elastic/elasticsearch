@@ -496,7 +496,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             ShardRouting startedReplica = cancelRelocation(sourceShard);
                             remove(routing);
                             routingChangesObserver.shardFailed(routing,
-                                new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed"));
+                                new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed"), true);
                             relocateShard(startedReplica, sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(), routingChangesObserver);
                         } else {
@@ -523,8 +523,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * - If shard is a (primary or replica) relocation target, this also clears the relocation information on the source shard.
      *
      */
-    public void failShard(Logger logger, ShardRouting failedShard, UnassignedInfo unassignedInfo, IndexMetaData indexMetaData,
-                          RoutingChangesObserver routingChangesObserver) {
+    public void failShard(Logger logger, ShardRouting failedShard, UnassignedInfo unassignedInfo, boolean markAsStale,
+                          IndexMetaData indexMetaData, RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert indexMetaData.getIndex().equals(failedShard.index()) :
@@ -548,7 +548,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         UnassignedInfo primaryFailedUnassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.PRIMARY_FAILED,
                             "primary failed while replica initializing", null, 0, unassignedInfo.getUnassignedTimeInNanos(),
                             unassignedInfo.getUnassignedTimeInMillis(), false, AllocationStatus.NO_ATTEMPT);
-                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetaData, routingChangesObserver);
+                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, true, indexMetaData, routingChangesObserver);
                     }
                 }
             }
@@ -562,7 +562,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 logger.trace("{} is removed due to the failure/cancellation of the source shard", targetShard);
                 // cancel and remove target shard
                 remove(targetShard);
-                routingChangesObserver.shardFailed(targetShard, unassignedInfo);
+                routingChangesObserver.shardFailed(targetShard, unassignedInfo, markAsStale);
             } else {
                 logger.trace("{}, relocation source failed / cancelled, mark as initializing without relocation source", targetShard);
                 // promote to initializing shard without relocation source and ensure that removed relocation source
@@ -601,7 +601,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 cancelRelocation(sourceShard);
                 remove(failedShard);
             }
-            routingChangesObserver.shardFailed(failedShard, unassignedInfo);
+            routingChangesObserver.shardFailed(failedShard, unassignedInfo, markAsStale);
         } else {
             assert failedShard.active();
             if (failedShard.primary()) {
@@ -621,7 +621,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     moveToUnassigned(failedShard, unassignedInfo);
                 }
             }
-            routingChangesObserver.shardFailed(failedShard, unassignedInfo);
+            routingChangesObserver.shardFailed(failedShard, unassignedInfo, markAsStale);
         }
         assert node(failedShard.currentNodeId()).getByShardId(failedShard.shardId()) == null : "failedShard " + failedShard +
             " was matched but wasn't removed";

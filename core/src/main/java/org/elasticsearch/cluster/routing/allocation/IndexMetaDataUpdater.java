@@ -71,8 +71,8 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     }
 
     @Override
-    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-        if (failedShard.active() && unassignedInfo.getReason() != UnassignedInfo.Reason.NODE_LEFT) {
+    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo, boolean markAsStale) {
+        if (failedShard.active() && markAsStale) {
             removeAllocationId(failedShard);
 
             if (failedShard.primary()) {

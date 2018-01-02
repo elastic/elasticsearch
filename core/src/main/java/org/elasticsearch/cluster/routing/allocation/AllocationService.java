@@ -138,8 +138,8 @@ public class AllocationService extends AbstractComponent {
     }
 
     // Used for testing
-    public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null)), emptyList());
+    public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard, boolean markAsStale) {
+        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null, markAsStale)), emptyList());
     }
 
     // Used for testing
@@ -185,7 +185,8 @@ public class AllocationService extends AbstractComponent {
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
                     AllocationStatus.NO_ATTEMPT);
-                routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetaData, allocation.changes());
+                routingNodes.failShard(logger, failedShard, unassignedInfo,
+                    failedShardEntry.markAsStale(), indexMetaData, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
@@ -372,7 +373,8 @@ public class AllocationService extends AbstractComponent {
                 boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]",
                     null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT);
-                allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetaData, allocation.changes());
+                // Do not mark as stale if a shard is unassigned as a result of node left.
+                allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, false, indexMetaData, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes

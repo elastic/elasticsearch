@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
@@ -139,13 +140,15 @@ public class ShardStateAction extends AbstractComponent {
      * @param shardId            shard id of the shard to fail
      * @param allocationId       allocation id of the shard to fail
      * @param primaryTerm        the primary term associated with the primary shard that is failing the shard. Must be strictly positive.
+     * @param markAsStale        whether or not to mark a failing shard as stale (eg. removing from in-sync set) when failing the shard.
      * @param message            the reason for the failure
      * @param failure            the underlying cause of the failure
      * @param listener           callback upon completion of the request
      */
-    public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
+    public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, boolean markAsStale, final String message, @Nullable final Exception failure, Listener listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        shardFailed(shardId, allocationId, primaryTerm, message, failure, listener, clusterService.state());
+        ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
+        sendShardAction(SHARD_FAILED_ACTION_NAME, clusterService.state(), shardEntry, listener);
     }
 
     /**
@@ -160,12 +163,7 @@ public class ShardStateAction extends AbstractComponent {
      */
     public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener,
                                  final ClusterState currentState) {
-        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, listener, currentState);
-    }
-
-    private void shardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message,
-                             @Nullable final Exception failure, Listener listener, ClusterState currentState) {
-        ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure);
+        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, true);
         sendShardAction(SHARD_FAILED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
@@ -314,7 +312,7 @@ public class ShardStateAction extends AbstractComponent {
                         // failing a shard also possibly marks it as stale (see IndexMetaDataUpdater)
                         logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
                         tasksToBeApplied.add(task);
-                        failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure));
+                        failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure, task.markAsStale));
                     }
                 }
             }
@@ -356,7 +354,7 @@ public class ShardStateAction extends AbstractComponent {
         shardStarted(shardRouting, message, listener, clusterService.state());
     }
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener, ClusterState currentState) {
-        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, null);
+        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, null, false);
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
@@ -457,16 +455,18 @@ public class ShardStateAction extends AbstractComponent {
         long primaryTerm;
         String message;
         Exception failure;
+        boolean markAsStale;
 
         public ShardEntry() {
         }
 
-        public ShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message, @Nullable Exception failure) {
+        public ShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message, @Nullable Exception failure, boolean markAsStale) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
             this.failure = failure;
+            this.markAsStale = markAsStale;
         }
 
         public ShardId getShardId() {
@@ -485,6 +485,11 @@ public class ShardStateAction extends AbstractComponent {
             primaryTerm = in.readVLong();
             message = in.readString();
             failure = in.readException();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                markAsStale = in.readBoolean();
+            } else {
+                markAsStale = true;
+            }
         }
 
         @Override
@@ -495,6 +500,9 @@ public class ShardStateAction extends AbstractComponent {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             out.writeException(failure);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeBoolean(markAsStale);
+            }
         }
 
         @Override
@@ -507,6 +515,7 @@ public class ShardStateAction extends AbstractComponent {
             if (failure != null) {
                 components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
             }
+            components.add("markAsStale [" + markAsStale + "]");
             return String.join(", ", components);
         }
     }

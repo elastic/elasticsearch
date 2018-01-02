@@ -222,14 +222,14 @@ public class ClusterStateChanges extends AbstractComponent {
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
         List<ShardEntry> entries = failedShards.stream().map(failedShard ->
             new ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
-                0L, failedShard.getMessage(), failedShard.getFailure()))
+                0L, failedShard.getMessage(), failedShard.getFailure(), failedShard.markAsStale()))
             .collect(Collectors.toList());
         return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         List<ShardEntry> entries = startedShards.stream().map(startedShard ->
-            new ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null))
+            new ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null, false))
             .collect(Collectors.toList());
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
     }

@@ -124,7 +124,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, metaData.getIndexSafe(shard.index()), allocation.changes()));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, true, metaData.getIndexSafe(shard.index()), allocation.changes()));
                     }
                 }
             }

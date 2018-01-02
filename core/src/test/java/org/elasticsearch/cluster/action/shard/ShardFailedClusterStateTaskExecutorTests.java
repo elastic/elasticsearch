@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -42,20 +43,26 @@ import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 
 public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
 
@@ -138,7 +145,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         for (ShardStateAction.ShardEntry failingTask : failingTasks) {
             long primaryTerm = currentState.metaData().index(failingTask.shardId.getIndex()).primaryTerm(failingTask.shardId.id());
             tasks.add(new ShardStateAction.ShardEntry(failingTask.shardId, failingTask.allocationId,
-                randomIntBetween(1, (int) primaryTerm - 1), failingTask.message, failingTask.failure));
+                randomIntBetween(1, (int) primaryTerm - 1), failingTask.message, failingTask.failure, randomBoolean()));
         }
         Map<ShardStateAction.ShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
             tasks.stream().collect(Collectors.toMap(
@@ -148,6 +155,27 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]"))));
         ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
+    }
+
+    public void testMarkAsStaleWhenFailingShards() throws Exception {
+        final MockAllocationService allocation = createAllocationService();
+        ClusterState clusterState = createClusterStateWithStartedShards("test markAsStale");
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        final Set<String> oldInSync = clusterState.metaData().index(INDEX).inSyncAllocationIds(0);
+        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(INDEX).shard(0);
+
+        long primaryTerm = clusterState.metaData().index(INDEX).primaryTerm(0);
+        boolean markAsStale = randomBoolean();
+        final ShardRouting shardToFail = randomFrom(shardRoutingTable.shardsWithState(STARTED));
+        List<ShardStateAction.ShardEntry> tasks = Arrays.asList(
+            new ShardStateAction.ShardEntry(shardRoutingTable.shardId(), shardToFail.allocationId().getId(), primaryTerm, "dummy", null, markAsStale));
+        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(clusterState, tasks);
+        final Set<String> newInSync = result.resultingState.metaData().index(INDEX).inSyncAllocationIds(0);
+        if (markAsStale) {
+            assertThat(Sets.difference(oldInSync, newInSync), contains(shardToFail.allocationId().getId()));
+        } else {
+            assertThat(newInSync, equalTo(oldInSync));
+        }
     }
 
     private ClusterState createClusterStateWithStartedShards(String reason) {
@@ -198,11 +226,12 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<ShardStateAction.ShardEntry> existingShards = createExistingShards(currentState, reason);
         List<ShardStateAction.ShardEntry> shardsWithMismatchedAllocationIds = new ArrayList<>();
         for (ShardStateAction.ShardEntry existingShard : existingShards) {
-            shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardEntry(existingShard.shardId, UUIDs.randomBase64UUID(), 0L, existingShard.message, existingShard.failure));
+            shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardEntry(existingShard.shardId, UUIDs.randomBase64UUID(), 0L, existingShard.message, existingShard.failure, randomBoolean()));
         }
 
         List<ShardStateAction.ShardEntry> tasks = new ArrayList<>();
-        nonExistentShards.forEach(shard -> tasks.add(new ShardStateAction.ShardEntry(shard.shardId(), shard.allocationId().getId(), 0L, reason, new CorruptIndexException("simulated", nonExistentIndexUUID))));
+        nonExistentShards.forEach(shard -> tasks.add(new ShardStateAction.ShardEntry(shard.shardId(), shard.allocationId().getId(), 0L,
+            reason, new CorruptIndexException("simulated", nonExistentIndexUUID), randomBoolean())));
         tasks.addAll(shardsWithMismatchedAllocationIds);
         return tasks;
     }
@@ -275,7 +304,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 shard.allocationId().getId(),
                 randomBoolean() ? 0L : currentState.metaData().getIndexSafe(shard.index()).primaryTerm(shard.id()),
                 message,
-                new CorruptIndexException("simulated", indexUUID)))
+                new CorruptIndexException("simulated", indexUUID), randomBoolean()))
             .collect(Collectors.toList());
     }
 }

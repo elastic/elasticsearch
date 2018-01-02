@@ -350,7 +350,12 @@ public class MatchQuery {
                     throw exc;
                 }
             }
-            return super.analyzePhrase(field, stream, slop);
+            Query query = super.analyzePhrase(field, stream, slop);
+            if (query instanceof PhraseQuery) {
+                // synonyms that expand to multiple terms can return a phrase query.
+                return blendPhraseQuery((PhraseQuery) query, mapper);
+            }
+            return query;
         }
 
         /**
@@ -472,6 +477,10 @@ public class MatchQuery {
         }
     }
 
+    protected Query blendPhraseQuery(PhraseQuery query, MappedFieldType fieldType) {
+        return query;
+    }
+
     protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
         return new SynonymQuery(terms);
     }
@@ -494,5 +503,4 @@ public class MatchQuery {
         }
         return termQuery(fieldType, term.bytes(), lenient);
     }
-
 }

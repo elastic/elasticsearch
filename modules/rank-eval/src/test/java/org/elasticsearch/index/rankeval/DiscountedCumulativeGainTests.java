@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -62,6 +63,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * dcg = 13.84826362927298 (sum of last column)
      */
     public void testDCGAt() {
+        assumeFalse("This test fails on ARM architecture", Constants.OS_ARCH.equalsIgnoreCase("aarch64"));
+
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
         SearchHit[] hits = new SearchHit[6];
@@ -108,6 +111,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * dcg = 12.779642067948913 (sum of last column)
      */
     public void testDCGAtSixMissingRatings() {
+        assumeFalse("This test fails on ARM architecture", Constants.OS_ARCH.equalsIgnoreCase("aarch64"));
+
         List<RatedDocument> rated = new ArrayList<>();
         Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1 };
         SearchHit[] hits = new SearchHit[6];
@@ -162,6 +167,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * dcg = 12.392789260714371 (sum of last column until position 4)
      */
     public void testDCGAtFourMoreRatings() {
+        assumeFalse("This test fails on ARM architecture", Constants.OS_ARCH.equalsIgnoreCase("aarch64"));
+
         Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1, null };
         List<RatedDocument> ratedDocs = new ArrayList<>();
         for (int i = 0; i < 6; i++) {

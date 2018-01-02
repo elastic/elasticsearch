@@ -49,15 +49,17 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 /**
- * This class is responsible of tracking the global checkpoint. The global checkpoint is the highest sequence number for which all lower (or
- * equal) sequence number have been processed on all shards that are currently active. Since shards count as "active" when the master starts
+ * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
+ *
+ * The global checkpoint is the highest sequence number for which all lower (or equal) sequence number have been processed
+ * on all shards that are currently active. Since shards count as "active" when the master starts
  * them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery. These shards
  * have received all old operations via the recovery mechanism and are kept up to date by the various replications actions. The set of
  * shards that are taken into account for the global checkpoint calculation are called the "in-sync shards".
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
-public class GlobalCheckpointTracker extends AbstractIndexShardComponent implements LongSupplier {
+public class ReplicationTracker extends AbstractIndexShardComponent implements LongSupplier {
 
     /**
      * The allocation ID for the shard to which this tracker is a component of.
@@ -350,7 +352,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent impleme
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
-    public GlobalCheckpointTracker(
+    public ReplicationTracker(
             final ShardId shardId,
             final String allocationId,
             final IndexSettings indexSettings,

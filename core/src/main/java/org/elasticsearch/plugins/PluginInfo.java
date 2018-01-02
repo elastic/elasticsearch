@@ -92,7 +92,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.version = in.readString();
         this.classname = in.readString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            extendedPlugins = Collections.unmodifiableList(Arrays.asList(in.readStringArray()));
+            extendedPlugins = in.readList(StreamInput::readString);
         } else {
             extendedPlugins = Collections.emptyList();
         }
@@ -312,7 +312,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("version", version);
             builder.field("description", description);
             builder.field("classname", classname);
-            builder.array("extended_plugins", extendedPlugins);
+            builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
             builder.field("requires_keystore", requiresKeystore);
         }
@@ -348,8 +348,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 .append("Version: ").append(version).append("\n")
                 .append("Native Controller: ").append(hasNativeController).append("\n")
                 .append("Requires Keystore: ").append(requiresKeystore).append("\n")
-                .append(" * Classname: ").append(classname).append("\n")
-                .append(" * Extended Plugins: ").append(extendedPlugins);
+                .append("Classname: ").append(classname).append("\n")
+                .append("Extended Plugins: ").append(extendedPlugins);
         return information.toString();
     }
 

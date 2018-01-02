@@ -21,8 +21,11 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -203,6 +206,17 @@ public class PluginInfoTests extends ESTestCase {
             "extended.plugins", "");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testSerialize() throws Exception {
+        PluginInfo info = new PluginInfo("c", "foo", "dummy", "dummyclass", Collections.singletonList("foo"), randomBoolean(), randomBoolean());
+        BytesStreamOutput output = new BytesStreamOutput();
+        info.writeTo(output);
+        ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
+        ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
+        PluginInfo info2 = new PluginInfo(input);
+        assertThat(info2.toString(), equalTo(info.toString()));
+
     }
 
     public void testPluginListSorted() {

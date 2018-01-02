@@ -127,8 +127,6 @@ public abstract class Rounding implements Streamable {
 
         @Override
         public long round(long utcMillis) {
-            int transitionCount = 0;
-
             while (true) {
                 long rounded = field.roundFloor(utcMillis);
                 long transitionTime = timeZone.previousTransition(utcMillis);
@@ -153,19 +151,7 @@ public abstract class Rounding implements Streamable {
                  * times in the current period-of-constant-offset. Go back to the previous transition time and round
                  * _that_ down instead.
                  */
-                transitionCount += 1;
                 utcMillis = transitionTime;
-
-                // We round by at most one year, which may contain up to 4 transitions (e.g. Morocco, or double-DST in the UK)
-                assert transitionCount <= 4;
-
-                /*
-                 * Bound the iterations to prevent an infinite loop, but allow for more than 4 transitions
-                 * in case the previous assertion is wrong.
-                 */
-                if (transitionCount > 10) {
-                    throw new IllegalStateException("Too many timezone transitions found");
-                }
             }
         }
 

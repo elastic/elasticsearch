@@ -160,7 +160,7 @@ public abstract class Rounding implements Streamable {
             long guess = utcMillis;
             long rounded;
             do {
-                guess = field.add(guess, 1);
+                guess = field.roundCeiling(guess + 1);
                 rounded = round(guess);
             } while (rounded <= utcMillis);
 

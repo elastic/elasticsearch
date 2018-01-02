@@ -56,12 +56,12 @@ public class BootstrapChecksTests extends ESTestCase {
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             TransportAddress localTransportAddress = mock(TransportAddress.class);
-            when(localTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+            when(localTransportAddress.isLoopbackAddress()).thenReturn(true);
             transportAddresses.add(localTransportAddress);
         }
 
         TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+        when(publishAddress.isLoopbackAddress()).thenReturn(true);
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
@@ -77,24 +77,24 @@ public class BootstrapChecksTests extends ESTestCase {
     public void testLogMessageInProductionMode() throws NodeValidationException {
         final Logger logger = mock(Logger.class);
         BootstrapChecks.check(true, Collections.emptyList(), logger);
-        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        verify(logger).info("bound or publishing to a non-loopback address, enforcing bootstrap checks");
         verifyNoMoreInteractions(logger);
     }
 
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         final TransportAddress nonLocalTransportAddress = mock(TransportAddress.class);
-        when(nonLocalTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
+        when(nonLocalTransportAddress.isLoopbackAddress()).thenReturn(false);
         transportAddresses.add(nonLocalTransportAddress);
 
         for (int i = 0; i < randomIntBetween(0, 7); i++) {
             final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
+            when(randomTransportAddress.isLoopbackAddress()).thenReturn(randomBoolean());
             transportAddresses.add(randomTransportAddress);
         }
 
         final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
+        when(publishAddress.isLoopbackAddress()).thenReturn(randomBoolean());
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         Collections.shuffle(transportAddresses, random());
@@ -111,12 +111,12 @@ public class BootstrapChecksTests extends ESTestCase {
 
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
+            when(randomTransportAddress.isLoopbackAddress()).thenReturn(false);
             transportAddresses.add(randomTransportAddress);
         }
 
         final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+        when(publishAddress.isLoopbackAddress()).thenReturn(true);
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));

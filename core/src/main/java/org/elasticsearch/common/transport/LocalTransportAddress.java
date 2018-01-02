@@ -80,7 +80,7 @@ public final class LocalTransportAddress implements TransportAddress {
     }
 
     @Override
-    public boolean isLoopbackOrLinkLocalAddress() {
+    public boolean isLoopbackAddress() {
         return false;
     }
 

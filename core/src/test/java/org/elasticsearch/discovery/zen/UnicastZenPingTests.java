@@ -415,7 +415,7 @@ public class UnicastZenPingTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(limitPortCounts));
         final Set<Integer> ports = new HashSet<>();
         for (final DiscoveryNode discoveryNode : discoveryNodes) {
-            assertTrue(discoveryNode.getAddress().isLoopbackOrLinkLocalAddress());
+            assertTrue(discoveryNode.getAddress().isLoopbackAddress());
             ports.add(discoveryNode.getAddress().getPort());
         }
         assertThat(ports, equalTo(IntStream.range(9300, 9300 + limitPortCounts).mapToObj(m -> m).collect(Collectors.toSet())));
@@ -459,7 +459,7 @@ public class UnicastZenPingTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(7));
         final Set<Integer> ports = new HashSet<>();
         for (final DiscoveryNode discoveryNode : discoveryNodes) {
-            assertTrue(discoveryNode.getAddress().isLoopbackOrLinkLocalAddress());
+            assertTrue(discoveryNode.getAddress().isLoopbackAddress());
             ports.add(discoveryNode.getAddress().getPort());
         }
         assertThat(ports, equalTo(IntStream.range(9303, 9310).mapToObj(m -> m).collect(Collectors.toSet())));

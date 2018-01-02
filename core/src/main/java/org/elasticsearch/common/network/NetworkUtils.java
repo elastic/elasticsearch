@@ -149,17 +149,14 @@ public abstract class NetworkUtils {
     public static boolean defaultReuseAddress() {
         return Constants.WINDOWS ? false : true;
     }
-    
+
     /** Returns all interface-local scope (loopback) addresses for interfaces that are up. */
     static InetAddress[] getLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
             if (intf.isUp()) {
-                // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
-                // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
-                // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
                 for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-                    if (intf.isLoopback() || address.isLoopbackAddress()) {
+                    if (address.isLoopbackAddress()) {
                         list.add(address);
                     }
                 }

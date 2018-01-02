@@ -104,8 +104,8 @@ public final class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override
-    public boolean isLoopbackOrLinkLocalAddress() {
-        return address.getAddress().isLinkLocalAddress() || address.getAddress().isLoopbackAddress();
+    public boolean isLoopbackAddress() {
+        return address.getAddress().isLoopbackAddress();
     }
 
     @Override

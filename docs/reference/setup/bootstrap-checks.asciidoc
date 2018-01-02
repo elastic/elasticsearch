@@ -23,16 +23,16 @@ documented individually.
 [float]
 === Development vs. production mode
 
-By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>> and
-<<modules-transport,transport (internal)>> communication. This is fine for
-downloading and playing with Elasticsearch as well as everyday development, but it's
-useless for production systems. To join a cluster, an Elasticsearch node must be
-reachable via transport communication. To join a cluster over an external
-network interface, a node must bind transport to an external interface and not
-be using <<single-node-discovery,single-node discovery>>. Thus, we consider an
-Elasticsearch node to be in development mode if it can not form a cluster with
-another machine over an external network interface, and is otherwise in
-production mode if it can join a cluster over an external interface.
+By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>
+and <<modules-transport,transport (internal)>> communication. This is fine for
+downloading and playing with Elasticsearch as well as everyday development, but
+it's useless for production systems. To join a cluster, an Elasticsearch node
+must be reachable via transport communication. To join a cluster via a
+non-loopback address, a node must bind transport to a non-loopback address and
+not be using <<single-node-discovery,single-node discovery>>. Thus, we consider
+an Elasticsearch node to be in development mode if it can not form a cluster
+with another machine via a non-loopback address, and is otherwise in production
+mode if it can join a cluster via non-loopback addresses.
 
 Note that HTTP and transport can be configured independently via
 <<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>; this

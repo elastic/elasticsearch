@@ -28,7 +28,7 @@ and <<modules-transport,transport (internal)>> communication. This is fine for
 downloading and playing with Elasticsearch as well as everyday development, but
 it's useless for production systems. To join a cluster, an Elasticsearch node
 must be reachable via transport communication. To join a cluster via a
-non-loopback address, a node must bind transport to an non-loopback address and
+non-loopback address, a node must bind transport to a non-loopback address and
 not be using <<single-node-discovery,single-node discovery>>. Thus, we consider
 an Elasticsearch node to be in development mode if it can not form a cluster
 with another machine via a non-loopback address, and is otherwise in production

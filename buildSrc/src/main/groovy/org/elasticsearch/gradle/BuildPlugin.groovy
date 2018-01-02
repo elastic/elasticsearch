@@ -96,7 +96,7 @@ class BuildPlugin implements Plugin<Project> {
             String javaVendor = System.getProperty('java.vendor')
             String javaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
-                " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
+                    " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String javaVersionDetails = gradleJavaVersionDetails
             JavaVersion javaVersionEnum = JavaVersion.current()
@@ -138,7 +138,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // this block of code detecting buggy JDK 8 compiler versions can be removed when minimum Java version is incremented
-            assert minimumJava == JavaVersion.VERSION_1_8 : "Remove JDK compiler bug detection only applicable to JDK 8"
+            assert minimumJava == JavaVersion.VERSION_1_8: "Remove JDK compiler bug detection only applicable to JDK 8"
             if (javaVersionEnum == JavaVersion.VERSION_1_8) {
                 if (Objects.equals("Oracle Corporation", javaVendor)) {
                     def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
@@ -160,8 +160,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.javaVersion = javaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
-        project.targetCompatibility = minimumJava
-        project.sourceCompatibility = minimumJava
+
         // set java home for each project, so they dont have to find it in the root project
         project.ext.javaHome = project.rootProject.ext.javaHome
         project.ext.javaVersion = project.rootProject.ext.javaVersion
@@ -409,24 +408,28 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        if (project.javaVersion < JavaVersion.VERSION_1_10) {
-            project.ext.compactProfile = 'compact3'
-        } else {
-            project.ext.compactProfile = 'full'
-        }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
-                File gradleJavaHome = Jvm.current().javaHome
+                final JavaVersion sourceCompatibilityJavaVersion = JavaVersion.toVersion(it.sourceCompatibility)
+                final File gradleJavaHome
+                if (sourceCompatibilityJavaVersion > minimumJava) {
+                    final String javaHomeSourceCompatibility = System.getenv("JAVA_${sourceCompatibilityJavaVersion.majorVersion}_HOME")
+                    if (javaHomeSourceCompatibility == null) {
+                        throw new GradleException("JAVA_${sourceCompatibilityJavaVersion.majorVersion}_HOME must be set to build Elasticsearch")
+                    }
+                    gradleJavaHome = new File(javaHomeSourceCompatibility)
+                } else {
+                    gradleJavaHome = Jvm.current().javaHome
+                }
+
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
-                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.javaHome = gradleJavaHome
                 options.forkOptions.memoryMaximumSize = "1g"
-                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                if (sourceCompatibilityJavaVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    if (project.compactProfile != 'full') {
-                        options.compilerArgs << '-profile' << project.compactProfile
-                    }
+                    options.compilerArgs << '-profile' << 'compact3'
                 }
                 /*
                  * -path because gradle will send in paths that don't always exist.
@@ -445,10 +448,10 @@ class BuildPlugin implements Plugin<Project> {
                 options.encoding = 'UTF-8'
                 options.incremental = true
 
-                if (project.javaVersion == JavaVersion.VERSION_1_9) {
+                if (sourceCompatibilityJavaVersion > JavaVersion.VERSION_1_8) {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
-                    options.compilerArgs << '--release' << '8'
+                    options.compilerArgs << '--release' << it.sourceCompatibility
                 }
             }
         }

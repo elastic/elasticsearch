@@ -209,7 +209,8 @@ public class PluginInfoTests extends ESTestCase {
     }
 
     public void testSerialize() throws Exception {
-        PluginInfo info = new PluginInfo("c", "foo", "dummy", "dummyclass", Collections.singletonList("foo"), randomBoolean(), randomBoolean());
+        PluginInfo info = new PluginInfo("c", "foo", "dummy", "dummyclass",
+                                         Collections.singletonList("foo"), randomBoolean(), randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
         ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);

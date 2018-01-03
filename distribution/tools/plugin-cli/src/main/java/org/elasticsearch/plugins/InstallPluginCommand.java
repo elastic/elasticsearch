@@ -575,7 +575,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // read existing bundles. this does some checks on the installation too.
         Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
-        bundles.addAll(PluginsService.getPluginBundles(modulesDir));
+        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
         bundles.add(new PluginsService.Bundle(info, candidate));
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
 

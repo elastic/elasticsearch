@@ -301,32 +301,4 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     }
 
-    public void testParseAllocation() {
-        assertNull(Allocation.parse(null));
-        assertEquals(Allocation.ALL, Allocation.parse("all"));
-        assertEquals(Allocation.ALL, Allocation.parse("ALL"));
-        assertEquals(Allocation.NONE, Allocation.parse("none"));
-        assertEquals(Allocation.NONE, Allocation.parse("NONE"));
-        assertEquals(Allocation.PRIMARIES, Allocation.parse("primaries"));
-        assertEquals(Allocation.PRIMARIES, Allocation.parse("PRIMARIES"));
-        assertEquals(Allocation.NEW_PRIMARIES, Allocation.parse("NEW_PRIMARIES"));
-        assertEquals(Allocation.NEW_PRIMARIES, Allocation.parse("new_primaries"));
-        assertEquals(Allocation.NEW_PRIMARIES, Allocation.parse("newPrimaries"));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Allocation.parse("invalid"));
-        assertEquals(ex.getMessage(), "Illegal allocation.enable value [invalid]");
-    }
-
-    public void testParseRebalance() {
-        assertNull(Rebalance.parse(null));
-        assertEquals(Rebalance.ALL, Rebalance.parse("all"));
-        assertEquals(Rebalance.ALL, Rebalance.parse("ALL"));
-        assertEquals(Rebalance.NONE, Rebalance.parse("none"));
-        assertEquals(Rebalance.NONE, Rebalance.parse("NONE"));
-        assertEquals(Rebalance.PRIMARIES, Rebalance.parse("primaries"));
-        assertEquals(Rebalance.PRIMARIES, Rebalance.parse("PRIMARIES"));
-        assertEquals(Rebalance.REPLICAS, Rebalance.parse("REPLICAS"));
-        assertEquals(Rebalance.REPLICAS, Rebalance.parse("replicas"));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Rebalance.parse("invalid"));
-        assertEquals(ex.getMessage(), "Illegal rebalance.enable value [invalid]");
-    }
 }

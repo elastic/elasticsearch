@@ -219,16 +219,13 @@ public class EnableAllocationDecider extends AllocationDecider {
         public static Allocation parse(String strValue) {
             if (strValue == null) {
                 return null;
-            } else if ("all".equalsIgnoreCase(strValue)) {
-                return ALL;
-            } else if ("primaries".equalsIgnoreCase(strValue)) {
-                return PRIMARIES;
-            } else if ("new_primaries".equalsIgnoreCase(strValue) || "newPrimaries".equalsIgnoreCase(strValue)) {
-                return NEW_PRIMARIES;
-            } else if ("none".equalsIgnoreCase(strValue)) {
-                return NONE;
             } else {
-                throw new IllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
+                strValue = strValue.toUpperCase(Locale.ROOT);
+                try {
+                    return Allocation.valueOf(strValue);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
+                }
             }
         }
 
@@ -254,16 +251,13 @@ public class EnableAllocationDecider extends AllocationDecider {
         public static Rebalance parse(String strValue) {
             if (strValue == null) {
                 return null;
-            } else if ("all".equalsIgnoreCase(strValue)) {
-                return ALL;
-            } else if ("primaries".equalsIgnoreCase(strValue)) {
-                return PRIMARIES;
-            } else if ("replicas".equalsIgnoreCase(strValue)) {
-                return REPLICAS;
-            } else if ("none".equalsIgnoreCase(strValue)) {
-                return NONE;
             } else {
-                throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
+                strValue = strValue.toUpperCase(Locale.ROOT);
+                try {
+                    return Rebalance.valueOf(strValue);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
+                }
             }
         }
 

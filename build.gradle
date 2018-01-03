@@ -25,7 +25,13 @@ import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
+import org.gradle.api.tasks.wrapper.Wrapper
+import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
+
 import java.nio.file.Path
+import java.security.MessageDigest
 
 // common maven publishing configuration
 subprojects {
@@ -411,6 +417,29 @@ gradle.projectsEvaluated {
       if (assemble) {
         project.tasks.remove(assemble)
         project.build.dependsOn.remove('assemble')
+      }
+    }
+
+    tasks.withType(Wrapper) { Wrapper wrapper ->
+      wrapper.distributionType = DistributionType.ALL
+
+      wrapper.doLast {
+        final DistributionLocator locator = new DistributionLocator()
+        def version = GradleVersion.version(wrapper.gradleVersion)
+        final URI uri =
+                locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+        uri.toURL().withInputStream { i ->
+          final byte[] buffer = new byte[2 << 20]
+          final MessageDigest sha256 = MessageDigest.getInstance("SHA-256")
+          int bytesRead
+          while ((bytesRead = i.read(buffer)) >= 0) {
+            if (bytesRead > 0) {
+              sha256.update(buffer, 0, bytesRead)
+            }
+          }
+
+          wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256.digest().encodeHex()}\n"
+        }
       }
     }
   }

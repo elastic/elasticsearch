@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.lang.management.ManagementFactory;

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.SuppressForbidden;
-
 import java.lang.ProcessHandle;
 
 class JvmPid {

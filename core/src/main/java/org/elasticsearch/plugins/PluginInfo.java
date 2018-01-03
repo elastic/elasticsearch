@@ -348,8 +348,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 .append("Version: ").append(version).append("\n")
                 .append("Native Controller: ").append(hasNativeController).append("\n")
                 .append("Requires Keystore: ").append(requiresKeystore).append("\n")
-                .append("Classname: ").append(classname).append("\n")
-                .append("Extended Plugins: ").append(extendedPlugins);
+                .append("Extended Plugins: ").append(extendedPlugins).append("\n")
+                .append(" * Classname: ").append(classname);
         return information.toString();
     }
 

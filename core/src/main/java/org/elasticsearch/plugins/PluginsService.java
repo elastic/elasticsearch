@@ -130,6 +130,7 @@ public class PluginsService extends AbstractComponent {
         // now, find all the ones that are in plugins/
         if (pluginsDirectory != null) {
             try {
+                checkForFailedPluginRemovals(pluginsDirectory);
                 Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
                 for (Bundle bundle : plugins) {
                     pluginsList.add(bundle.plugin);
@@ -324,11 +325,12 @@ public class PluginsService extends AbstractComponent {
 
         Set<Bundle> bundles = new LinkedHashSet<>();
 
-        checkForFailedPluginRemovals(pluginsDirectory);
-
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
                 if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                    continue;
+                }
+                if (plugin.getFileName().toString().startsWith(".removing-")) {
                     continue;
                 }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());

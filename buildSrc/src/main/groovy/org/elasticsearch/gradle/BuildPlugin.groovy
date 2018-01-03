@@ -85,6 +85,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureTest(project)
         configurePrecommit(project)
+        configureDependenciesInfo(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -636,5 +637,10 @@ class BuildPlugin implements Plugin<Project> {
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
         project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+    }
+
+    private static configureDependenciesInfo(Project project) {
+        Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
+        deps.dependencies = project.configurations.compile.allDependencies
     }
 }

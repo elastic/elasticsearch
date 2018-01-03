@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-index-lifecycle'
+
+// TODO: enable this once we have tests
+test.enabled=false
+licenseHeaders.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+}
+
+dependencyLicenses {
+    ignoreSha 'x-pack-core'
+}
+
+parent.bundlePlugin {
+    from jar
+}

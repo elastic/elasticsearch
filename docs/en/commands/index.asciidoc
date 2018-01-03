@@ -8,6 +8,7 @@
 {xpack} includes commands that help you configure security:
 
 * <<certgen>>
+* <<certutil>>
 * <<migrate-tool>>
 * <<setup-passwords>>
 * <<syskeygen>>
@@ -16,6 +17,7 @@
 --
 
 include::certgen.asciidoc[]
+include::certutil.asciidoc[]
 include::migrate-tool.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::syskeygen.asciidoc[]

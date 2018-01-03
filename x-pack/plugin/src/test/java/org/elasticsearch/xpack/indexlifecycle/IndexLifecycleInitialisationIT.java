@@ -91,8 +91,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.lifecycle.name", "test").build();
         Map<String, Phase> phases = new HashMap<>();
 
-        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME,
-            new ForceMergeAction(-1));
+        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000));
         phases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(2), warmPhaseActions));
 
         Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
@@ -124,8 +123,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     public void testMasterDedicatedDataDedicated() throws Exception {
         // start master node
         logger.info("Starting sever1");
-        final String server_1 = internalCluster().startMasterOnlyNode();
-        final String node1 = getLocalNodeId(server_1);
+        internalCluster().startMasterOnlyNode();
         // start data node
         logger.info("Starting sever1");
         final String server_2 = internalCluster().startDataOnlyNode();
@@ -171,7 +169,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         logger.info("Starting server2");
         // start another server
-        String server_2 = internalCluster().startNode();
+        internalCluster().startNode();
 
         // first wait for 2 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");

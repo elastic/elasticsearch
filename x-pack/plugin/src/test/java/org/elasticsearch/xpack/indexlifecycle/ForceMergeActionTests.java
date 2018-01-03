@@ -296,7 +296,7 @@ public class ForceMergeActionTests extends AbstractSerializingTestCase<ForceMerg
             }
         });
 
-        assertEquals(null, actionCompleted.get());
+        assertEquals(true, actionCompleted.get());
 
         InOrder inOrder = Mockito.inOrder(clusterService, client, adminClient, indicesClient);
         inOrder.verify(clusterService).state();

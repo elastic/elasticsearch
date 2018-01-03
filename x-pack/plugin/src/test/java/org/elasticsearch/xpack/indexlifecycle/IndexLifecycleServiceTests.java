@@ -223,7 +223,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(currentState);
 
         doAnswer(invocationOnMock -> {
-            ActionListener<UpdateSettingsResponse> listener = (ActionListener) invocationOnMock.getArguments()[1];
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
 

@@ -18,7 +18,9 @@ setup:
                  "warm": {
                    "after": "10s",
                    "actions": {
-                     "forcemerge": {}
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
                    }
                  },
                  "delete": {

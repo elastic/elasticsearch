@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
@@ -31,12 +37,6 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -97,6 +97,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         }
                     } finally {
                         assert userInfo.passwordHash != DISABLED_DEFAULT_USER_INFO.passwordHash : "default user info must be cloned";
+                        assert userInfo.passwordHash != ENABLED_DEFAULT_USER_INFO.passwordHash : "default user info must be cloned";
                         assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
                         Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
@@ -184,15 +185,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
             listener.onResponse(DISABLED_DEFAULT_USER_INFO.deepClone());
         } else if (securityLifecycleService.isSecurityIndexExisting() == false) {
-            listener.onResponse(bootstrapUserInfo.deepClone());
+            listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
                 if (userInfo == null) {
-                    if (ElasticUser.NAME.equals(username)) {
-                        listener.onResponse(bootstrapUserInfo.deepClone());
-                    } else {
-                        listener.onResponse(ENABLED_DEFAULT_USER_INFO.deepClone());
-                    }
+                    listener.onResponse(getDefaultUserInfo(username));
                 } else {
                     listener.onResponse(userInfo);
                 }
@@ -201,6 +198,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
                 listener.onResponse(null);
             }));
+        }
+    }
+
+    private ReservedUserInfo getDefaultUserInfo(String username) {
+        if (ElasticUser.NAME.equals(username)) {
+            return bootstrapUserInfo.deepClone();
+        } else {
+            return ENABLED_DEFAULT_USER_INFO.deepClone();
         }
     }
 

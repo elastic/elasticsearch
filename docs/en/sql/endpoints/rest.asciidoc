@@ -184,3 +184,56 @@ or fewer results though. `time_zone` is the time zone to use for date
 functions and date parsing. `time_zone` defaults to `utc` and can take
 any values documented
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].
+
+
+[[sql-rest-metadata]]
+
+SQL can only work with a subset of Elasticsearch indices. To get the list of
+indices that are available to the user execute:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/sql/tables
+{
+    "table_pattern": "lib*"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+Which returns:
+
+[source,js]
+--------------------------------------------------
+{
+    "tables": [ "library" ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+To get the list of fields that are supported in SQL execute:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/sql/columns
+{
+    "table_pattern": "library",
+    "column_pattern": ""
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+    "columns": [
+        {"table": "library", "name": "author",       "type": "text",  "jdbc_type": 12, "display_size": 0},
+        {"table": "library", "name": "name",         "type": "text",  "jdbc_type": 12, "display_size": 0},
+        {"table": "library", "name": "page_count",   "type": "short", "jdbc_type": 5,  "display_size": 6},
+        {"table": "library", "name": "release_date", "type": "date",  "jdbc_type": 93, "display_size": 20}
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE

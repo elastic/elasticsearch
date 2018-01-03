@@ -28,6 +28,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 
 public class RestSqlAction extends BaseRestHandler {
     private final SqlLicenseChecker sqlLicenseChecker;
@@ -54,7 +55,7 @@ public class RestSqlAction extends BaseRestHandler {
                 public RestResponse buildResponse(SqlResponse response, XContentBuilder builder) throws Exception {
                     // Make sure we only display JDBC-related data if JDBC is enabled
                     ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                            Collections.singletonMap(SqlResponse.JDBC_ENABLED_PARAM, Boolean.toString(sqlLicenseChecker.isJdbcAllowed())),
+                            Collections.singletonMap(JDBC_ENABLED_PARAM, Boolean.toString(sqlLicenseChecker.isJdbcAllowed())),
                             channel.request());
                     response.toXContent(builder, params);
                     return new BytesRestResponse(getStatus(response), builder);

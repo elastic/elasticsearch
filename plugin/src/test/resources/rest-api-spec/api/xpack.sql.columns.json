@@ -1,0 +1,16 @@
+{
+    "xpack.sql.columns": {
+      "documentation": "Returns a list of columns supported by SQL for the current user",
+      "methods": [ "POST" ],
+      "url": {
+        "path": "/_xpack/sql/columns",
+        "paths": [ "/_xpack/sql/columns" ],
+        "parts": {},
+        "params": {}
+      },
+      "body": {
+        "description" : "Specify the table pattern in the `table_pattern` and the column patter in `column_pattern` element.",
+        "required" : true
+      }
+    }
+  }

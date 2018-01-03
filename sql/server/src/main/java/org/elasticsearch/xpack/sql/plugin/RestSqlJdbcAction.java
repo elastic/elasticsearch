@@ -139,7 +139,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             List<JDBCType> types = new ArrayList<>(response.columns().size());
             List<ColumnInfo> columns = new ArrayList<>(response.columns().size());
-            for (SqlResponse.ColumnInfo info : response.columns()) {
+            for (org.elasticsearch.xpack.sql.plugin.ColumnInfo info : response.columns()) {
                 types.add(info.jdbcType());
                 columns.add(new ColumnInfo(info.name(), info.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
             }

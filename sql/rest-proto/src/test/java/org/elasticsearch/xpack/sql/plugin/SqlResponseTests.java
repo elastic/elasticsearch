@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -23,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResponse> {
@@ -43,7 +43,8 @@ public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResp
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomFrom(JDBCType.values()), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                        randomFrom(JDBCType.values()), randomInt(25)));
             }
         }
 
@@ -80,7 +81,7 @@ public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResp
 
         boolean jdbcEnabled = randomBoolean();
         ToXContent.Params params =
-                new ToXContent.MapParams(Collections.singletonMap(SqlResponse.JDBC_ENABLED_PARAM, Boolean.toString(jdbcEnabled)));
+                new ToXContent.MapParams(Collections.singletonMap(JDBC_ENABLED_PARAM, Boolean.toString(jdbcEnabled)));
 
         XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), params);
         Map<String, Object> rootMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();

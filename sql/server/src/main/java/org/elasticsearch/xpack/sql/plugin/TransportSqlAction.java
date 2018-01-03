@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -71,7 +70,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     static SqlResponse createResponse(SchemaRowSet rowSet) {
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
-            columns.add(new ColumnInfo(entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
+            columns.add(new ColumnInfo("", entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
         }
         columns = unmodifiableList(columns);
         return createResponse(rowSet, columns);

@@ -28,13 +28,12 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 
 /**
  * Response to perform an sql query
  */
 public class SqlResponse extends ActionResponse implements ToXContentObject {
-    public static final String JDBC_ENABLED_PARAM = "jdbc_enabled";
-    public static final int UNKNOWN_DISPLAY_SIZE = -1;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SqlResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
@@ -235,129 +234,5 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-
-    private static final ConstructingObjectParser<ColumnInfo, Void> COLUMN_INFO_PARSER =
-            new ConstructingObjectParser<>("sql", true, objects ->
-                    new ColumnInfo(
-                            (String) objects[0],
-                            (String) objects[1],
-                            objects[2] == null ? null : JDBCType.valueOf((int) objects[2]),
-                            objects[3] == null ? UNKNOWN_DISPLAY_SIZE : (int) objects[3]));
-
-    private static final ParseField NAME = new ParseField("name");
-    private static final ParseField ES_TYPE = new ParseField("type");
-    private static final ParseField JDBC_TYPE = new ParseField("jdbc_type");
-    private static final ParseField DISPLAY_SIZE = new ParseField("display_size");
-
-    static {
-        COLUMN_INFO_PARSER.declareString(constructorArg(), NAME);
-        COLUMN_INFO_PARSER.declareString(constructorArg(), ES_TYPE);
-        COLUMN_INFO_PARSER.declareInt(optionalConstructorArg(), JDBC_TYPE);
-        COLUMN_INFO_PARSER.declareInt(optionalConstructorArg(), DISPLAY_SIZE);
-    }
-
-    /**
-     * Information about a column.
-     */
-    public static final class ColumnInfo implements Writeable, ToXContentObject {
-        private final String name;
-        private final String esType;
-        private final JDBCType jdbcType;
-        private final int displaySize;
-
-        public ColumnInfo(String name, String esType, JDBCType jdbcType, int displaySize) {
-            this.name = name;
-            this.esType = esType;
-            this.jdbcType = jdbcType;
-            this.displaySize = displaySize;
-        }
-
-        ColumnInfo(StreamInput in) throws IOException {
-            name = in.readString();
-            esType = in.readString();
-            jdbcType = JDBCType.valueOf(in.readVInt());
-            displaySize = in.readVInt();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeString(esType);
-            out.writeVInt(jdbcType.getVendorTypeNumber());
-            out.writeVInt(displaySize);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return toXContent(builder, params.paramAsBoolean(JDBC_ENABLED_PARAM, true));
-        }
-
-        public XContentBuilder toXContent(XContentBuilder builder, boolean isJdbcAllowed) throws IOException {
-            builder.startObject();
-            builder.field("name", name);
-            builder.field("type", esType);
-            if (isJdbcAllowed && jdbcType != null) {
-                builder.field("jdbc_type", jdbcType.getVendorTypeNumber());
-                builder.field("display_size", displaySize);
-            }
-            return builder.endObject();
-        }
-
-
-        public static ColumnInfo fromXContent(XContentParser parser) {
-            return COLUMN_INFO_PARSER.apply(parser, null);
-        }
-
-        /**
-         * Name of the column.
-         */
-        public String name() {
-            return name;
-        }
-
-        /**
-         * The type of the column in Elasticsearch.
-         */
-        public String esType() {
-            return esType;
-        }
-
-        /**
-         * The type of the column as it would be returned by a JDBC driver.
-         */
-        public JDBCType jdbcType() {
-            return jdbcType;
-        }
-
-        /**
-         * Used by JDBC
-         */
-        public int displaySize() {
-            return displaySize;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null || obj.getClass() != getClass()) {
-                return false;
-            }
-            ColumnInfo other = (ColumnInfo) obj;
-            return name.equals(other.name)
-                    && esType.equals(other.esType)
-                    && jdbcType.equals(other.jdbcType)
-                    && displaySize == other.displaySize;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, esType, jdbcType, displaySize);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
     }
 }

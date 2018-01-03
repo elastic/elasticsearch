@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 
 import java.sql.JDBCType;
@@ -105,9 +106,9 @@ public class ServerQueryCliCommandTests extends ESTestCase {
 
     private SqlResponse fakeResponse(String cursor, boolean includeColumns, String val) {
         List<List<Object>> rows;
-        List<SqlResponse.ColumnInfo> columns;
+        List<ColumnInfo> columns;
         if (includeColumns) {
-            columns = Collections.singletonList(new SqlResponse.ColumnInfo("field", "string", JDBCType.VARCHAR, 0));
+            columns = Collections.singletonList(new ColumnInfo("", "field", "string", JDBCType.VARCHAR, 0));
         } else {
             columns = null;
         }

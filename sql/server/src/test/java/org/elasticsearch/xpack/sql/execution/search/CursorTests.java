@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.plugin.CliFormatter;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 import org.elasticsearch.xpack.sql.plugin.SqlResponse;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -60,12 +61,12 @@ public class CursorTests extends ESTestCase {
     private static SqlResponse createRandomSqlResponse() {
         int columnCount = between(1, 10);
 
-        List<SqlResponse.ColumnInfo> columns = null;
+        List<ColumnInfo> columns = null;
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new SqlResponse.ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                    randomFrom(JDBCType.values()), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                        randomFrom(JDBCType.values()), randomInt(25)));
             }
         }
         return new SqlResponse("", columns, Collections.emptyList());

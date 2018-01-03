@@ -1,0 +1,16 @@
+{
+    "xpack.sql.tables": {
+      "documentation": "Returns a list of tables supported by SQL for the current user",
+      "methods": [ "POST" ],
+      "url": {
+        "path": "/_xpack/sql/tables",
+        "paths": [ "/_xpack/sql/tables" ],
+        "parts": {},
+        "params": {}
+      },
+      "body": {
+        "description" : "Specify the table pattern in the `table_pattern` element.",
+        "required" : true
+      }
+    }
+  }

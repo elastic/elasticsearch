@@ -130,12 +130,15 @@ public class PluginsService extends AbstractComponent {
         // now, find all the ones that are in plugins/
         if (pluginsDirectory != null) {
             try {
-                checkForFailedPluginRemovals(pluginsDirectory);
-                Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                for (Bundle bundle : plugins) {
-                    pluginsList.add(bundle.plugin);
+                // TODO: remove this leniency, but tests bogusly rely on it
+                if (isAccessibleDirectory(pluginsDirectory, logger)) {
+                    checkForFailedPluginRemovals(pluginsDirectory);
+                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
+                    for (Bundle bundle : plugins) {
+                        pluginsList.add(bundle.plugin);
+                    }
+                    seenBundles.addAll(plugins);
                 }
-                seenBundles.addAll(plugins);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
@@ -317,12 +320,6 @@ public class PluginsService extends AbstractComponent {
 
     static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
-
-        // TODO: remove this leniency, but tests bogusly rely on it
-        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
-            return Collections.emptySet();
-        }
-
         Set<Bundle> bundles = new LinkedHashSet<>();
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {

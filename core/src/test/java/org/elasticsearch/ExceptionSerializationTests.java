@@ -748,7 +748,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
         ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
         ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
-        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class); //deprecated in 6.0
+        ids.put(80, null); // was IndexFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);

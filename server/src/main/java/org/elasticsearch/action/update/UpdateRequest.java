@@ -897,28 +897,25 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public String toString() {
-        String res = "update {[" + index + "][" + type + "][" + id + "]";
-        if (docAsUpsert) {
-            res += (", doc_as_upsert[" + docAsUpsert + "]");
-        }
+        StringBuilder res = new StringBuilder()
+            .append("update {[").append(index)
+            .append("][").append(type)
+            .append("][").append(id).append("]");
+        res.append(", doc_as_upsert[").append(docAsUpsert).append("]");
         if (doc != null) {
-            res += (", doc[" + doc + "]");
+            res.append(", doc[").append(doc).append("]");
         }
         if (script != null) {
-            res += (", script[" + script + "]");
+            res.append(", script[").append(script).append("]");
         }
         if (upsertRequest != null) {
-            res += (", upsert[" + upsertRequest + "]");
+            res.append(", upsert[").append(upsertRequest).append("]");
         }
-        if (scriptedUpsert) {
-            res += (", scripted_upsert[" + scriptedUpsert + "]");
-        }
-        if (detectNoop) {
-            res += (", detect_noop[" + detectNoop + "]");
-        }
+        res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
+        res.append(", detect_noop[").append(detectNoop).append("]");
         if (fields != null) {
-            res += (", fields[" + Arrays.toString(fields) + "]");
+            res.append(", fields[").append(Arrays.toString(fields)).append("]");
         }
-        return res + "}";
+        return res.append("}").toString();
     }
 }

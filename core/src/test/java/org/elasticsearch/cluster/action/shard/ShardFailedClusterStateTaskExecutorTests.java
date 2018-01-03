@@ -157,24 +157,27 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         assertTaskResults(taskResultMap, result, currentState, false);
     }
 
-    public void testMarkAsStaleWhenFailingShards() throws Exception {
+    public void testMarkAsStaleWhenFailingShard() throws Exception {
         final MockAllocationService allocation = createAllocationService();
         ClusterState clusterState = createClusterStateWithStartedShards("test markAsStale");
         clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-        final Set<String> oldInSync = clusterState.metaData().index(INDEX).inSyncAllocationIds(0);
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(INDEX).shard(0);
-
         long primaryTerm = clusterState.metaData().index(INDEX).primaryTerm(0);
-        boolean markAsStale = randomBoolean();
-        final ShardRouting shardToFail = randomFrom(shardRoutingTable.shardsWithState(STARTED));
-        List<ShardStateAction.ShardEntry> tasks = Arrays.asList(
-            new ShardStateAction.ShardEntry(shardRoutingTable.shardId(), shardToFail.allocationId().getId(), primaryTerm, "dummy", null, markAsStale));
-        ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.ShardEntry> result = executor.execute(clusterState, tasks);
-        final Set<String> newInSync = result.resultingState.metaData().index(INDEX).inSyncAllocationIds(0);
-        if (markAsStale) {
-            assertThat(Sets.difference(oldInSync, newInSync), contains(shardToFail.allocationId().getId()));
-        } else {
+        final Set<String> oldInSync = clusterState.metaData().index(INDEX).inSyncAllocationIds(0);
+        {
+            ShardStateAction.ShardEntry failShardOnly = new ShardStateAction.ShardEntry(shardRoutingTable.shardId(),
+                randomFrom(oldInSync), primaryTerm, "dummy", null, false);
+            ClusterState appliedState = executor.execute(clusterState, Arrays.asList(failShardOnly)).resultingState;
+            Set<String> newInSync = appliedState.metaData().index(INDEX).inSyncAllocationIds(0);
             assertThat(newInSync, equalTo(oldInSync));
+        }
+        {
+            final String failedAllocationId = randomFrom(oldInSync);
+            ShardStateAction.ShardEntry failAndMarkAsStale = new ShardStateAction.ShardEntry(shardRoutingTable.shardId(),
+                failedAllocationId, primaryTerm, "dummy", null, true);
+            ClusterState appliedState = executor.execute(clusterState, Arrays.asList(failAndMarkAsStale)).resultingState;
+            Set<String> newInSync = appliedState.metaData().index(INDEX).inSyncAllocationIds(0);
+            assertThat(Sets.difference(oldInSync, newInSync), contains(failedAllocationId));
         }
     }
 

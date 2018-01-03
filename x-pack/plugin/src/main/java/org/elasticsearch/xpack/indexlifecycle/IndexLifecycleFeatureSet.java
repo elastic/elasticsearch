@@ -11,8 +11,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XpackField;
 
 import java.util.Map;
 
@@ -29,7 +29,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackPlugin.INDEX_LIFECYCLE;
+        return XpackField.INDEX_LIFECYCLE;
     }
 
     @Override

@@ -28,7 +28,7 @@ be possible to call `addListener` against the returned `ListenableActionFuture`.
 it is not possible to associate the future with listeners. The `execute` method that accept a listener
 as an argument can be used instead.
 
-==== `Terms.Order` and `Histogram.Order` classes replace by `BucketOrder`
+==== `Terms.Order` and `Histogram.Order` classes replaced by `BucketOrder`
 
 The `terms`, `histogram`, and `date_histogram` aggregation code has been refactored to use common
 code for ordering buckets. The `BucketOrder` class must be used instead of `Terms.Order` and
@@ -38,7 +38,7 @@ Use `BucketOrder.key(boolean)` to order the `terms` aggregation buckets by `_ter
 
 ==== `getTookInMillis()` removed in `BulkResponse`, `SearchResponse` and `TermVectorsResponse`
 
-In `BulkResponse`, `SearchResponse` and `TermVectorsResponse` `getTookInMiilis()` method
+In `BulkResponse`, `SearchResponse` and `TermVectorsResponse`, the `getTookInMiilis()` method
 has been removed in favor of `getTook` method. `getTookInMiilis()` is easily replaced by
 `getTook().getMillis()`.
 

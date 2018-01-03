@@ -45,10 +45,9 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     LongArray counts;
     DoubleArray sums;
+    DoubleArray compensations;
     DoubleArray mins;
     DoubleArray maxes;
-
-    private DoubleArray compensations;
 
 
     public StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
@@ -110,15 +109,13 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isNaN(sum) == false) {
-                            if (Double.isNaN(value) || Double.isInfinite(value)) {
-                                sum += value;
-                            } else if (Double.isFinite(sum)) {
-                                double corrected = value - compensation;
-                                double newSum = sum + corrected;
-                                compensation = (newSum - sum) - corrected;
-                                sum = newSum;
-                            }
+                        if (Double.isFinite(value) == false) {
+                            sum += value;
+                        } else if (Double.isFinite(sum)) {
+                            double corrected = value - compensation;
+                            double newSum = sum + corrected;
+                            compensation = (newSum - sum) - corrected;
+                            sum = newSum;
                         }
                         min = Math.min(min, value);
                         max = Math.max(max, value);

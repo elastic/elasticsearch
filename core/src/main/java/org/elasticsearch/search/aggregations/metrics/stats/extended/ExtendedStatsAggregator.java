@@ -121,7 +121,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                        if (Double.isFinite(value) == false) {
                             sum += value;
                             sumOfSqr += value * value;
                         } else {

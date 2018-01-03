@@ -97,15 +97,13 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             InternalAvg avg = (InternalAvg) aggregation;
             count += avg.count;
-            if (Double.isNaN(sum) == false) {
-                if (Double.isNaN(avg.sum) || Double.isInfinite(avg.sum)) {
-                    sum += avg.sum;
-                } else if (Double.isFinite(sum)) {
-                    double corrected = avg.sum - compensation;
-                    double newSum = sum + corrected;
-                    compensation = (newSum - sum) - corrected;
-                    sum = newSum;
-                }
+            if (Double.isFinite(avg.sum) == false) {
+                sum += avg.sum;
+            } else if (Double.isFinite(sum)) {
+                double corrected = avg.sum - compensation;
+                double newSum = sum + corrected;
+                compensation = (newSum - sum) - corrected;
+                sum = newSum;
             }
         }
         return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());

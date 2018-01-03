@@ -90,10 +90,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                     for (int i = 0; i < valueCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                        if (Double.isFinite(value) == false) {
                             sum += value;
-                            if (Double.isNaN(sum))
-                                break;
                         } else if (Double.isFinite(sum)) {
                             double corrected = value - compensation;
                             double newSum = sum + corrected;

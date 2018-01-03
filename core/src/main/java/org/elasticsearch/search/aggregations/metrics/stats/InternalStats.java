@@ -160,16 +160,14 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             // Compute the sum of double values with Kahan summation algorithm which is more
             // accurate than naive summation.
-            if (Double.isNaN(sum) == false) {
-                double value = stats.getSum();
-                if (Double.isNaN(value) || Double.isInfinite(value)) {
-                    sum += value;
-                } else if (Double.isFinite(sum)) {
-                    double corrected = value - compensation;
-                    double newSum = sum + corrected;
-                    compensation = (newSum - sum) - corrected;
-                    sum = newSum;
-                }
+            double value = stats.getSum();
+            if (Double.isFinite(value) == false) {
+                sum += value;
+            } else if (Double.isFinite(sum)) {
+                double corrected = value - compensation;
+                double newSum = sum + corrected;
+                compensation = (newSum - sum) - corrected;
+                sum = newSum;
             }
         }
         return new InternalStats(name, count, sum, min, max, format, pipelineAggregators(), getMetaData());

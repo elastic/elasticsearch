@@ -48,6 +48,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
+        settings.put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), "1s");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

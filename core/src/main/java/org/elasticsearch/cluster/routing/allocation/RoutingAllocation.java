@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -220,6 +221,13 @@ public class RoutingAllocation {
             return emptySet();
         }
         return unmodifiableSet(new HashSet<>(ignore));
+    }
+
+    /**
+     * Remove the allocation id of the provided shard from the set of in-sync shard copies
+     */
+    public void removeAllocationId(ShardRouting shardRouting) {
+        indexMetaDataUpdater.removeAllocationId(shardRouting);
     }
 
     /**

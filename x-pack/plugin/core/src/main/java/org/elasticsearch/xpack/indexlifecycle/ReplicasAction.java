@@ -5,41 +5,53 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A {@link LifecycleAction} which reroutes shards from one allocation to another.
+ * A {@link LifecycleAction} that changes the number of replicas for the index.
  */
-public class AllocateAction implements LifecycleAction {
-    public static final String NAME = "allocate";
+public class ReplicasAction implements LifecycleAction {
+    public static final String NAME = "replicas";
 
-    private static final Logger logger = ESLoggerFactory.getLogger(AllocateAction.class);
-    private static final ObjectParser<AllocateAction, Void> PARSER = new ObjectParser<>(NAME, AllocateAction::new);
+    public static final ParseField NUMBER_OF_REPLICAS_FIELD = new ParseField("number_of_replicas");
+    private static final ConstructingObjectParser<ReplicasAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+        false, a -> new ReplicasAction((Integer) a[0]));
 
-    public static AllocateAction parse(XContentParser parser) {
+    static {
+        PARSER.declareInt(constructorArg(), NUMBER_OF_REPLICAS_FIELD);
+    }
+
+    private int numberOfReplicas;
+
+    public static ReplicasAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public AllocateAction() {
+    public ReplicasAction(int numberOfReplicas) {
+        this.numberOfReplicas = numberOfReplicas;
     }
 
-    public AllocateAction(StreamInput in) throws IOException {
+    public ReplicasAction(StreamInput in) throws IOException {
+        this.numberOfReplicas = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(numberOfReplicas);
     }
 
     @Override
@@ -50,6 +62,7 @@ public class AllocateAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(NUMBER_OF_REPLICAS_FIELD.getPreferredName(), numberOfReplicas);
         builder.endObject();
         return builder;
     }
@@ -60,9 +73,13 @@ public class AllocateAction implements LifecycleAction {
         listener.onSuccess(true);
     }
 
+    public int getNumberOfReplicas() {
+        return numberOfReplicas;
+    }
+
     @Override
     public int hashCode() {
-        return 1;
+        return Objects.hashCode(numberOfReplicas);
     }
 
     @Override
@@ -73,7 +90,8 @@ public class AllocateAction implements LifecycleAction {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        return true;
+        ReplicasAction other = (ReplicasAction) obj;
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas);
     }
 
     @Override

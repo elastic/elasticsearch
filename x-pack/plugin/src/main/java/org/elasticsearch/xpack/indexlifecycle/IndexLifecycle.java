@@ -38,6 +38,9 @@ import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportPutLifecycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -160,9 +163,9 @@ public class IndexLifecycle extends Plugin {
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-                new ActionHandler<>(PutLifecycleAction.INSTANCE, PutLifecycleAction.TransportAction.class),
-                new ActionHandler<>(GetLifecycleAction.INSTANCE, GetLifecycleAction.TransportAction.class),
-                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, DeleteLifecycleAction.TransportAction.class));
+                new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
+                new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
+                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class));
     }
 
 }

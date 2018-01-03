@@ -5,43 +5,28 @@
  */
 package org.elasticsearch.xpack.indexlifecycle.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetLifecycleAction
-        extends Action<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleAction.RequestBuilder> {
-    public static final GetLifecycleAction INSTANCE = new GetLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/get";
+public class DeleteLifecycleAction
+        extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleAction.RequestBuilder> {
+    public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/delete";
 
-    protected GetLifecycleAction() {
+    protected DeleteLifecycleAction() {
         super(NAME);
     }
 
@@ -63,40 +48,36 @@ public class GetLifecycleAction
 
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        private LifecyclePolicy policy;
-
-        Response() {
+        public Response() {
         }
 
-        public Response(LifecyclePolicy policy) {
-            this.policy = policy;
-        }
-
-        public LifecyclePolicy getPolicy() {
-            return policy;
+        public Response(boolean acknowledged) {
+            super(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            policy.toXContent(builder, params);
+            builder.startObject();
+            addAcknowledgedField(builder);
+            builder.endObject();
             return builder;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policy = new LifecyclePolicy(in);
+            readAcknowledged(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            policy.writeTo(out);
+            writeAcknowledged(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policy);
+            return Objects.hash(isAcknowledged());
         }
 
         @Override
@@ -108,7 +89,7 @@ public class GetLifecycleAction
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(policy, other.policy);
+            return Objects.equals(isAcknowledged(), other.isAcknowledged());
         }
 
         @Override
@@ -169,46 +150,6 @@ public class GetLifecycleAction
             return Objects.equals(policyName, other.policyName);
         }
 
-    }
-
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
-
-        @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-            if (metadata == null) {
-                listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName()));
-            } else {
-                LifecyclePolicy policy = metadata.getPolicies().get(request.getPolicyName());
-                if (policy == null) {
-                    listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName()));
-                } else {
-                    listener.onResponse(new Response(policy));
-                }
-            }
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        }
     }
 
 }

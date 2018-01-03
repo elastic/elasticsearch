@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,22 +18,21 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 
 /**
- * A {@link LifecycleAction} which shrinks the index.
+ * A {@link LifecycleAction} which reroutes shards from one allocation to another.
  */
-public class ShrinkAction implements LifecycleAction {
-    public static final String NAME = "shrink";
+public class AllocateAction implements LifecycleAction {
+    public static final String NAME = "allocate";
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ShrinkAction.class);
-    private static final ObjectParser<ShrinkAction, Void> PARSER = new ObjectParser<>(NAME, ShrinkAction::new);
+    private static final ObjectParser<AllocateAction, Void> PARSER = new ObjectParser<>(NAME, AllocateAction::new);
 
-    public static ShrinkAction parse(XContentParser parser) {
+    public static AllocateAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ShrinkAction() {
+    public AllocateAction() {
     }
 
-    public ShrinkAction(StreamInput in) throws IOException {
+    public AllocateAction(StreamInput in) throws IOException {
     }
 
     @Override

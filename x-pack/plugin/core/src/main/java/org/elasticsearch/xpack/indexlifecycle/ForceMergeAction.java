@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +37,6 @@ public class ForceMergeAction implements LifecycleAction {
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ForceMergeAction.class);
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
         int maxNumSegments = (Integer) a[0];

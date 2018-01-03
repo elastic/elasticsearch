@@ -341,6 +341,9 @@ public class MultiMatchQuery extends MatchQuery {
 
     @Override
     protected Query blendPhraseQuery(PhraseQuery query, MappedFieldType fieldType) {
+        if (queryBuilder == null) {
+            return super.blendPhraseQuery(query, fieldType);
+        }
         return queryBuilder.blendPhrase(query, fieldType);
     }
 

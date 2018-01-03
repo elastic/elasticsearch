@@ -21,8 +21,11 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,6 +53,7 @@ public class PluginInfoTests extends ESTestCase {
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
+        assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesNameMissing() throws Exception {
@@ -161,13 +166,67 @@ public class PluginInfoTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
     }
 
+    public void testExtendedPluginsSingleExtension() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writeProperties(pluginDir,
+            "description", "fake desc",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin",
+            "extended.plugins", "foo");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getExtendedPlugins(), contains("foo"));
+    }
+
+    public void testExtendedPluginsMultipleExtensions() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writeProperties(pluginDir,
+            "description", "fake desc",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin",
+            "extended.plugins", "foo,bar,baz");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
+    }
+
+    public void testExtendedPluginsEmpty() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writeProperties(pluginDir,
+            "description", "fake desc",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin",
+            "extended.plugins", "");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testSerialize() throws Exception {
+        PluginInfo info = new PluginInfo("c", "foo", "dummy", "dummyclass",
+                                         Collections.singletonList("foo"), randomBoolean(), randomBoolean());
+        BytesStreamOutput output = new BytesStreamOutput();
+        info.writeTo(output);
+        ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
+        ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
+        PluginInfo info2 = new PluginInfo(input);
+        assertThat(info2.toString(), equalTo(info.toString()));
+
+    }
+
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
-        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", Collections.emptyList(), randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", Collections.emptyList(),randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", Collections.emptyList(),randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", Collections.emptyList(),randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", Collections.emptyList(),randomBoolean(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();

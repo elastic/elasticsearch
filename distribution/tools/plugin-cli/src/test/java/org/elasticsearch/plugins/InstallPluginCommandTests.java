@@ -115,7 +115,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         super.setUp();
         skipJarHellCommand = new InstallPluginCommand() {
             @Override
-            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+            void jarHellCheck(PluginInfo info, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };
@@ -791,7 +791,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 return stagingHash;
             }
             @Override
-            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+            void jarHellCheck(PluginInfo info, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };

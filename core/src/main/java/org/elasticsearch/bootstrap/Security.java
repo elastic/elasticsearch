@@ -48,10 +48,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -116,7 +119,8 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
+        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
         final String[] classesThatCanExit =
@@ -128,6 +132,27 @@ final class Security {
 
         // do some basic tests
         selfTest();
+    }
+
+    /**
+     * Return a map from codebase name to codebase url of jar codebases used by ES core.
+     */
+    @SuppressForbidden(reason = "find URL path")
+    static Map<String, URL> getCodebaseJarMap(Set<URL> urls) {
+        Map<String, URL> codebases = new LinkedHashMap<>(); // maintain order
+        for (URL url : urls) {
+            try {
+                String fileName = PathUtils.get(url.toURI()).getFileName().toString();
+                if (fileName.endsWith(".jar") == false) {
+                    // tests :(
+                    continue;
+                }
+                codebases.put(fileName, url);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return codebases;
     }
 
     /**
@@ -174,7 +199,7 @@ final class Security {
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
+                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases));
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -197,21 +222,20 @@ final class Security {
      * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
+    static Policy readPolicy(URL policyFile, Map<String, URL> codebases) {
         try {
             List<String> propertiesSet = new ArrayList<>();
             try {
                 // set codebase properties
-                for (URL url : codebases) {
-                    String fileName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (fileName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
+                for (Map.Entry<String,URL> codebase : codebases.entrySet()) {
+                    String name = codebase.getKey();
+                    URL url = codebase.getValue();
+
                     // We attempt to use a versionless identifier for each codebase. This assumes a specific version
                     // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
                     // only means policy grants would need to include the entire jar filename as they always have before.
-                    String property = "codebase." + fileName;
-                    String aliasProperty = "codebase." + fileName.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    String property = "codebase." + name;
+                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
                     if (aliasProperty.equals(property) == false) {
                         propertiesSet.add(aliasProperty);
                         String previous = System.setProperty(aliasProperty, url.toString());

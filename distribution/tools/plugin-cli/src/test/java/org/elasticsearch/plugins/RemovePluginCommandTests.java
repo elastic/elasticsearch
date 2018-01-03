@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
@@ -77,6 +78,17 @@ public class RemovePluginCommandTests extends ESTestCase {
         env = TestEnvironment.newEnvironment(settings);
     }
 
+    void createPlugin(String name) throws Exception {
+        PluginTestUtil.writeProperties(
+            env.pluginsFile().resolve(name),
+            "description", "dummy",
+            "name", name,
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "SomeClass");
+    }
+
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
@@ -101,10 +113,10 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testBasic() throws Exception {
-        Files.createDirectory(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
         Files.createDirectory(env.pluginsFile().resolve("fake").resolve("subdir"));
-        Files.createDirectory(env.pluginsFile().resolve("other"));
+        createPlugin("other");
         removePlugin("fake", home, randomBoolean());
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
@@ -112,7 +124,7 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testBin() throws Exception {
-        Files.createDirectories(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         Path binDir = env.binFile().resolve("fake");
         Files.createDirectories(binDir);
         Files.createFile(binDir.resolve("somescript"));
@@ -124,16 +136,17 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testBinNotDir() throws Exception {
-        Files.createDirectories(env.pluginsFile().resolve("elasticsearch"));
-        UserException e = expectThrows(UserException.class, () -> removePlugin("elasticsearch", home, randomBoolean()));
+        createPlugin("fake");
+        Files.createFile(env.binFile().resolve("fake"));
+        UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
-        assertTrue(Files.exists(env.pluginsFile().resolve("elasticsearch"))); // did not remove
-        assertTrue(Files.exists(env.binFile().resolve("elasticsearch")));
+        assertTrue(Files.exists(env.pluginsFile().resolve("fake"))); // did not remove
+        assertTrue(Files.exists(env.binFile().resolve("fake")));
         assertRemoveCleaned(env);
     }
 
     public void testConfigDirPreserved() throws Exception {
-        Files.createDirectories(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         final Path configDir = env.configFile().resolve("fake");
         Files.createDirectories(configDir);
         Files.createFile(configDir.resolve("fake.yml"));
@@ -144,7 +157,7 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testPurgePluginExists() throws Exception {
-        Files.createDirectories(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         final Path configDir = env.configFile().resolve("fake");
         if (randomBoolean()) {
             Files.createDirectories(configDir);
@@ -181,7 +194,7 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testNoConfigDirPreserved() throws Exception {
-        Files.createDirectories(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         final Path configDir = env.configFile().resolve("fake");
         final MockTerminal terminal = removePlugin("fake", home, randomBoolean());
         assertThat(terminal.getOutput(), not(containsString(expectedConfigDirPreservedMessage(configDir))));
@@ -214,7 +227,7 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {
-        Files.createDirectory(env.pluginsFile().resolve("fake"));
+        createPlugin("fake");
         Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
         Files.createFile(env.pluginsFile().resolve(".removing-fake"));
         removePlugin("fake", home, randomBoolean());

@@ -103,7 +103,8 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false, false);
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
+                                                   pluginClass.getName(), Collections.emptyList(), false, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -129,11 +130,15 @@ public class PluginsService extends AbstractComponent {
         // now, find all the ones that are in plugins/
         if (pluginsDirectory != null) {
             try {
-                Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                for (Bundle bundle : plugins) {
-                    pluginsList.add(bundle.plugin);
+                // TODO: remove this leniency, but tests bogusly rely on it
+                if (isAccessibleDirectory(pluginsDirectory, logger)) {
+                    checkForFailedPluginRemovals(pluginsDirectory);
+                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
+                    for (Bundle bundle : plugins) {
+                        pluginsList.add(bundle.plugin);
+                    }
+                    seenBundles.addAll(plugins);
                 }
-                seenBundles.addAll(plugins);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
@@ -243,8 +248,19 @@ public class PluginsService extends AbstractComponent {
         final PluginInfo plugin;
         final Set<URL> urls;
 
-        Bundle(PluginInfo plugin, Set<URL> urls) {
+        Bundle(PluginInfo plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
+            Set<URL> urls = new LinkedHashSet<>();
+            // gather urls for jar files
+            try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
+                for (Path jar : jarStream) {
+                    // normalize with toRealPath to get symlinks out of our hair
+                    URL url = jar.toRealPath().toUri().toURL();
+                    if (urls.add(url) == false) {
+                        throw new IllegalStateException("duplicate codebase: " + url);
+                    }
+                }
+            }
             this.urls = Objects.requireNonNull(urls);
         }
 
@@ -273,18 +289,7 @@ public class PluginsService extends AbstractComponent {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {
                 PluginInfo info = PluginInfo.readFromProperties(module);
-                Set<URL> urls = new LinkedHashSet<>();
-                // gather urls for jar files
-                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(module, "*.jar")) {
-                    for (Path jar : jarStream) {
-                        // normalize with toRealPath to get symlinks out of our hair
-                        URL url = jar.toRealPath().toUri().toURL();
-                            if (urls.add(url) == false) {
-                                throw new IllegalStateException("duplicate codebase: " + url);
-                            }
-                    }
-                }
-                if (bundles.add(new Bundle(info, urls)) == false) {
+                if (bundles.add(new Bundle(info, module)) == false) {
                     throw new IllegalStateException("duplicate module: " + info);
                 }
             }
@@ -315,19 +320,14 @@ public class PluginsService extends AbstractComponent {
 
     static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
-
-        // TODO: remove this leniency, but tests bogusly rely on it
-        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
-            return Collections.emptySet();
-        }
-
         Set<Bundle> bundles = new LinkedHashSet<>();
-
-        checkForFailedPluginRemovals(pluginsDirectory);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
                 if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                    continue;
+                }
+                if (plugin.getFileName().toString().startsWith(".removing-")) {
                     continue;
                 }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
@@ -339,17 +339,7 @@ public class PluginsService extends AbstractComponent {
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
                 }
 
-                Set<URL> urls = new LinkedHashSet<>();
-                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                    for (Path jar : jarStream) {
-                        // normalize with toRealPath to get symlinks out of our hair
-                        URL url = jar.toRealPath().toUri().toURL();
-                        if (urls.add(url) == false) {
-                            throw new IllegalStateException("duplicate codebase: " + url);
-                        }
-                    }
-                }
-                if (bundles.add(new Bundle(info, urls)) == false) {
+                if (bundles.add(new Bundle(info, plugin)) == false) {
                     throw new IllegalStateException("duplicate plugin: " + info);
                 }
             }
@@ -358,42 +348,153 @@ public class PluginsService extends AbstractComponent {
         return bundles;
     }
 
+    /**
+     * Return the given bundles, sorted in dependency loading order.
+     *
+     * This sort is stable, so that if two plugins do not have any interdependency,
+     * their relative order from iteration of the provided set will not change.
+     *
+     * @throws IllegalStateException if a dependency cycle is found
+     */
+    // pkg private for tests
+    static List<Bundle> sortBundles(Set<Bundle> bundles) {
+        Map<String, Bundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
+        LinkedHashSet<Bundle> sortedBundles = new LinkedHashSet<>();
+        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
+        for (Bundle bundle : bundles) {
+            addSortedBundle(bundle, namedBundles, sortedBundles, dependencyStack);
+        }
+        return new ArrayList<>(sortedBundles);
+    }
+
+    // add the given bundle to the sorted bundles, first adding dependencies
+    private static void addSortedBundle(Bundle bundle, Map<String, Bundle> bundles, LinkedHashSet<Bundle> sortedBundles,
+                                        LinkedHashSet<String> dependencyStack) {
+
+        String name = bundle.plugin.getName();
+        if (dependencyStack.contains(name)) {
+            StringBuilder msg = new StringBuilder("Cycle found in plugin dependencies: ");
+            dependencyStack.forEach(s -> {
+                msg.append(s);
+                msg.append(" -> ");
+            });
+            msg.append(name);
+            throw new IllegalStateException(msg.toString());
+        }
+        if (sortedBundles.contains(bundle)) {
+            // already added this plugin, via a dependency
+            return;
+        }
+
+        dependencyStack.add(name);
+        for (String dependency : bundle.plugin.getExtendedPlugins()) {
+            Bundle depBundle = bundles.get(dependency);
+            if (depBundle == null) {
+                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+            }
+            addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
+            assert sortedBundles.contains(depBundle);
+        }
+        dependencyStack.remove(name);
+
+        sortedBundles.add(bundle);
+    }
+
     private List<Tuple<PluginInfo,Plugin>> loadBundles(Set<Bundle> bundles) {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
+        Map<String, Plugin> loaded = new HashMap<>();
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        List<Bundle> sortedBundles = sortBundles(bundles);
 
-        for (Bundle bundle : bundles) {
-            // jar-hell check the bundle against the parent classloader
-            // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
-            try {
-                Set<URL> classpath = JarHell.parseClassPath();
-                // check we don't have conflicting codebases
-                Set<URL> intersection = new HashSet<>(classpath);
-                intersection.retainAll(bundle.urls);
-                if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException("jar hell! duplicate codebases between" +
-                                                    " plugin and core: " + intersection);
-                }
-                // check we don't have conflicting classes
-                Set<URL> union = new HashSet<>(classpath);
-                union.addAll(bundle.urls);
-                JarHell.checkJarHell(union);
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to load plugin " + bundle.plugin +
-                                                " due to jar hell", e);
-            }
+        for (Bundle bundle : sortedBundles) {
+            checkBundleJarHell(bundle, transitiveUrls);
 
-            // create a child to load the plugin in this bundle
-            ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]),
-                                                            getClass().getClassLoader());
-            // reload lucene SPI with any new services from the plugin
-            reloadLuceneSPI(loader);
-            final Class<? extends Plugin> pluginClass =
-                loadPluginClass(bundle.plugin.getClassname(), loader);
-            final Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            final Plugin plugin = loadBundle(bundle, loaded);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
         return Collections.unmodifiableList(plugins);
+    }
+
+    // jar-hell check the bundle against the parent classloader and extended plugins
+    // the plugin cli does it, but we do it again, in case lusers mess with jar files manually
+    static void checkBundleJarHell(Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
+        // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
+        List<String> exts = bundle.plugin.getExtendedPlugins();
+
+        try {
+            Set<URL> urls = new HashSet<>();
+            for (String extendedPlugin : exts) {
+                Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
+                assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
+
+                Set<URL> intersection = new HashSet<>(urls);
+                intersection.retainAll(pluginUrls);
+                if (intersection.isEmpty() == false) {
+                    throw new IllegalStateException("jar hell! extended plugins " + exts +
+                                                    " have duplicate codebases with each other: " + intersection);
+                }
+
+                intersection = new HashSet<>(bundle.urls);
+                intersection.retainAll(pluginUrls);
+                if (intersection.isEmpty() == false) {
+                    throw new IllegalStateException("jar hell! duplicate codebases with extended plugin [" +
+                                                    extendedPlugin + "]: " + intersection);
+                }
+
+                urls.addAll(pluginUrls);
+                JarHell.checkJarHell(urls); // check jarhell as we add each extended plugin's urls
+            }
+
+            urls.addAll(bundle.urls);
+            JarHell.checkJarHell(urls); // check jarhell of each extended plugin against this plugin
+            transitiveUrls.put(bundle.plugin.getName(), urls);
+
+            Set<URL> classpath = JarHell.parseClassPath();
+            // check we don't have conflicting codebases with core
+            Set<URL> intersection = new HashSet<>(classpath);
+            intersection.retainAll(bundle.urls);
+            if (intersection.isEmpty() == false) {
+                throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
+            }
+            // check we don't have conflicting classes
+            Set<URL> union = new HashSet<>(classpath);
+            union.addAll(bundle.urls);
+            JarHell.checkJarHell(union);
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
+        }
+    }
+
+    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
+        String name = bundle.plugin.getName();
+
+        // collect loaders of extended plugins
+        List<ClassLoader> extendedLoaders = new ArrayList<>();
+        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
+            Plugin extendedPlugin = loaded.get(extendedPluginName);
+            assert extendedPlugin != null;
+            if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
+                throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
+            }
+            extendedLoaders.add(extendedPlugin.getClass().getClassLoader());
+        }
+
+        // create a child to load the plugin in this bundle
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
+
+        // reload SPI with any new services from the plugin
+        reloadLuceneSPI(loader);
+        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
+            // note: already asserted above that extended plugins are loaded and extensible
+            ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).reloadSPI(loader);
+        }
+
+        Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
+        Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+        loaded.put(name, plugin);
+        return plugin;
     }
 
     /**

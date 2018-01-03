@@ -2,6 +2,8 @@
 [[certgen]]
 == certgen
 
+deprecated[6.1,Replaced by <<certutil,`certutil`>>. ]
+
 The `certgen` command simplifies the creation of certificate authorities (CA),
 certificate signing requests (CSR), and signed certificates for use with the
 Elastic Stack.
@@ -56,7 +58,7 @@ signed certificates must be in PEM format to work with {security}.
 using an existing CA certificate, which is provided in the `<cert_file>` argument.
 This parameter cannot be used with the `-csr` parameter.
 
-`--csr`:: Specifies to operation in certificate signing request mode.
+`--csr`:: Specifies to operate in certificate signing request mode.
 
 `--days <n>`::
 Specifies an integer value that represents the number of days the generated keys

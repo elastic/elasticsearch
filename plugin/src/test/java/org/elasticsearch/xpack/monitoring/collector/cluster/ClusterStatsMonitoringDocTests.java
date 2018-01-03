@@ -52,6 +52,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -271,7 +272,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getPlugins()).thenReturn(mockPluginsAndModules);
-        final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", "_plugin_class", false, false);
+        final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", "_plugin_class",
+                                                     Collections.emptyList(), false, false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);

@@ -154,8 +154,7 @@ last modified the watch.
 expected (or vice versa) in the `xpack.ssl.key` or `xpack.ssl.certificate` settings.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2670[#2670] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2657[#2657])
 * Added the new `certutil` command to simplify the creation of certificates for
-use with the Elastic stack.
-//For more information, see <<certutil>>.
+use with the Elastic stack. For more information, see <<certutil>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2561[#2561] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/12[#12], https://github.com/elastic/x-pack-elasticsearch/issues/2165[#2165])
 * Added automatic detection of support for AES 256 bit TLS ciphers and enabled
 their use when the JVM supports them.

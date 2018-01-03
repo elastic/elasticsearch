@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -26,15 +33,9 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.UsernamesField;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,7 +59,6 @@ import static org.mockito.Mockito.when;
 public class ReservedRealmTests extends ESTestCase {
 
     private static final SecureString EMPTY_PASSWORD = new SecureString("".toCharArray());
-    public static final String ACCEPT_DEFAULT_PASSWORDS = ReservedRealm.ACCEPT_DEFAULT_PASSWORD_SETTING.getKey();
     private NativeUsersStore usersStore;
     private SecurityLifecycleService securityLifecycleService;
 
@@ -71,33 +71,16 @@ public class ReservedRealmTests extends ESTestCase {
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
     }
 
-    public void testDisableDefaultPasswordAuthentication() throws Throwable {
-        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+    public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
+        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME);
 
-        final Environment environment = mock(Environment.class);
-        final AnonymousUser anonymousUser = new AnonymousUser(Settings.EMPTY);
-        final Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, false).build();
-        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, usersStore, anonymousUser,
-                securityLifecycleService, new ThreadContext(Settings.EMPTY));
-
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(expected.principal(), EMPTY_PASSWORD), listener);
-        assertFailedAuthentication(listener, expected.principal());
-    }
-
-    public void testElasticEmptyPasswordAuthenticationFails() throws Throwable {
-        final User expected = new ElasticUser(true);
-        final String principal = expected.principal();
-
-        Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, true).build();
-        final ReservedRealm reservedRealm =
-                new ReservedRealm(mock(Environment.class), settings, usersStore,
-                        new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD),  listener);
-        assertFailedAuthentication(listener, expected.principal());
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener);
+        assertFailedAuthentication(listener, principal);
     }
 
     public void testAuthenticationDisabled() throws Throwable {
@@ -107,8 +90,8 @@ public class ReservedRealmTests extends ESTestCase {
             when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
         }
         final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore,
-                              new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new ReservedRealm(mock(Environment.class), settings, usersStore,
+                        new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expected.principal();
 
@@ -129,9 +112,8 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
-        final Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, randomBoolean()).build();
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-                new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled));
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
@@ -171,8 +153,8 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testLookup() throws Exception {
         final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                              new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
+                        new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
 
@@ -196,8 +178,8 @@ public class ReservedRealmTests extends ESTestCase {
     public void testLookupDisabled() throws Exception {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
         final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                    securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
+                        securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
 
@@ -210,8 +192,8 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testLookupThrows() throws Exception {
         final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                              new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
+                        new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
@@ -258,7 +240,7 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testGetUsers() {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                              new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true),
@@ -273,7 +255,7 @@ public class ReservedRealmTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser,
-                    securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                securityLifecycleService, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         if (anonymousEnabled) {
@@ -290,7 +272,7 @@ public class ReservedRealmTests extends ESTestCase {
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                              new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
         if (randomBoolean()) {
             PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -379,6 +361,44 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
 
+    public void testNonElasticUsersCannotUseBootstrapPasswordWhenSecurityIndexExists() throws Exception {
+        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        final String password = randomAlphaOfLengthBetween(8, 24);
+        mockSecureSettings.setString("bootstrap.password", password);
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME);
+        doAnswer((i) -> {
+            ActionListener callback = (ActionListener) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
+        final AuthenticationResult result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+    }
+
+    public void testNonElasticUsersCannotUseBootstrapPasswordWhenSecurityIndexDoesNotExists() throws Exception {
+        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        final String password = randomAlphaOfLengthBetween(8, 24);
+        mockSecureSettings.setString("bootstrap.password", password);
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(false);
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME);
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
+        final AuthenticationResult result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+    }
 
     /*
      * NativeUserStore#getAllReservedUserInfo is pkg private we can't mock it otherwise

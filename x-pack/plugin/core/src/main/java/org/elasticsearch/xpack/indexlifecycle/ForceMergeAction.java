@@ -180,7 +180,13 @@ public class ForceMergeAction implements LifecycleAction {
                     r2 -> forceMerge(index, client, listener,
                         // after a successful force-merge, return the index to read-write
                         r3 -> updateBlockWriteSettingToReadWrite(index, client, listener))),
-                r4 -> { if (isReadOnly) updateBlockWriteSettingToReadWrite(index, client, listener); });
+                    r4 -> {
+                        if (isReadOnly) {
+                            updateBlockWriteSettingToReadWrite(index, client, listener);
+                        } else {
+                            listener.onSuccess(true);
+                        }
+                    });
         }
     }
 

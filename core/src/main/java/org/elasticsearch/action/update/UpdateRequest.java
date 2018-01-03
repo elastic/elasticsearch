@@ -893,4 +893,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return "update {[" + index + "][" + type + "][" + id + "]}";
+    }
 }

@@ -92,6 +92,13 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
+JDK 9 is required to build Elasticsearch. You must have a JDK 9 installation
+with the environment variable `JAVA_HOME` referencing the path to Java home for
+your JDK 9 installation. By default, tests use the same runtime as `JAVA_HOME`.
+However, since Elasticsearch, supports JDK 8 the build supports compiling with
+JDK 9 and testing on a JDK 8 runtime; to do this, set `JAVA_8_HOME` pointing to
+the Java home of a JDK 8 installation. 
+
 Make sure you have [Gradle](http://gradle.org) installed, as
 Elasticsearch uses it as its build system. Gradle must be at least
 version 4.3 in order to build successfully.

@@ -196,7 +196,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 final long generation = deletionPolicy.getMinTranslogGenerationForRecovery();
                 logger.debug("wipe translog location - creating new translog, starting generation [{}]", generation);
                 Files.createDirectories(location);
-                final long initialGlobalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                final long initialGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
                 final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
@@ -356,7 +356,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the minimum file generation referenced by the translog
      */
-    long getMinFileGeneration() {
+    public long getMinFileGeneration() {
         try (ReleasableLock ignored = readLock.acquire()) {
             if (readers.isEmpty()) {
                 return current.getGeneration();
@@ -1716,6 +1716,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static final long readGlobalCheckpoint(final Path location) throws IOException {
         return readCheckpoint(location).globalCheckpoint;
+    }
+
+    /**
+     * Reads the minimum translog generation that referenced by translog from the translog checkpoint.
+     */
+    public static long readMinReferencedGen(final Path location) throws IOException {
+        return readCheckpoint(location).minTranslogGeneration;
     }
 
     /**

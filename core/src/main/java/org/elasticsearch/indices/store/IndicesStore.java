@@ -238,8 +238,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
 
         @Override
-        public ShardActiveResponse newInstance() {
-            return new ShardActiveResponse();
+        public ShardActiveResponse read(StreamInput in) throws IOException {
+            return new ShardActiveResponse(in);
         }
 
         @Override
@@ -417,20 +417,15 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private static class ShardActiveResponse extends TransportResponse {
 
-        private boolean shardActive;
-        private DiscoveryNode node;
-
-        ShardActiveResponse() {
-        }
+        private final boolean shardActive;
+        private final DiscoveryNode node;
 
         ShardActiveResponse(boolean shardActive, DiscoveryNode node) {
             this.shardActive = shardActive;
             this.node = node;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        ShardActiveResponse(StreamInput in) throws IOException {
             shardActive = in.readBoolean();
             node = new DiscoveryNode(in);
         }

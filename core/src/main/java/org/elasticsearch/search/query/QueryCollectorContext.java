@@ -19,15 +19,10 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -40,14 +35,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BooleanSupplier;
-import java.util.function.IntSupplier;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_CANCELLED;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
-import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTotalHitCount;
 
 abstract class QueryCollectorContext {
     private String profilerName;
@@ -71,21 +64,11 @@ abstract class QueryCollectorContext {
     }
 
     /**
-     * A value of <code>false</code> indicates that the underlying collector can infer
-     * its results directly from the context (search is not needed).
-     * Default to true (search is needed).
-     */
-    boolean shouldCollect() {
-        return true;
-    }
-
-    /**
      * Post-process <code>result</code> after search execution.
      *
      * @param result The query search result to populate
-     * @param hasCollected True if search was executed
      */
-    void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {}
+    void postProcess(QuerySearchResult result) throws IOException {}
 
     /**
      * Creates the collector tree from the provided <code>collectors</code>
@@ -175,11 +158,6 @@ abstract class QueryCollectorContext {
             Collector create(Collector in) throws IOException {
                 return new CancellableCollector(cancelled, in);
             }
-
-            @Override
-            boolean shouldCollect() {
-                return false;
-            }
         };
     }
 
@@ -198,50 +176,9 @@ abstract class QueryCollectorContext {
             }
 
             @Override
-            void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {
-                if (hasCollected && collector.terminatedEarly()) {
+            void postProcess(QuerySearchResult result) throws IOException {
+                if (collector.terminatedEarly()) {
                     result.terminatedEarly(true);
-                }
-            }
-        };
-    }
-
-    /**
-     * Creates a sorting termination collector limiting the collection to the first <code>numHits</code> per segment.
-     * The total hit count matching the query is also computed if <code>trackTotalHits</code> is true.
-     */
-    static QueryCollectorContext createEarlySortingTerminationCollectorContext(IndexReader reader,
-                                                                               Query query,
-                                                                               Sort indexSort,
-                                                                               int numHits,
-                                                                               boolean trackTotalHits,
-                                                                               boolean shouldCollect) {
-        return new QueryCollectorContext(REASON_SEARCH_TERMINATE_AFTER_COUNT) {
-            private IntSupplier countSupplier = null;
-
-            @Override
-            Collector create(Collector in) throws IOException {
-                EarlyTerminatingSortingCollector sortingCollector = new EarlyTerminatingSortingCollector(in, indexSort, numHits);
-                Collector collector = sortingCollector;
-                if (trackTotalHits) {
-                    int count = shouldCollect ? -1 : shortcutTotalHitCount(reader, query);
-                    if (count == -1) {
-                        TotalHitCountCollector countCollector = new TotalHitCountCollector();
-                        collector = MultiCollector.wrap(sortingCollector, countCollector);
-                        this.countSupplier = countCollector::getTotalHits;
-                    } else {
-                        this.countSupplier = () -> count;
-                    }
-                }
-                return collector;
-            }
-
-            @Override
-            void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {
-                if (countSupplier != null) {
-                    final TopDocs topDocs = result.topDocs();
-                    topDocs.totalHits = countSupplier.getAsInt();
-                    result.topDocs(topDocs, result.sortValueFormats());
                 }
             }
         };

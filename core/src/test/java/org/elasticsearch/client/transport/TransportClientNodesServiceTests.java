@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -176,8 +176,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                                                                                                    ClusterName clusterName) {
             return new TransportResponseHandler<T>() {
                 @Override
-                public T newInstance() {
-                    return handler.newInstance();
+                public T read(StreamInput in) throws IOException {
+                    return handler.read(in);
                 }
 
                 @Override

@@ -34,11 +34,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
@@ -59,6 +62,7 @@ import java.util.stream.IntStream;
  * A filter for a field based on several terms matching on any of them.
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermsQueryBuilder.class));
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -415,6 +419,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         if (values == null || values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
+        }
+        int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
+        if (values.size() > maxTermsCount){
+            DEPRECATION_LOGGER.deprecated(
+                "Deprecated: the number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
+                    "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
+                    IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
 

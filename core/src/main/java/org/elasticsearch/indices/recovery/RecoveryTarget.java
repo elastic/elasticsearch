@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -363,13 +364,16 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery();
+        // TODO: take the local checkpoint from store as global checkpoint, once we know it's safe
+        indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) {
-        indexShard().updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
         final IndexShard indexShard = indexShard();
+        indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+        // Persist the global checkpoint.
+        indexShard.sync();
         indexShard.finalizeRecovery();
     }
 

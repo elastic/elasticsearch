@@ -34,7 +34,10 @@ import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -103,11 +106,22 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), mapper.fieldType());
+        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
+
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = convertFieldValue(mapper.fieldType(), textToHighlight);
+                if (text.length() > maxAnalyzedOffset) {
+                    DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(PlainHighlighter.class));
+                    deprecationLogger.deprecated(
+                        "Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [" +
+                            maxAnalyzedOffset + "]. " + "This maximum can be set by changing the [" +
+                            IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
+                            "For large texts, indexing with offsets or term vectors, and highlighting with unified or " +
+                            "fvh highlighter is recommended!");
+                }
 
                 try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {
                     if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {

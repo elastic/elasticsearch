@@ -19,17 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.ByteBufferReference;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +44,6 @@ import org.elasticsearch.nio.ReadContext;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 
@@ -60,7 +53,6 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
@@ -153,16 +145,6 @@ public class MockNioTransport extends TcpTransport {
         serverAcceptedChannel((TcpChannel) channel);
     }
 
-    private static BytesReference toBytesReference(InboundChannelBuffer channelBuffer) {
-        ByteBuffer[] writtenToBuffers = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
-        ByteBufferReference[] references = new ByteBufferReference[writtenToBuffers.length];
-        for (int i = 0; i < references.length; ++i) {
-            references[i] = new ByteBufferReference(writtenToBuffers[i]);
-        }
-
-        return new CompositeBytesReference(references);
-    }
-
     private class MockTcpChannelFactory extends ChannelFactory<MockServerChannel, MockSocketChannel> {
 
         private final String profileName;
@@ -184,29 +166,17 @@ public class MockNioTransport extends TcpTransport {
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             ReadContext.ReadConsumer readConsumer = channelBuffer ->  {
-                BytesReference bytesReference = toBytesReference(channelBuffer);
-                try {
-                    TcpTransport.validateMessageHeader(bytesReference);
-                } catch (IllegalStateException e) {
-                    // Have not read either the whole header or whole message
+                BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+                BytesReference message = TcpTransport.decodeFrame(bytesReference);
+                if (message == null) {
                     return 0;
-                }
-                StreamInput streamInput = bytesReference.streamInput();
-                assert streamInput.skip(2) == 2 : "Failed to skip the appropriate number of bytes";
-                int messageSize = streamInput.readInt();
-
-                if (messageSize == -1) {
-                    // This is a ping
+                } else if (message.length() == 0) {
+                    // This is a ping and should not be handled.
                     return 6;
                 } else {
-                    BytesStreamOutput output = new BytesStreamOutput();
-                    final byte[] buffer = new byte[messageSize];
-                    streamInput.readFully(buffer);
-                    output.write(buffer);
-                    messageReceived(output.bytes(), nioChannel, profileName, nioChannel.getRemoteAddress(), messageSize);
-                    return messageSize + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+                    messageReceived(message, nioChannel, profileName, nioChannel.getRemoteAddress(), message.length());
+                    return message.length() + 6;
                 }
-
             };
             BytesReadContext readContext = new BytesReadContext(nioChannel, readConsumer, new InboundChannelBuffer(pageSupplier));
             BytesWriteContext writeContext = new BytesWriteContext(nioChannel);

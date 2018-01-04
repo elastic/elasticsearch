@@ -160,13 +160,11 @@ public class MockTcpTransport extends TcpTransport {
             output.writeInt(msgSize);
             output.write(buffer);
             final BytesReference bytes = output.bytes();
-            if (TcpTransport.validateMessageHeader(bytes)) {
-                InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-                messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
-                    mockChannel, mockChannel.profile, remoteAddress, msgSize);
-            } else {
-                // ping message - we just drop all stuff
-            }
+            BytesReference message = TcpTransport.decodeFrame(bytes);
+            assert message != null : "Should have read the entire input stream before decoding";
+            assert message.length() != 0 : "Should not receive a ping at this point";
+            assert message.length() == msgSize : "Message length should be the same length as message size from header";
+            messageReceived(message, mockChannel, mockChannel.profile, (InetSocketAddress) socket.getRemoteSocketAddress(), msgSize);
         }
     }
 

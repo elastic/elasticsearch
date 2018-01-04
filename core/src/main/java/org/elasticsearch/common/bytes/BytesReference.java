@@ -169,6 +169,18 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
     }
 
+    /**
+     * Returns an array of byte buffers from the given BytesReference.
+     */
+    public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
+        ByteBufferReference[] references = new ByteBufferReference[buffers.length];
+        for (int i = 0; i < references.length; ++i) {
+            references[i] = new ByteBufferReference(buffers[i]);
+        }
+
+        return new CompositeBytesReference(references);
+    }
+
     @Override
     public int compareTo(final BytesReference other) {
         return compareIterators(this, other, (a, b) -> a.compareTo(b));

@@ -246,6 +246,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         if (rewrite == queryBuilder) {
             return this;
         }
-        return new QueryRescorerBuilder(rewrite);
+        QueryRescorerBuilder queryRescoreBuilder = new QueryRescorerBuilder(rewrite);
+        queryRescoreBuilder.setQueryWeight(queryWeight);
+        queryRescoreBuilder.setRescoreQueryWeight(rescoreQueryWeight);
+        queryRescoreBuilder.setScoreMode(scoreMode);
+        return queryRescoreBuilder;
     }
 }

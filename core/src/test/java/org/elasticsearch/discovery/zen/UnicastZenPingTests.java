@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -899,8 +900,8 @@ public class UnicastZenPingTests extends ESTestCase {
             TransportResponseHandler<UnicastPingResponse> original = super.getPingResponseHandler(pingingRound, node);
             return new TransportResponseHandler<UnicastPingResponse>() {
                 @Override
-                public UnicastPingResponse newInstance() {
-                    return original.newInstance();
+                public UnicastPingResponse read(StreamInput in) throws IOException {
+                    return original.read(in);
                 }
 
                 @Override

@@ -75,7 +75,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             final Translog translog = replica.getTranslog();
             final String translogUUID = translog.getTranslogUUID();
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
 
             translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo - 1));
 

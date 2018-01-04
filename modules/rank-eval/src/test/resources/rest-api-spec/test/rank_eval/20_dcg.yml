@@ -69,8 +69,10 @@
           "metric" : { "dcg": {}}
         }
 
-  - match: {rank_eval.quality_level: 13.84826362927298}
-  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - gt: {rank_eval.quality_level: 13.848263 }
+  - lt: {rank_eval.quality_level: 13.848264 }
+  - gt: {rank_eval.details.dcg_query.quality_level: 13.848263}
+  - lt: {rank_eval.details.dcg_query.quality_level: 13.848264}
   - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
 
 # reverse the order in which the results are returned (less relevant docs first)
@@ -94,8 +96,10 @@
           "metric" : { "dcg": { }}
         }
 
-  - match: {rank_eval.quality_level: 10.29967439154499}
-  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - gt: {rank_eval.quality_level: 10.299674}
+  - lt: {rank_eval.quality_level: 10.299675}
+  - gt: {rank_eval.details.dcg_query_reverse.quality_level: 10.299674}
+  - lt: {rank_eval.details.dcg_query_reverse.quality_level: 10.299675}
   - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}
 
 # if we mix both, we should get the average
@@ -130,8 +134,11 @@
           "metric" : { "dcg": { }}
         }
 
-  - match: {rank_eval.quality_level: 12.073969010408984}
-  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - gt: {rank_eval.quality_level: 12.073969}
+  - lt: {rank_eval.quality_level: 12.073970}
+  - gt: {rank_eval.details.dcg_query.quality_level: 13.848263}
+  - lt: {rank_eval.details.dcg_query.quality_level: 13.848264}
   - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
-  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - gt: {rank_eval.details.dcg_query_reverse.quality_level: 10.299674}
+  - lt: {rank_eval.details.dcg_query_reverse.quality_level: 10.299675}
   - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}

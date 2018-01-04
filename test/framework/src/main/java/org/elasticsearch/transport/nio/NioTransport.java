@@ -33,16 +33,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.nio.AcceptorEventHandler;
+import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioGroup;
+import org.elasticsearch.nio.NioServerSocketChannel;
+import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.TcpChannelFactory;
-import org.elasticsearch.transport.nio.channel.TcpNioServerSocketChannel;
-import org.elasticsearch.transport.nio.channel.TcpNioSocketChannel;
-import org.elasticsearch.transport.nio.channel.TcpReadContext;
-import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -90,7 +89,7 @@ public class NioTransport extends TcpTransport {
     protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         TcpNioSocketChannel channel = nioGroup.openChannel(node.getAddress().address(), clientChannelFactory);
-        channel.addConnectListener(connectListener);
+        channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
         return channel;
     }
 
@@ -154,7 +153,7 @@ public class NioTransport extends TcpTransport {
         return (c) -> {
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes);
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), new InboundChannelBuffer(pageSupplier)),
                 new TcpWriteContext(c), this::exceptionCaught);

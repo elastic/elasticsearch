@@ -38,6 +38,9 @@ archivesBaseName = 'elasticsearch'
 
 dependencies {
 
+  compileOnly project(':libs:plugin-classloader')
+  testRuntime project(':libs:plugin-classloader')
+
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
   compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"

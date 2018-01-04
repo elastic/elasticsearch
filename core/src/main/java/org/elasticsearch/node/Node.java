@@ -858,10 +858,6 @@ public class Node implements Closeable {
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
                 InetAddress inetAddress = InetAddress.getByName(address.getAddress());
-                if (inetAddress instanceof Inet6Address && inetAddress.isLinkLocalAddress()) {
-                    // no link local, just causes problems
-                    continue;
-                }
                 writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
             }
         } catch (IOException e) {

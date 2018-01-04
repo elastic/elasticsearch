@@ -28,6 +28,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage',
+  'libs:elasticsearch-nio',
   'modules:aggs-matrix-stats',
   'modules:analysis-common',
   'modules:ingest-common',
@@ -97,6 +98,14 @@ for (File example : examplePluginsDir.listFiles()) {
   examplePlugins.add(example.name)
 }
 
+projects.add("libs")
+File libsDir = new File(rootProject.projectDir, 'libs')
+for (File libDir : new File(rootProject.projectDir, 'libs').listFiles()) {
+  if (libDir.isDirectory() == false) continue;
+  if (libDir.name.startsWith('build') || libDir.name.startsWith('.')) continue;
+  projects.add("libs:${libDir.name}".toString())
+}
+
 /* Create projects for building BWC snapshot distributions from the heads of other branches */
 final List<String> branches = ['5.6', '6.0', '6.1', '6.x']
 for (final String branch : branches) {
@@ -108,6 +117,7 @@ if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
   // for core-src and core-tests
   projects << 'core-tests'
+  projects << 'libs:elasticsearch-nio-tests'
 }
 
 include projects.toArray(new String[0])
@@ -130,6 +140,10 @@ if (isEclipse) {
   project(":core").buildFileName = 'eclipse-build.gradle'
   project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
   project(":core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/main')
+  project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
+  project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 /**
@@ -171,3 +185,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir, projects, branches)
   }
 }
+include 'libs'
+

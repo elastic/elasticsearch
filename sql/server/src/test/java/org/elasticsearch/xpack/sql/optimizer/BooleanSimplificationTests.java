@@ -25,7 +25,7 @@ public class BooleanSimplificationTests extends ESTestCase {
         
         private final int id;
         
-        public DummyBooleanExpression(Location location, int id) {
+        DummyBooleanExpression(Location location, int id) {
             super(location, Collections.emptyList());
             this.id = id;
         }

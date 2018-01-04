@@ -219,20 +219,45 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
                                  final ActionListener<ClusterStateUpdateResponse> listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.builder();
-        Settings build = updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
-        indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent
-        request.settings(build);
+        final IndexCreationTask indexCreationTask = indexCreationTask(request);
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new IndexCreationTask(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings,
-                this::validate));
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return indexCreationTask.execute(currentState);
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                    } else {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                    }
+                    super.onFailure(source, e);
+                }
+            });
     }
 
     interface IndexValidator {
         void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
     }
 
-    static class IndexCreationTask extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+    IndexCreationTask indexCreationTask(final CreateIndexClusterStateUpdateRequest request) {
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
+        Settings build = updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent
+        request.settings(build);
+        return new IndexCreationTask(logger, allocationService, request, indicesService, aliasValidator, xContentRegistry,
+            settings, this::validate);
+    }
+
+    static class IndexCreationTask {
 
         private final IndicesService indicesService;
         private final AliasValidator aliasValidator;
@@ -244,10 +269,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         private final IndexValidator validator;
 
         IndexCreationTask(Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
-                          ActionListener<ClusterStateUpdateResponse> listener, IndicesService indicesService,
-                          AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                          IndicesService indicesService, AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
                           Settings settings, IndexValidator validator) {
-            super(Priority.URGENT, request, listener);
             this.request = request;
             this.logger = logger;
             this.allocationService = allocationService;
@@ -258,13 +281,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             this.validator = validator;
         }
 
-        @Override
-        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-            return new ClusterStateUpdateResponse(acknowledged);
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
+        ClusterState execute(ClusterState currentState) throws Exception {
             Index createdIndex = null;
             String removalExtraInfo = null;
             IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
@@ -553,16 +570,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                 }
             }
-        }
-
-        @Override
-        public void onFailure(String source, Exception e) {
-            if (e instanceof ResourceAlreadyExistsException) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-            } else {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-            }
-            super.onFailure(source, e);
         }
 
         private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {

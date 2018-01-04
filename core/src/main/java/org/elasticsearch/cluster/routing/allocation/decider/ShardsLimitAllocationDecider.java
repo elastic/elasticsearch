@@ -24,11 +24,15 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import java.util.List;
 import java.util.function.BiPredicate;
 
 /**
@@ -119,22 +123,64 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                 indexShardCount++;
             }
         }
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, decider, allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
 
-        if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
-                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
-        }
-        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit)) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
-                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
-        }
+        Decision indexShardLimitDecision = decideIndexShardLimit(indexShardCount, indexShardLimit, decider, allocation,
+        shardRouting.getIndexName());
+        if (indexShardLimitDecision == Decision.NO)
+            return indexShardLimitDecision;
+
         return allocation.decision(Decision.YES, NAME,
             "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
             nodeShardCount, indexShardLimit, clusterShardLimit);
     }
+    
+    private Decision decideClusterShardLimit(int nodeShardCount, int clusterShardLimit, BiPredicate<Integer, Integer> decider,
+    RoutingAllocation allocation) {
+        if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit))
+            return allocation.decision(Decision.NO, NAME, "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
+            nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
+        return Decision.ALWAYS;
+    }
+    
+    private Decision decideIndexShardLimit(int indexShardCount, int indexShardLimit, BiPredicate<Integer, Integer> decider,
+    RoutingAllocation allocation, String indexName) {
+        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit))
+            return allocation.decision(Decision.NO, NAME,
+            "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]", indexShardCount,
+            indexName, INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+        return Decision.ALWAYS;
+    }
 
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        final int clusterShardLimit = this.clusterShardLimit;
+        int nodeShardCount = node.numberOfShardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+        ShardRoutingState.UNASSIGNED);
+
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, (count, limit) -> count > limit,
+        allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
+
+        ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
+        for (ObjectObjectCursor<String, IndexMetaData> indexMdEntry : indexMd) {
+            final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMdEntry.value.getSettings(), settings);
+            if (indexShardLimit > 0) {
+                List<ShardRouting> shardPerIndex = node.shardsWithState(indexMdEntry.key, ShardRoutingState.INITIALIZING,
+                ShardRoutingState.STARTED);
+                Decision indexShardLimitDecision = decideIndexShardLimit(shardPerIndex.size(), indexShardLimit,
+                (count, limit) -> count > limit, allocation, indexMdEntry.key);
+                if (indexShardLimitDecision == Decision.NO)
+                    return indexShardLimitDecision;
+            }
+        }
+        return allocation.decision(Decision.YES, NAME,
+        "the shard count is under index and cluster limit per node");
+    }
+    
     @Override
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         // Only checks the node-level limit, not the index-level
@@ -155,11 +201,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             }
             nodeShardCount++;
         }
-        if (clusterShardLimit >= 0 && nodeShardCount >= clusterShardLimit) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
-                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
-        }
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, (count, limit) -> count >= limit,
+        allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
+        
         return allocation.decision(Decision.YES, NAME,
             "the shard count [%d] for this node is under the cluster level node limit [%d]",
             nodeShardCount, clusterShardLimit);

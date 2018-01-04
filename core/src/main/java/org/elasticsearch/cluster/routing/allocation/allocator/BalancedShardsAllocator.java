@@ -643,8 +643,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
-                ShardRouting shardRouting = it.next();
+            for (Iterator<Iterator<ShardRouting>> it = allocation.routingNodes().nodeShardIterator(); it
+                    .hasNext();) {
+                Iterator<ShardRouting> shardRoutingIter = it.next();
+                ShardRouting shardRouting = shardRoutingIter.next();
+                RoutingNode routingNode = allocation.routingNodes().node(shardRouting.currentNodeId());
+                Decision decision = allocation.deciders().canRemainOnNode(routingNode, allocation);
+                if (decision != Decision.NO) {
+                    it.remove();
+                    continue;
+                }
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());

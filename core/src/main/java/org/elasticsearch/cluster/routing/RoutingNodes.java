@@ -79,7 +79,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private int inactiveShardCount = 0;
 
     private int relocatingShards = 0;
-
+    
+    private final Map<ShardId, Map<String, ObjectIntHashMap<String>>> shardIdPerAttributes = new HashMap<>();
+    
+    private volatile Set<String> attributes = new HashSet<>();
+    
     private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
 
@@ -143,7 +147,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
+            DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
+            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNode, entry.getValue()));
+            if (discoveryNode != null && discoveryNode.getAttributes() != null) {
+                this.attributes.addAll(discoveryNode.getAttributes().keySet());
+            }
+            for (Map.Entry<ShardId, ShardRouting> shardEntry : entry.getValue().entrySet()) {
+                addToShardPerAttributeCache(shardEntry.getValue());
+            }
         }
     }
 
@@ -218,6 +229,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
         return primary;
+    }
+    
+    public Map<ShardId, Map<String, ObjectIntHashMap<String>>> getShardIdPerAttributeMap() {
+        return Collections.unmodifiableMap(shardIdPerAttributes);
     }
 
     @Override
@@ -433,6 +448,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         addRecovery(initializedShard);
         assignedShardsAdd(initializedShard);
+        addToShardPerAttributeCache(initializedShard);
         routingChangesObserver.shardInitialized(unassignedShard, initializedShard);
         return initializedShard;
     }
@@ -452,6 +468,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
         assignedShardsAdd(target);
+        addToShardPerAttributeCache(target);
         addRecovery(target);
         changes.relocationStarted(startedShard, target);
         return Tuple.tuple(source, target);
@@ -742,6 +759,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 // yes we check identity here
                 if (shard == iterator.next()) {
                     iterator.remove();
+                    removeFromShardPerAttributeCache(shard);
                     return;
                 }
             }
@@ -770,6 +788,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         int previousShardIndex = shardsWithMatchingShardId.indexOf(oldShard);
         assert previousShardIndex >= 0 : "shard to update " + oldShard + " does not exist in list of assigned shards";
         shardsWithMatchingShardId.set(previousShardIndex, newShard);
+        updateShardPerAttributeCache(oldShard, newShard);
     }
 
     private ShardRouting moveToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
@@ -798,6 +817,41 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public int size() {
         return nodesToShards.size();
+    }
+    
+    private void updateShardPerAttributeCache(ShardRouting oldShard, ShardRouting newShard) {
+        if (attributes.size() > 0) {
+            addToShardPerAttributeCache(newShard);
+            removeFromShardPerAttributeCache(oldShard);
+        }
+    }
+    
+    private void addToShardPerAttributeCache(ShardRouting shardRouting) {
+        if (attributes.size() > 0) {
+            for (String awarenessAttribute : attributes) {
+                if (shardRouting.initializing() || shardRouting.started()) {
+                    ObjectIntHashMap<String> attributeMap = shardIdPerAttributes
+                    .computeIfAbsent(shardRouting.shardId(), k -> new HashMap<>()).computeIfAbsent(awarenessAttribute,
+                    k -> new ObjectIntHashMap<>());
+                    attributeMap.addTo(node(shardRouting.currentNodeId()).node().getAttributes().get(awarenessAttribute), 1);
+                }
+            }
+        }
+    }
+
+    
+    private void removeFromShardPerAttributeCache(ShardRouting shardRouting) {
+        if (attributes.size() > 0) {
+            for (String awarenessAttribute : attributes) {
+                if (shardRouting.initializing() || shardRouting.started()) {
+                    Map<String, ObjectIntHashMap<String>> attributeMap = shardIdPerAttributes.get(shardRouting.shardId());
+                    if (attributeMap != null && attributeMap.containsKey(awarenessAttribute)) {
+                        attributeMap.get(awarenessAttribute)
+                        .putOrAdd(node(shardRouting.currentNodeId()).node().getAttributes().get(awarenessAttribute), 0, -1);
+                    }
+                }
+            }
+        }
     }
 
     public static final class UnassignedShards implements Iterable<ShardRouting>  {
@@ -1125,17 +1179,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
-     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
-     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
-     * all the nodes have been returned.
+     * Creates an iterator over nodes iterating in a circular fashion: The iterator returns the first shard iterator
+     * from the first node, then the first shard iterator of the second node, etc. The iterator removes a node(including
+     * all the shards) if all the shards on the node can stay.
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator() {
+
+    public Iterator<Iterator<ShardRouting>> nodeShardIterator() {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
-        return new Iterator<ShardRouting>() {
+        return new Iterator<Iterator<ShardRouting>>() {
             public boolean hasNext() {
                 while (!queue.isEmpty()) {
                     if (queue.peek().hasNext()) {
@@ -1146,22 +1200,22 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 return false;
             }
 
-            public ShardRouting next() {
+            public Iterator<ShardRouting> next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
                 queue.offer(iter);
-                return result;
+                return iter;
             }
 
+            @SuppressWarnings("rawtypes")
             public void remove() {
-                throw new UnsupportedOperationException();
+                ((ArrayDeque)queue).pollLast();
             }
         };
     }
-
+    
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

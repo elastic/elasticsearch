@@ -255,24 +255,30 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
         final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
+        // If this node is already above the high threshold, the shard cannot remain (get it off!)
+        final String dataPath = clusterInfo.getDataPath(shardRouting);
+        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
+            return allocation.decision(Decision.YES, NAME, "this shard is not allocated on the most utilized disk and can remain");
+        }
+        return canRemainOnNode(node, allocation);
+    }
+     
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        final ClusterInfo clusterInfo = allocation.clusterInfo();
+        final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
         }
-
         // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
         // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
         final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
-        final String dataPath = clusterInfo.getDataPath(shardRouting);
-        // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         final long freeBytes = usage.getFreeBytes();
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
-        }
-        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
-            return allocation.decision(Decision.YES, NAME,
-                    "this shard is not allocated on the most utilized disk and can remain");
         }
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             if (logger.isDebugEnabled()) {

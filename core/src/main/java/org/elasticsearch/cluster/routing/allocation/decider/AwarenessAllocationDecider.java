@@ -26,6 +26,7 @@ import java.util.Map;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -146,13 +148,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
-                if (assignedShard.started() || assignedShard.initializing()) {
-                    // Note: this also counts relocation targets as that will be the new location of the shard.
-                    // Relocation sources should not be counted as the shard is moving away
-                    RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                    shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);
-                }
+            Map<String, ObjectIntHashMap<String>> shardIdMap = allocation.routingNodes().getShardIdPerAttributeMap()
+            .get(shardRouting.shardId());
+            if (shardIdMap != null && shardIdMap.get(awarenessAttribute) != null) {
+                shardPerAttribute = shardIdMap.get(awarenessAttribute).clone();
             }
 
             if (moveToNode) {
@@ -212,5 +211,31 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+    }
+    
+    /**
+     * Loop over all the shards on the node to see if any of the awareness attribute
+     * across the same {@link ShardId}} is unbalanced, in which case the current
+     * {@link RoutingNode}} hosting the shard returns a decision
+     * {@link Decision#NO}}
+     * 
+     * TODO : Add caching support for awarenessAttributes for {@link ShardId} across
+     * {@link RoutingNodes}} after running micro-benchmark
+     * 
+     */
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = null;
+        if (awarenessAttributes.length == 0) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is not enabled");
+        }
+        for (ShardRouting shardRouting : node) {
+            decision = underCapacity(shardRouting, node, allocation, false);
+            if (decision == Decision.NO) {
+                return decision;
+            }
+        }
+        return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+
     }
 }

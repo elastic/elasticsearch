@@ -205,4 +205,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         assert initializingShard.initializing();
         return initializingShard;
     }
+
+    @Override
+    public Decision canMoveAnyShardFromNode(RoutingNode node, RoutingAllocation allocation) {
+        int outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(node.nodeId());
+        if (outgoingRecoveries >= concurrentOutgoingRecoveries) {
+            return allocation.decision(Decision.NO, NAME, "too many outgoing shards are currently recovering [%d], limit: [%d]",
+            outgoingRecoveries, concurrentOutgoingRecoveries);
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d]", outgoingRecoveries,
+            concurrentOutgoingRecoveries);
+        }
+    }
 }

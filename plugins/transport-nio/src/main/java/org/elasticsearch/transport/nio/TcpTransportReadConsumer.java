@@ -22,14 +22,11 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.ReadContext;
-import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 
 public class TcpTransportReadConsumer implements ReadContext.ReadConsumer {
-
-    private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
     private final TcpReadHandler handler;
     private final TcpNioSocketChannel channel;
@@ -48,14 +45,14 @@ public class TcpTransportReadConsumer implements ReadContext.ReadConsumer {
             return 0;
         } else if (message.length() == 0) {
             // This is a ping and should not be handled.
-            return HEADER_SIZE;
+            return TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
         } else {
             try {
                 handler.handleMessage(message, channel, message.length());
             } catch (Exception e) {
                 handler.handleException(channel, e);
             }
-            return message.length() + HEADER_SIZE;
+            return message.length() + TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
         }
     }
 }

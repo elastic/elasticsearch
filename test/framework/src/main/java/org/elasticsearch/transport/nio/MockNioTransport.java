@@ -172,10 +172,10 @@ public class MockNioTransport extends TcpTransport {
                     return 0;
                 } else if (message.length() == 0) {
                     // This is a ping and should not be handled.
-                    return 6;
+                    return TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
                 } else {
                     messageReceived(message, nioChannel, profileName, nioChannel.getRemoteAddress(), message.length());
-                    return message.length() + 6;
+                    return message.length() + TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
                 }
             };
             BytesReadContext readContext = new BytesReadContext(nioChannel, readConsumer, new InboundChannelBuffer(pageSupplier));

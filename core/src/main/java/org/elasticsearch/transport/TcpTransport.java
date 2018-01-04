@@ -184,9 +184,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
+    // This is the number of bytes necessary to read the message size
+    public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     public static final int PING_DATA_SIZE = -1;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
-    private static final int BASIC_MESSAGE_HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
     private final CircuitBreakerService circuitBreakerService;
@@ -1264,13 +1265,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (messageLength == -1) {
             return null;
         } else {
-            int totalLength = messageLength + BASIC_MESSAGE_HEADER_SIZE;
+            int totalLength = messageLength + BYTES_NEEDED_FOR_MESSAGE_SIZE;
             if (totalLength > networkBytes.length()) {
                 return null;
             } else if (totalLength == 6) {
                 return EMPTY_BYTES_REFERENCE;
             } else {
-                return networkBytes.slice(BASIC_MESSAGE_HEADER_SIZE, messageLength);
+                return networkBytes.slice(BYTES_NEEDED_FOR_MESSAGE_SIZE, messageLength);
             }
         }
     }
@@ -1287,7 +1288,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      *                                  This is dependent on the available memory.
      */
     public static int readMessageLength(BytesReference networkBytes) throws IOException {
-        if (networkBytes.length() < BASIC_MESSAGE_HEADER_SIZE) {
+        if (networkBytes.length() < BYTES_NEEDED_FOR_MESSAGE_SIZE) {
             return -1;
         } else {
             return readHeaderBuffer(networkBytes);

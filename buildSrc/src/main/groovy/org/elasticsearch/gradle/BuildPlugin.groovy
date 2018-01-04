@@ -21,6 +21,8 @@ package org.elasticsearch.gradle
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -35,7 +37,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -509,6 +510,17 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
+                } else {
+                    /*
+                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
+                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
+                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
+                     */
+                    if (System.getenv("GIT_COMMIT") != null) {
+                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
+                        final String shortHash = hash?.substring(0, 7)
+                        jarTask.manifest.attributes('Change': shortHash)
+                    }
                 }
             }
             // add license/notice files

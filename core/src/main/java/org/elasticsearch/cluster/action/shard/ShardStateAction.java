@@ -89,21 +89,21 @@ public class ShardStateAction extends AbstractComponent {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ThreadPool.Names.SAME, StartedShardEntry::new, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ThreadPool.Names.SAME, FailedShardEntry::new, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
     }
 
-    private void sendShardAction(final String actionName, final ClusterState currentState, final ShardEntry shardEntry, final Listener listener) {
+    private void sendShardAction(final String actionName, final ClusterState currentState, final TransportRequest request, final Listener listener) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         if (masterNode == null) {
-            logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
-            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+            logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
+            waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
         } else {
-            logger.debug("{} sending [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode.getId(), shardEntry);
+            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
             transportService.sendRequest(masterNode,
-                actionName, shardEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         listener.onSuccess();
@@ -112,9 +112,9 @@ public class ShardStateAction extends AbstractComponent {
                     @Override
                     public void handleException(TransportException exp) {
                         if (isMasterChannelException(exp)) {
-                            waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+                            waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                         } else {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while sending request [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode, shardEntry), exp);
+                            logger.warn("unexpected failure while sending request [{}] to [{}] for shard entry [{}]", actionName, masterNode, request);
                             listener.onFailure(exp instanceof RemoteTransportException ? (Exception) (exp.getCause() instanceof Exception ? exp.getCause() : new ElasticsearchException(exp.getCause())) : exp);
                         }
                     }
@@ -147,7 +147,7 @@ public class ShardStateAction extends AbstractComponent {
      */
     public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, boolean markAsStale, final String message, @Nullable final Exception failure, Listener listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
+        FailedShardEntry shardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
         sendShardAction(SHARD_FAILED_ACTION_NAME, clusterService.state(), shardEntry, listener);
     }
 
@@ -163,24 +163,24 @@ public class ShardStateAction extends AbstractComponent {
      */
     public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener,
                                  final ClusterState currentState) {
-        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, true);
+        FailedShardEntry shardEntry = new FailedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, true);
         sendShardAction(SHARD_FAILED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
     // visible for testing
-    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate) {
+    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state, shardEntry);
+                    logger.trace("new cluster state [{}] after waiting for master election for shard entry [{}]", state, request);
                 }
-                sendShardAction(actionName, state, shardEntry, listener);
+                sendShardAction(actionName, state, request, listener);
             }
 
             @Override
             public void onClusterServiceClose() {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} node closed while execution action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry), shardEntry.failure);
+                logger.warn("node closed while execution action [{}] for shard entry [{}]", actionName, request);
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
             }
 
@@ -192,7 +192,7 @@ public class ShardStateAction extends AbstractComponent {
         }, changePredicate);
     }
 
-    private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardEntry> {
+    private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
         private final Logger logger;
@@ -204,7 +204,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
+        public void messageReceived(FailedShardEntry request, TransportChannel channel) throws Exception {
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
@@ -246,7 +246,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry> {
+    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
         private final Logger logger;
@@ -258,13 +258,13 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public ClusterTasksResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            ClusterTasksResult.Builder<ShardEntry> batchResultBuilder = ClusterTasksResult.builder();
-            List<ShardEntry> tasksToBeApplied = new ArrayList<>();
+        public ClusterTasksResult<FailedShardEntry> execute(ClusterState currentState, List<FailedShardEntry> tasks) throws Exception {
+            ClusterTasksResult.Builder<FailedShardEntry> batchResultBuilder = ClusterTasksResult.builder();
+            List<FailedShardEntry> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
-            for (ShardEntry task : tasks) {
+            for (FailedShardEntry task : tasks) {
                 IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
                 if (indexMetaData == null) {
                     // tasks that correspond to non-existent indices are marked as successful
@@ -350,15 +350,82 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
+    public static class FailedShardEntry extends TransportRequest {
+        final ShardId shardId;
+        final String allocationId;
+        final long primaryTerm;
+        final String message;
+        final Exception failure;
+        final boolean markAsStale;
+
+        FailedShardEntry(StreamInput in) throws IOException {
+            super(in);
+            shardId = ShardId.readShardId(in);
+            allocationId = in.readString();
+            primaryTerm = in.readVLong();
+            message = in.readString();
+            failure = in.readException();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                markAsStale = in.readBoolean();
+            } else {
+                markAsStale = true;
+            }
+        }
+
+        public FailedShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message, Exception failure, boolean markAsStale) {
+            this.shardId = shardId;
+            this.allocationId = allocationId;
+            this.primaryTerm = primaryTerm;
+            this.message = message;
+            this.failure = failure;
+            this.markAsStale = markAsStale;
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        public String getAllocationId() {
+            return allocationId;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            shardId.writeTo(out);
+            out.writeString(allocationId);
+            out.writeVLong(primaryTerm);
+            out.writeString(message);
+            out.writeException(failure);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeBoolean(markAsStale);
+            }
+        }
+
+        @Override
+        public String toString() {
+            List<String> components = new ArrayList<>(6);
+            components.add("shard id [" + shardId + "]");
+            components.add("allocation id [" + allocationId + "]");
+            components.add("primary term [" + primaryTerm + "]");
+            components.add("message [" + message + "]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+            }
+            components.add("markAsStale [" + markAsStale + "]");
+            return String.join(", ", components);
+        }
+    }
+
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener) {
         shardStarted(shardRouting, message, listener, clusterService.state());
     }
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener, ClusterState currentState) {
-        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, null, false);
+        StartedShardEntry shardEntry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message);
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
-    private static class ShardStartedTransportHandler implements TransportRequestHandler<ShardEntry> {
+    private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
         private final Logger logger;
@@ -370,7 +437,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
+        public void messageReceived(StartedShardEntry request, TransportChannel channel) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardId, request);
             clusterService.submitStateUpdateTask(
                 "shard-started " + request,
@@ -382,7 +449,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardEntry>, ClusterStateTaskListener {
+    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final Logger logger;
 
@@ -392,12 +459,12 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public ClusterTasksResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            ClusterTasksResult.Builder<ShardEntry> builder = ClusterTasksResult.builder();
-            List<ShardEntry> tasksToBeApplied = new ArrayList<>();
+        public ClusterTasksResult<StartedShardEntry> execute(ClusterState currentState, List<StartedShardEntry> tasks) throws Exception {
+            ClusterTasksResult.Builder<StartedShardEntry> builder = ClusterTasksResult.builder();
+            List<StartedShardEntry> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
-            for (ShardEntry task : tasks) {
+            for (StartedShardEntry task : tasks) {
                 assert task.primaryTerm == 0L : "shard is only started by itself: " + task;
 
                 ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
@@ -449,47 +516,29 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public static class ShardEntry extends TransportRequest {
-        ShardId shardId;
-        String allocationId;
-        long primaryTerm;
-        String message;
-        Exception failure;
-        boolean markAsStale;
+    public static class StartedShardEntry extends TransportRequest {
+        final ShardId shardId;
+        final String allocationId;
+        final long primaryTerm;
+        final String message;
 
-        public ShardEntry() {
-        }
-
-        public ShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message, @Nullable Exception failure, boolean markAsStale) {
-            this.shardId = shardId;
-            this.allocationId = allocationId;
-            this.primaryTerm = primaryTerm;
-            this.message = message;
-            this.failure = failure;
-            this.markAsStale = markAsStale;
-        }
-
-        public ShardId getShardId() {
-            return shardId;
-        }
-
-        public String getAllocationId() {
-            return allocationId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        StartedShardEntry(StreamInput in) throws IOException {
+            super(in);
             shardId = ShardId.readShardId(in);
             allocationId = in.readString();
             primaryTerm = in.readVLong();
             message = in.readString();
-            failure = in.readException();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                markAsStale = in.readBoolean();
-            } else {
-                markAsStale = true;
+            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+                final Exception ex = in.readException();
+                assert ex == null : "started shard must not have failure [" + ex + "]";
             }
+        }
+
+        public StartedShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message) {
+            this.shardId = shardId;
+            this.allocationId = allocationId;
+            this.primaryTerm = primaryTerm;
+            this.message = message;
         }
 
         @Override
@@ -499,24 +548,15 @@ public class ShardStateAction extends AbstractComponent {
             out.writeString(allocationId);
             out.writeVLong(primaryTerm);
             out.writeString(message);
-            out.writeException(failure);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                out.writeBoolean(markAsStale);
+            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+                out.writeException(null);
             }
         }
 
         @Override
         public String toString() {
-            List<String> components = new ArrayList<>(4);
-            components.add("shard id [" + shardId + "]");
-            components.add("allocation id [" + allocationId + "]");
-            components.add("primary term [" + primaryTerm + "]");
-            components.add("message [" + message + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-            }
-            components.add("markAsStale [" + markAsStale + "]");
-            return String.join(", ", components);
+            return String.format(Locale.ROOT, "StartedShardEntry{shardId [%s], allocationId [%s], primaryTerm [%d], message [%s]}",
+                shardId, allocationId, primaryTerm, message);
         }
     }
 

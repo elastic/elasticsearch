@@ -101,9 +101,11 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         for (ScriptContext<?> context : contexts) {
             if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
-                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, Definition.DEFINITION));
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, new Definition(
+                    Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)))));
             } else {
-                contextsToCompilers.put(context, new Compiler(context.instanceClazz, Definition.DEFINITION));
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, new Definition(
+                    Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)))));
             }
         }
 
@@ -126,9 +128,11 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        Compiler compiler = contextsToCompilers.get(context);
+
         if (context.instanceClazz.equals(SearchScript.class)) {
             GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+                (GenericElasticsearchScript)compile(compiler, scriptName, scriptSource, params);
 
             SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                 @Override
@@ -143,7 +147,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+                (GenericElasticsearchScript)compile(compiler, scriptName, scriptSource, params);
 
             ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
             return context.factoryClazz.cast(factory);
@@ -155,7 +159,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
                 @Override
                 public Loader run() {
-                    return new Loader(getClass().getClassLoader());
+                    return compiler.createLoader(getClass().getClassLoader());
                 }
             });
 
@@ -414,7 +418,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
             @Override
             public Loader run() {
-                return new Loader(getClass().getClassLoader());
+                return compiler.createLoader(getClass().getClassLoader());
             }
         });
 

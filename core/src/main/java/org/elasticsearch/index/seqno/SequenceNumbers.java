@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.collect.Tuple;
-
 import java.util.Map;
 
 /**
@@ -49,7 +47,7 @@ public class SequenceNumbers {
      * @param commitData       the commit data
      * @return the sequence number stats
      */
-    public static Tuple<Long, Long> loadSeqNoInfoFromLuceneCommit(
+    public static CommitInfo loadSeqNoInfoFromLuceneCommit(
         final Iterable<Map.Entry<String, String>> commitData) {
         long maxSeqNo = NO_OPS_PERFORMED;
         long localCheckpoint = NO_OPS_PERFORMED;
@@ -65,7 +63,7 @@ public class SequenceNumbers {
             }
         }
 
-        return new Tuple<>(maxSeqNo, localCheckpoint);
+        return new CommitInfo(maxSeqNo, localCheckpoint);
     }
 
     /**
@@ -116,4 +114,13 @@ public class SequenceNumbers {
         }
     }
 
+    public static final class CommitInfo {
+        public final long maxSeqNo;
+        public final long localCheckpoint;
+
+        public CommitInfo(long maxSeqNo, long localCheckpoint) {
+            this.maxSeqNo = maxSeqNo;
+            this.localCheckpoint = localCheckpoint;
+        }
+    }
 }

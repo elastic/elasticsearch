@@ -118,6 +118,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,

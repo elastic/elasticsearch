@@ -22,6 +22,7 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
@@ -42,6 +43,17 @@ buildscript {
 
 Collection distributions = project.subprojects.findAll {
    it.path.contains(':tools') == false && it.path.contains(':bwc') == false }
+
+/*****************************************************************************
+ *                  Third party dependencies report                          *
+ *****************************************************************************/
+
+// Concatenates the dependencies CSV files into a single file
+task generateDependenciesReport(type: ConcatFilesTask) {
+  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
+  headerLine = "name,version,url,license"
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")
+}
 
 /*****************************************************************************
  *                                Notice file                                *
@@ -163,6 +175,7 @@ configure(distributions) {
       into 'lib'
       from project(':core').jar
       from project(':core').configurations.runtime
+      from { project(':libs:plugin-classloader').jar }
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':distribution:tools:launchers').jar }
       from { project(':distribution:tools:plugin-cli').jar }

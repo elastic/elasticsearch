@@ -174,10 +174,10 @@ echo "Running in $PWD"
 set -xuf
 
 # clean
-gradle --stacktrace clean
+./gradlew --stacktrace clean
 
 # Actually run the tests
-gradle "${GRADLE_CLI_ARGS[@]}"
+./gradlew "${GRADLE_CLI_ARGS[@]}"
 
 # write the ES hash we checked out to build metadata
 mkdir build

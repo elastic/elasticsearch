@@ -52,7 +52,7 @@ public class BucketHelpers {
      * "skip": empty buckets will simply be ignored
      */
     public enum GapPolicy {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
+        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip"), IGNORE((byte) 2, "ignore");
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -169,6 +169,11 @@ public class BucketHelpers {
                             + " must reference either a number value or a single value numeric metric aggregation, got: "
                             + propertyValue.getClass().getCanonicalName());
                 }
+
+                if (Double.isFinite(value) && gapPolicy == GapPolicy.IGNORE) {
+                    return value;
+                }
+
                 // doc count never has missing values so gap policy doesn't apply here
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
                 if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {

@@ -791,6 +791,19 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                     "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts] for remote audit log indexing");
         }
 
+        final int processors = EsExecutors.PROCESSORS_SETTING.get(settings);
+        if (EsExecutors.PROCESSORS_SETTING.exists(clientSettings)) {
+            final int clientProcessors = EsExecutors.PROCESSORS_SETTING.get(clientSettings);
+            if (clientProcessors != processors) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "explicit processor setting [%d] for audit trail remote client does not match inherited processor setting [%d]",
+                        clientProcessors,
+                        processors);
+                throw new IllegalStateException(message);
+            }
+        }
+
         if (clientSettings.get("cluster.name", "").isEmpty()) {
             throw new ElasticsearchException("missing required setting " +
                     "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".cluster.name] for remote audit log indexing");
@@ -810,7 +823,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             throw new ElasticsearchException("no valid host:port pairs specified for setting ["
                     + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
         }
-        final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
+        final Settings theClientSetting =
+                Settings.builder()
+                        .put(clientSettings.filter((s) -> s.startsWith("hosts") == false)) // hosts is not a valid setting
+                        .put(EsExecutors.PROCESSORS_SETTING.getKey(), processors)
+                        .build();
         final TransportClient transportClient = new TransportClient(Settings.builder()
                 .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
                 .put(theClientSetting).build(), Settings.EMPTY, remoteTransportClientPlugins(), null) {};

@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+apply plugin: 'elasticsearch.esplugin'
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
-
-/**
- * Deprecated as not used in 6.0, should be removed in 7.0
- * Still exists for bwc in serializing/deserializing from
- * 5.x nodes
- */
-@Deprecated
-public class DeleteFailedEngineException extends EngineException {
-    public DeleteFailedEngineException(StreamInput in) throws IOException{
-        super(in);
-    }
+esplugin {
+  name 'painless-whitelist'
+  description 'An example whitelisting additional classes and methods in painless'
+  classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
+  extendedPlugins = ['lang-painless']
 }
+
+integTestCluster {
+  distribution = 'zip'
+}
+
+test.enabled = false

@@ -16,18 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugins;
 
-public class DummyPluginInfo extends PluginInfo {
+apply plugin: 'elasticsearch.build'
 
-    private DummyPluginInfo(String name, String description, String version, String classname) {
-        super(name, description, version, classname, false, false);
-    }
+test.enabled = false
 
-    public static final DummyPluginInfo INSTANCE =
-            new DummyPluginInfo(
-                    "dummy_plugin_name",
-                    "dummy plugin description",
-                    "dummy_plugin_version",
-                    "DummyPluginName");
-}
+// test depend on ES core...
+forbiddenApisMain.enabled = false
+jarHell.enabled = false

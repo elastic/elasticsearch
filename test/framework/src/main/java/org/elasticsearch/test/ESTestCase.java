@@ -896,9 +896,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setUseNio() throws Exception {
-//        useNio = randomBoolean();
-        // TODO: Temporarily disable nio as it does not work with intellij testrunner
-        useNio = false;
+        useNio = randomBoolean();
     }
 
     public static String getTestTransportType() {

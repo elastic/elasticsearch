@@ -69,12 +69,15 @@ final class Compiler {
      */
     static final class Loader extends SecureClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
+        private final Definition definition;
 
         /**
          * @param parent The parent ClassLoader.
          */
-        Loader(ClassLoader parent) {
+        Loader(ClassLoader parent, Definition definition) {
             super(parent);
+
+            this.definition = definition;
         }
 
         /**

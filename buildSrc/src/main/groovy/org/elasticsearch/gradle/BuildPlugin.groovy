@@ -35,7 +35,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -54,7 +53,8 @@ import java.time.ZonedDateTime
  */
 class BuildPlugin implements Plugin<Project> {
 
-    static final JavaVersion minimumJava = JavaVersion.VERSION_1_8
+    static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
+    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_9
 
     @Override
     void apply(Project project) {
@@ -91,20 +91,26 @@ class BuildPlugin implements Plugin<Project> {
     /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
-            String javaHome = findJavaHome()
+            String compilerJavaHome = findCompilerJavaHome()
+            String runtimeJavaHome = findRuntimeJavaHome(project)
             File gradleJavaHome = Jvm.current().javaHome
             String javaVendor = System.getProperty('java.vendor')
             String javaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
-            String javaVersionDetails = gradleJavaVersionDetails
-            JavaVersion javaVersionEnum = JavaVersion.current()
-            if (new File(javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                javaVersionDetails = findJavaVersionDetails(project, javaHome)
-                javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                javaVendor = findJavaVendor(project, javaHome)
-                javaVersion = findJavaVersion(project, javaHome)
+            String compilerJavaVersionDetails = gradleJavaVersionDetails
+            JavaVersion compilerJavaVersionEnum = JavaVersion.current()
+            if (new File(compilerJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                compilerJavaVersionDetails = findJavaVersionDetails(project, compilerJavaHome)
+                compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, compilerJavaHome))
+            }
+
+            String runtimeJavaVersionDetails = gradleJavaVersionDetails
+            JavaVersion runtimeJavaVersionEnum = JavaVersion.current()
+            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome)
+                runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
             // Build debugging info
@@ -113,11 +119,13 @@ class BuildPlugin implements Plugin<Project> {
             println '======================================='
             println "  Gradle Version        : ${project.gradle.gradleVersion}"
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
-            if (gradleJavaVersionDetails != javaVersionDetails) {
+            if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
                 println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME (gradle)    : ${gradleJavaHome}"
-                println "  JDK Version (compile) : ${javaVersionDetails}"
-                println "  JAVA_HOME (compile)   : ${javaHome}"
+                println "  JDK Version (compile) : ${compilerJavaVersionDetails}"
+                println "  JAVA_HOME (compile)   : ${compilerJavaHome}"
+                println "  JDK Version (runtime) : ${runtimeJavaVersionDetails}"
+                println "  JAVA_HOME (runtime)   : ${runtimeJavaHome}"
             } else {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
@@ -133,42 +141,31 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce Java version
-            if (javaVersionEnum < minimumJava) {
-                throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
+            if (compilerJavaVersionEnum < minimumCompilerVersion) {
+                throw new GradleException("Java ${minimumCompilerVersion} or above is required to build Elasticsearch")
             }
 
-            // this block of code detecting buggy JDK 8 compiler versions can be removed when minimum Java version is incremented
-            assert minimumJava == JavaVersion.VERSION_1_8 : "Remove JDK compiler bug detection only applicable to JDK 8"
-            if (javaVersionEnum == JavaVersion.VERSION_1_8) {
-                if (Objects.equals("Oracle Corporation", javaVendor)) {
-                    def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
-                    if (matcher.matches()) {
-                        int update;
-                        if (matcher.group(1) == null) {
-                            update = 0
-                        } else {
-                            update = matcher.group(1).toInteger()
-                        }
-                        if (update < 40) {
-                            throw new GradleException("JDK ${javaVendor} ${javaVersion} has compiler bug JDK-8052388, update your JDK to at least 8u40")
-                        }
-                    }
-                }
+            if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
+                throw new GradleException("Java ${minimumRuntimeVersion} or above is required to run Elasticsearch")
             }
 
-            project.rootProject.ext.javaHome = javaHome
-            project.rootProject.ext.javaVersion = javaVersionEnum
+            project.rootProject.ext.compilerJavaHome = compilerJavaHome
+            project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
+            project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
+            project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
-        project.targetCompatibility = minimumJava
-        project.sourceCompatibility = minimumJava
+        project.targetCompatibility = minimumRuntimeVersion
+        project.sourceCompatibility = minimumRuntimeVersion
         // set java home for each project, so they dont have to find it in the root project
-        project.ext.javaHome = project.rootProject.ext.javaHome
-        project.ext.javaVersion = project.rootProject.ext.javaVersion
+        project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
+        project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
+        project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
+        project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
     }
 
     /** Finds and enforces JAVA_HOME is set */
-    private static String findJavaHome() {
+    private static String findCompilerJavaHome() {
         String javaHome = System.getenv('JAVA_HOME')
         if (javaHome == null) {
             if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
@@ -177,6 +174,34 @@ class BuildPlugin implements Plugin<Project> {
             } else {
                 throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
             }
+        }
+        return javaHome
+    }
+
+    private static String findRuntimeJavaHome(Project project) {
+        String java8Home = System.getenv('JAVA_8_HOME')
+        final String maybeJavaHome
+        if (java8Home == null) {
+            // if JAVA_8_HOME is not set fallback to JAVA_HOME
+            maybeJavaHome = System.getenv('JAVA_HOME')
+        } else {
+            // if JAVA_8_HOME is set it must point to a JDK 8 Java home
+            JavaVersion version = JavaVersion.toVersion(findJavaSpecificationVersion(project, java8Home))
+            if (version.majorVersion != minimumRuntimeVersion.majorVersion) {
+                throw new GradleException("if JAVA_8_HOME is set it must point to a JDK 8 Java home but was [" + java8Home + "]")
+            }
+            maybeJavaHome = java8Home
+        }
+        final String javaHome
+        if (maybeJavaHome == null) {
+            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
+                // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
+                javaHome = Jvm.current().javaHome
+            } else {
+                assert false
+            }
+        } else {
+            javaHome = maybeJavaHome
         }
         return javaHome
     }
@@ -409,7 +434,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        if (project.javaVersion < JavaVersion.VERSION_1_10) {
+        if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
             project.ext.compactProfile = 'compact3'
         } else {
             project.ext.compactProfile = 'full'
@@ -419,7 +444,7 @@ class BuildPlugin implements Plugin<Project> {
                 File gradleJavaHome = Jvm.current().javaHome
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
-                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.forkOptions.memoryMaximumSize = "1g"
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
@@ -444,22 +469,17 @@ class BuildPlugin implements Plugin<Project> {
 
                 options.encoding = 'UTF-8'
                 options.incremental = true
-
-                if (project.javaVersion == JavaVersion.VERSION_1_9) {
-                    // hack until gradle supports java 9's new "--release" arg
-                    assert minimumJava == JavaVersion.VERSION_1_8
-                    options.compilerArgs << '--release' << '8'
-                }
+                options.compilerArgs << '--release' << project.targetCompatibility.majorVersion
             }
         }
     }
 
     static void configureJavadoc(Project project) {
         project.tasks.withType(Javadoc) {
-            executable = new File(project.javaHome, 'bin/javadoc')
+            executable = new File(project.compilerJavaHome, 'bin/javadoc')
         }
         configureJavadocJar(project)
-        if (project.javaVersion == JavaVersion.VERSION_1_10) {
+        if (project.compilerJavaVersion == JavaVersion.VERSION_1_10) {
             project.tasks.withType(Javadoc) { it.enabled = false }
             project.tasks.getByName('javadocJar').each { it.enabled = false }
         }
@@ -505,7 +525,7 @@ class BuildPlugin implements Plugin<Project> {
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': isSnapshot,
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
-                        'Build-Java-Version': project.javaVersion)
+                        'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
@@ -531,7 +551,7 @@ class BuildPlugin implements Plugin<Project> {
     /** Returns a closure of common configuration shared by unit and integration tests. */
     static Closure commonTestConfig(Project project) {
         return {
-            jvm "${project.javaHome}/bin/java"
+            jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'

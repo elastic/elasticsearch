@@ -1149,10 +1149,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return TRUE;
                 }
 
-                if (TRUE.equals(l)) {
+                if (FALSE.equals(l)) {
                     return r;
                 }
-                if (TRUE.equals(r)) {
+                if (FALSE.equals(r)) {
                     return l;
                 }
 

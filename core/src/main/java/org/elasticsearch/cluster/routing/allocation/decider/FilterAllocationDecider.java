@@ -25,13 +25,16 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -173,6 +176,31 @@ public class FilterAllocationDecider extends AllocationDecider {
             if (indexMd.excludeFilters().match(node.node())) {
                 return allocation.decision(Decision.NO, NAME, "node matches index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), indexMd.excludeFilters());
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = shouldClusterFilter(node, allocation);
+        if (decision != null) return decision;
+        
+        decision = shouldIndexNodeFilter(node, allocation);
+        if (decision != null) return decision;
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
+    }
+
+    private Decision shouldIndexNodeFilter(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = null;
+        Set<Index> indices = node.indices();
+        for (Index index : indices) {
+            ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
+            IndexMetaData indexMetaData = indexMd.get(index.getName());
+            decision = shouldIndexFilter(indexMetaData, node, allocation);
+            if (decision != null) {
+                return decision;
             }
         }
         return null;

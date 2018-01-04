@@ -229,4 +229,38 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+    
+    /**
+     * Aggregates {@link Decision}} from various {@link AllocationDecider} and selects the best {@link Decision}} based
+     * on the below criteria
+     * <ul>
+     * <li>{@link Decision#NO}} for a particular {@link AllocationDecider}} would be the best decision.
+     * <li>{@link Decision#YES}} for a particular {@link AllocationDecider}} would need all the other {@link AllocationDeciders}} to return
+     *     {@link Decision#YES}} for a {@link RoutingNode}} to skip iteration for all the {@link ShardRouting}}
+     * </ul>
+     */
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = Decision.ALWAYS;
+        for (AllocationDecider decider : allocations) {
+            Decision throttlingDecision = decider.canMoveAnyShardFromNode(node, allocation);
+            if (throttlingDecision == Decision.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Pre-emptively returning decision [{}] from decider [{}] for node [{}]", throttlingDecision.type(),
+                    decider.getClass().getSimpleName(), node.nodeId());
+                }
+                return Decision.THROTTLE;
+            }
+        }
+        for (AllocationDecider decider : allocations) {
+            decision = decider.canRemainOnNode(node, allocation);
+            if (decision == Decision.NO)
+                break;
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("Returning decision after iterating all the deciders best decision [{}] for node [{}]", decision.type(),
+            node.nodeId());
+        }
+        return decision;
+    }
 }

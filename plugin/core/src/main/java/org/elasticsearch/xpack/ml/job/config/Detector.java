@@ -83,7 +83,8 @@ public class Detector implements ToXContentObject, Writeable {
     public static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
     public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
-    public static final ParseField RULES_FIELD = new ParseField("rules");
+    // TODO: Remove the deprecated detector_rules setting in 7.0
+    public static final ParseField RULES_FIELD = new ParseField("rules", "detector_rules");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly

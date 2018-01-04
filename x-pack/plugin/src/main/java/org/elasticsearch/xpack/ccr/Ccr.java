@@ -22,7 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackClientActionPlugin;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
@@ -65,8 +65,8 @@ public final class Ccr {
     public Ccr(final Settings settings) {
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
-        this.tribeNode = XPackPlugin.isTribeNode(settings);
-        this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
+        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
+        this.tribeNodeClient = XPackClientActionPlugin.isTribeClientNode(settings);
     }
 
     public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(Client client, ThreadPool threadPool) {

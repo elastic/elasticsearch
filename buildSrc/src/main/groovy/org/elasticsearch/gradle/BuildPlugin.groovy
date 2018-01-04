@@ -517,8 +517,8 @@ class BuildPlugin implements Plugin<Project> {
                      * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
                      */
                     if (System.getenv("GIT_COMMIT") != null) {
-                        def hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
-                        def shortHash = hash?.substring(0, 7)
+                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
+                        final String shortHash = hash?.substring(0, 7)
                         jarTask.manifest.attributes('Change': shortHash)
                     }
                 }

@@ -75,6 +75,7 @@ if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 || Os.isFamily(Os.FAMI
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
+      env 'JAVA_HOME', project.runtimeJavaHome
       args 'oldes.OldElasticsearch',
            baseDir,
            unzip.temporaryDir,

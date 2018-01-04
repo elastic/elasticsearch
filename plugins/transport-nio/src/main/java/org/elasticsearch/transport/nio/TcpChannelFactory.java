@@ -39,6 +39,7 @@ public class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel,
 
     private final Consumer<TcpNioSocketChannel> contextSetter;
     private final Consumer<TcpNioServerSocketChannel> serverContextSetter;
+    private final String profileName;
 
     TcpChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<TcpNioSocketChannel> contextSetter,
                       Consumer<TcpNioServerSocketChannel> serverContextSetter) {
@@ -47,20 +48,21 @@ public class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel,
             profileSettings.reuseAddress,
             Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
             Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));
+        this.profileName = profileSettings.profileName;
         this.contextSetter = contextSetter;
         this.serverContextSetter = serverContextSetter;
     }
 
     @Override
     public TcpNioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
-        TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(channel, selector);
+        TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel, selector);
         contextSetter.accept(nioChannel);
         return nioChannel;
     }
 
     @Override
     public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
-        TcpNioServerSocketChannel nioServerChannel = new TcpNioServerSocketChannel(channel, this, selector);
+        TcpNioServerSocketChannel nioServerChannel = new TcpNioServerSocketChannel(profileName, channel, this, selector);
         serverContextSetter.accept(nioServerChannel);
         return nioServerChannel;
     }

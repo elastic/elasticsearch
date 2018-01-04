@@ -160,25 +160,14 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
-            MockSocketChannel nioChannel = new MockSocketChannel(channel, selector);
+            MockSocketChannel nioChannel = new MockSocketChannel(profileName, channel, selector);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
-            ReadContext.ReadConsumer readConsumer = channelBuffer ->  {
-                BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
-                BytesReference message = TcpTransport.decodeFrame(bytesReference);
-                if (message == null) {
-                    return 0;
-                } else if (message.length() == 0) {
-                    // This is a ping and should not be handled.
-                    return TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
-                } else {
-                    messageReceived(message, nioChannel, profileName, nioChannel.getRemoteAddress(), message.length());
-                    return message.length() + TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE;
-                }
-            };
-            BytesReadContext readContext = new BytesReadContext(nioChannel, readConsumer, new InboundChannelBuffer(pageSupplier));
+            ReadContext.ReadConsumer nioReadConsumer = channelBuffer ->
+                consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
+            BytesReadContext readContext = new BytesReadContext(nioChannel, nioReadConsumer, new InboundChannelBuffer(pageSupplier));
             BytesWriteContext writeContext = new BytesWriteContext(nioChannel);
             nioChannel.setContexts(readContext, writeContext, MockNioTransport.this::exceptionCaught);
             return nioChannel;
@@ -186,7 +175,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockServerChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
-            MockServerChannel nioServerChannel = new MockServerChannel(channel, this, selector);
+            MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
             nioServerChannel.setAcceptContext(MockNioTransport.this::acceptChannel);
             return nioServerChannel;
         }
@@ -194,9 +183,17 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockServerChannel extends NioServerSocketChannel implements TcpChannel {
 
-        MockServerChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
+        private final String profile;
+
+        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
             throws IOException {
-            super(socketChannel, channelFactory, selector);
+            super(channel, channelFactory, selector);
+            this.profile = profile;
+        }
+
+        @Override
+        public String getProfile() {
+            return profile;
         }
 
         @Override
@@ -210,6 +207,11 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
+        public InetSocketAddress getRemoteAddress() {
+            return null;
+        }
+
+        @Override
         public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
             throw new UnsupportedOperationException("Cannot send a message to a server channel.");
         }
@@ -217,9 +219,17 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
 
+        private final String profile;
 
-        private MockSocketChannel(java.nio.channels.SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, SocketSelector selector)
+            throws IOException {
             super(socketChannel, selector);
+            this.profile = profile;
+        }
+
+        @Override
+        public String getProfile() {
+            return profile;
         }
 
         @Override

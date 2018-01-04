@@ -159,12 +159,7 @@ public class MockTcpTransport extends TcpTransport {
             output.write(minimalHeader);
             output.writeInt(msgSize);
             output.write(buffer);
-            final BytesReference bytes = output.bytes();
-            BytesReference message = TcpTransport.decodeFrame(bytes);
-            assert message != null : "Should have read the entire input stream before decoding";
-            assert message.length() != 0 : "Should not receive a ping at this point";
-            assert message.length() == msgSize : "Message length should be the same length as message size from header";
-            messageReceived(message, mockChannel, mockChannel.profile, (InetSocketAddress) socket.getRemoteSocketAddress(), msgSize);
+            consumeNetworkReads(mockChannel, output.bytes());
         }
     }
 
@@ -356,6 +351,11 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
+        public String getProfile() {
+            return profile;
+        }
+
+        @Override
         public void addCloseListener(ActionListener<Void> listener) {
             closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
         }
@@ -376,6 +376,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public InetSocketAddress getLocalAddress() {
             return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return (InetSocketAddress) activeChannel.getRemoteSocketAddress();
         }
 
         @Override

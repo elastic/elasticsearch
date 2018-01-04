@@ -36,7 +36,7 @@ public class TcpReadHandler {
 
     public void handleMessage(BytesReference reference, TcpNioSocketChannel channel, int messageBytesLength) {
         try {
-            transport.messageReceived(reference, channel, profile, channel.getRemoteAddress(), messageBytesLength);
+            transport.messageReceived(reference, channel);
         } catch (IOException e) {
             handleException(channel, e);
         }

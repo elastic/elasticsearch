@@ -1213,7 +1213,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param length          the payload length in bytes
      * @see TcpHeader
      */
-    final BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
             TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
@@ -1247,6 +1247,36 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final BytesReference messageBody = stream.materializeBytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
+    }
+
+    /**
+     * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
+     * in this call.
+     *
+     * @param channel the channel read from
+     * @param bytesReference the bytes available to consume
+     * @return the number of bytes consumed
+     * @throws StreamCorruptedException if the message header format is not recognized
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
+     *                                  This is dependent on the available memory.
+     */
+    public int consumeNetworkReads(TcpChannel channel, BytesReference bytesReference) throws IOException {
+        BytesReference message = decodeFrame(bytesReference);
+
+        if (message == null) {
+            return 0;
+        } else if (message.length() == 0) {
+            // This is a ping and should not be handled.
+            return BYTES_NEEDED_FOR_MESSAGE_SIZE;
+        } else {
+            try {
+                messageReceived(message, channel);
+            } catch (Exception e) {
+                onException(channel, e);
+            }
+            return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;
+        }
     }
 
     /**
@@ -1375,8 +1405,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * This method handles the message receive part for both request and responses
      */
-    public final void messageReceived(BytesReference reference, TcpChannel channel, String profileName,
-                                      InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
+    public final void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
+        String profileName = channel.getProfile();
+        InetSocketAddress remoteAddress = channel.getRemoteAddress();
+        int messageLengthBytes = reference.length();
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         readBytesMetric.inc(totalMessageSize);
         // we have additional bytes to read, outside of the header

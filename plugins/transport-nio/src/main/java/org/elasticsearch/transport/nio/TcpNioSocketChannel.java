@@ -31,8 +31,11 @@ import java.nio.channels.SocketChannel;
 
 public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
 
-    TcpNioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+    private final String profile;
+
+    TcpNioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
+        this.profile = profile;
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
@@ -44,6 +47,11 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
         if (isOpen()) {
             getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
         }
+    }
+
+    @Override
+    public String getProfile() {
+        return profile;
     }
 
     @Override

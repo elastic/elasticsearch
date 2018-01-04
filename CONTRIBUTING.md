@@ -92,9 +92,8 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system. Gradle must be at least
-version 4.3 in order to build successfully.
+Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
+using the wrapper via the `gradlew` script in the root of the repository.
 
 Eclipse users can automatically configure their IDE: `gradle eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the

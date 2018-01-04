@@ -17,15 +17,19 @@
  * under the License.
  */
 
-import java.util.regex.Matcher
-import java.nio.file.Path
-import org.eclipse.jgit.lib.Repository
-import org.eclipse.jgit.lib.RepositoryBuilder
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.gradle.api.tasks.wrapper.Wrapper
+import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.util.DistributionLocator
+import org.gradle.util.GradleVersion
+
+import java.nio.file.Path
+import java.util.regex.Matcher
 
 // common maven publishing configuration
 subprojects {
@@ -400,6 +404,27 @@ task run(type: Run) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   impliesSubProjects = true
+}
+
+task wrapper(type: Wrapper)
+
+gradle.projectsEvaluated {
+
+  allprojects {
+    tasks.withType(Wrapper) { Wrapper wrapper ->
+      wrapper.distributionType = DistributionType.ALL
+
+      wrapper.doLast {
+        final DistributionLocator locator = new DistributionLocator()
+        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
+        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+        final String sha256Sum = new String(sha256Uri.toURL().bytes)
+        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+      }
+    }
+  }
+
 }
 
 /* Remove assemble on all qa projects because we don't need to publish

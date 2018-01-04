@@ -27,6 +27,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -295,22 +297,19 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.boundingBoxField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
 
-        long m = LongPoint.decodeDimension(fields.get(0).binaryValue().bytes, 8);
-        assertEquals(7.30, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(7.26, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(fields.get(0).binaryValue().bytes, 24);
-        assertEquals(12.69, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(12.73, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 8);
-        assertEquals(1, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(1, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 24);
-        assertEquals(2, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(2, MortonEncoder.decodeLongitude(m), 0.01);
+        assertEquals(1, GeoEncodingUtils.decodeLatitude(fields.get(0).binaryValue().bytes, 0), 0.01);
+        assertEquals(1, GeoEncodingUtils.decodeLongitude(fields.get(0).binaryValue().bytes, 4), 0.01);
+        assertEquals(2, GeoEncodingUtils.decodeLatitude(fields.get(0).binaryValue().bytes, 8), 0.01);
+        assertEquals(2, GeoEncodingUtils.decodeLongitude(fields.get(0).binaryValue().bytes, 12), 0.01);
+
+        assertEquals(7.30, GeoEncodingUtils.decodeLatitude(fields.get(1).binaryValue().bytes, 0), 0.01);
+        assertEquals(7.26, GeoEncodingUtils.decodeLongitude(fields.get(1).binaryValue().bytes, 4), 0.01);
+        assertEquals(12.69, GeoEncodingUtils.decodeLatitude(fields.get(1).binaryValue().bytes, 8), 0.01);
+        assertEquals(12.73, GeoEncodingUtils.decodeLongitude(fields.get(1).binaryValue().bytes, 12), 0.01);
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {
@@ -357,17 +356,20 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         DocumentMapper docMapper = mapperService.documentMapper("doc");
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader, docMapper);
-        assertEquals(1, t.v2().size());
-        Map<String, List<byte[]>> rangesMap = t.v2();
-        assertEquals(1, rangesMap.size());
+        Object[] t = fieldType.extractTermsAndRangesAndBBoxes(indexReader, docMapper);
+        @SuppressWarnings("unchecked")
+        List<BytesRef> terms = (List<BytesRef>) t[0];
+        @SuppressWarnings("unchecked")
+        Map<String, List<byte[]>> rangesMap = (Map<String, List<byte[]>>) t[1];
+        Rectangle bbox = (Rectangle) t[2];
+        assertNull(bbox);
 
+        assertEquals(1, rangesMap.size());
         List<byte[]> range = rangesMap.get("number_field2");
         assertNotNull(range);
         assertEquals(10, LongPoint.decodeDimension(range.get(0), 0));
         assertEquals(10, LongPoint.decodeDimension(range.get(1), 0));
 
-        List<BytesRef> terms = t.v1();
         terms.sort(BytesRef::compareTo);
         assertEquals(14, terms.size());
         assertEquals("_field3\u0000me", terms.get(0).utf8ToString());
@@ -456,9 +458,14 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         DocumentMapper docMapper = mapperService.documentMapper("doc");
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader, docMapper);
-        assertEquals(0, t.v1().size());
-        Map<String, List<byte[]>> rangesMap = t.v2();
+        Object[] t = fieldType.extractTermsAndRangesAndBBoxes(indexReader, docMapper);
+        @SuppressWarnings("unchecked")
+        List<BytesRef> terms = (List<BytesRef>) t[0];
+        @SuppressWarnings("unchecked")
+        Map<String, List<byte[]>> rangesMap = (Map<String, List<byte[]>>) t[1];
+        Rectangle bbox = (Rectangle) t[2];
+        assertNull(bbox);
+        assertEquals(0, terms.size());
         assertEquals(7, rangesMap.size());
 
         List<byte[]> range = rangesMap.get("number_field1");
@@ -511,17 +518,16 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT, docMapper);
         assertTrue(t.v2());
         BooleanQuery candidateQuery = t.v1();
-        assertEquals(3, candidateQuery.clauses().size());
+        assertEquals(2, candidateQuery.clauses().size());
 
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
-        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
-                candidateQuery.clauses().get(0).getQuery());
+        // TODO: Fix LatLonBoundingBox.toString(...) so that the expected coordinates can be asserted here too:
+        // (currently the min / max longitudes are incorrect due to a decoding bug)
+        assertThat(candidateQuery.clauses().get(0).getQuery().toString(), containsString(fieldName + ".bbox_field:<ranges:["));
 
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
-        assertThat(candidateQuery.clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
-
-        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
-        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+                candidateQuery.clauses().get(1).getQuery());
     }
 
     public void testPercolatorFieldMapper() throws Exception {

@@ -20,7 +20,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.PrefixCodedTerms;
@@ -49,7 +48,6 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
@@ -374,6 +372,7 @@ final class QueryAnalyzer {
                         boolean matchAllDocs = true;
                         Set<QueryExtraction> extractions = new HashSet<>();
                         Set<String> seenRangeFields = new HashSet<>();
+                        boolean noBBoxes = true;
                         for (Result result : results) {
                             QueryExtraction[] t = result.extractions.toArray(new QueryExtraction[1]);
                             if (result.extractions.size() == 1 && t[0].range != null) {
@@ -387,6 +386,11 @@ final class QueryAnalyzer {
                                 // the percolator query at index time.
                                 if (seenRangeFields.add(t[0].range.fieldName)) {
                                     msm += 1;
+                                }
+                            } else if (result.extractions.size() == 1 && t[0].boundingBox != null) {
+                                if (noBBoxes) {
+                                    msm += 1;
+                                    noBBoxes = false;
                                 }
                             } else {
                                 msm += result.minimumShouldMatch;
@@ -479,17 +483,20 @@ final class QueryAnalyzer {
 
             byte[] interval = new byte[16];
             switch (pointRangeQuery.getNumDims()) {
-                case 1:NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
-            return new Result(false, Collections.singleton(new QueryExtraction(
-                new Range(pointRangeQuery.getField(), lowerPoint, upperPoint, interval))
-            ), 1);case 2:
+                case 1:
+                    NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
+                    return new Result(false, Collections.singleton(new QueryExtraction(
+                            new Range(pointRangeQuery.getField(), lowerPoint, upperPoint, interval))
+                    ), 1);
+                case 2:
                     Class<?> enclosingClass = query.getClass().getEnclosingClass();
                     if (LatLonPoint.class.equals(enclosingClass)) {
                         double minLat = GeoEncodingUtils.decodeLatitude(lowerPoint, 0);
                         double minLng = GeoEncodingUtils.decodeLongitude(lowerPoint, Integer.BYTES);
                         double maxLat = GeoEncodingUtils.decodeLatitude(upperPoint, 0);
                         double maxLng = GeoEncodingUtils.decodeLongitude(upperPoint, Integer.BYTES);
-                        return encodeRectangle(pointRangeQuery.getField(), new Rectangle(minLat, maxLat, minLng, maxLng));
+                        return new Result(false, Collections.singleton(
+                                new QueryExtraction(new BoundingBox(new Rectangle(minLat, maxLat, minLng, maxLng)))), 1);
                     } else {
                         throw new UnsupportedQueryException(query);
                     }
@@ -524,25 +531,8 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Version, Result> boundingBoxQueryWrapper() {
         return (query, boosts) -> {
             BoundingBoxQueryWrapper wrapper = (BoundingBoxQueryWrapper) query;
-            return encodeRectangle(wrapper.getField(), wrapper.getBoundingBox());
+            return new Result(false, Collections.singleton(new QueryExtraction(new BoundingBox(wrapper.getBoundingBox()))), 1);
         };
-    }
-
-    private static Result encodeRectangle(String field, Rectangle r) {
-        byte[] encodedMin = new byte[Long.BYTES];
-        LongPoint.encodeDimension(MortonEncoder.encode(r.minLat, r.minLon), encodedMin, 0);
-
-        byte[] encodedMax = new byte[Long.BYTES];
-        LongPoint.encodeDimension(MortonEncoder.encode(r.maxLat, r.maxLon), encodedMax, 0);
-
-        // This way the percolator prefers smaller bounding boxes over larger bounding boxes, because smaller bounding
-        // boxes tend to match with less documents than bigger bounding boxes.
-        byte[] interval = new byte[16];
-        long distance = (long) GeoDistance.PLANE.calculate(r.minLat, r.minLon, r.maxLat, r.maxLon, DistanceUnit.METERS);
-        LongPoint.encodeDimension(distance, interval, 8);
-        return new Result(false, Collections.singleton(new QueryExtraction(
-            new Range(field, encodedMin, encodedMax, interval))
-        ), 1);
     }
 
     private static Result handleDisjunction(List<Query> disjunctions, int requiredShouldClauses, boolean otherClauses,
@@ -606,22 +596,54 @@ final class QueryAnalyzer {
         } else if (extractions2 == null) {
             return extractions1;
         } else {
-            // Prefer term based extractions over range based extractions:
+            // Prefer term based extractions over range based and bbox extractions:
+            boolean onlyBBoxBasedExtractions = true;
             boolean onlyRangeBasedExtractions = true;
             for (QueryExtraction clause : extractions1) {
                 if (clause.term != null) {
                     onlyRangeBasedExtractions = false;
+                    onlyBBoxBasedExtractions = false;
                     break;
                 }
             }
             for (QueryExtraction clause : extractions2) {
                 if (clause.term != null) {
                     onlyRangeBasedExtractions = false;
+                    onlyBBoxBasedExtractions = false;
                     break;
                 }
             }
 
-            if (onlyRangeBasedExtractions) {
+            // Prefer range based extractions over bbox extractions:
+            if (onlyBBoxBasedExtractions) {
+                for (QueryExtraction clause : extractions1) {
+                    if (clause.range != null) {
+                        onlyBBoxBasedExtractions = false;
+                        break;
+                    }
+                }
+                for (QueryExtraction clause : extractions2) {
+                    if (clause.range != null) {
+                        onlyBBoxBasedExtractions = false;
+                        break;
+                    }
+                }
+            }
+
+            if (onlyBBoxBasedExtractions) {
+                BoundingBox smallestBBox1 = smallestBBox(extractions1);
+                BoundingBox smallestBBox2 = smallestBBox(extractions2);
+                if (smallestBBox1 == null) {
+                    return extractions2;
+                } else if (smallestBBox2 == null) {
+                    return extractions1;
+                }
+                if (Double.compare(smallestBBox1.diagonal, smallestBBox2.diagonal) <= 0) {
+                    return extractions1;
+                } else {
+                    return extractions2;
+                }
+            } else if (onlyRangeBasedExtractions) {
                 BytesRef extraction1SmallestRange = smallestRange(extractions1);
                 BytesRef extraction2SmallestRange = smallestRange(extractions2);
                 if (extraction1SmallestRange == null) {
@@ -678,6 +700,18 @@ final class QueryAnalyzer {
         return min;
     }
 
+    private static BoundingBox smallestBBox(Set<QueryExtraction> extractions) {
+        BoundingBox smallest = null;
+        for (QueryExtraction extraction : extractions) {
+            if (extraction.boundingBox != null) {
+                if (smallest == null || Double.compare(extraction.boundingBox.diagonal, smallest.diagonal) < 0) {
+                    smallest = extraction.boundingBox;
+                }
+            }
+        }
+        return smallest;
+    }
+
     static class Result {
 
         final Set<QueryExtraction> extractions;
@@ -705,15 +739,24 @@ final class QueryAnalyzer {
 
         final Term term;
         final Range range;
+        final BoundingBox boundingBox;
 
         QueryExtraction(Term term) {
             this.term = term;
             this.range = null;
+            this.boundingBox = null;
         }
 
         QueryExtraction(Range range) {
             this.term = null;
             this.range = range;
+            this.boundingBox = null;
+        }
+
+        QueryExtraction(BoundingBox boundingBox) {
+            this.term = null;
+            this.range = null;
+            this.boundingBox = boundingBox;
         }
 
         String field() {
@@ -734,12 +777,13 @@ final class QueryAnalyzer {
             if (o == null || getClass() != o.getClass()) return false;
             QueryExtraction queryExtraction = (QueryExtraction) o;
             return Objects.equals(term, queryExtraction.term) &&
-                Objects.equals(range, queryExtraction.range);
+                Objects.equals(range, queryExtraction.range) &&
+                Objects.equals(boundingBox, queryExtraction.boundingBox);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(term, range);
+            return Objects.hash(term, range, boundingBox);
         }
 
         @Override
@@ -747,6 +791,7 @@ final class QueryAnalyzer {
             return "QueryExtraction{" +
                 "term=" + term +
                 ",range=" + range +
+                ",boundingBox=" + boundingBox +
                 '}';
         }
     }
@@ -811,6 +856,39 @@ final class QueryAnalyzer {
                 ", fieldName='" + fieldName + '\'' +
                 ", interval=" + interval +
                 '}';
+        }
+    }
+
+    static class BoundingBox {
+
+        final Rectangle rectangle;
+        final double diagonal;
+
+        BoundingBox(Rectangle r) {
+            this.rectangle = r;
+            // This way the percolator prefers smaller bounding boxes over larger bounding boxes, because smaller bounding
+            // boxes tend to match with less documents than bigger bounding boxes.
+            this.diagonal = GeoDistance.PLANE.calculate(r.minLat, r.minLon, r.maxLat, r.maxLon, DistanceUnit.METERS);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            BoundingBox that = (BoundingBox) o;
+            return Objects.equals(rectangle, that.rectangle);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(rectangle);
+        }
+
+        @Override
+        public String toString() {
+            return "BoundingBox{" +
+                    "rectangle=" + rectangle +
+                    '}';
         }
     }
 

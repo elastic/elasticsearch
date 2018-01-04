@@ -20,9 +20,10 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.LatLonBoundingBox;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
@@ -43,7 +44,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -120,6 +121,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String EXTRACTION_RESULT_FIELD_NAME = "extraction_result";
     static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
     static final String RANGE_FIELD_NAME = "range_field";
+    static final String BOUNDING_BOX_FIELD_NAME = "bbox_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
     static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
@@ -147,11 +149,14 @@ public class PercolatorFieldMapper extends FieldMapper {
             fieldType.rangeField = rangeFieldMapper.fieldType();
             NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
+            FieldMapper boundingBoxField = createBoundingBoxField(context);
+            fieldType.boundingBoxField = boundingBoxField.fieldType();
             context.path().remove();
             setupFieldType(context);
             return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
-                    extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper);
+                    extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper,
+                    boundingBoxField);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
@@ -188,6 +193,13 @@ public class PercolatorFieldMapper extends FieldMapper {
             return builder.build(context);
         }
 
+        static FieldMapper createBoundingBoxField(BuilderContext context) {
+            // TODO: What field mapper class to use that naturally maps with LatLonBoundingBox?
+            // Right now it doesn't matter, because it is only used for naming the bbox field
+            GeoShapeFieldMapper.Builder builder = new GeoShapeFieldMapper.Builder(BOUNDING_BOX_FIELD_NAME);
+            return builder.build(context);
+        }
+
     }
 
     static class TypeParser implements FieldMapper.TypeParser {
@@ -206,6 +218,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         MappedFieldType minimumShouldMatchField;
 
         RangeFieldMapper.RangeFieldType rangeField;
+        MappedFieldType boundingBoxField;
 
         FieldType() {
             setIndexOptions(IndexOptions.NONE);
@@ -220,6 +233,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             queryBuilderField = ref.queryBuilderField;
             rangeField = ref.rangeField;
             minimumShouldMatchField = ref.minimumShouldMatchField;
+            boundingBoxField = ref.boundingBoxField;
         }
 
         @Override
@@ -269,9 +283,11 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, Version indexVersion,
                                                           DocumentMapper docMapper) throws IOException {
-            Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader, docMapper);
-            List<BytesRef> extractedTerms = t.v1();
-            Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
+            Object[] t = extractTermsAndRangesAndBBoxes(indexReader, docMapper);
+            @SuppressWarnings("unchecked")
+            List<BytesRef> extractedTerms = (List<BytesRef>) t[0];
+            @SuppressWarnings("unchecked")
+            Map<String, List<byte[]>> encodedPointValuesByField = (Map<String, List<byte[]>>) t[1];
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
             boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <=
                 BooleanQuery.getMaxClauseCount();
@@ -286,6 +302,13 @@ public class PercolatorFieldMapper extends FieldMapper {
                 subQueries.add(query);
             }
 
+            Rectangle bbox = (Rectangle) t[2];
+            if (bbox != null) {
+                Query query = LatLonBoundingBox.newIntersectsQuery(boundingBoxField.name(), bbox.minLat, bbox.minLon,
+                        bbox.maxLat, bbox.maxLon);
+                subQueries.add(query);
+            }
+
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
             if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(Version.V_6_1_0)) {
                 LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
@@ -294,7 +317,9 @@ public class PercolatorFieldMapper extends FieldMapper {
                 }
                 candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
             } else {
-                candidateQuery.add(new TermInSetQuery(queryTermsField.name(), extractedTerms), BooleanClause.Occur.SHOULD);
+                if (extractedTerms.isEmpty() == false) {
+                    candidateQuery.add(new TermInSetQuery(queryTermsField.name(), extractedTerms), BooleanClause.Occur.SHOULD);
+                }
                 for (Query subQuery : subQueries) {
                     candidateQuery.add(subQuery, BooleanClause.Occur.SHOULD);
                 }
@@ -308,10 +333,10 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader,
-                                                                               DocumentMapper docMapper) throws IOException {
+        Object[] extractTermsAndRangesAndBBoxes(IndexReader indexReader, DocumentMapper docMapper) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
+            List<Rectangle> bboxes = new ArrayList<>();
 
             LeafReader reader = indexReader.leaves().get(0).reader();
             for (FieldInfo info : reader.getFieldInfos()) {
@@ -336,25 +361,31 @@ public class PercolatorFieldMapper extends FieldMapper {
                 } else if (info.getPointDimensionCount() == 2) {
                     FieldMapper fieldMapper = docMapper.mappers().getMapper(info.name);
                     if (fieldMapper instanceof GeoPointFieldMapper) {
-                        List<byte[]> encodedPointValues = new ArrayList<>();
                         PointValues values = reader.getPointValues(info.name);
-                        encodedPointValuesByField.put(info.name, encodedPointValues);
-
                         double minLat = GeoEncodingUtils.decodeLatitude(values.getMinPackedValue(), 0);
                         double minLong = GeoEncodingUtils.decodeLongitude(values.getMinPackedValue(), Integer.BYTES);
-                        byte[] encodedMin = new byte[Long.BYTES];
-                        LongPoint.encodeDimension(MortonEncoder.encode(minLat, minLong), encodedMin, 0);
-                        encodedPointValues.add(encodedMin);
-
                         double maxLat = GeoEncodingUtils.decodeLatitude(values.getMaxPackedValue(), 0);
                         double maxLong = GeoEncodingUtils.decodeLongitude(values.getMaxPackedValue(), Integer.BYTES);
-                        byte[] encodedMax = new byte[Long.BYTES];
-                        LongPoint.encodeDimension(MortonEncoder.encode(maxLat, maxLong), encodedMax, 0);
-                        encodedPointValues.add(encodedMax);
+                        bboxes.add(new Rectangle(minLat, maxLat, minLong, maxLong));
                     }
                 }
             }
-            return new Tuple<>(extractedTerms, encodedPointValuesByField);
+
+            Rectangle encapsulatingBBox = null;
+            if (bboxes.isEmpty() == false) {
+                double minLat = Double.POSITIVE_INFINITY;
+                double maxLat = Double.NEGATIVE_INFINITY;
+                double minLon = Double.POSITIVE_INFINITY;
+                double maxLon = Double.NEGATIVE_INFINITY;
+                for (Rectangle b : bboxes) {
+                    minLat = Math.min(b.minLat, minLat);
+                    maxLat = Math.max(b.maxLat, maxLat);
+                    minLon = Math.min(b.minLon, minLon);
+                    maxLon = Math.max(b.maxLon, maxLon);
+                }
+                encapsulatingBBox = new Rectangle(minLat, maxLat, minLon, maxLon);
+            }
+            return new Object[]{extractedTerms, encodedPointValuesByField, encapsulatingBBox};
         }
 
     }
@@ -367,13 +398,14 @@ public class PercolatorFieldMapper extends FieldMapper {
     private NumberFieldMapper minimumShouldMatchFieldMapper;
 
     private RangeFieldMapper rangeFieldMapper;
+    private FieldMapper boundingBoxFieldMapper;
 
     PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                           Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
                           Supplier<QueryShardContext> queryShardContext,
                           KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                           BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
-                          NumberFieldMapper minimumShouldMatchFieldMapper) {
+                          NumberFieldMapper minimumShouldMatchFieldMapper, FieldMapper boundingBoxFieldMapper) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
@@ -382,6 +414,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.minimumShouldMatchFieldMapper = minimumShouldMatchFieldMapper;
         this.mapUnmappedFieldAsText = getMapUnmappedFieldAsText(indexSettings);
         this.rangeFieldMapper = rangeFieldMapper;
+        this.boundingBoxFieldMapper = boundingBoxFieldMapper;
     }
 
     private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
@@ -409,9 +442,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         BinaryFieldMapper queryBuilderUpdated = (BinaryFieldMapper) queryBuilderField.updateFieldType(fullNameToFieldType);
         RangeFieldMapper rangeFieldMapperUpdated = (RangeFieldMapper) rangeFieldMapper.updateFieldType(fullNameToFieldType);
         NumberFieldMapper msmFieldMapperUpdated = (NumberFieldMapper) minimumShouldMatchFieldMapper.updateFieldType(fullNameToFieldType);
+        FieldMapper boundingBoxFieldMapperUpdated = boundingBoxFieldMapper.updateFieldType(fullNameToFieldType);
 
-        if (updated == this && queryTermsUpdated == queryTermsField && extractionResultUpdated == extractionResultField
-                && queryBuilderUpdated == queryBuilderField && rangeFieldMapperUpdated == rangeFieldMapper) {
+        if (updated == this && queryTermsUpdated == queryTermsField && extractionResultUpdated == extractionResultField &&
+                queryBuilderUpdated == queryBuilderField && rangeFieldMapperUpdated == rangeFieldMapper &&
+                boundingBoxFieldMapperUpdated == boundingBoxFieldMapper) {
             return this;
         }
         if (updated == this) {
@@ -422,6 +457,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         updated.queryBuilderField = queryBuilderUpdated;
         updated.rangeFieldMapper = rangeFieldMapperUpdated;
         updated.minimumShouldMatchFieldMapper = msmFieldMapperUpdated;
+        updated.boundingBoxFieldMapper = boundingBoxFieldMapperUpdated;
         return updated;
     }
 
@@ -493,6 +529,9 @@ public class PercolatorFieldMapper extends FieldMapper {
                 byte[] min = extraction.range.lowerPoint;
                 byte[] max = extraction.range.upperPoint;
                 doc.add(new BinaryRange(rangeFieldMapper.name(), encodeRange(extraction.range.fieldName, min, max)));
+            } else if (extraction.boundingBox != null) {
+                Rectangle bbox = extraction.boundingBox.rectangle;
+                doc.add(new LatLonBoundingBox(boundingBoxFieldMapper.name(), bbox.minLat, bbox.minLon, bbox.maxLat, bbox.maxLon));
             }
         }
 
@@ -550,7 +589,8 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Arrays.<Mapper>asList(
-                queryTermsField, extractionResultField, queryBuilderField, minimumShouldMatchFieldMapper, rangeFieldMapper
+                queryTermsField, extractionResultField, queryBuilderField, minimumShouldMatchFieldMapper, rangeFieldMapper,
+                boundingBoxFieldMapper
         ).iterator();
     }
 

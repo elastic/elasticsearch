@@ -27,6 +27,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.BoundingBoxQueryWrapper;
@@ -53,7 +54,6 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -1019,14 +1019,13 @@ public class QueryAnalyzerTests extends ESTestCase {
         List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
         assertThat(ranges.size(), equalTo(1));
         assertNull(ranges.get(0).term);
-        assertEquals("_field", ranges.get(0).range.fieldName);
+        assertNull(ranges.get(0).range);
+        assertNotNull(ranges.get(0).boundingBox);
 
-        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
-        assertEquals(1, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(1, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
-        assertEquals(2, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(2, MortonEncoder.decodeLongitude(m), 0.01);
+        assertEquals(1, ranges.get(0).boundingBox.rectangle.minLat, 0.01);
+        assertEquals(1, ranges.get(0).boundingBox.rectangle.minLon, 0.01);
+        assertEquals(2, ranges.get(0).boundingBox.rectangle.maxLat, 0.01);
+        assertEquals(2, ranges.get(0).boundingBox.rectangle.maxLon, 0.01);
     }
 
     public void testLatLonPointDistanceQuery() {
@@ -1036,14 +1035,13 @@ public class QueryAnalyzerTests extends ESTestCase {
         List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
         assertThat(ranges.size(), equalTo(1));
         assertNull(ranges.get(0).term);
-        assertEquals("_field", ranges.get(0).range.fieldName);
+        assertNull(ranges.get(0).range);
+        assertNotNull(ranges.get(0).boundingBox);
 
-        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
-        assertEquals(7.30, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(7.26, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
-        assertEquals(12.69, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(12.73, MortonEncoder.decodeLongitude(m), 0.01);
+        assertEquals(7.30, ranges.get(0).boundingBox.rectangle.minLat, 0.01);
+        assertEquals(7.26, ranges.get(0).boundingBox.rectangle.minLon, 0.01);
+        assertEquals(12.69, ranges.get(0).boundingBox.rectangle.maxLat, 0.01);
+        assertEquals(12.73, ranges.get(0).boundingBox.rectangle.maxLon, 0.01);
     }
 
     public void testLatLonPointInPolygonQueryQuery() {
@@ -1054,14 +1052,13 @@ public class QueryAnalyzerTests extends ESTestCase {
         List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
         assertThat(ranges.size(), equalTo(1));
         assertNull(ranges.get(0).term);
-        assertEquals("_field", ranges.get(0).range.fieldName);
+        assertNull(ranges.get(0).range);
+        assertNotNull(ranges.get(0).boundingBox);
 
-        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
-        assertEquals(1.1, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(2.4, MortonEncoder.decodeLongitude(m), 0.01);
-        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
-        assertEquals(1.3, MortonEncoder.decodeLatitude(m), 0.01);
-        assertEquals(2.6, MortonEncoder.decodeLongitude(m), 0.01);
+        assertEquals(1.1, ranges.get(0).boundingBox.rectangle.minLat, 0.01);
+        assertEquals(2.4, ranges.get(0).boundingBox.rectangle.minLon, 0.01);
+        assertEquals(1.3, ranges.get(0).boundingBox.rectangle.maxLat, 0.01);
+        assertEquals(2.6, ranges.get(0).boundingBox.rectangle.maxLon, 0.01);
     }
 
     public void testPointRangeQuerySelectShortestRange() {
@@ -1111,28 +1108,61 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals("_field2", new ArrayList<>(result.extractions).get(0).range.fieldName);
     }
 
-    public void testGeoQueriesSelectSmallestRectangle() {
+    public void testGeoQueriesSelectRectangle() {
         Result result = analyze(new BooleanQuery.Builder()
-            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field3", 10, 10, 1), "_field3", 10, 10, 1), MUST)
-            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field2", 10, 10, 10), "_field2", 10, 10, 10), MUST)
-            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field1", 10, 10, 100), "_field1", 10, 10, 100), MUST)
-            .build(), Version.CURRENT);
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field3", 10, 10, 1000), "_field3", 10, 10, 1000), MUST)
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field2", 10, 10, 10000), "_field2", 10, 10, 10000), MUST)
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field1", 10, 10, 100000), "_field1", 10, 10, 100000), MUST)
+            .build(), Version.V_6_0_0);
         assertFalse(result.verified);
-        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
-        assertThat(ranges.size(), equalTo(1));
-        assertNull(ranges.get(0).term);
-        assertEquals("_field3", ranges.get(0).range.fieldName);
+        List<QueryAnalyzer.QueryExtraction> extractions = new ArrayList<>(result.extractions);
+        assertThat(extractions.size(), equalTo(1));
+        assertNull(extractions.get(0).term);
+        assertNull(extractions.get(0).range);
+        assertEquals(Rectangle.fromPointDistance(10, 10, 1000), extractions.get(0).boundingBox.rectangle);
+
+        result = analyze(new BooleanQuery.Builder()
+                .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field3", 10, 10, 1000), "_field3", 10, 10, 1000), MUST)
+                .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field2", 10, 10, 10000), "_field2", 10, 10, 10000), MUST)
+                .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field1", 10, 10, 100000), "_field1", 10, 10, 100000), MUST)
+                .build(), Version.CURRENT);
+        assertFalse(result.verified);
+        extractions = new ArrayList<>(result.extractions);
+        assertThat(extractions.size(), equalTo(3));
+        for (QueryExtraction extraction : extractions) {
+            assertNull(extraction.term);
+            assertNull(extraction.range);
+            assertNotNull(extraction.boundingBox);
+        }
 
         result = analyze(new BooleanQuery.Builder()
             .add(LatLonPoint.newBoxQuery("_field1", 52.0, 53.0, 4.0, 5.0), MUST)
             .add(LatLonPoint.newBoxQuery("_field2", 52.0, 52.1, 4.4, 4.5), MUST)
             .add(LatLonPoint.newBoxQuery("_field3", 52.0, 62.0, 4.0, 6.0), MUST)
-            .build(), Version.CURRENT);
+            .build(), Version.V_6_0_0);
         assertFalse(result.verified);
-        ranges = new ArrayList<>(result.extractions);
-        assertThat(ranges.size(), equalTo(1));
-        assertNull(ranges.get(0).term);
-        assertEquals("_field2", ranges.get(0).range.fieldName);
+        extractions = new ArrayList<>(result.extractions);
+        assertThat(extractions.size(), equalTo(1));
+        assertNull(extractions.get(0).term);
+        assertNull(extractions.get(0).range);
+        assertEquals(52.0, extractions.get(0).boundingBox.rectangle.minLat, 0.01);
+        assertEquals(52.1, extractions.get(0).boundingBox.rectangle.maxLat, 0.01);
+        assertEquals(4.4, extractions.get(0).boundingBox.rectangle.minLon, 0.01);
+        assertEquals(4.5, extractions.get(0).boundingBox.rectangle.maxLon, 0.01);
+
+        result = analyze(new BooleanQuery.Builder()
+                .add(LatLonPoint.newBoxQuery("_field1", 52.0, 53.0, 4.0, 5.0), MUST)
+                .add(LatLonPoint.newBoxQuery("_field2", 52.0, 52.1, 4.4, 4.5), MUST)
+                .add(LatLonPoint.newBoxQuery("_field3", 52.0, 62.0, 4.0, 6.0), MUST)
+                .build(), Version.CURRENT);
+        assertFalse(result.verified);
+        extractions = new ArrayList<>(result.extractions);
+        assertThat(extractions.size(), equalTo(3));
+        for (QueryExtraction extraction : extractions) {
+            assertNull(extraction.term);
+            assertNull(extraction.range);
+            assertNotNull(extraction.boundingBox);
+        }
     }
 
     public void testPointRangeQuerySelectRanges() {

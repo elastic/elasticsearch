@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.repository.url;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -34,14 +35,19 @@ import java.util.Map;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            URLRepository.ALLOWED_URLS_SETTING,
-            URLRepository.REPOSITORIES_URL_SETTING,
-            URLRepository.SUPPORTED_PROTOCOLS_SETTING
-        );
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    URLRepository.ALLOWED_URLS_SETTING,
+                    URLRepository.REPOSITORIES_URL_SETTING,
+                    URLRepository.SUPPORTED_PROTOCOLS_SETTING
+                );
+            }
+        };
     }
+
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {

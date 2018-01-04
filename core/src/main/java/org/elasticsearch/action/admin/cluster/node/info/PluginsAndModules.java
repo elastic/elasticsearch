@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class PluginsAndModules implements Writeable, ToXContentFragment {
         Collections.sort(plugins, (p1, p2) -> p1.getName().compareTo(p2.getName()));
         return plugins;
     }
-    
+
     /**
      * Returns an ordered list based on modules name
      */
@@ -71,14 +72,6 @@ public class PluginsAndModules implements Writeable, ToXContentFragment {
         List<PluginInfo> modules = new ArrayList<>(this.modules);
         Collections.sort(modules, (p1, p2) -> p1.getName().compareTo(p2.getName()));
         return modules;
-    }
-
-    public void addPlugin(PluginInfo info) {
-        plugins.add(info);
-    }
-    
-    public void addModule(PluginInfo info) {
-        modules.add(info);
     }
 
     @Override

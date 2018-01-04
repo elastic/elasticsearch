@@ -65,10 +65,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 public class GceDiscoverTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(GceMetadataService.GCE_HOST, GceInstancesServiceImpl.GCE_ROOT_URL,
-                GceInstancesServiceImpl.GCE_VALIDATE_CERTIFICATES);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(GceMetadataService.GCE_HOST, GceInstancesServiceImpl.GCE_ROOT_URL,
+                        GceInstancesServiceImpl.GCE_VALIDATE_CERTIFICATES);
+                }
+            };
         }
     }
 

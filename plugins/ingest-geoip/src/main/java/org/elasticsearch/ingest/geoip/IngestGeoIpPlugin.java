@@ -24,6 +24,7 @@ import com.maxmind.db.NodeCache;
 import com.maxmind.geoip2.DatabaseReader;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -50,9 +51,14 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
 
     private Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(CACHE_SIZE);
+
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(CACHE_SIZE);
+            }
+        };
     }
 
     @Override

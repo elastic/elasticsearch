@@ -104,8 +104,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
         Builder settings = Settings.builder()
                 .put(indexSettings())
-                .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
-                .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
+                .put(MockEngineFactoryPlugin.EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
+                .put(MockEngineFactoryPlugin.EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
             .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build());
         assertAcked(prepareCreate("test")
@@ -158,25 +158,12 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
     }
 
 
-    public static final String EXCEPTION_TOP_LEVEL_RATIO_KEY = "index.engine.exception.ratio.top";
-    public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
+
 
 
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
         public static class TestPlugin extends MockEngineFactoryPlugin {
-            public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
-                Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
-            public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
-                Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
-            @Override
-            public List<Setting<?>> getSettings() {
-                List<Setting<?>> settings = new ArrayList<>();
-                settings.addAll(super.getSettings());
-                settings.add(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                settings.add(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
-                return settings;
-            }
             @Override
             protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
                 return RandomExceptionDirectoryReaderWrapper.class;
@@ -192,8 +179,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
             ThrowingSubReaderWrapper(Settings settings) {
                 final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
-                this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
-                this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
+                this.topLevelRatio = settings.getAsDouble(MockEngineFactoryPlugin.EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
+                this.lowLevelRatio = settings.getAsDouble(MockEngineFactoryPlugin.EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);
             }
 

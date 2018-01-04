@@ -104,10 +104,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             });
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(DUMMY_SETTING, DUMMY_ACCOUNT_PW, DUMMY_ACCOUNT_USER,
-                DUMMY_ACCOUNT_PW_CLUSTER, DUMMY_ACCOUNT_USER_CLUSTER);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(DUMMY_SETTING, DUMMY_ACCOUNT_PW, DUMMY_ACCOUNT_USER,
+                        DUMMY_ACCOUNT_PW_CLUSTER, DUMMY_ACCOUNT_USER_CLUSTER);
+                }
+            };
         }
     }
 
@@ -118,9 +122,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public void onIndexModule(IndexModule indexModule) {
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(FINAL_SETTING);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Collections.singletonList(FINAL_SETTING);
+                }
+            };
         }
     }
 

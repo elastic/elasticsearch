@@ -23,6 +23,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
@@ -40,9 +41,21 @@ import java.util.List;
  */
 public class MockEngineFactoryPlugin extends Plugin {
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE, MockEngineSupport.WRAP_READER_RATIO);
+    public static final String EXCEPTION_TOP_LEVEL_RATIO_KEY = "index.engine.exception.ratio.top";
+    public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
+    public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
+        Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Setting.Property.IndexScope);
+    public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
+        Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Setting.Property.IndexScope);
+
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE, MockEngineSupport.WRAP_READER_RATIO,
+                    EXCEPTION_LOW_LEVEL_RATIO_SETTING, EXCEPTION_TOP_LEVEL_RATIO_SETTING);
+            }
+        };
     }
 
     @Override

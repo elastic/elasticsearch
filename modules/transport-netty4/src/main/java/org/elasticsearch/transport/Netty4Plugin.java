@@ -51,29 +51,35 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-            Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
-            Netty4Transport.WORKER_COUNT,
-            Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
-            Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
-            Netty4Transport.NETTY_RECEIVE_PREDICTOR_MAX,
-            Netty4Transport.NETTY_BOSS_COUNT
-        );
+
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
+                    Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
+                    Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+                    Netty4Transport.WORKER_COUNT,
+                    Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
+                    Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
+                    Netty4Transport.NETTY_RECEIVE_PREDICTOR_MAX,
+                    Netty4Transport.NETTY_BOSS_COUNT
+                );
+            }
+            @Override
+            public Settings getSettings() {
+                return Settings.builder()
+                    // here we set the netty4 transport and http transport as the default. This is a set once setting
+                    // ie. if another plugin does that as well the server will fail - only one default network can exist!
+                    .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
+                    .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
+                    .build();
+            }
+        };
     }
 
-    @Override
-    public Settings additionalSettings() {
-        return Settings.builder()
-                // here we set the netty4 transport and http transport as the default. This is a set once setting
-                // ie. if another plugin does that as well the server will fail - only one default network can exist!
-                .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
-                .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
-                .build();
-    }
+
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -95,18 +96,11 @@ public class TribeUnitTests extends ESTestCase {
     }
 
     public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
-
         public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
             super(settings);
         }
-
-        @Override
-        public Settings additionalSettings() {
-            if (settings.getGroups("tribe", true).isEmpty()) {
-                return super.additionalSettings();
-            } else {
-                return Settings.EMPTY;
-            }
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return TribeAwareTestZenDiscoveryPlugin.getPluginSettings(settings);
         }
     }
 

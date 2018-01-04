@@ -129,8 +129,12 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, createStorageService(env)));
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(GoogleCloudStorageService.CREDENTIALS_FILE_SETTING);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Collections.singletonList(GoogleCloudStorageService.CREDENTIALS_FILE_SETTING);
+            }
+        };
     }
 }

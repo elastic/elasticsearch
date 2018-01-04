@@ -72,17 +72,22 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
         return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(AzureComputeService.Discovery.REFRESH_SETTING,
-                            AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING,
-                            AzureComputeService.Management.KEYSTORE_PATH_SETTING,
-                            AzureComputeService.Management.KEYSTORE_TYPE_SETTING,
-                            AzureComputeService.Management.SUBSCRIPTION_ID_SETTING,
-                            AzureComputeService.Management.SERVICE_NAME_SETTING,
-                            AzureComputeService.Discovery.HOST_TYPE_SETTING,
-                            AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING,
-                            AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING,
-                            AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
+
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(AzureComputeService.Discovery.REFRESH_SETTING,
+                    AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING,
+                    AzureComputeService.Management.KEYSTORE_PATH_SETTING,
+                    AzureComputeService.Management.KEYSTORE_TYPE_SETTING,
+                    AzureComputeService.Management.SUBSCRIPTION_ID_SETTING,
+                    AzureComputeService.Management.SERVICE_NAME_SETTING,
+                    AzureComputeService.Discovery.HOST_TYPE_SETTING,
+                    AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING,
+                    AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING,
+                    AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
+            }
+        };
     }
 }

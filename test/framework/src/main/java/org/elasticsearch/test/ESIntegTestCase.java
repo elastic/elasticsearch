@@ -1931,9 +1931,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static final class TestSeedPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(INDEX_TEST_SEED_SETTING);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(INDEX_TEST_SEED_SETTING);
+                }
+            };
         }
     }
 

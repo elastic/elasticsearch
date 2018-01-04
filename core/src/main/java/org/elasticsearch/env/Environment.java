@@ -90,20 +90,13 @@ public class Environment {
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
     public Environment(final Settings settings, final Path configPath) {
-        final Path homeFile;
-        if (PATH_HOME_SETTING.exists(settings)) {
-            homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
-        } else {
-            throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
-        }
-
+        final Path homeFile = resolveHomeFile(settings);
         if (configPath != null) {
             configFile = configPath.normalize();
         } else {
             configFile = homeFile.resolve("config");
         }
-
-        pluginsFile = homeFile.resolve("plugins");
+        pluginsFile = resolvePluginFile(homeFile);
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -325,5 +318,24 @@ public class Environment {
 
     private static void assertEquals(Object actual, Object expected, String name) {
         assert Objects.deepEquals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
+    }
+
+    private static Path resolvePluginFile(Path homeFile) {
+        return homeFile.resolve("plugins");
+    }
+
+    private static Path resolveHomeFile(Settings settings) {
+        if (PATH_HOME_SETTING.exists(settings)) {
+            return PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
+        } else {
+            throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
+        }
+    }
+
+    /**
+     * Resolves the plugin file / directory from the given settings.
+     */
+    public static Path resolvePluginFile(Settings settings) {
+        return resolvePluginFile(resolveHomeFile(settings));
     }
 }

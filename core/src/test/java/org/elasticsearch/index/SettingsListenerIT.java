@@ -45,10 +45,13 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     public static class SettingsListenerPlugin extends Plugin {
         private final SettingsTestingService service = new SettingsTestingService();
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(SettingsTestingService.VALUE);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(SettingsTestingService.VALUE);
+                }
+            };
         }
 
         @Override

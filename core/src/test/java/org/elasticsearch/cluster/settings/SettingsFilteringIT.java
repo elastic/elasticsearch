@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.index.SettingsListenerIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -53,22 +54,28 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
             Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
 
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public Settings getSettings() {
+                    return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
+                }
+
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(SOME_NODE_SETTING,
+                        SOME_OTHER_NODE_SETTING,
+                        Setting.groupSetting("index.filter_test.", Property.IndexScope));
+                }
+
+                @Override
+                public List<String> getSettingsFilter() {
+                    return Arrays.asList("index.filter_test.foo", "index.filter_test.bar*");
+                }
+            };
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(SOME_NODE_SETTING,
-            SOME_OTHER_NODE_SETTING,
-            Setting.groupSetting("index.filter_test.", Property.IndexScope));
-        }
 
-        @Override
-        public List<String> getSettingsFilter() {
-            return Arrays.asList("index.filter_test.foo", "index.filter_test.bar*");
-        }
     }
 
     public void testSettingsFiltering() {

@@ -93,88 +93,92 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
         tribeService.startNodes();
     }
 
-    @Override
-    public Settings additionalSettings() {
-        if (TribeService.TRIBE_NAME_SETTING.exists(settings) == false) {
-            Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
-            if (nodesSettings.isEmpty()) {
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public Settings getSettings() {
+                if (TribeService.TRIBE_NAME_SETTING.exists(settings) == false) {
+                    Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
+                    if (nodesSettings.isEmpty()) {
+                        return Settings.EMPTY;
+                    }
+                    Settings.Builder sb = Settings.builder();
+
+                    if (Node.NODE_MASTER_SETTING.exists(settings)) {
+                        if (Node.NODE_MASTER_SETTING.get(settings)) {
+                            throw new IllegalArgumentException("node cannot be tribe as well as master node");
+                        }
+                    } else {
+                        sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
+                    }
+                    if (Node.NODE_DATA_SETTING.exists(settings)) {
+                        if (Node.NODE_DATA_SETTING.get(settings)) {
+                            throw new IllegalArgumentException("node cannot be tribe as well as data node");
+                        }
+                    } else {
+                        sb.put(Node.NODE_DATA_SETTING.getKey(), false);
+                    }
+                    if (Node.NODE_INGEST_SETTING.exists(settings)) {
+                        if (Node.NODE_INGEST_SETTING.get(settings)) {
+                            throw new IllegalArgumentException("node cannot be tribe as well as ingest node");
+                        }
+                    } else {
+                        sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+                    }
+
+                    if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
+                        sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+                    }
+                    sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
+                    // nothing is going to be discovered, since no master will be elected
+                    sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
+                    if (sb.get("cluster.name") == null) {
+                        sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
+                    }
+                    sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
+
+                    return sb.build();
+                } else {
+                    for (String s : settings.keySet()) {
+                        if (s.startsWith("tribe.") && !s.equals(TribeService.TRIBE_NAME_SETTING.getKey())) {
+                            throw new IllegalArgumentException("tribe cannot contain inner tribes: " + s);
+                        }
+                    }
+                }
                 return Settings.EMPTY;
             }
-            Settings.Builder sb = Settings.builder();
 
-            if (Node.NODE_MASTER_SETTING.exists(settings)) {
-                if (Node.NODE_MASTER_SETTING.get(settings)) {
-                    throw new IllegalArgumentException("node cannot be tribe as well as master node");
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                List<Setting<?>> defaults = Arrays.asList(
+                    TribeService.BLOCKS_METADATA_SETTING,
+                    TribeService.BLOCKS_WRITE_SETTING,
+                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
+                    TribeService.BLOCKS_READ_INDICES_SETTING,
+                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
+                    TribeService.ON_CONFLICT_SETTING,
+                    TribeService.TRIBE_NAME_SETTING
+                );
+                Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
+                if (nodesSettings.isEmpty()) {
+                    return defaults;
                 }
-            } else {
-                sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
-            }
-            if (Node.NODE_DATA_SETTING.exists(settings)) {
-                if (Node.NODE_DATA_SETTING.get(settings)) {
-                    throw new IllegalArgumentException("node cannot be tribe as well as data node");
+                List<Setting<?>> allSettings = new ArrayList<>(defaults);
+                for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
+                    String prefix = "tribe." + entry.getKey() + ".";
+                    if (TribeService.TRIBE_SETTING_KEYS.stream().anyMatch(s -> s.startsWith(prefix))) {
+                        continue;
+                    }
+                    // create dummy setting just so that setting validation does not complain, these settings are going to be validated
+                    // again by the SettingsModule of the nested tribe node.
+                    Setting<String> setting = Setting.prefixKeySetting(prefix, (key) -> new Setting<>(key, "", Function.identity(),
+                        Setting.Property.NodeScope));
+                    allSettings.add(setting);
                 }
-            } else {
-                sb.put(Node.NODE_DATA_SETTING.getKey(), false);
-            }
-            if (Node.NODE_INGEST_SETTING.exists(settings)) {
-                if (Node.NODE_INGEST_SETTING.get(settings)) {
-                    throw new IllegalArgumentException("node cannot be tribe as well as ingest node");
-                }
-            } else {
-                sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-            }
 
-            if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
-                sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+                return allSettings;
             }
-            sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
-            // nothing is going to be discovered, since no master will be elected
-            sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
-            if (sb.get("cluster.name") == null) {
-                sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
-            }
-            sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
-
-            return sb.build();
-        } else {
-            for (String s : settings.keySet()) {
-                if (s.startsWith("tribe.") && !s.equals(TribeService.TRIBE_NAME_SETTING.getKey())) {
-                    throw new IllegalArgumentException("tribe cannot contain inner tribes: " + s);
-                }
-            }
-        }
-        return Settings.EMPTY;
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        List<Setting<?>> defaults = Arrays.asList(
-            TribeService.BLOCKS_METADATA_SETTING,
-            TribeService.BLOCKS_WRITE_SETTING,
-            TribeService.BLOCKS_WRITE_INDICES_SETTING,
-            TribeService.BLOCKS_READ_INDICES_SETTING,
-            TribeService.BLOCKS_METADATA_INDICES_SETTING,
-            TribeService.ON_CONFLICT_SETTING,
-            TribeService.TRIBE_NAME_SETTING
-        );
-        Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
-        if (nodesSettings.isEmpty()) {
-            return defaults;
-        }
-        List<Setting<?>> allSettings = new ArrayList<>(defaults);
-        for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            String prefix = "tribe." + entry.getKey() + ".";
-            if (TribeService.TRIBE_SETTING_KEYS.stream().anyMatch(s -> s.startsWith(prefix))) {
-                continue;
-            }
-            // create dummy setting just so that setting validation does not complain, these settings are going to be validated
-            // again by the SettingsModule of the nested tribe node.
-            Setting<String> setting = Setting.prefixKeySetting(prefix, (key) -> new Setting<>(key, "", Function.identity(),
-                Setting.Property.NodeScope));
-            allSettings.add(setting);
-        }
-
-        return allSettings;
+        };
     }
 
 }

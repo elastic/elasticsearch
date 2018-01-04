@@ -89,19 +89,21 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         return new GceNameResolver(settings, new GceMetadataService(settings));
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            // Register GCE settings
-            GceInstancesService.PROJECT_SETTING,
-            GceInstancesService.ZONE_SETTING,
-            GceUnicastHostsProvider.TAGS_SETTING,
-            GceInstancesService.REFRESH_SETTING,
-            GceInstancesService.RETRY_SETTING,
-            GceInstancesService.MAX_WAIT_SETTING);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    // Register GCE settings
+                    GceInstancesService.PROJECT_SETTING,
+                    GceInstancesService.ZONE_SETTING,
+                    GceUnicastHostsProvider.TAGS_SETTING,
+                    GceInstancesService.REFRESH_SETTING,
+                    GceInstancesService.RETRY_SETTING,
+                    GceInstancesService.MAX_WAIT_SETTING);
+            }
+        };
     }
-
-
 
     @Override
     public void close() throws IOException {

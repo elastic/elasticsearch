@@ -59,22 +59,35 @@ import static org.hamcrest.Matchers.instanceOf;
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public Settings getSettings() {
+                    return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
+                }
+            };
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "2").build();
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public Settings getSettings() {
+                    return Settings.builder().put("foo.bar", "2").build();
+                }
+            };
         }
     }
 
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, classpathPlugins);
+        return factory.create(factory.updatedSettings(), null);
+    }
+
+    static PluginsService.PluginServiceFactory newPluginsServiceFactort(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+        return new PluginsService.PluginServiceFactory(settings, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
     }
 
     public void testAdditionalSettings() {
@@ -82,8 +95,8 @@ public class PluginsServiceTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = service.updatedSettings();
+        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, AdditionalSettingsPlugin1.class);
+        Settings newSettings = factory.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
@@ -92,9 +105,9 @@ public class PluginsServiceTests extends ESTestCase {
     public void testAdditionalSettingsClash() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
+        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, AdditionalSettingsPlugin1.class,  AdditionalSettingsPlugin2.class);
         try {
-            service.updatedSettings();
+            factory.updatedSettings();
             fail("Expected exception when building updated settings");
         } catch (IllegalArgumentException e) {
             String msg = e.getMessage();
@@ -286,7 +299,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
         );
@@ -297,13 +310,13 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Arrays.asList("bar", "other"), false, false);
-        bundles.add(new PluginsService.Bundle(info, pluginDir));
+        bundles.add(new PluginsService.Bundle(info, pluginDir, false));
         PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("baz"), false, false);
-        bundles.add(new PluginsService.Bundle(info2, pluginDir));
+        bundles.add(new PluginsService.Bundle(info2, pluginDir, false));
         PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
-        bundles.add(new PluginsService.Bundle(info3, pluginDir));
+        bundles.add(new PluginsService.Bundle(info3, pluginDir, false));
         PluginInfo info4 = new PluginInfo("other", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        bundles.add(new PluginsService.Bundle(info4, pluginDir));
+        bundles.add(new PluginsService.Bundle(info4, pluginDir, false));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
         assertEquals("Cycle found in plugin dependencies: foo -> bar -> baz -> foo", e.getMessage());
@@ -312,7 +325,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir, false);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
         assertThat(sortedBundles, Matchers.contains(bundle));
     }
@@ -321,13 +334,13 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
         PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir, false);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir, false);
         bundles.add(bundle2);
         PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
+        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir, false);
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
@@ -336,7 +349,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("dne"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
         );
@@ -347,16 +360,16 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
         PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir, false);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
-        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir, false);
         bundles.add(bundle2);
         PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
-        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
+        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir, false);
         bundles.add(bundle3);
         PluginInfo info4 = new PluginInfo("common", "desc", "1.0", "MyPlugin", Collections.singletonList("grandparent"), false, false);
-        PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
+        PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir, false);
         bundles.add(bundle4);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle4, bundle2, bundle3));
@@ -366,10 +379,10 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
         PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir, false);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
-        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir, false);
         bundles.add(bundle2);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2));
@@ -427,7 +440,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
@@ -445,7 +458,7 @@ public class PluginsServiceTests extends ESTestCase {
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
@@ -461,7 +474,7 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, new HashMap<>()));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
@@ -479,7 +492,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
@@ -501,7 +514,7 @@ public class PluginsServiceTests extends ESTestCase {
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
@@ -523,7 +536,7 @@ public class PluginsServiceTests extends ESTestCase {
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir, false);
         PluginsService.checkBundleJarHell(bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);

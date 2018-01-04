@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -181,14 +182,30 @@ public class TribeIntegrationTests extends ESIntegTestCase {
             super(settings);
         }
 
-        @Override
-        public Settings additionalSettings() {
-            if (settings.getGroups("tribe", true).isEmpty()) {
-                return super.additionalSettings();
-            } else {
-                return Settings.EMPTY;
-            }
+        public static PluginSettings getPluginSettings(Settings settings) {
+            PluginSettings pluginSettings = TestZenDiscovery.TestPlugin.getPluginSettings(settings);
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return pluginSettings.getDeclaredSettings();
+                }
+
+                @Override
+                public List<String> getSettingsFilter() {
+                    return pluginSettings.getSettingsFilter();
+                }
+
+                @Override
+                public Settings getSettings() {
+                    if (settings.getGroups("tribe", true).isEmpty()) {
+                        return pluginSettings.getSettings();
+                    } else {
+                        return Settings.EMPTY;
+                    }
+                }
+            };
         }
+
     }
 
     @Before

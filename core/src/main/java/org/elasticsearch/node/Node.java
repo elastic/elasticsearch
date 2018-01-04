@@ -143,7 +143,6 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
@@ -299,15 +298,18 @@ public class Node implements Closeable {
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
 
-            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
-            this.settings = pluginsService.updatedSettings();
+            PluginsService.PluginServiceFactory factory = new PluginsService.PluginServiceFactory(tmpSettings,environment.modulesFile(),
+                environment.pluginsFile(), classpathPlugins);
+            this.settings = factory.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             // create the environment based on the finalized (processed) view of the settings
             // this is just to makes sure that people get the same settings, no matter where they ask them from
             this.environment = new Environment(this.settings, environment.configFile());
+
             Environment.assertEquivalent(environment, this.environment);
 
+            pluginsService = factory.create(settings, environment.configFile());
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
@@ -315,19 +317,18 @@ public class Node implements Closeable {
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             DeprecationLogger.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
-
-            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
-            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
+            List<Setting<?>> additionalSettings = new ArrayList<>(factory.getDeclaredSettings());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings,
+                factory.getPluginSettingsFilter());
             client = new NodeClient(settings, threadPool);
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
-            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(

@@ -636,10 +636,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         private static final Setting<String> INDEX_E =
             new Setting<>("index.e", "", Function.identity(), Property.IndexScope);
 
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(INDEX_A, INDEX_C, INDEX_E);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(INDEX_A, INDEX_C, INDEX_E);
+                }
+            };
         }
     }
 

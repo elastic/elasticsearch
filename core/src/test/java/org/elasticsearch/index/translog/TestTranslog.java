@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -61,7 +62,7 @@ public class TestTranslog {
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
         for (Path translogDir : translogDirs) {
             if (Files.isDirectory(translogDir)) {
-                final long minUsedTranslogGen = minTranslogGenUsedInRecovery(translogDir.getParent().resolve("index"));
+                final long minUsedTranslogGen = minTranslogGenUsedInRecovery(translogDir);
                 logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minUsedTranslogGen);
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
                     for (Path item : stream) {
@@ -112,11 +113,11 @@ public class TestTranslog {
     /**
      * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
      */
-    private static long minTranslogGenUsedInRecovery(Path indexPath) throws IOException {
-        try (NIOFSDirectory directory = new NIOFSDirectory(indexPath)) {
-            final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            // TODO: We should call CombinedDeletionPolicy to get a correct recovering commit.
-            final IndexCommit recoveringCommit = commits.get(commits.size() - 1);
+    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
+        try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
+            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+            IndexCommit recoveringCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
             return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }
     }

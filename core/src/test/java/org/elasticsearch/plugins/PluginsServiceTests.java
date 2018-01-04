@@ -19,25 +19,39 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -269,4 +283,283 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    public void testSortBundlesCycleSelfReference() throws Exception {
+        Path pluginDir = createTempDir();
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.sortBundles(Collections.singleton(bundle))
+        );
+        assertEquals("Cycle found in plugin dependencies: foo -> foo", e.getMessage());
+    }
+
+    public void testSortBundlesCycle() throws Exception {
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Arrays.asList("bar", "other"), false, false);
+        bundles.add(new PluginsService.Bundle(info, pluginDir));
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("baz"), false, false);
+        bundles.add(new PluginsService.Bundle(info2, pluginDir));
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
+        bundles.add(new PluginsService.Bundle(info3, pluginDir));
+        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        bundles.add(new PluginsService.Bundle(info4, pluginDir));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
+        assertEquals("Cycle found in plugin dependencies: foo -> bar -> baz -> foo", e.getMessage());
+    }
+
+    public void testSortBundlesSingle() throws Exception {
+        Path pluginDir = createTempDir();
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
+        assertThat(sortedBundles, Matchers.contains(bundle));
+    }
+
+    public void testSortBundlesNoDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
+        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        bundles.add(bundle1);
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        bundles.add(bundle2);
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
+        bundles.add(bundle3);
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
+        assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
+    }
+
+    public void testSortBundlesMissingDep() throws Exception {
+        Path pluginDir = createTempDir();
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("dne"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            PluginsService.sortBundles(Collections.singleton(bundle))
+        );
+        assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+    }
+
+    public void testSortBundlesCommonDep() throws Exception {
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
+        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        bundles.add(bundle1);
+        PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        bundles.add(bundle2);
+        PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
+        PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
+        bundles.add(bundle3);
+        PluginInfo info4 = new PluginInfo("common", "desc", "1.0", "MyPlugin", Collections.singletonList("grandparent"), false, false);
+        PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
+        bundles.add(bundle4);
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
+        assertThat(sortedBundles, Matchers.contains(bundle1, bundle4, bundle2, bundle3));
+    }
+
+    public void testSortBundlesAlreadyOrdered() throws Exception {
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
+        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
+        bundles.add(bundle1);
+        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
+        bundles.add(bundle2);
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
+        assertThat(sortedBundles, Matchers.contains(bundle1, bundle2));
+    }
+
+    public static class DummyClass1 {}
+
+    public static class DummyClass2 {}
+
+    public static class DummyClass3 {}
+
+    void makeJar(Path jarFile, Class... classes) throws Exception {
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
+            for (Class clazz : classes) {
+                String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
+                if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
+                    // static inner class of this test
+                    relativePath = relativePath.replace("/" + clazz.getSimpleName(), "$" + clazz.getSimpleName());
+                }
+
+                Path codebase = PathUtils.get(clazz.getProtectionDomain().getCodeSource().getLocation().toURI());
+                if (codebase.toString().endsWith(".jar")) {
+                    // copy from jar, exactly as is
+                    out.putNextEntry(new ZipEntry(relativePath));
+                    try (ZipInputStream in = new ZipInputStream(Files.newInputStream(codebase))) {
+                        ZipEntry entry = in.getNextEntry();
+                        while (entry != null) {
+                            if (entry.getName().equals(relativePath)) {
+                                byte[] buffer = new byte[10*1024];
+                                int read = in.read(buffer);
+                                while (read != -1) {
+                                    out.write(buffer, 0, read);
+                                    read = in.read(buffer);
+                                }
+                                break;
+                            }
+                            in.closeEntry();
+                            entry = in.getNextEntry();
+                        }
+                    }
+                } else {
+                    // copy from dir, and use a different canonical path to not conflict with test classpath
+                    out.putNextEntry(new ZipEntry("test/" + clazz.getSimpleName() + ".class"));
+                    Files.copy(codebase.resolve(relativePath), out);
+                }
+                out.closeEntry();
+            }
+        }
+    }
+
+    public void testJarHellDuplicateCodebaseWithDep() throws Exception {
+        Path pluginDir = createTempDir();
+        Path dupJar = pluginDir.resolve("dup.jar");
+        makeJar(dupJar);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
+    }
+
+    public void testJarHellDuplicateCodebaseAcrossDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass1.class);
+        Path otherDir = createTempDir();
+        Path dupJar = otherDir.resolve("dup.jar");
+        makeJar(dupJar, DummyClass2.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
+        transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+    }
+
+    // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
+
+    public void testJarHellDuplicateClassWithCore() throws Exception {
+        // need a jar file of core dep, use log4j here
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, Level.class);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(bundle, new HashMap<>()));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("Level"));
+    }
+
+    public void testJarHellDuplicateClassWithDep() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass1.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
+    }
+
+    public void testJarHellDuplicateClassAcrossDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass1.class);
+        Path dep1Dir = createTempDir();
+        Path dep1Jar = dep1Dir.resolve("dep1.jar");
+        makeJar(dep1Jar, DummyClass2.class);
+        Path dep2Dir = createTempDir();
+        Path dep2Jar = dep2Dir.resolve("dep2.jar");
+        makeJar(dep2Jar, DummyClass2.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
+        transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
+    }
+
+    public void testJarHellTransitiveMap() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass1.class);
+        Path dep1Dir = createTempDir();
+        Path dep1Jar = dep1Dir.resolve("dep1.jar");
+        makeJar(dep1Jar, DummyClass2.class);
+        Path dep2Dir = createTempDir();
+        Path dep2Jar = dep2Dir.resolve("dep2.jar");
+        makeJar(dep2Jar, DummyClass3.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
+        transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.checkBundleJarHell(bundle, transitiveDeps);
+        Set<URL> deps = transitiveDeps.get("myplugin");
+        assertNotNull(deps);
+        assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
+    }
+
+    public void testNonExtensibleDep() throws Exception {
+        Path homeDir = createTempDir();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
+        Path pluginsDir = homeDir.resolve("plugins");
+        Path mypluginDir = pluginsDir.resolve("myplugin");
+        PluginTestUtil.writeProperties(
+            mypluginDir,
+            "description", "whatever",
+            "name", "myplugin",
+            "version", "1.0.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "extended.plugins", "nonextensible",
+            "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, mypluginDir.resolve("plugin.jar"));
+        }
+        Path nonextensibleDir = pluginsDir.resolve("nonextensible");
+        PluginTestUtil.writeProperties(
+            nonextensibleDir,
+            "description", "whatever",
+            "name", "nonextensible",
+            "version", "1.0.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "test.NonExtensiblePlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
+            Files.copy(jar, nonextensibleDir.resolve("plugin.jar"));
+        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
+    }
 }

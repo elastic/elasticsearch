@@ -94,7 +94,7 @@ Contributing to the Elasticsearch codebase
 
 Make sure you have [Gradle](http://gradle.org) installed, as
 Elasticsearch uses it as its build system. Gradle must be at least
-version 3.3 in order to build successfully.
+version 4.3 in order to build successfully.
 
 We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
 minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For

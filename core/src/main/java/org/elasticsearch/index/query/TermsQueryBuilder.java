@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
@@ -415,6 +416,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         if (values == null || values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
+        }
+        int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
+        if (values.size() > maxTermsCount){
+            throw new IllegalArgumentException(
+                "The number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
+                    "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
+                    IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
 

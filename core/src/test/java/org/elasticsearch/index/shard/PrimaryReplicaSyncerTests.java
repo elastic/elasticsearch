@@ -19,16 +19,22 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
@@ -58,7 +64,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         int numDocs = randomInt(10);
         for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "test", Integer.toString(i));
+            // Index doc but not advance local checkpoint.
+            shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+                SourceToParse.source(shard.shardId().getIndexName(), "test", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, "test"));
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
@@ -108,7 +117,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "test", Integer.toString(i));
+            // Index doc but not advance local checkpoint.
+            shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+                SourceToParse.source(shard.shardId().getIndexName(), "test", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, "test"));
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();

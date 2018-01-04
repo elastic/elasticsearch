@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -36,7 +37,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -61,7 +61,6 @@ import java.util.LinkedList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
@@ -104,10 +103,8 @@ public class QueryPhase implements SearchPhase {
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
-        Sort indexSort = searchContext.mapperService().getIndexSettings().getIndexSortConfig()
-            .buildIndexSort(searchContext.mapperService()::fullName, searchContext::getForField);
         final ContextIndexSearcher searcher = searchContext.searcher();
-        boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled, indexSort);
+        boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -127,11 +124,12 @@ public class QueryPhase implements SearchPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean execute(SearchContext searchContext, final IndexSearcher searcher,
-            Consumer<Runnable> checkCancellationSetter, @Nullable Sort indexSort) throws QueryPhaseExecutionException {
+    static boolean execute(SearchContext searchContext,
+                           final IndexSearcher searcher,
+                           Consumer<Runnable> checkCancellationSetter) throws QueryPhaseExecutionException {
+        final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
-
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
@@ -161,7 +159,7 @@ public class QueryPhase implements SearchPhase {
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
                         searchContext.trackTotalHits(false);
-                    } else if (canEarlyTerminate(indexSort, searchContext)) {
+                    } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
@@ -177,10 +175,14 @@ public class QueryPhase implements SearchPhase {
             }
 
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+            // whether the chain contains a collector that filters documents
+            boolean hasFilterCollector = false;
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
                 // it will only be applied to top hits
                 collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
             }
             if (searchContext.queryCollectors().isEmpty() == false) {
                 // plug in additional collectors, like aggregations
@@ -189,10 +191,14 @@ public class QueryPhase implements SearchPhase {
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
             }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // apply terminate after after all filters collectors
                 collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
             }
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
@@ -240,21 +246,9 @@ public class QueryPhase implements SearchPhase {
             // searchContext.lowLevelCancellation()
             collectors.add(createCancellableCollectorContext(searchContext.getTask()::isCancelled));
 
-            final IndexReader reader = searcher.getIndexReader();
             final boolean doProfile = searchContext.getProfilers() != null;
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, reader,
-                collectors.stream().anyMatch(QueryCollectorContext::shouldCollect));
-            final boolean shouldCollect = topDocsFactory.shouldCollect();
-
-            if (topDocsFactory.numHits() > 0 &&
-                (scrollContext == null || scrollContext.totalHits != -1) &&
-                canEarlyTerminate(indexSort, searchContext)) {
-                // top docs collection can be early terminated based on index sort
-                // add the collector context first so we don't early terminate aggs but only top docs
-                collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, searchContext.query(), indexSort,
-                    topDocsFactory.numHits(), searchContext.trackTotalHits(), shouldCollect));
-            }
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, reader, hasFilterCollector);
             // add the top docs collector, the first collector context in the chain
             collectors.addFirst(topDocsFactory);
 
@@ -268,9 +262,7 @@ public class QueryPhase implements SearchPhase {
             }
 
             try {
-                if (shouldCollect) {
-                    searcher.search(query, queryCollector);
-                }
+                searcher.search(query, queryCollector);
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                 queryResult.searchTimedOut(true);
@@ -280,7 +272,7 @@ public class QueryPhase implements SearchPhase {
 
             final QuerySearchResult result = searchContext.queryResult();
             for (QueryCollectorContext ctx : collectors) {
-                ctx.postProcess(result, shouldCollect);
+                ctx.postProcess(result);
             }
             EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
                     searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
@@ -317,13 +309,21 @@ public class QueryPhase implements SearchPhase {
     }
 
     /**
-     * Returns true if the provided <code>searchContext</code> can early terminate based on <code>indexSort</code>
-     * @param indexSort The index sort specification
-     * @param context The search context for the request
-     */
-    static boolean canEarlyTerminate(Sort indexSort, SearchContext context) {
-        final Sort sort = context.sort() == null ? Sort.RELEVANCE : context.sort().sort;
-        return indexSort != null && EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort);
+     * Returns whether collection within the provided <code>reader</code> can be early-terminated if it sorts
+     * with <code>sortAndFormats</code>.
+     **/
+    static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
+        if (sortAndFormats == null || sortAndFormats.sort == null) {
+            return false;
+        }
+        final Sort sort = sortAndFormats.sort;
+        for (LeafReaderContext ctx : reader.leaves()) {
+            Sort indexSort = ctx.reader().getMetaData().getSort();
+            if (indexSort == null || EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static class TimeExceededException extends RuntimeException {}

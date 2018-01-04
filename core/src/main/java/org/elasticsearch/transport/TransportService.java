@@ -1079,8 +1079,8 @@ public class TransportService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public T newInstance() {
-            return delegate.newInstance();
+        public T read(StreamInput in) throws IOException {
+            return delegate.read(in);
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -49,7 +50,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -59,7 +59,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -79,6 +78,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -116,8 +116,6 @@ public class InternalEngine extends Engine {
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap = new LiveVersionMap();
-
-    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -179,14 +177,17 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
+                final IndexCommit startingCommit = getStartingCommitPoint();
+                assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
+                    "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
+                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
                     new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
                 );
-                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
                     || openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG
@@ -236,7 +237,7 @@ public class InternalEngine extends Engine {
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier, IndexCommit startingCommit) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
         switch (openMode) {
@@ -246,9 +247,9 @@ public class InternalEngine extends Engine {
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
             case OPEN_INDEX_CREATE_TRANSLOG:
-                final Tuple<Long, Long> seqNoStats = store.loadSeqNoInfo();
-                maxSeqNo = seqNoStats.v1();
-                localCheckpoint = seqNoStats.v2();
+                final SequenceNumbers.CommitInfo seqNoStats = store.loadSeqNoInfo(startingCommit);
+                maxSeqNo = seqNoStats.maxSeqNo;
+                localCheckpoint = seqNoStats.localCheckpoint;
                 logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
                 break;
             default: throw new IllegalArgumentException("unknown type: " + openMode);
@@ -401,6 +402,31 @@ public class InternalEngine extends Engine {
         return this;
     }
 
+    private IndexCommit getStartingCommitPoint() throws IOException {
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+            final long minRetainedTranslogGen = translog.getMinFileGeneration();
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+            // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose full translog
+            // files are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
+            // To avoid this issue, we only select index commits whose translog files are fully retained.
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
+                final List<IndexCommit> recoverableCommits = new ArrayList<>();
+                for (IndexCommit commit : existingCommits) {
+                    if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
+                        recoverableCommits.add(commit);
+                    }
+                }
+                assert recoverableCommits.isEmpty() == false : "No commit point with full translog found; " +
+                    "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
+                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
+            } else {
+                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
+            }
+        }
+        return null;
+    }
+
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
@@ -523,7 +549,9 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
+                // The index commit from IndexWriterConfig is null if the engine is open with other modes
+                // rather than CREATE_INDEX_AND_TRANSLOG. In those cases lastCommittedSegmentInfos will be retrieved from the last commit.
+                lastCommittedSegmentInfos = store.readCommittedSegmentsInfo(indexWriter.getConfig().getIndexCommit());
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;
@@ -551,7 +579,11 @@ public class InternalEngine extends Engine {
             ensureOpen();
             SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = getVersionFromMap(get.uid().bytes());
+                VersionValue versionValue = null;
+                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+                    // we need to lock here to access the version map to do this truly in RT
+                    versionValue = getVersionFromMap(get.uid().bytes());
+                }
                 if (versionValue != null) {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
@@ -733,7 +765,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
-            try (Releasable ignored = acquireLock(index.uid());
+            try (Releasable ignored = versionMap.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
                 /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
@@ -1059,7 +1091,7 @@ public class InternalEngine extends Engine {
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan;
@@ -1340,6 +1372,9 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             ensureCanFlush();
+            // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
+            // or we also have uncommitted changes and that causes this syncFlush to fail.
+            refresh("sync_flush", SearcherScope.INTERNAL);
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
                 return SyncedFlushResult.PENDING_OPERATIONS;
@@ -1352,8 +1387,6 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter, translog, syncId);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            // we are guaranteed to have no operations in the version map here!
-            versionMap.adjustMapSizeUnderLock();
             return SyncedFlushResult.SUCCESS;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);
@@ -1520,7 +1553,8 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+            try (Releasable ignored = versionMap.acquireLock(uid)) {
+                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
@@ -1767,14 +1801,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Releasable acquireLock(BytesRef uid) {
-        return keyedLock.acquire(uid);
-    }
-
-    private Releasable acquireLock(Term uid) {
-        return acquireLock(uid.bytes());
-    }
-
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         assert incrementIndexVersionLookup();
         try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
@@ -1782,9 +1808,9 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(boolean create) throws IOException {
+    private IndexWriter createWriter(boolean create, IndexCommit startingCommit) throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig(create);
+            final IndexWriterConfig iwc = getIndexWriterConfig(create, startingCommit);
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -1797,10 +1823,11 @@ public class InternalEngine extends Engine {
         return new IndexWriter(directory, iwc);
     }
 
-    private IndexWriterConfig getIndexWriterConfig(boolean create) {
+    private IndexWriterConfig getIndexWriterConfig(boolean create, IndexCommit startingCommit) {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+        iwc.setIndexCommit(startingCommit);
         iwc.setIndexDeletionPolicy(snapshotDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;

@@ -334,6 +334,12 @@ Clients can always take the heavily-trimmed set of results from a `significant_t
 make a subsequent follow-up query using a `terms` aggregation with an `include` clause and child
 aggregations to perform further analysis of selected keywords in a more efficient fashion.
 
+===== No support for nested objects
+
+The significant_text aggregation currently also cannot be used with text fields in
+nested objects, because it works with the document JSON source. This makes this
+feature inefficient when matching nested docs from stored JSON given a matching
+Lucene docID.
 
 ===== Approximate counts
 The counts of how many documents contain a term provided in results are based on summing the samples returned from each shard and

@@ -51,7 +51,7 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
-if (project.javaVersion == JavaVersion.VERSION_1_9 || Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (project.javaVersion >= JavaVersion.VERSION_1_9 || Os.isFamily(Os.FAMILY_WINDOWS)) {
   /* We can't run the dependencies with Java 9 so for now we'll skip the whole
    * thing. We can't get the pid files in windows so we skip that as well.... */
   integTest.enabled = false

@@ -33,7 +33,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
@@ -63,9 +62,11 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -555,7 +556,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
 
         // check for jar hell before any copying
-        jarHellCheck(pluginRoot, env.pluginsFile());
+        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user
@@ -568,25 +569,25 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** check a candidate plugin for jar hell before installing it */
-    void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+    void jarHellCheck(PluginInfo info, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
         // read existing bundles. this does some checks on the installation too.
-        PluginsService.getPluginBundles(pluginsDir);
+        Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
+        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
+        bundles.add(new PluginsService.Bundle(info, candidate));
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
 
-        // add plugin jars to the list
-        Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
-        for (Path jar : pluginJars) {
-            if (jars.add(jar.toUri().toURL()) == false) {
-                throw new IllegalStateException("jar hell! duplicate plugin jar: " + jar);
-            }
+        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
+        // TODO: optimize to skip any bundles not connected to the candidate plugin?
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (PluginsService.Bundle bundle : sortedBundles) {
+            PluginsService.checkBundleJarHell(bundle, transitiveUrls);
         }
+
         // TODO: no jars should be an error
         // TODO: verify the classname exists in one of the jars!
-
-        // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars);
     }
 
     /**

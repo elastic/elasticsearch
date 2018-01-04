@@ -26,6 +26,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -37,7 +38,7 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-final class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
@@ -53,7 +54,6 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() : "index is created, but we have commits";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
@@ -71,7 +71,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final int keptPosition = indexOfKeptCommits(commits);
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         for (int i = 0; i < keptPosition; i++) {
             commits.get(i).delete();
         }
@@ -91,11 +91,27 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
+     * Find a safe commit point from a list of existing commits based on the supplied global checkpoint.
+     * The max sequence number of a safe commit point should be at most the global checkpoint.
+     * If an index was created before v6.2, and we haven't retained a safe commit yet, this method will return the oldest commit.
+     *
+     * @param commits          a list of existing commit points
+     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
+     * @return a safe commit or the oldest commit if a safe commit is not found
+     */
+    public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {
+        if (commits.isEmpty()) {
+            throw new IllegalArgumentException("Commit list must not empty");
+        }
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpoint);
+        return commits.get(keptPosition);
+    }
+
+    /**
      * Find the highest index position of a safe index commit whose max sequence number is not greater than the global checkpoint.
      * Index commits with different translog UUID will be filtered out as they don't belong to this engine.
      */
-    private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
-        final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
+    private static int indexOfKeptCommits(List<? extends IndexCommit> commits, long globalCheckpoint) throws IOException {
         final String expectedTranslogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
 
         // Commits are sorted by age (the 0th one is the oldest commit).
@@ -110,7 +126,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 return i;
             }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
-            if (maxSeqNoFromCommit <= currentGlobalCheckpoint) {
+            if (maxSeqNoFromCommit <= globalCheckpoint) {
                 return i;
             }
         }

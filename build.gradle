@@ -139,7 +139,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 allprojects {
-  ext.bwc_tests_enabled = true
+  // TODO: re-enable after https://github.com/elastic/elasticsearch/pull/27881 is backported
+  ext.bwc_tests_enabled = false
 }
 
 task verifyBwcTestsEnabled {
@@ -177,6 +178,7 @@ subprojects {
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch:elasticsearch-cli:${version}": ':core:cli',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',

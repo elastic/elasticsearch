@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -73,7 +75,9 @@ import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rol
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.MONTHLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -113,6 +117,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         if (remoteCluster != null) {
             remoteCluster.close();
             remoteCluster = null;
+
         }
         remoteSettings = null;
     }
@@ -299,13 +304,17 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     }
 
     private void initialize(String[] includes, String[] excludes) throws Exception {
+        initialize(includes, excludes, Settings.EMPTY);
+    }
+
+    private void initialize(final String[] includes, final String[] excludes, final Settings additionalSettings) throws Exception {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
         includeRequestBody = randomBoolean();
         Settings.Builder builder = Settings.builder();
         if (remoteIndexing) {
             builder.put(remoteSettings);
         }
-        builder.put(settings(rollover, includes, excludes));
+        builder.put(settings(rollover, includes, excludes)).put(additionalSettings).build();
         // IndexAuditTrail should ignore secure settings
         // they are merged on the master node creating the audit index
         if (randomBoolean()) {
@@ -343,6 +352,48 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             }
         };
         auditor.start();
+    }
+
+    public void testProcessorsSetting() {
+        final boolean explicitProcessors = randomBoolean();
+        final int processors;
+        if (explicitProcessors) {
+            processors = randomIntBetween(1, 16);
+        } else {
+            processors = EsExecutors.PROCESSORS_SETTING.get(Settings.EMPTY);
+        }
+        final boolean explicitClientProcessors = randomBoolean();
+        final int clientProcessors;
+        if (explicitClientProcessors) {
+            clientProcessors = randomIntBetween(1, 16);
+        } else {
+            clientProcessors = EsExecutors.PROCESSORS_SETTING.get(Settings.EMPTY);
+        }
+
+        final Settings.Builder additionalSettingsBuilder =
+                Settings.builder()
+                        .put("xpack.security.audit.index.client.cluster.name", "remote")
+                        .put("xpack.security.audit.index.client.hosts", "localhost:9300");
+
+        if (explicitProcessors) {
+            additionalSettingsBuilder.put(EsExecutors.PROCESSORS_SETTING.getKey(), processors);
+        }
+        if (explicitClientProcessors) {
+            additionalSettingsBuilder.put("xpack.security.audit.index.client.processors", clientProcessors);
+        }
+
+        final ThrowingRunnable runnable = () -> initialize(null, null, additionalSettingsBuilder.build());
+        if (processors == clientProcessors || explicitClientProcessors == false) {
+            // okay, the client initialized which is all we care about but no nodes are available because we never set up the remote cluster
+            expectThrows(NoNodeAvailableException.class, runnable);
+        } else {
+            final IllegalStateException e = expectThrows(IllegalStateException.class, runnable);
+            assertThat(
+                    e,
+                    hasToString(containsString(
+                            "explicit processor setting [" + clientProcessors + "]" +
+                                    " for audit trail remote client does not match inherited processor setting [" + processors + "]")));
+        }
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

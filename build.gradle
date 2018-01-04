@@ -139,7 +139,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 allprojects {
-  ext.bwc_tests_enabled = true
+  // TODO: re-enable after https://github.com/elastic/elasticsearch/pull/27881 is backported
+  ext.bwc_tests_enabled = false
 }
 
 task verifyBwcTestsEnabled {

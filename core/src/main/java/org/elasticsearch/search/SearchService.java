@@ -855,7 +855,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
-     * handles this as well since the result is always size * shards for Q_A_F
+     * handles this as well since the result is always size * shards for Q_T_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
@@ -963,7 +963,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns true iff the given search source builder can be early terminated by rewriting to a match none query. Or in other words
+     * Returns true if the given search source builder can be early terminated by rewriting to a match none query. Or in other words
      * if the execution of a the search request can be early terminated without executing it. This is for instance not possible if
      * a global aggregation is part of this request or if there is a suggest builder present.
      */

@@ -43,7 +43,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && \$GRADLE_HOME/bin/gradle test integTest"
+    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     @Override
     void apply(Project project) {

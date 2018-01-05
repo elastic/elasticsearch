@@ -69,12 +69,28 @@ final class Compiler {
      */
     static final class Loader extends SecureClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
+        private final Definition definition;
 
         /**
          * @param parent The parent ClassLoader.
          */
-        Loader(ClassLoader parent) {
+        Loader(ClassLoader parent, Definition definition) {
             super(parent);
+
+            this.definition = definition;
+        }
+
+        /**
+         * Will check to see if the {@link Class} has already been loaded when
+         * the {@link Definition} was initially created.  Allows for {@link Whitelist}ed
+         * classes to be loaded from other modules/plugins without a direct relationship
+         * to the module's/plugin's {@link ClassLoader}.
+         */
+        @Override
+        public Class<?> findClass(String name) throws ClassNotFoundException {
+            Class<?> found = definition.getClassFromBinaryName(name);
+
+            return found != null ? found : super.findClass(name);
         }
 
         /**
@@ -114,6 +130,14 @@ final class Compiler {
         int newLambdaIdentifier() {
             return lambdaCounter.getAndIncrement();
         }
+    }
+
+    /**
+     * Return a new {@link Loader} for a script using the
+     * {@link Compiler}'s specified {@link Definition}.
+     */
+    public Loader createLoader(ClassLoader parent) {
+        return new Loader(parent, definition);
     }
 
     /**

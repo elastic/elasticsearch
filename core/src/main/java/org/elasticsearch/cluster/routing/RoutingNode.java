@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -47,7 +48,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     
     private final Map<ShardRoutingState, Set<ShardRouting>> shardPerState = new LinkedHashMap<>();
     
-    private final Map<Index, Map<ShardRoutingState, Set<ShardRouting>>> shardPerIndexPerState = new LinkedHashMap<>();
+    private final Map<Index, Set<ShardRouting>> shardPerIndex = new HashMap<>();
 
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
         this(nodeId, node, buildShardRoutingMap(shards));
@@ -59,8 +60,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.shards = shards;
         for (Map.Entry<ShardId, ShardRouting> shardMap : shards.entrySet()) {
             shardPerState.computeIfAbsent(shardMap.getValue().state(), k -> new HashSet<>()).add(shardMap.getValue());
-            shardPerIndexPerState.computeIfAbsent(shardMap.getKey().getIndex(), k -> new LinkedHashMap<>())
-            .computeIfAbsent(shardMap.getValue().state(), k -> new HashSet<>()).add(shardMap.getValue());
+            shardPerIndex.computeIfAbsent(shardMap.getKey().getIndex(), k -> new HashSet<>()).add(shardMap.getValue());
         }
     }
 
@@ -76,8 +76,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards;
     }
     
-    public Map<Index, Map<ShardRoutingState, Set<ShardRouting>>> getShardsPerIndexPerState() {
-        return Collections.unmodifiableMap(shardPerIndexPerState);
+    public Set<Index> indices() {
+        return Collections.unmodifiableSet(shardPerIndex.keySet());
     }
 
     @Override
@@ -122,8 +122,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
         shards.put(shard.shardId(), shard);
         shardPerState.computeIfAbsent(shard.state(), k -> new HashSet<>()).add(shard);
-        shardPerIndexPerState.computeIfAbsent(shard.index(), k -> new LinkedHashMap<>())
-        .computeIfAbsent(shard.state(), k -> new HashSet<>()).add(shard);
+        shardPerIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard);
     
     }
 
@@ -137,15 +136,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
             c.remove(oldShard);
             return c;
         });
-        shardPerIndexPerState.computeIfPresent(oldShard.index(), (k, c) -> {
-            if (c.get(oldShard.state()) != null) {
-                c.get(oldShard.state()).remove(oldShard);
-            }
+        shardPerIndex.computeIfPresent(oldShard.index(), (k, c) -> {
+            c.remove(oldShard);
+            if (c.isEmpty())
+                shardPerIndex.remove(oldShard.index());
             return c;
         });
         shardPerState.computeIfAbsent(newShard.state(), k -> new HashSet<>()).add(newShard);
-        shardPerIndexPerState.computeIfAbsent(newShard.index(), k -> new LinkedHashMap<>())
-        .computeIfAbsent(newShard.state(), k -> new HashSet<>()).add(newShard);
+        shardPerIndex.computeIfAbsent(newShard.index(), k -> new HashSet<>()).add(newShard);
         ShardRouting previousValue = shards.put(newShard.shardId(), newShard);
         assert previousValue == oldShard : "expected shard " + previousValue + " but was " + oldShard;
     }
@@ -157,10 +155,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
             c.remove(previousValue);
             return c.isEmpty() ? null : c;
         });
-        shardPerIndexPerState.computeIfPresent(shard.index(), (k, c) -> {
-            if (c.get(shard.state()) != null) {
-                c.get(shard.state()).remove(shard);
-            }
+        shardPerIndex.computeIfPresent(shard.index(), (k, c) -> {
+            c.remove(previousValue);
+            if (c.isEmpty())
+                shardPerIndex.remove(shard.index());
             return c;
         });
     }
@@ -194,23 +192,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards;
     }
 
-    /**
-     * Determine the shards of an index with a specific state
-     * @param index id of the index
-     * @param states set of states which should be listed
-     * @return a list of shards
-     */
-    public List<ShardRouting> shardsWithState(Index index, ShardRoutingState... states) {
-        List<ShardRouting> shards = new ArrayList<>();
-        Map<ShardRoutingState, Set<ShardRouting>> shardPerIndexMap = shardPerIndexPerState.get(index);
-        for (ShardRoutingState state : states) {
-            if (shardPerIndexMap != null && shardPerIndexMap.get(state) != null) {
-                shards.addAll(shardPerIndexMap.get(state));
-            }
-        }
-        return shards;
-    }
-    
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
         List<ShardRouting> shards = new ArrayList<>();
 

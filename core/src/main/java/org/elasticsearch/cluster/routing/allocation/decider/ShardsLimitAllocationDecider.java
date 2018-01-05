@@ -124,19 +124,35 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             }
         }
 
-        if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
-                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
-        }
-        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit)) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
-                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
-        }
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, decider, allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
+
+        Decision indexShardLimitDecision = decideIndexShardLimit(indexShardCount, indexShardLimit, decider, allocation,
+        shardRouting.getIndexName());
+        if (indexShardLimitDecision == Decision.NO)
+            return indexShardLimitDecision;
+
         return allocation.decision(Decision.YES, NAME,
-            "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
-            nodeShardCount, indexShardLimit, clusterShardLimit);
+        "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]", nodeShardCount,
+        indexShardLimit, clusterShardLimit);
+    }
+    
+    private Decision decideClusterShardLimit(int nodeShardCount, int clusterShardLimit, BiPredicate<Integer, Integer> decider,
+    RoutingAllocation allocation) {
+        if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit))
+            return allocation.decision(Decision.NO, NAME, "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
+            nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
+        return Decision.ALWAYS;
+    }
+
+    private Decision decideIndexShardLimit(int indexShardCount, int indexShardLimit, BiPredicate<Integer, Integer> decider,
+    RoutingAllocation allocation, String indexName) {
+        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit))
+            return allocation.decision(Decision.NO, NAME,
+            "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]", indexShardCount, indexName,
+            INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+        return Decision.ALWAYS;
     }
 
     @Override
@@ -145,25 +161,24 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         int nodeShardCount = node.numberOfShardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
         ShardRoutingState.UNASSIGNED);
 
-        if (clusterShardLimit > 0 && nodeShardCount > clusterShardLimit) {
-            return allocation.decision(Decision.NO, NAME, "too many shards for this node [%d], cluster-level limit per node: [%d]",
-            nodeShardCount, clusterShardLimit);
-        }
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, (count, limit) -> count > limit,
+        allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
+
         ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
         for (ObjectObjectCursor<String, IndexMetaData> indexMdEntry : indexMd) {
             final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMdEntry.value.getSettings(), settings);
             if (indexShardLimit > 0) {
                 List<ShardRouting> shardPerIndex = node.shardsWithState(indexMdEntry.key, ShardRoutingState.INITIALIZING,
-                ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED);
-                if (indexShardLimit > 0 && shardPerIndex.size() > indexShardLimit) {
-                    return allocation.decision(Decision.NO, NAME,
-                    "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]", shardPerIndex.size(),
-                    indexMdEntry.key, INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
-                }
+                ShardRoutingState.STARTED);
+                Decision indexShardLimitDecision = decideIndexShardLimit(shardPerIndex.size(), indexShardLimit,
+                (count, limit) -> count > limit, allocation, indexMdEntry.key);
+                if (indexShardLimitDecision == Decision.NO)
+                    return indexShardLimitDecision;
             }
         }
-        return allocation.decision(Decision.YES, NAME,
-        "the shard count is under index limit [%d] and cluster level node limit [%d] of total shards per node", clusterShardLimit);
+        return allocation.decision(Decision.YES, NAME, "the shard count is under index and cluster limit per node");
     }
     
     @Override
@@ -186,11 +201,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             }
             nodeShardCount++;
         }
-        if (clusterShardLimit >= 0 && nodeShardCount >= clusterShardLimit) {
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
-                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
-        }
+        Decision clusterShardLimitDecision = decideClusterShardLimit(nodeShardCount, clusterShardLimit, (count, limit) -> count >= limit,
+        allocation);
+        if (clusterShardLimitDecision == Decision.NO)
+            return clusterShardLimitDecision;
+        
         return allocation.decision(Decision.YES, NAME,
             "the shard count [%d] for this node is under the cluster level node limit [%d]",
             nodeShardCount, clusterShardLimit);

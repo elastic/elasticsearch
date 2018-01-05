@@ -198,15 +198,13 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     private Decision shouldIndexNodeFilter(RoutingNode node, RoutingAllocation allocation) {
         Decision decision = null;
-        Map<Index, Map<ShardRoutingState, Set<ShardRouting>>> shardsPerIndexPerState = node.getShardsPerIndexPerState();
-        ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
-        for (ObjectObjectCursor<String, IndexMetaData> indexMdEntry : indexMd) {
-            Set<Index> keySet = shardsPerIndexPerState.keySet();
-            if (keySet != null && keySet.contains(indexMdEntry.value.getIndex())) {
-                decision = shouldIndexFilter(indexMdEntry.value, node, allocation);
-                if (decision != null) {
-                    return decision;
-                }
+        Set<Index> indices = node.indices();
+        for (Index index : indices) {
+            ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
+            IndexMetaData indexMetaData = indexMd.get(index.getName());
+            decision = shouldIndexFilter(indexMetaData, node, allocation);
+            if (decision != null) {
+                return decision;
             }
         }
         return null;

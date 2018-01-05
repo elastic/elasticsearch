@@ -117,16 +117,15 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, true, false);
+        return underCapacity(shardRouting, node, allocation, true);
     }
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, false, false);
+        return underCapacity(shardRouting, node, allocation, false);
     }
 
-    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode,
-    boolean useCache) {
+    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
             return allocation.decision(Decision.YES, NAME,
                 "allocation awareness is not enabled, set cluster setting [%s] to enable it",
@@ -146,24 +145,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build attr_value -> nodes map
             ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+
+            // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            if (useCache) {
-                Map<String, ObjectIntHashMap<String>> shardIdMap = allocation.routingNodes().getShardIdPerAttributeMap()
-                .get(shardRouting.shardId());
-                if (shardIdMap != null && shardIdMap.get(awarenessAttribute) != null) {
-                    shardPerAttribute = shardIdMap.get(awarenessAttribute);
-                }
-            } else {
-                // build the count of shards per attribute value
-                for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
-                    if (assignedShard.started() || assignedShard.initializing()) {
-                        // Note: this also counts relocation targets as that will be the new location of
-                        // the shard.
-                        // Relocation sources should not be counted as the shard is moving away
-                        RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                        shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);
-                    }
-                }
+            Map<String, ObjectIntHashMap<String>> shardIdMap = allocation.routingNodes().getShardIdPerAttributeMap()
+            .get(shardRouting.shardId());
+            if (shardIdMap != null && shardIdMap.get(awarenessAttribute) != null) {
+                shardPerAttribute = shardIdMap.get(awarenessAttribute).clone();
             }
 
             if (moveToNode) {
@@ -242,7 +230,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation awareness is not enabled");
         }
         for (ShardRouting shardRouting : node) {
-            decision = underCapacity(shardRouting, node, allocation, false, true);
+            decision = underCapacity(shardRouting, node, allocation, false);
             if (decision == Decision.NO) {
                 return decision;
             }

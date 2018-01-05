@@ -50,9 +50,6 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -762,10 +759,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 // yes we check identity here
                 if (shard == iterator.next()) {
                     iterator.remove();
+                    removeFromShardPerAttributeCache(shard);
                     return;
                 }
             }
-            removeFromShardPerAttributeCache(shard);
         }
         assert false : "No shard found to remove";
     }
@@ -822,19 +819,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.size();
     }
     
-   private void updateShardPerAttributeCache(ShardRouting oldShard, ShardRouting newShard) {
+    private void updateShardPerAttributeCache(ShardRouting oldShard, ShardRouting newShard) {
         if (attributes.size() > 0) {
-            for (String awarenessAttribute : attributes) {
-                Map<String, ObjectIntHashMap<String>> shardPerAttributeMap = shardIdPerAttributes.get(oldShard.shardId());
-                if (shardPerAttributeMap != null  && shardPerAttributeMap.containsKey(awarenessAttribute)) {
-                    shardPerAttributeMap.get(awarenessAttribute).putOrAdd(node(oldShard.currentNodeId()).node().getAttributes().get(awarenessAttribute), 0, -1);
-                }
-                if (newShard.initializing() || newShard.started()) {
-                    ObjectIntHashMap<String> attributeMap = shardIdPerAttributes.computeIfAbsent(newShard.shardId(),
-                    k -> new HashMap<>()).computeIfAbsent(awarenessAttribute, k-> new ObjectIntHashMap<>());
-                    attributeMap.addTo(node(newShard.currentNodeId()).node().getAttributes().get(awarenessAttribute), 1);
-                }
-            }
+            addToShardPerAttributeCache(newShard);
+            removeFromShardPerAttributeCache(oldShard);
         }
     }
     
@@ -842,8 +830,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if (attributes.size() > 0) {
             for (String awarenessAttribute : attributes) {
                 if (shardRouting.initializing() || shardRouting.started()) {
-                    ObjectIntHashMap<String> attributeMap = shardIdPerAttributes.computeIfAbsent(shardRouting.shardId(),
-                    k -> new HashMap<>()).computeIfAbsent(awarenessAttribute, k-> new ObjectIntHashMap<>());
+                    ObjectIntHashMap<String> attributeMap = shardIdPerAttributes
+                    .computeIfAbsent(shardRouting.shardId(), k -> new HashMap<>()).computeIfAbsent(awarenessAttribute,
+                    k -> new ObjectIntHashMap<>());
                     attributeMap.addTo(node(shardRouting.currentNodeId()).node().getAttributes().get(awarenessAttribute), 1);
                 }
             }
@@ -854,9 +843,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private void removeFromShardPerAttributeCache(ShardRouting shardRouting) {
         if (attributes.size() > 0) {
             for (String awarenessAttribute : attributes) {
-                Map<String, ObjectIntHashMap<String>> attributeMap = shardIdPerAttributes.get(shardRouting.shardId());
-                if (attributeMap != null  && attributeMap.containsKey(awarenessAttribute)) {
-                    attributeMap.get(awarenessAttribute).putOrAdd(node(shardRouting.currentNodeId()).node().getAttributes().get(awarenessAttribute), 0, -1);
+                if (shardRouting.initializing() || shardRouting.started()) {
+                    Map<String, ObjectIntHashMap<String>> attributeMap = shardIdPerAttributes.get(shardRouting.shardId());
+                    if (attributeMap != null && attributeMap.containsKey(awarenessAttribute)) {
+                        attributeMap.get(awarenessAttribute)
+                        .putOrAdd(node(shardRouting.currentNodeId()).node().getAttributes().get(awarenessAttribute), 0, -1);
+                    }
                 }
             }
         }
@@ -1187,62 +1179,43 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
-     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
-     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
-     * all the nodes have been returned.
+     * Creates an iterator over nodes iterating in a circular fashion: The iterator returns the first shard iterator
+     * from the first node, then the first shard iterator of the second node, etc. The iterator removes a node(including
+     * all the shards) if all the shards on the node can stay.
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator(RoutingAllocation allocation) {
-        // This iterator should eliminate nodes based on node throttling criteria.
-        final Queue<Pair> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            queue.add(new Pair(entry.getKey(), entry.getValue().copyShards().iterator()));
-        }
-        return new Iterator<ShardRouting>() {
-            private Iterator<ShardRouting> nextIter;
 
+    public Iterator<Iterator<ShardRouting>> nodeShardIterator() {
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
+        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
+            queue.add(entry.getValue().copyShards().iterator());
+        }
+        return new Iterator<Iterator<ShardRouting>>() {
             public boolean hasNext() {
-                nextIter = null;
                 while (!queue.isEmpty()) {
-                    if (queue.peek().iter.hasNext()) {
-                        Pair pair = queue.poll();
-                        RoutingNode routingNode = nodesToShards.get(pair.nodeId);
-                        Decision decision = allocation.deciders().canRemainOnNode(routingNode, allocation);
-                        // Iterate through all the shards only when the best decision is NO
-                        if (decision == Decision.NO) {
-                            ((ArrayDeque) queue).offerFirst(pair);
-                            nextIter = pair.iter;
-                            return true;
-                        }
-                    } else {
-                        queue.poll();
+                    if (queue.peek().hasNext()) {
+                        return true;
                     }
+                    queue.poll();
                 }
                 return false;
             }
 
-            public ShardRouting next() {
-                if (nextIter == null && !nextIter.hasNext() && hasNext() == false) {
+            public Iterator<ShardRouting> next() {
+                if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                return nextIter.next();
+                Iterator<ShardRouting> iter = queue.poll();
+                queue.offer(iter);
+                return iter;
             }
 
+            @SuppressWarnings("rawtypes")
             public void remove() {
-                throw new UnsupportedOperationException();
+                ((ArrayDeque)queue).pollLast();
             }
         };
     }
-
-    private static final class Pair {
-        private String nodeId;
-        private Iterator<ShardRouting> iter;
-
-        Pair(String nodeId, Iterator<ShardRouting> iter) {
-            this.nodeId = nodeId;
-            this.iter = iter;
-        }
-    }
+    
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

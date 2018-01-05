@@ -27,6 +27,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -40,6 +42,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.mockito.Mockito.when;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -59,14 +63,35 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
+        Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
         SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext);
+        when(searchContext.query()).thenReturn(rewrittenQuery);
+        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
+            @Override
+            public boolean needsScores() {
+                return true;
+            }
+        };
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
+        collector.postCollection();
+        collector.replay(0);
+
+        assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+        }
+
+        topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
+        collector = new BestBucketsDeferringCollector(searchContext, true);
+        deferredCollectedDocIds = new HashSet<>();
+        collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
+        collector.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), collector);
         collector.postCollection();
         collector.replay(0);
 

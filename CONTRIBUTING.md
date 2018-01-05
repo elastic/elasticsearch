@@ -99,9 +99,8 @@ However, since Elasticsearch, supports JDK 8 the build supports compiling with
 JDK 9 and testing on a JDK 8 runtime; to do this, set `JAVA_8_HOME` pointing to
 the Java home of a JDK 8 installation. 
 
-Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system. Gradle must be at least
-version 4.3 in order to build successfully.
+Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
+using the wrapper via the `gradlew` script in the root of the repository.
 
 We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
 minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For

@@ -421,7 +421,7 @@ public class ShardStateAction extends AbstractComponent {
         shardStarted(shardRouting, message, listener, clusterService.state());
     }
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener, ClusterState currentState) {
-        StartedShardEntry shardEntry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message);
+        StartedShardEntry shardEntry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), message);
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
@@ -465,8 +465,6 @@ public class ShardStateAction extends AbstractComponent {
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             for (StartedShardEntry task : tasks) {
-                assert task.primaryTerm == 0L : "shard is only started by itself: " + task;
-
                 ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
@@ -519,25 +517,26 @@ public class ShardStateAction extends AbstractComponent {
     public static class StartedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
-        final long primaryTerm;
         final String message;
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
             shardId = ShardId.readShardId(in);
             allocationId = in.readString();
-            primaryTerm = in.readVLong();
-            message = in.readString();
+            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+                final long primaryTerm = in.readVLong();
+                assert primaryTerm == 0L : "shard is only started by itself: primary term [" + primaryTerm + "]";
+            }
+            this.message = in.readString();
             if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
                 final Exception ex = in.readException();
                 assert ex == null : "started shard must not have failure [" + ex + "]";
             }
         }
 
-        public StartedShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message) {
+        public StartedShardEntry(ShardId shardId, String allocationId, String message) {
             this.shardId = shardId;
             this.allocationId = allocationId;
-            this.primaryTerm = primaryTerm;
             this.message = message;
         }
 
@@ -546,7 +545,9 @@ public class ShardStateAction extends AbstractComponent {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeString(allocationId);
-            out.writeVLong(primaryTerm);
+            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+                out.writeVLong(0L);
+            }
             out.writeString(message);
             if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
                 out.writeException(null);
@@ -555,8 +556,8 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "StartedShardEntry{shardId [%s], allocationId [%s], primaryTerm [%d], message [%s]}",
-                shardId, allocationId, primaryTerm, message);
+            return String.format(Locale.ROOT, "StartedShardEntry{shardId [%s], allocationId [%s], message [%s]}",
+                shardId, allocationId, message);
         }
     }
 

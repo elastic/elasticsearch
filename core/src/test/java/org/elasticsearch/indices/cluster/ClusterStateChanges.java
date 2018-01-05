@@ -230,7 +230,7 @@ public class ClusterStateChanges extends AbstractComponent {
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         List<StartedShardEntry> entries = startedShards.stream().map(startedShard ->
-            new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started"))
+            new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), "shard started"))
             .collect(Collectors.toList());
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
     }

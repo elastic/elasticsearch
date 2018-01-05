@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -61,10 +62,20 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         collectableSubAggregators = BucketCollector.wrap(collectors);
     }
 
+    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent.getClass() == GlobalAggregator.class) {
+                return true;
+            }
+            parent = parent.parent();
+        }
+        return false;
+    }
+
     public DeferringBucketCollector getDeferringCollector() {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context());
+        return new BestBucketsDeferringCollector(context(), descendsFromGlobalAggregator(parent()));
     }
 
     /**
@@ -74,7 +85,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
      * recording of all doc/bucketIds from the first pass and then the sub class
      * should call {@link #runDeferredCollections(long...)} for the selected set
      * of buckets that survive the pruning.
-     * 
+     *
      * @param aggregator
      *            the child aggregator
      * @return true if the aggregator should be deferred until a first pass at

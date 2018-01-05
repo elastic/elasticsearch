@@ -82,7 +82,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testValidate() throws IOException {
-
         {
             // if scroll isn't set, validate should never add errors
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
@@ -91,8 +90,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNull(validationErrors);
         }
         {
-        // disabeling `track_total_hits` isn't valid in scroll context
+            // disabling `track_total_hits` isn't valid in scroll context
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            // make sure we don't set the request cache for a scroll query
+            searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().trackTotalHits(false);
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -103,12 +104,24 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // scroll and `from` isn't valid
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            // make sure we don't set the request cache for a scroll query
+            searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().from(10);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [from] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // scroll and `size` is `0`
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().size(0));
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
         }
     }
 

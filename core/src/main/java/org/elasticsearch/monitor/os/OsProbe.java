@@ -36,8 +36,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class OsProbe {
 
@@ -382,12 +380,70 @@ public class OsProbe {
     }
 
     /**
-     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu}, and
-     * {@code /sys/fs/cgroup/cpuacct}.
+     * The maximum amount of user memory (including file cache).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the maximum amount of user memory (including file cache)
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    private String getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryLimitInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.limit_in_bytes} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the maximum amount of user memory (including file cache).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.limit_in_bytes}
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    String readSysFsCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.limit_in_bytes"));
+    }
+
+    /**
+     * The total current memory usage by processes in the cgroup (in bytes).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the total current memory usage by processes in the cgroup (in bytes)
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    private String getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryUsageInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.usage_in_bytes} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the total current memory usage by processes in the cgroup (in bytes).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.usage_in_bytes}
+     * @throws IOException if an I/O exception occurs reading {@code memory.usage_in_bytes} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    String readSysFsCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.usage_in_bytes"));
+    }
+
+    /**
+     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu},
+     * {@code /sys/fs/cgroup/cpuacct} and {@code /sys/fs/cgroup/memory}.
      *
      * @return {@code true} if the stats are available, otherwise {@code false}
      */
-    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
+    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
     boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
@@ -396,6 +452,9 @@ public class OsProbe {
             return false;
         }
         if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+            return false;
+        }
+        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
             return false;
         }
         return true;
@@ -424,13 +483,21 @@ public class OsProbe {
                 final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
                 final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
 
+                final String memoryControlGroup = controllerMap.get("memory");
+                assert memoryControlGroup != null;
+                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
+                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
+
                 return new OsStats.Cgroup(
                     cpuAcctControlGroup,
                     cgroupCpuAcctUsageNanos,
                     cpuControlGroup,
                     cgroupCpuAcctCpuCfsPeriodMicros,
                     cgroupCpuAcctCpuCfsQuotaMicros,
-                    cpuStat);
+                    cpuStat,
+                    memoryControlGroup,
+                    cgroupMemoryLimitInBytes,
+                    cgroupMemoryUsageInBytes);
             }
         } catch (final IOException e) {
             logger.debug("error reading control group stats", e);

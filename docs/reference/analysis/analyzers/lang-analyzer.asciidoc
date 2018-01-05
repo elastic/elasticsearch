@@ -6,6 +6,7 @@ following types are supported:
 <<arabic-analyzer,`arabic`>>,
 <<armenian-analyzer,`armenian`>>,
 <<basque-analyzer,`basque`>>,
+<<bengali-analyzer,`bengali`>>,
 <<brazilian-analyzer,`brazilian`>>,
 <<bulgarian-analyzer,`bulgarian`>>,
 <<catalan-analyzer,`catalan`>>,
@@ -55,7 +56,7 @@ functionality is implemented by adding the
 with the `keywords` set to the value of the `stem_exclusion` parameter.
 
 The following analyzers support setting custom `stem_exclusion` list:
-`arabic`, `armenian`, `basque`, `bulgarian`, `catalan`, `czech`,
+`arabic`, `armenian`, `basque`, `bengali`, `bulgarian`, `catalan`, `czech`,
 `dutch`, `english`, `finnish`, `french`, `galician`,
 `german`, `hindi`, `hungarian`, `indonesian`, `irish`, `italian`, `latvian`,
 `lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `sorani`,
@@ -196,6 +197,54 @@ PUT /armenian_example
             "basque_stop",
             "basque_keywords",
             "basque_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+    be excluded from stemming.
+
+[[bengali-analyzer]]
+===== `bengali` analyzer
+
+The `bengali` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+PUT /bengali_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "bengali_stop": {
+          "type":       "stop",
+          "stopwords":  "_bengali_" <1>
+        },
+        "bengali_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["উদাহরণ"] <2>
+        },
+        "bengali_stemmer": {
+          "type":       "stemmer",
+          "language":   "bengali"
+        }
+      },
+      "analyzer": {
+        "bengali": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "indic_normalization",
+            "bengali_normalization",
+            "bengali_stop",
+            "bengali_keywords",
+            "bengali_stemmer"
           ]
         }
       }

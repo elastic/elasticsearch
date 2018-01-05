@@ -37,7 +37,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected TypeQueryBuilder doCreateTestQueryBuilder() {
-        return new TypeQueryBuilder("doc");
+        return new TypeQueryBuilder("_doc");
     }
 
     @Override

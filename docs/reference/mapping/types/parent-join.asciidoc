@@ -12,7 +12,7 @@ A parent/child relation can be defined as follows:
 PUT my_index
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": { <1>
           "type": "join",
@@ -36,7 +36,7 @@ For instance the following example creates two `parent` documents in the `questi
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "This is a question",
   "my_join_field": {
@@ -44,7 +44,7 @@ PUT my_index/doc/1?refresh
   }
 }
 
-PUT my_index/doc/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "text": "This is a another question",
   "my_join_field": {
@@ -62,13 +62,13 @@ as a shortcut instead of encapsulating it in the normal object notation:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "This is a question",
   "my_join_field": "question" <1>
 }
 
-PUT my_index/doc/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "text": "This is another question",
   "my_join_field": "question"
@@ -89,7 +89,7 @@ For instance the following example shows how to index two `child` documents:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/3?routing=1&refresh <1>
+PUT my_index/_doc/3?routing=1&refresh <1>
 {
   "text": "This is an answer",
   "my_join_field": {
@@ -98,7 +98,7 @@ PUT my_index/doc/3?routing=1&refresh <1>
   }
 }
 
-PUT my_index/doc/4?routing=1&refresh
+PUT my_index/_doc/4?routing=1&refresh
 {
   "text": "This is another answer",
   "my_join_field": {
@@ -113,6 +113,17 @@ PUT my_index/doc/4?routing=1&refresh
 <1> The routing value is mandatory because parent and child documents must be indexed on the same shard
 <2> `answer` is the name of the join for this document
 <3> The parent id of this child document
+
+==== Parent-join and performance.
+
+The join field shouldn't be used like joins in a relation database. In Elasticsearch the key to good performance
+is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
+significant tax to your query performance.
+
+The only case where the join field makes sense is if your data contains a one-to-many relationship where
+one entity significantly outnumbers the other entity. An example of such case is a use case with products
+and offers for these products. In the case that offers significantly outnumbers the number of products then
+it makes sense to model the product as parent document and the offer as child document.
 
 ==== Parent-join restrictions
 
@@ -169,7 +180,7 @@ Will return:
         "hits": [
             {
                 "_index": "my_index",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": null,
                 "_source": {
@@ -182,7 +193,7 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "2",
                 "_score": null,
                 "_source": {
@@ -195,7 +206,7 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "3",
                 "_score": null,
                 "_routing": "1",
@@ -212,7 +223,7 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "4",
                 "_score": null,
                 "_routing": "1",
@@ -308,7 +319,7 @@ make sense to disable eager loading:
 PUT my_index
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": {
           "type": "join",
@@ -338,7 +349,7 @@ GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
 // CONSOLE
 // TEST[continued]
 
-==== Multiple levels of parent join
+==== Multiple children per parent
 
 It is also possible to define multiple children for a single parent:
 
@@ -347,7 +358,7 @@ It is also possible to define multiple children for a single parent:
 PUT my_index
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": {
           "type": "join",
@@ -364,14 +375,20 @@ PUT my_index
 
 <1> `question` is parent of `answer` and `comment`.
 
-And multiple levels of parent/child:
+==== Multiple levels of parent join
+
+WARNING: Using multiple levels of relations to replicate a relational model is not recommended.
+Each level of relation adds an overhead at query time in terms of memory and computation.
+You should de-normalize your data if you care about performance.
+
+Multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------
 PUT my_index
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": {
           "type": "join",
@@ -406,7 +423,7 @@ to the grand-parent (the greater parent of the lineage):
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/3?routing=1&refresh <1>
+PUT my_index/_doc/3?routing=1&refresh <1>
 {
   "text": "This is a vote",
   "my_join_field": {
@@ -418,7 +435,5 @@ PUT my_index/doc/3?routing=1&refresh <1>
 // CONSOLE
 // TEST[continued]
 
-<1> This child document must be on the same shard than its grandparent and parent
+<1> This child document must be on the same shard than its grand-parent and parent
 <2> The parent id of this document (must points to an `answer` document)
-
-

@@ -92,7 +92,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
@@ -134,7 +134,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
             // check for index specific metrics
             if (metrics.contains("indices")) {
-                Set<String> indexMetrics = Strings.splitStringByCommaToSet(request.param("index_metric", "_all"));
+                Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", "_all"));
                 if (indexMetrics.size() == 1 && indexMetrics.contains("_all")) {
                     nodesStatsRequest.indices(CommonStatsFlags.ALL);
                 } else {

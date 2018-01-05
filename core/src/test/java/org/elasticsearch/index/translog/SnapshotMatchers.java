@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -26,6 +28,9 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 public final class SnapshotMatchers {
@@ -50,8 +55,19 @@ public final class SnapshotMatchers {
     /**
      * Consumes a snapshot and make sure it's content is as expected
      */
-    public static Matcher<Translog.Snapshot> equalsTo(ArrayList<Translog.Operation> ops) {
+    public static Matcher<Translog.Snapshot> equalsTo(List<Translog.Operation> ops) {
         return new EqualMatcher(ops.toArray(new Translog.Operation[ops.size()]));
+    }
+
+    public static Matcher<Translog.Snapshot> containsOperationsInAnyOrder(Collection<Translog.Operation> expectedOperations) {
+        return new ContainingInAnyOrderMatcher(expectedOperations);
+    }
+
+    /**
+     * Consumes a snapshot and makes sure that its operations have all seqno between minSeqNo(inclusive) and maxSeqNo(inclusive).
+     */
+    public static Matcher<Translog.Snapshot> containsSeqNoRange(long minSeqNo, long maxSeqNo) {
+        return new ContainingSeqNoRangeMatcher(minSeqNo, maxSeqNo);
     }
 
     public static class SizeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
@@ -127,5 +143,101 @@ public final class SnapshotMatchers {
         }
     }
 
+    public static class ContainingInAnyOrderMatcher extends TypeSafeMatcher<Translog.Snapshot> {
+        private final Collection<Translog.Operation> expectedOps;
+        private List<Translog.Operation> notFoundOps;
+        private List<Translog.Operation> notExpectedOps;
 
+        static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
+            final List<Translog.Operation> actualOps = new ArrayList<>();
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                actualOps.add(op);
+            }
+            return actualOps;
+        }
+
+        public ContainingInAnyOrderMatcher(Collection<Translog.Operation> expectedOps) {
+            this.expectedOps = expectedOps;
+        }
+
+        @Override
+        protected boolean matchesSafely(Translog.Snapshot snapshot) {
+            try {
+                List<Translog.Operation> actualOps = drainAll(snapshot);
+                notFoundOps = expectedOps.stream()
+                    .filter(o -> actualOps.contains(o) == false)
+                    .collect(Collectors.toList());
+                notExpectedOps = actualOps.stream()
+                    .filter(o -> expectedOps.contains(o) == false)
+                    .collect(Collectors.toList());
+                return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to read snapshot content", ex);
+            }
+        }
+
+        @Override
+        protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+            if (notFoundOps.isEmpty() == false) {
+                mismatchDescription
+                    .appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
+            }
+            if (notExpectedOps.isEmpty() == false) {
+                if (notFoundOps.isEmpty() == false) {
+                    mismatchDescription.appendText("; ");
+                }
+                mismatchDescription
+                    .appendText("not expected ").appendValueList("[", ", ", "]", notExpectedOps);
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("snapshot contains ")
+                .appendValueList("[", ", ", "]", expectedOps)
+                .appendText(" in any order.");
+        }
+    }
+
+    static class ContainingSeqNoRangeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
+        private final long minSeqNo;
+        private final long maxSeqNo;
+        private final List<Long> notFoundSeqNo = new ArrayList<>();
+
+        ContainingSeqNoRangeMatcher(long minSeqNo, long maxSeqNo) {
+            this.minSeqNo = minSeqNo;
+            this.maxSeqNo = maxSeqNo;
+        }
+
+        @Override
+        protected boolean matchesSafely(Translog.Snapshot snapshot) {
+            try {
+                final LongSet seqNoList = new LongHashSet();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    seqNoList.add(op.seqNo());
+                }
+                for (long i = minSeqNo; i <= maxSeqNo; i++) {
+                    if (seqNoList.contains(i) == false) {
+                        notFoundSeqNo.add(i);
+                    }
+                }
+                return notFoundSeqNo.isEmpty();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to read snapshot content", ex);
+            }
+        }
+
+        @Override
+        protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+            mismatchDescription
+                .appendText("not found seqno ").appendValueList("[", ", ", "]", notFoundSeqNo);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("snapshot contains all seqno from [" + minSeqNo + " to " + maxSeqNo + "]");
+        }
+    }
 }

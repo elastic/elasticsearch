@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;

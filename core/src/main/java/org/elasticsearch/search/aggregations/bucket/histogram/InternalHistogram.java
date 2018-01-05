@@ -321,11 +321,15 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             do {
                 final IteratorAndCurrent top = pq.top();
 
-                if (top.current.key != key) {
-                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                if (Double.compare(top.current.key, key) != 0) {
+                    // The key changes, reduce what we already buffered and reset the buffer for current buckets.
+                    // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         reducedBuckets.add(reduced);
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                     }
                     currentBuckets.clear();
                     key = top.current.key;
@@ -335,7 +339,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
                 if (top.iterator.hasNext()) {
                     final Bucket next = top.iterator.next();
-                    assert next.key > top.current.key : "shards must return data sorted by key";
+                    assert Double.compare(next.key, top.current.key) > 0 : "shards must return data sorted by key";
                     top.current = next;
                     pq.updateTop();
                 } else {
@@ -346,7 +350,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
                 if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                 }
             }
         }
@@ -373,6 +380,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         if (iter.hasNext() == false) {
             // fill with empty buckets
             for (double key = round(emptyBucketInfo.minBound); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
+                reduceContext.consumeBucketsAndMaybeBreak(1);
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         } else {
@@ -380,6 +388,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             if (Double.isFinite(emptyBucketInfo.minBound)) {
                 // fill with empty buckets until the first key
                 for (double key = round(emptyBucketInfo.minBound); key < first.key; key = nextKey(key)) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                 }
             }
@@ -392,6 +401,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 if (lastBucket != null) {
                     double key = nextKey(lastBucket.key);
                     while (key < nextBucket.key) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                         key = nextKey(key);
                     }
@@ -402,6 +412,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
             // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
             for (double key = nextKey(lastBucket.key); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
+                reduceContext.consumeBucketsAndMaybeBreak(1);
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         }

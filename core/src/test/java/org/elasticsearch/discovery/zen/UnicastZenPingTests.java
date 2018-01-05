@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,8 @@ public class UnicastZenPingTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
         executorService =
-            EsExecutors.newScaling(getClass().getName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
+            EsExecutors.newScaling(
+                    getClass().getName() + "/" + getTestName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
     }
 
@@ -179,7 +181,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         Settings hostsSettings = Settings.builder()
-            .putArray("discovery.zen.ping.unicast.hosts",
+            .putList("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
@@ -258,6 +260,16 @@ public class UnicastZenPingTests extends ESTestCase {
         assertPingCount(handleD, handleA, 0);
         assertPingCount(handleD, handleB, 0);
         assertPingCount(handleD, handleC, 3);
+
+        zenPingC.close();
+        handleD.counters.clear();
+        logger.info("ping from UZP_D after closing UZP_C");
+        pingResponses = zenPingD.pingAndWait().toList();
+        // check that node does not respond to pings anymore after the ping service has been closed
+        assertThat(pingResponses.size(), equalTo(0));
+        assertPingCount(handleD, handleA, 0);
+        assertPingCount(handleD, handleB, 0);
+        assertPingCount(handleD, handleC, 3);
     }
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
@@ -305,7 +317,7 @@ public class UnicastZenPingTests extends ESTestCase {
                     new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort()))});
 
         final Settings hostsSettings = Settings.builder()
-            .putArray("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
+            .putList("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
             .put("cluster.name", "test")
             .build();
 
@@ -589,7 +601,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final boolean useHosts = randomBoolean();
         final Settings.Builder hostsSettingsBuilder = Settings.builder().put("cluster.name", "test");
         if (useHosts) {
-            hostsSettingsBuilder.putArray("discovery.zen.ping.unicast.hosts",
+            hostsSettingsBuilder.putList("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort()))
             );
         } else {
@@ -888,8 +900,8 @@ public class UnicastZenPingTests extends ESTestCase {
             TransportResponseHandler<UnicastPingResponse> original = super.getPingResponseHandler(pingingRound, node);
             return new TransportResponseHandler<UnicastPingResponse>() {
                 @Override
-                public UnicastPingResponse newInstance() {
-                    return original.newInstance();
+                public UnicastPingResponse read(StreamInput in) throws IOException {
+                    return original.read(in);
                 }
 
                 @Override

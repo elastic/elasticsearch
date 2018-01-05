@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
@@ -178,6 +179,15 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             Analyzer a = new BasqueAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }
+    },
+
+    BENGALI {
+        @Override
+        protected Analyzer create(Version version) {
+            Analyzer a = new BengaliAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;
         }

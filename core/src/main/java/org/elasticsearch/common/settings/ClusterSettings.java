@@ -85,6 +85,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -119,15 +120,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
         @Override
         public boolean hasChanged(Settings current, Settings previous) {
-            return current.filter(loggerPredicate).getAsMap().equals(previous.filter(loggerPredicate).getAsMap()) == false;
+            return current.filter(loggerPredicate).equals(previous.filter(loggerPredicate)) == false;
         }
 
         @Override
         public Settings getValue(Settings current, Settings previous) {
             Settings.Builder builder = Settings.builder();
             builder.put(current.filter(loggerPredicate));
-            for (String key : previous.getAsMap().keySet()) {
-                if (loggerPredicate.test(key) && builder.internalMap().containsKey(key) == false) {
+            for (String key : previous.keySet()) {
+                if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
@@ -140,7 +141,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
         @Override
         public void apply(Settings value, Settings current, Settings previous) {
-            for (String key : value.getAsMap().keySet()) {
+            for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
                 if ("level".equals(component)) {
@@ -245,6 +246,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
+                    HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
                     HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
                     HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE,
@@ -258,11 +260,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+                    HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
+                    HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
@@ -357,6 +362,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     SearchService.MAX_KEEPALIVE_SETTING,
+                    MultiBucketConsumerService.MAX_BUCKET_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                     Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,

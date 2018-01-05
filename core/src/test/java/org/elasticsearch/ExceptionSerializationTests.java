@@ -72,6 +72,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -362,6 +363,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("I hate to say I told you so...", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
+    }
+
+    public void testTooManyBucketsException() throws IOException {
+        MultiBucketConsumerService.TooManyBucketsException ex =
+            serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
+                randomFrom(Version.V_7_0_0_alpha1));
+        assertEquals("Too many buckets", ex.getMessage());
+        assertEquals(100, ex.getMaxBuckets());
     }
 
     public void testTimestampParsingException() throws IOException {
@@ -687,7 +696,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
         ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
-        ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class); //deprecated in 6.0
+        ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
         ids.put(31, org.elasticsearch.indices.InvalidAliasNameException.class);
@@ -739,7 +748,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
         ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
         ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
-        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class); //deprecated in 6.0
+        ids.put(80, null); // was IndexFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
@@ -805,6 +814,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException.class);
+        ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

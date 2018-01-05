@@ -125,7 +125,6 @@ public class LongTermsAggregator extends TermsAggregator {
         }
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
-
         long otherDocCount = 0;
         BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         LongTerms.Bucket spare = null;
@@ -138,7 +137,10 @@ public class LongTermsAggregator extends TermsAggregator {
             otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
+                spare = ordered.insertWithOverflow(spare);
+                if (spare == null) {
+                    consumeBucketsAndMaybeBreak(1);
+                }
             }
         }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -36,6 +37,8 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the get operation.
@@ -79,6 +82,23 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+        }
+    }
+
+    @Override
+    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
+            listener.onResponse(shardOperation(request, shardId));
+        } else {
+            indexShard.awaitShardSearchActive(b -> {
+                try {
+                    super.asyncShardOperation(request, shardId, listener);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            });
         }
     }
 

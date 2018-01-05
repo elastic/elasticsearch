@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -28,17 +29,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -53,15 +56,15 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+                                                         ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Transport transport = new NioTransport(settings, threadPool,
-            networkService,
-            BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
+            new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, NioChannel channel, TimeValue timeout) throws IOException,
+            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -76,8 +79,8 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             }
 
             @Override
-            protected SocketEventHandler getSocketEventHandler() {
-                return new TestingSocketEventHandler(logger, this::exceptionCaught);
+            protected SocketEventHandler getSocketEventHandler(Logger logger) {
+                return new TestingSocketEventHandler(logger);
             }
         };
         MockTransportService mockTransportService =
@@ -94,6 +97,13 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
+    }
+
+    @Override
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        @SuppressWarnings("unchecked")
+        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
+        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

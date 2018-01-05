@@ -20,7 +20,7 @@ package org.elasticsearch.join.query;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -379,12 +379,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * A query that rewrites into another query using
-     * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, MultiDocValues.OrdinalMap, int, int)}
+     * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
      *
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
-     * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link MultiDocValues.OrdinalMap}.
-     * The {@link MultiDocValues.OrdinalMap} is required by {@link JoinUtil} to execute the join.
+     * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
+     * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.
      */
     // TODO: Find a way to remove this query and let doToQuery(...) just return the query from JoinUtil.createJoinQuery(...)
     public static final class LateParsingQuery extends Query {
@@ -422,7 +422,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
                 IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
-                MultiDocValues.OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
+                OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
                     ordinalMap, minChildren, maxChildren);
             } else {

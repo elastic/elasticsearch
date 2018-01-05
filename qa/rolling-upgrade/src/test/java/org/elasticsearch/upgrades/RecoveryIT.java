@@ -20,20 +20,28 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.function.Predicate;
 
-import static org.hamcrest.Matchers.anyOf;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -82,39 +90,20 @@ public class RecoveryIT extends ESRestTestCase {
             .build();
     }
 
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    private void ensureGreen() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        params.put("timeout", "70s");
-        params.put("level", "shards");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
-    }
-
-    private void createIndex(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
-    }
-
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (clusterType == CLUSTER_TYPE.OLD) {
-            assertOK(client().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
-                new StringEntity("{ \"persistent\": " +
-                    "{ \"logger._root\": \"DEBUG\", \"logger.org.elasticsearch.cluster.service\": \"TRACE\" } " +
-                    "}", ContentType.APPLICATION_JSON)));
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
-            ensureGreen();
-
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
-            ensureGreen();
+            ensureGreen(index);
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
             assertOK(response);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -131,11 +120,160 @@ public class RecoveryIT extends ESRestTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
-        } else {
-            // we are now in mixed cluster mode. we want to make sure the shard is fully allocated on the new node that was just
-            // started in order not to run into delayed unassigned shards when we bring down the old node (there must be a fully valid
-            // copy)
-            ensureGreen();
+        }
+    }
+
+    private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
+        for (int i = 0; i < numDocs; i++) {
+            final int id = idStart + i;
+            assertOK(client().performRequest("PUT", index + "/test/" + id, emptyMap(),
+                new StringEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}", ContentType.APPLICATION_JSON)));
+        }
+        return numDocs;
+    }
+
+    private Future<Void> asyncIndexDocs(String index, final int idStart, final int numDocs) throws IOException {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Thread background = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                future.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                indexDocs(index, idStart, numDocs);
+                future.onResponse(null);
+            }
+        });
+        background.start();
+        return future;
+    }
+
+    public void testRecoveryWithConcurrentIndexing() throws Exception {
+        final String index = "recovery_with_concurrent_indexing";
+        Response response = client().performRequest("GET", "_nodes");
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        switch (clusterType) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    // if the node with the replica is the first to be restarted, while a replica is still recovering
+                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                    // before timing out
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+                createIndex(index, settings.build());
+                indexDocs(index, 0, 10);
+                ensureGreen(index);
+                // make sure that we can index while the replicas are recovering
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                break;
+            case MIXED:
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                asyncIndexDocs(index, 10, 50).get();
+                ensureGreen(index);
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_only_nodes:" + nodes.get(0), 60);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 60);
+                // make sure that we can index while the replicas are recovering
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                break;
+            case UPGRADED:
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                asyncIndexDocs(index, 60, 50).get();
+                ensureGreen(index);
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
+                break;
+            default:
+                throw new IllegalStateException("unknown type " + clusterType);
+        }
+    }
+
+    private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
+        final Response response = client().performRequest("GET", index + "/_count", Collections.singletonMap("preference", preference));
+        assertOK(response);
+        final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
+        assertThat(actualCount, equalTo(expectedCount));
+    }
+
+
+    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
+        Response response = client().performRequest("GET", "_nodes");
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        for (String id : nodesAsMap.keySet()) {
+            Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            if (versionPredicate.test(version)) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+
+    public void testRelocationWithConcurrentIndexing() throws Exception {
+        final String index = "relocation_with_concurrent_indexing";
+        switch (clusterType) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    // if the node with the replica is the first to be restarted, while a replica is still recovering
+                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                    // before timing out
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+                createIndex(index, settings.build());
+                indexDocs(index, 0, 10);
+                ensureGreen(index);
+                // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
+                // node stops, we lose the master too, so a replica will not be promoted)
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
+                break;
+            case MIXED:
+                final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
+                final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
+                // remove the replica and guaranteed the primary is placed on the old node
+                updateIndexSetting(index, Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
+                    .put("index.routing.allocation.include._id", oldNode)
+                );
+                ensureGreen(index); // wait for the primary to be assigned
+                ensureNoInitializingShards(); // wait for all other shard activity to finish
+                updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
+                asyncIndexDocs(index, 10, 50).get();
+                ensureGreen(index);
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_only_nodes:" + newNode, 60);
+                break;
+            case UPGRADED:
+                updateIndexSetting(index, Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put("index.routing.allocation.include._id", (String)null)
+                );
+                asyncIndexDocs(index, 60, 50).get();
+                ensureGreen(index);
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                Response response = client().performRequest("GET", "_nodes");
+                ObjectPath objectPath = ObjectPath.createFromResponse(response);
+                final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+                List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
+                break;
+            default:
+                throw new IllegalStateException("unknown type " + clusterType);
         }
     }
 

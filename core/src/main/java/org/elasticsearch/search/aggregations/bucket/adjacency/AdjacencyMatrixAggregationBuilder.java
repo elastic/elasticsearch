@@ -189,7 +189,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             throws IOException {
         int maxFilters = context.indexShard().indexSettings().getMaxAdjacencyMatrixFilters();
         if (filters.size() > maxFilters){
-            throw new QueryPhaseExecutionException(context,
+            throw new IllegalArgumentException(
                     "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
                             + filters.size() + "]."
                             + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()

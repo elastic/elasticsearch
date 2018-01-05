@@ -31,6 +31,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -107,13 +108,17 @@ final class StoreRecovery {
             if (indices.size() > 1) {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
-            IndexMetaData indexMetaData = shards.get(0).getIndexMetaData();
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : indexMetaData.getMappings()) {
+            IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
+            for (ObjectObjectCursor<String, MappingMetaData> mapping : sourceMetaData.getMappings()) {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
-            indexShard.mapperService().merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
+            final boolean hasNested = indexShard.mapperService().hasNested();
+            final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
+            assert isSplit == false || sourceMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
+                "single type but the index is created before 6.0.0";
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
@@ -122,7 +127,8 @@ final class StoreRecovery {
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
                     final long maxUnsafeAutoIdTimestamp =
                             shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
-                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp);
+                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp,
+                        indexShard.indexSettings().getIndexMetaData(), indexShard.shardId().id(), isSplit, hasNested);
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
@@ -136,26 +142,34 @@ final class StoreRecovery {
         return false;
     }
 
-    void addIndices(
-            final RecoveryState.Index indexRecoveryStats,
-            final Directory target,
-            final Sort indexSort,
-            final Directory[] sources,
-            final long maxSeqNo,
-            final long maxUnsafeAutoIdTimestamp) throws IOException {
+    void addIndices(final RecoveryState.Index indexRecoveryStats, final Directory target, final Sort indexSort, final Directory[] sources,
+            final long maxSeqNo, final long maxUnsafeAutoIdTimestamp, IndexMetaData indexMetaData, int shardId, boolean split,
+            boolean hasNested) throws IOException {
+
+        // clean target directory (if previous recovery attempt failed) and create a fresh segment file with the proper lucene version
+        Lucene.cleanLuceneIndex(target);
+        assert sources.length > 0;
+        final int luceneIndexCreatedVersionMajor = Lucene.readSegmentInfos(sources[0]).getIndexCreatedVersionMajor();
+        new SegmentInfos(luceneIndexCreatedVersionMajor).commit(target);
+
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
+
         IndexWriterConfig iwc = new IndexWriterConfig(null)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
+
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
             writer.addIndexes(sources);
+            if (split) {
+                writer.deleteDocuments(new ShardSplittingQuery(indexMetaData, shardId, hasNested));
+            }
             /*
              * We set the maximum sequence number and the local checkpoint on the target to the maximum of the maximum sequence numbers on
              * the source shards. This ensures that history after this maximum sequence number can advance and we have correct
@@ -272,7 +286,7 @@ final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
-        if (!indexShard.routingEntry().primary()) {
+        if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardRecoveryException(shardId, "Trying to recover when the shard is in backup state", null);
         }
         return true;
@@ -375,7 +389,7 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                indexShard.skipTranslogRecovery();
+                indexShard.openIndexAndCreateTranslog(true, store.loadSeqNoInfo(null).localCheckpoint);
             } else {
                 // since we recover from local, just fill the files and size
                 try {
@@ -386,9 +400,12 @@ final class StoreRecovery {
                 } catch (IOException e) {
                     logger.debug("failed to list file details", e);
                 }
-                indexShard.performTranslogRecovery(indexShouldExists);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
+                if (indexShouldExists) {
+                    indexShard.openIndexAndTranslog();
+                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
+                } else {
+                    indexShard.createIndexAndTranslog();
+                }
             }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -429,7 +446,17 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
-            indexShard.skipTranslogRecovery();
+            final Store store = indexShard.store();
+            final long localCheckpoint;
+            store.incRef();
+            try {
+                localCheckpoint = store.loadSeqNoInfo(null).localCheckpoint;
+            } finally {
+                store.decRef();
+            }
+            indexShard.openIndexAndCreateTranslog(true, localCheckpoint);
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

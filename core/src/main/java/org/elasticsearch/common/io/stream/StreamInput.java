@@ -688,9 +688,21 @@ public abstract class StreamInput extends InputStream {
         return bytes;
     }
 
-    public <T> T[] readArray(Writeable.Reader<T> reader, IntFunction<T[]> arraySupplier) throws IOException {
-        int length = readArraySize();
-        T[] values = arraySupplier.apply(length);
+    /**
+     * Reads an array from the stream using the specified {@link org.elasticsearch.common.io.stream.Writeable.Reader} to read array elements
+     * from the stream. This method can be seen as the reader version of {@link StreamOutput#writeArray(Writeable.Writer, Object[])}. It is
+     * assumed that the stream first contains a variable-length integer representing the size of the array, and then contains that many
+     * elements that can be read from the stream.
+     *
+     * @param reader        the reader used to read individual elements
+     * @param arraySupplier a supplier used to construct a new array
+     * @param <T>           the type of the elements of the array
+     * @return an array read from the stream
+     * @throws IOException if an I/O exception occurs while reading the array
+     */
+    public <T> T[] readArray(final Writeable.Reader<T> reader, final IntFunction<T[]> arraySupplier) throws IOException {
+        final int length = readArraySize();
+        final T[] values = arraySupplier.apply(length);
         for (int i = 0; i < length; i++) {
             values[i] = reader.read(this);
         }

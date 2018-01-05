@@ -183,7 +183,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testInvalidIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
         String invalidIP = randomFrom("192..168.1.1", "192.300.1.1");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
@@ -191,12 +191,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, invalidIP).build(),
                 Settings.builder().put(Settings.EMPTY), Settings.builder(), "test ip validation");
         });
-        assertEquals("invalid IP address [" + invalidIP + "] for [" + ipKey + "]", e.getMessage());
+        assertEquals("invalid IP address [" + invalidIP + "] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
 
     public void testWildcardIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
         String wildcardIP = randomFrom("192.168.*", "192.*.1.1");
         IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);

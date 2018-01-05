@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,8 +40,11 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
@@ -163,6 +168,45 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testRescoreQueryNull() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new QueryRescorerBuilder((QueryBuilder) null));
         assertEquals("rescore_query cannot be null", e.getMessage());
+    }
+
+    class AlwaysRewriteQueryBuilder extends MatchAllQueryBuilder {
+
+        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+            return new MatchAllQueryBuilder();
+        }
+    }
+
+    public void testRewritingKeepsSettings() throws IOException {
+
+        final long nowInMillis = randomNonNegativeLong();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+        // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+            namedWriteableRegistry, null, null, () -> nowInMillis, null) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+
+        QueryBuilder rewriteQb = new AlwaysRewriteQueryBuilder();
+        org.elasticsearch.search.rescore.QueryRescorerBuilder rescoreBuilder = new
+            org.elasticsearch.search.rescore.QueryRescorerBuilder(rewriteQb);
+
+        rescoreBuilder.setQueryWeight(randomFloat());
+        rescoreBuilder.setRescoreQueryWeight(randomFloat());
+        rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
+
+        QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
+        QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
+        assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
+        assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
+        assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());
+
     }
 
     /**

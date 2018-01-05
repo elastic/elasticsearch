@@ -117,7 +117,8 @@ setup:
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
-  - match: { _shards.skipped : 2} # skip 2 and execute one to fetch the actual empty result
+  # skip 2 and execute one to fetch the actual empty result  
+  - match: { _shards.skipped : 2} 
   - match: { _shards.failed: 0 }
   - match: { hits.total: 0 }
 

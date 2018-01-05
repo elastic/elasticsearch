@@ -42,7 +42,7 @@ The bucket should now be created.
 The plugin supports two authentication modes:
 
 * The built-in <<repository-gcs-using-compute-engine, Compute Engine authentication>>. This mode is
-recommended if your elasticsearch node is running on a Compute Engine virtual machine.
+recommended if your Elasticsearch node is running on a Compute Engine virtual machine.
 
 * Specifying <<repository-gcs-using-service-account, Service Account>> credentials.
 
@@ -61,7 +61,7 @@ instance details at the section "Cloud API access scopes".
 
 [[repository-gcs-using-service-account]]
 ===== Using a Service Account
-If your elasticsearch node is not running on Compute Engine, or if you don't want to use Google's
+If your Elasticsearch node is not running on Compute Engine, or if you don't want to use Google's
 built-in authentication mechanism, you can authenticate on the Storage service using a
 https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
 

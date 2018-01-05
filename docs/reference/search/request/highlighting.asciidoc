@@ -101,6 +101,12 @@ Lucene's query execution planner to get access to low-level match information on
 the current document. This is repeated for every field and every document that
 needs highlighting. The `plain` highlighter always uses plain highlighting.
 
+[WARNING]
+Plain highlighting for large texts may require substantial amount of time and memory.
+To protect against this, the maximum number of text characters that will be analyzed has been
+limited to 10000. This default limit can be changed
+for a particular index with the index setting `index.highlight.max_analyzed_offset`.
+
 [[highlighting-settings]]
 ==== Highlighting Settings
 
@@ -810,7 +816,7 @@ When using the `plain` highlighter, you can choose between the `simple` and
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -842,7 +848,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -866,7 +872,7 @@ Response:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -898,7 +904,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {

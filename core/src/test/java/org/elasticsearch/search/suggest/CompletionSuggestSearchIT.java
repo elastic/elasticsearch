@@ -528,9 +528,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putArray("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
+                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
                 .put("analysis.filter.my_synonyms.type", "synonym")
-                .putArray("analysis.filter.my_synonyms.synonyms", "foo,renamed");
+                .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
         completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
         createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
 
@@ -806,7 +806,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 

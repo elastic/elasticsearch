@@ -124,7 +124,7 @@ public class NodeTests extends ESTestCase {
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
         try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
-            assertEquals(attr, Node.NODE_ATTRIBUTES.get(nodeSettings).getAsMap().get("test_attr"));
+            assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("test_attr"));
         }
 
         // leading whitespace not allowed

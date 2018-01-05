@@ -21,12 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -111,6 +112,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return true;
         }
 
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
         /**
          * This termQuery impl looks at the context to determine the index that
          * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
@@ -145,12 +151,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isSameIndex(Object value, String indexName) {
-            if (value instanceof BytesRef) {
-                BytesRef indexNameRef = new BytesRef(indexName);
-                return (indexNameRef.bytesEquals((BytesRef) value));
-            } else {
-                return indexName.equals(value.toString());
-            }
+            String pattern = value instanceof BytesRef ? pattern = ((BytesRef) value).utf8ToString() : value.toString();
+            return Regex.simpleMatch(pattern, indexName);
         }
 
         @Override

@@ -44,7 +44,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -67,7 +66,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
+        String[] preferences = new String[]{"_local", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
             SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).execute().actionGet();
@@ -113,54 +112,14 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-    }
-
-    public void testReplicaPreference() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 0}", XContentType.JSON).get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
-        refresh();
-
-        try {
-            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-            fail("should have failed because there are no replicas");
-        } catch (Exception e) {
-            // pass
-        }
-
-        SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(resp.getHits().getTotalHits(), equalTo(1L));
-
-        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
-        ensureGreen("test");
-
-        resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(resp.getHits().getTotalHits(), equalTo(1L));
     }
 
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {

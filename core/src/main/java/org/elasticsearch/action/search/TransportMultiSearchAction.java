@@ -34,16 +34,18 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final int availableProcessors;
     private final ClusterService clusterService;
     private final TransportAction<SearchRequest, SearchResponse> searchAction;
+    private final LongSupplier relativeTimeProvider;
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -53,24 +55,28 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
+        this.relativeTimeProvider = System::nanoTime;
     }
 
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, TransportAction<SearchRequest, SearchResponse> searchAction,
-                               IndexNameExpressionResolver resolver, int availableProcessors) {
+                               IndexNameExpressionResolver resolver, int availableProcessors, LongSupplier relativeTimeProvider) {
         super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, resolver, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = availableProcessors;
+        this.relativeTimeProvider = relativeTimeProvider;
     }
 
     @Override
     protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+        final long relativeStartTime = relativeTimeProvider.getAsLong();
+
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         int maxConcurrentSearches = request.maxConcurrentSearchRequests();
-        if (maxConcurrentSearches == 0) {
+        if (maxConcurrentSearches == MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             maxConcurrentSearches = defaultMaxConcurrentSearches(availableProcessors, clusterState);
         }
 
@@ -85,7 +91,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener);
+            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
         }
     }
 
@@ -111,11 +117,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * @param responseCounter incremented on each response
      * @param listener the listener attached to the multi-search request
      */
-    private void executeSearch(
+    void executeSearch(
             final Queue<SearchRequestSlot> requests,
             final AtomicArray<MultiSearchResponse.Item> responses,
             final AtomicInteger responseCounter,
-            final ActionListener<MultiSearchResponse> listener) {
+            final ActionListener<MultiSearchResponse> listener,
+            final long relativeStartTime) {
         SearchRequestSlot request = requests.poll();
         if (request == null) {
             /*
@@ -123,7 +130,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
              * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
              * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
              * earlier requests that have already completed will poll from the queue too and they could complete before later polls are
-             * invoked here. Thus, it can be the case that we poll here and and the queue was empty.
+             * invoked here. Thus, it can be the case that we poll here and the queue was empty.
              */
             return;
         }
@@ -155,16 +162,25 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 } else {
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
-                        threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener));
+                        threadPool.generic()
+                                .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener);
+                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
                     }
                 }
             }
 
             private void finish() {
-                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()])));
+                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]),
+                        buildTookInMillis()));
+            }
+
+            /**
+             * Builds how long it took to execute the msearch.
+             */
+            private long buildTookInMillis() {
+                return TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - relativeStartTime);
             }
         });
     }
@@ -178,7 +194,5 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             this.request = request;
             this.responseSlot = responseSlot;
         }
-
     }
-
 }

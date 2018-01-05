@@ -30,6 +30,7 @@ import org.elasticsearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -294,13 +295,13 @@ public final class ConfigurationUtils {
         return exception;
     }
 
-    public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
+    public static List<Processor> readProcessorConfigs(List<Map<String, Object>> processorConfigs,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
-            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
-                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
                         processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
                     } catch (Exception e) {
@@ -353,13 +354,28 @@ public final class ConfigurationUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+                                          String type, Object config) throws Exception {
+        if (config instanceof Map) {
+            return readProcessor(processorFactories, type, (Map<String, Object>) config);
+        } else if (config instanceof String && "script".equals(type)) {
+            Map<String, Object> normalizedScript = new HashMap<>(1);
+            normalizedScript.put(ScriptType.INLINE.getName(), config);
+            return readProcessor(processorFactories, type, normalizedScript);
+        } else {
+            throw newConfigurationException(type, null, null,
+                "property isn't a map, but of type [" + config.getClass().getName() + "]");
+        }
+    }
+
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
-            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
+            List<Map<String, Object>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);

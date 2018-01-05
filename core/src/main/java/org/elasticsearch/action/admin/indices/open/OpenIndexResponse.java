@@ -21,15 +21,34 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response for a open index action.
  */
-public class OpenIndexResponse extends AcknowledgedResponse {
+public class OpenIndexResponse extends AcknowledgedResponse implements ToXContentObject  {
+    private static final String SHARDS_ACKNOWLEDGED = "shards_acknowledged";
+    private static final ParseField SHARDS_ACKNOWLEDGED_PARSER = new ParseField(SHARDS_ACKNOWLEDGED);
+
+    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>("open_index", true,
+            args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED_PARSER,
+                ObjectParser.ValueType.BOOLEAN);
+    }
 
     private boolean shardsAcknowledged;
 
@@ -67,5 +86,18 @@ public class OpenIndexResponse extends AcknowledgedResponse {
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(shardsAcknowledged);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        addAcknowledgedField(builder);
+        builder.field(SHARDS_ACKNOWLEDGED, isShardsAcknowledged());
+        builder.endObject();
+        return builder;
+    }
+
+    public static OpenIndexResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 }

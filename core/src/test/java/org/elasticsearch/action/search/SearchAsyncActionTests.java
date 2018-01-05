@@ -50,6 +50,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -111,7 +113,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 null,
                 new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests()) {
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -201,7 +204,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 null,
                 new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests()) {
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -285,6 +289,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         AbstractSearchAsyncAction asyncAction =
                 new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                         "test",
@@ -295,7 +300,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             return lookup.get(node); },
                         aliasFilters,
                         Collections.emptyMap(),
-                        null,
+                        executor,
                         request,
                         responseListener,
                         shardsIter,
@@ -303,7 +308,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                         0,
                         null,
                         new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size()),
-                        request.getMaxConcurrentShardRequests()) {
+                        request.getMaxConcurrentShardRequests(),
+                        SearchResponse.Clusters.EMPTY) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -349,6 +355,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         } else {
             assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
         }
+        executor.shutdown();
     }
 
     static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,

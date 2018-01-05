@@ -33,7 +33,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-PUT /emails/message/_bulk?refresh
+PUT /emails/_doc/_bulk?refresh
 { "index" : { "_id" : 1 } }
 { "accounts" : ["hillary", "sidney"]}
 { "index" : { "_id" : 2 } }
@@ -41,7 +41,7 @@ PUT /emails/message/_bulk?refresh
 { "index" : { "_id" : 3 } }
 { "accounts" : ["vladimir", "donald"]}
 
-GET emails/message/_search
+GET emails/_search
 {
   "size": 0,
   "aggs" : {

@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -161,21 +162,23 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
-        Settings.Builder skipppedSettings = Settings.builder();
+        final Set<String> skippedSettings = new HashSet<>();
 
-        indexScopedSettings.validate(normalizedSettings);
-        // never allow to change the number of shards
-        for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
-            Setting setting = indexScopedSettings.get(entry.getKey());
-            assert setting != null; // we already validated the normalized settings
-            settingsForClosedIndices.put(entry.getKey(), entry.getValue());
-            if (setting.isDynamic()) {
-                settingsForOpenIndices.put(entry.getKey(), entry.getValue());
+        indexScopedSettings.validate(normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false  /* don't validate wildcards */),
+            false); //don't validate dependencies here we check it below never allow to change the number of shards
+        for (String key : normalizedSettings.keySet()) {
+            Setting setting = indexScopedSettings.get(key);
+            boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
+            assert setting != null // we already validated the normalized settings
+                || (isWildcard && normalizedSettings.hasValue(key) == false)
+                : "unknown setting: " + key + " isWildcard: " + isWildcard + " hasValue: " + normalizedSettings.hasValue(key);
+            settingsForClosedIndices.copy(key, normalizedSettings);
+            if (isWildcard || setting.isDynamic()) {
+                settingsForOpenIndices.copy(key, normalizedSettings);
             } else {
-                skipppedSettings.put(entry.getKey(), entry.getValue());
+                skippedSettings.add(key);
             }
         }
-        final Settings skippedSettigns = skipppedSettings.build();
         final Settings closedSettings = settingsForClosedIndices.build();
         final Settings openSettings = settingsForOpenIndices.build();
         final boolean preserveExisting = request.isPreserveExisting();
@@ -210,12 +213,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s",
-                            skippedSettigns.getAsMap().keySet(),
-                            openIndices
-                    ));
+                            "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
@@ -244,7 +244,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                            Settings finalSettings = indexSettings.build();
+                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
                 }
@@ -258,7 +260,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                            Settings finalSettings = indexSettings.build();
+                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
                 }

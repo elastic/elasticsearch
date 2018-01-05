@@ -1358,9 +1358,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+                .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
+                .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
         assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
 
@@ -2773,9 +2773,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Builder builder = Settings.builder()
             .put(indexSettings())
             .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+            .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
             .put("index.analysis.filter.synonym.type", "synonym")
-            .putArray("index.analysis.filter.synonym.synonyms", "fast,quick");
+            .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
             .addMapping("type1", "field1",
@@ -2913,6 +2913,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+        }
+    }
+
+    public void testWithNormalizer() throws Exception {
+        Builder builder = Settings.builder()
+            .put(indexSettings())
+            .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
+
+        assertAcked(prepareCreate("test").setSettings(builder.build())
+            .addMapping("doc", "keyword",
+                "type=keyword,normalizer=my_normalizer"));
+        ensureGreen();
+
+        client().prepareIndex("test", "doc", "0")
+            .setSource("keyword", "Hello World")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        for (String highlighterType : new String[] {"unified", "plain"}) {
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchQuery("keyword", "hello world"))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("keyword").highlighterType(highlighterType)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
         }
     }
 }

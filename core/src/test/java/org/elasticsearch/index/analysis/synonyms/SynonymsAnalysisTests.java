@@ -83,11 +83,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym.type", "synonym")
-            .putArray("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
+            .putList("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
-            .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym","synonym")
+            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym","synonym")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
@@ -104,11 +104,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym_expand.type", "synonym")
-            .putArray("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, elasticsearch", "abides, man!")
+            .putList("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, elasticsearch", "abides, man!")
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
-            .putArray("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
-            .putArray("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym","synonym_expand")
+            .putList("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym","synonym_expand")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {

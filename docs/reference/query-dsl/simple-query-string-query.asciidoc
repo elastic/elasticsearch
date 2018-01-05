@@ -70,6 +70,15 @@ Defaults to `true`.
 |`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
 Perform the query on all fields detected in the mapping that can
 be queried.
+
+|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
+is `0`.
+
+|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
+expand to. Defaults to `50`
+
+|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
+Default is `true`.
 |=======================================================================
 
 [float]

@@ -42,15 +42,12 @@ public class SequenceNumbers {
     public static final long NO_OPS_PERFORMED = -1L;
 
     /**
-     * Reads the sequence number stats from the commit data (maximum sequence number and local checkpoint) and uses the specified global
-     * checkpoint.
+     * Reads the sequence number stats from the commit data (maximum sequence number and local checkpoint).
      *
-     * @param globalCheckpoint the global checkpoint to use
      * @param commitData       the commit data
      * @return the sequence number stats
      */
-    public static SeqNoStats loadSeqNoStatsFromLuceneCommit(
-        final long globalCheckpoint,
+    public static CommitInfo loadSeqNoInfoFromLuceneCommit(
         final Iterable<Map.Entry<String, String>> commitData) {
         long maxSeqNo = NO_OPS_PERFORMED;
         long localCheckpoint = NO_OPS_PERFORMED;
@@ -66,7 +63,7 @@ public class SequenceNumbers {
             }
         }
 
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+        return new CommitInfo(maxSeqNo, localCheckpoint);
     }
 
     /**
@@ -117,4 +114,13 @@ public class SequenceNumbers {
         }
     }
 
+    public static final class CommitInfo {
+        public final long maxSeqNo;
+        public final long localCheckpoint;
+
+        public CommitInfo(long maxSeqNo, long localCheckpoint) {
+            this.maxSeqNo = maxSeqNo;
+            this.localCheckpoint = localCheckpoint;
+        }
+    }
 }

@@ -110,6 +110,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -120,6 +121,7 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -416,7 +418,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
 
-            for (String setting : randomSettingsBuilder.internalMap().keySet()) {
+            for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
             }
             // always default delayed allocation to 0 to make sure we have tests are not delayed
@@ -427,9 +429,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
-            }
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -548,15 +547,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                        final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
+                        final Set<String> persistent = metaData.persistentSettings().keySet();
                         assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
-                        final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
+                        final Set<String> transientSettings =  new HashSet<>(metaData.transientSettings().keySet());
                         if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
                             // this is set by the test infra
                             transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
                         }
                         assertThat("test leaves transient cluster metadata behind: " + transientSettings,
-                            transientSettings.keySet(), empty());
+                            transientSettings, empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
@@ -737,6 +736,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * creates an index with the given setting
+     */
+    public final void createIndex(String name, Settings indexSettings) {
+        assertAcked(prepareCreate(name).setSettings(indexSettings));
     }
 
     /**
@@ -1908,6 +1914,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(AssertingTransportInterceptor.TestPlugin.class);
             }
+            if (randomBoolean()) {
+                mocks.add(MockFieldFilterPlugin.class);
+            }
         }
 
         if (addMockTransportService()) {
@@ -1971,7 +1980,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public static Path randomRepoPath(Settings settings) {
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         Path[] repoFiles = environment.repoFiles();
         assert repoFiles.length > 0;
         Path path;
@@ -2074,7 +2083,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState();
+                checkStaticState(true);
             } finally {
                 INSTANCE = null;
             }

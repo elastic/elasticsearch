@@ -22,6 +22,7 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
@@ -112,6 +113,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("arabicnormalization",       MovedToAnalysisCommon.class)
         .put("arabicstem",                MovedToAnalysisCommon.class)
         .put("asciifolding",              MovedToAnalysisCommon.class)
+        .put("bengalinormalization",      MovedToAnalysisCommon.class)
+        .put("bengalistem",               MovedToAnalysisCommon.class)
         .put("brazilianstem",             MovedToAnalysisCommon.class)
         .put("bulgarianstem",             MovedToAnalysisCommon.class)
         .put("cjkbigram",                 MovedToAnalysisCommon.class)
@@ -191,7 +194,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("flattengraph",              MovedToAnalysisCommon.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
-
         // suggest stop
         .put("suggeststop",               Void.class)
         // capitalizes tokens
@@ -461,6 +463,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
         Set<Object> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
         classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
+        classesThatShouldNotHaveMultiTermSupport.remove("token filter [trim]");
+        if (Version.CURRENT.luceneVersion.onOrAfter(org.apache.lucene.util.Version.fromBits(7, 3, 0))) {
+            // TODO: remove the above exclusion when we move to lucene 7.3
+            assert false;
+        }
         assertTrue("Pre-built components should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
                 classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }

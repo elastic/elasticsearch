@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -33,8 +34,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
@@ -49,9 +48,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     @BeforeClass
     public static void init() {
         if (namedWriteableRegistry == null) {
-            List<NamedWriteableRegistry.Entry> shapes = new ArrayList<>();
-            ShapeBuilders.register(shapes);
-            namedWriteableRegistry = new NamedWriteableRegistry(shapes);
+            namedWriteableRegistry = new NamedWriteableRegistry(GeoShapeType.getShapeWriteables());
         }
     }
 
@@ -82,9 +79,9 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser shapeParser = createParser(shuffled);
-            shapeParser.nextToken();
-            ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
+            XContentParser shapeContentParser = createParser(shuffled);
+            shapeContentParser.nextToken();
+            ShapeBuilder parsedShape = ShapeParser.parse(shapeContentParser);
             assertNotSame(testShape, parsedShape);
             assertEquals(testShape, parsedShape);
             assertEquals(testShape.hashCode(), parsedShape.hashCode());

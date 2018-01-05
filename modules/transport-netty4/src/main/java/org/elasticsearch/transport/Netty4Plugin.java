@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -56,8 +57,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
             Netty4Transport.WORKER_COUNT,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
@@ -78,6 +77,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry,
                                                           NetworkService networkService) {

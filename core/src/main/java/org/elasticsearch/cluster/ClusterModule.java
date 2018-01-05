@@ -50,9 +50,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -182,6 +184,7 @@ public class ClusterModule extends AbstractModule {
         // collect deciders by class so that we can detect duplicates
         Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
+        addAllocationDecider(deciders, new ResizeAllocationDecider(settings));
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
@@ -189,6 +192,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
+        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider(settings));
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));

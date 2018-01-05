@@ -26,8 +26,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 
@@ -80,7 +78,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "1")
-                .putArray("index.sort.field", "date", "numeric_dv", "keyword_dv")
+                .putList("index.sort.field", "date", "numeric_dv", "keyword_dv")
             )
             .addMapping("test", TEST_MAPPING)
             .get();
@@ -99,7 +97,7 @@ public class IndexSortIT extends ESIntegTestCase {
             () -> prepareCreate("test")
                 .setSettings(Settings.builder()
                     .put(indexSettings())
-                    .putArray("index.sort.field", "invalid_field")
+                    .putList("index.sort.field", "invalid_field")
                 )
                 .addMapping("test", TEST_MAPPING)
                 .get()
@@ -110,7 +108,7 @@ public class IndexSortIT extends ESIntegTestCase {
             () -> prepareCreate("test")
                 .setSettings(Settings.builder()
                     .put(indexSettings())
-                    .putArray("index.sort.field", "numeric")
+                    .putList("index.sort.field", "numeric")
                 )
                 .addMapping("test", TEST_MAPPING)
                 .get()
@@ -121,7 +119,7 @@ public class IndexSortIT extends ESIntegTestCase {
             () -> prepareCreate("test")
                 .setSettings(Settings.builder()
                     .put(indexSettings())
-                    .putArray("index.sort.field", "keyword")
+                    .putList("index.sort.field", "keyword")
                 )
                 .addMapping("test", TEST_MAPPING)
                 .get()

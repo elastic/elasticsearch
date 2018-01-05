@@ -83,8 +83,10 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -106,6 +108,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile MockTransportService serviceB;
 
     protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+
+    protected int channelsPerNodeConnection() {
+        return 13;
+    }
 
     @Override
     @Before
@@ -147,14 +153,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
         MockTransportService service = build(
-            Settings.builder()
-                .put(settings)
-                .put(Node.NODE_NAME_SETTING.getKey(), name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version,
-            clusterSettings, doHandshake);
+                Settings.builder()
+                        .put(settings)
+                        .put(Node.NODE_NAME_SETTING.getKey(), name)
+                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                        .build(),
+                version,
+                clusterSettings, doHandshake);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -1974,7 +1980,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
-            protected String handleRequest(MockChannel mockChannel, String profileName, StreamInput stream, long requestId,
+            protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
                 throws IOException {
                 return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
@@ -2343,6 +2349,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testAcceptedChannelCount() throws Exception {
+        assertBusy(() -> {
+            TransportStats transportStats = serviceA.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+        });
+
+        serviceA.close();
+
+        assertBusy(() -> {
+            TransportStats transportStats = serviceB.transport.getStats();
+            assertEquals(0, transportStats.getServerOpen());
+        });
+    }
+
     public void testTransportStatsWithException() throws Exception {
         MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
@@ -2455,8 +2479,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put("transport.profiles.some_profile.port", "8900-9000")
             .put("transport.profiles.some_profile.bind_host", "_local:ipv4_")
             .put("transport.profiles.some_other_profile.port", "8700-8800")
-            .putArray("transport.profiles.some_other_profile.bind_host", hosts)
-            .putArray("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
+            .putList("transport.profiles.some_other_profile.bind_host", hosts)
+            .putList("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
             .build(), version0, null, true)) {
 
             serviceC.start();
@@ -2566,7 +2590,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings randomSettings = randomFrom(random(), globalSettings, transportSettings, profileSettings);
         ClusterSettings clusterSettings = new ClusterSettings(randomSettings, ClusterSettings
             .BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.validate(randomSettings);
+        clusterSettings.validate(randomSettings, false);
         TcpTransport.ProfileSettings settings = new TcpTransport.ProfileSettings(
             Settings.builder().put(randomSettings).put("transport.profiles.some_profile.port", "9700-9800").build(), // port is required
             "some_profile");
@@ -2612,4 +2636,33 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
             .toSet()));
     }
+
+    public void testChannelCloseWhileConnecting() throws IOException {
+        try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
+            service.setExecutorName(ThreadPool.Names.SAME); // make sure stuff is executed in a blocking fashion
+            service.addConnectionListener(new TransportConnectionListener() {
+                @Override
+                public void onConnectionOpened(final Transport.Connection connection) {
+                    try {
+                        closeConnectionChannel(service.getOriginalTransport(), connection);
+                    } catch (final IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE);
+            final ConnectTransportException e =
+                    expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
+            assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
+        }
+    }
+
+    protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
+
 }

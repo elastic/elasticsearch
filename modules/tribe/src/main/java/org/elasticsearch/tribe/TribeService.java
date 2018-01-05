@@ -195,7 +195,7 @@ public class TribeService extends AbstractLifecycleComponent {
      * combined with tribe specific settings.
      */
     static Settings buildClientSettings(String tribeName, String parentNodeId, Settings globalSettings, Settings tribeSettings) {
-        for (String tribeKey : tribeSettings.getAsMap().keySet()) {
+        for (String tribeKey : tribeSettings.keySet()) {
             if (tribeKey.startsWith("path.")) {
                 throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
             }

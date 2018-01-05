@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 
@@ -49,6 +50,11 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
 
     public RolloverRequestBuilder addMaxIndexDocsCondition(long docs) {
         this.request.addMaxIndexDocsCondition(docs);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size){
+        this.request.addMaxIndexSizeCondition(size);
         return this;
     }
 

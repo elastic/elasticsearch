@@ -153,8 +153,8 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        if (blobStore.doesContainerExist(blobStore.container()) == false) {
-            throw new IllegalArgumentException("The bucket [" + blobStore.container() + "] does not exist. Please create it before " +
+        if (blobStore.doesContainerExist() == false) {
+            throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before " +
                 " creating an azure snapshot repository backed by it.");
         }
         super.initializeSnapshot(snapshotId, indices, clusterMetadata);

@@ -700,4 +700,19 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(2.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(2.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
     }
+
+    public void testFilterScript() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        indexRandom(true,
+            client().prepareIndex("test", "doc", "1").setSource("foo", 1.0),
+            client().prepareIndex("test", "doc", "2").setSource("foo", 0.0));
+        SearchRequestBuilder builder = buildRequest("doc['foo'].value");
+        Script script = new Script(ScriptType.INLINE, "expression", "doc['foo'].value", Collections.emptyMap());
+        builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));
+        SearchResponse rsp = builder.get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
+    }
 }

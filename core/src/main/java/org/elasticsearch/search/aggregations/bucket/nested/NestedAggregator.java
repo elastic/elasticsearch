@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongArrayList;
+
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -61,7 +62,9 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
                      boolean collectsFromSingleBucket) throws IOException {
         super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
+
+        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
+            : Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = collectsFromSingleBucket;
@@ -99,15 +102,23 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
                 }
             };
         } else {
-            doPostCollection();
             return bufferingNestedLeafBucketCollector = new BufferingNestedLeafBucketCollector(sub, parentDocs, childDocs);
         }
     }
 
     @Override
+    protected void preGetSubLeafCollectors() throws IOException {
+        processBufferedDocs();
+    }
+
+    @Override
     protected void doPostCollection() throws IOException {
+        processBufferedDocs();
+    }
+
+    private void processBufferedDocs() throws IOException {
         if (bufferingNestedLeafBucketCollector != null) {
-            bufferingNestedLeafBucketCollector.postCollect();
+            bufferingNestedLeafBucketCollector.processBufferedChildBuckets();
         }
     }
 
@@ -147,36 +158,32 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
             }
 
             if (currentParentDoc != parentDoc) {
-                processChildBuckets(currentParentDoc, bucketBuffer);
+                processBufferedChildBuckets();
                 currentParentDoc = parentDoc;
             }
             bucketBuffer.add(bucket);
         }
 
-        void processChildBuckets(int parentDoc, LongArrayList buckets) throws IOException {
+        void processBufferedChildBuckets() throws IOException {
             if (bucketBuffer.isEmpty()) {
                 return;
             }
 
 
-            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            final int prevParentDoc = parentDocs.prevSetBit(currentParentDoc - 1);
             int childDocId = childDocs.docID();
             if (childDocId <= prevParentDoc) {
                 childDocId = childDocs.advance(prevParentDoc + 1);
             }
 
-            for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
-                final long[] buffer = buckets.buffer;
-                final int size = buckets.size();
+            for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
+                final long[] buffer = bucketBuffer.buffer;
+                final int size = bucketBuffer.size();
                 for (int i = 0; i < size; i++) {
                     collectBucket(sub, childDocId, buffer[i]);
                 }
             }
             bucketBuffer.clear();
-        }
-
-        void postCollect() throws IOException {
-            processChildBuckets(currentParentDoc, bucketBuffer);
         }
 
     }

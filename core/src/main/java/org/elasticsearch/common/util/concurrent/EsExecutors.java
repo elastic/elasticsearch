@@ -246,13 +246,16 @@ public class EsExecutors {
      * waiting if necessary for space to become available.
      */
     static class ForceQueuePolicy implements XRejectedExecutionHandler {
+
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
+                // force queue policy should only be used with a scaling queue
+                assert executor.getQueue() instanceof ExecutorScalingQueue;
                 executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                //should never happen since we never wait
-                throw new EsRejectedExecutionException(e);
+            } catch (final InterruptedException e) {
+                // a scaling queue never blocks so a put to it can never be interrupted
+                throw new AssertionError(e);
             }
         }
 
@@ -260,6 +263,7 @@ public class EsExecutors {
         public long rejected() {
             return 0;
         }
+
     }
 
 }

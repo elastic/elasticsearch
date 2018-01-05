@@ -1,0 +1,587 @@
+[[search-aggregations-bucket-composite-aggregation]]
+=== Composite Aggregation
+
+experimental[]
+
+A multi-bucket aggregation that creates composite buckets from different sources.
+
+Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
+to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
+provides a way to stream **all** buckets of a specific aggregation similarly to what
+<<search-request-scroll, scroll>> does for documents.
+
+The composite buckets are built from the combinations of the
+values extracted/created for each document and each combination is considered as
+a composite bucket.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /sales
+{
+    "mappings": {
+        "docs": {
+            "properties": {
+                "product": {
+                    "type": "keyword"
+                },
+                "timestamp": {
+                    "type": "date"
+                },
+                "price": {
+                    "type": "long"
+                },
+                "shop": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+POST /sales/docs/_bulk?refresh
+{"index":{"_id":0}}
+{"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
+{"index":{"_id":1}}
+{"product": "mad max", "price": "25", "timestamp": "2017-05-09T12:35"}
+{"index":{"_id":2}}
+{"product": "rocky", "price": "10", "timestamp": "2017-05-08T09:10"}
+{"index":{"_id":3}}
+{"product": "mad max", "price": "27", "timestamp": "2017-05-10T07:07"}
+{"index":{"_id":4}}
+{"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
+For instance the following document:
+
+[source,js]
+--------------------------------------------------
+{
+    "keyword": ["foo", "bar"],
+    "number": [23, 65, 76]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+\... creates the following composite buckets when `keyword` and `number` are used as values source
+for the aggregation:
+
+[source,js]
+--------------------------------------------------
+{ "keyword": "foo", "number": 23 }
+{ "keyword": "foo", "number": 65 }
+{ "keyword": "foo", "number": 76 }
+{ "keyword": "bar", "number": 23 }
+{ "keyword": "bar", "number": 65 }
+{ "keyword": "bar", "number": 76 }
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Values source
+
+The `sources` parameter controls the sources that should be used to build the composite buckets.
+There are three different types of values source:
+
+===== Terms
+
+The `terms` value source is equivalent to a simple `terms` aggregation.
+The values are extracted from a field or a script exactly like the `terms` aggregation.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "product": { "terms" : { "field": "product" } } }
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+// CONSOLE
+
+Like the `terms` aggregation it is also possible to use a script to create the values for the composite buckets:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "product": {
+                            "terms" : {
+                                "script" : {
+                                    "source": "doc['product'].value",
+                                    "lang": "painless"
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+===== Histogram
+
+The `histogram` value source can be applied on numeric values to build fixed size
+interval over the values. The `interval` parameter defines how the numeric values should be
+transformed. For instance an `interval` set to 5 will translate any numeric values to its closest interval,
+a value of `101` would be translated to `100` which is the key for the interval between 100 and 105.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "histo": { "histogram" : { "field": "price", "interval": 5 } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The values are built from a numeric field or a script that return numerical values:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "histo": {
+                            "histogram" : {
+                                "interval": 5,
+                                "script" : {
+                                    "source": "doc['price'].value",
+                                    "lang": "painless"
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+===== Date Histogram
+
+The `date_histogram` is similar to the `histogram` value source except that the interval
+is specified by date/time expression:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "date": { "date_histogram" : { "field": "timestamp", "interval": "1d" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates an interval per day and translates all `timestamp` values to the start of its closest intervals.
+Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
+
+Time values can also be specified via abbreviations supported by <<time-units,time units>> parsing.
+Note that fractional time values are not supported, but you can address this by shifting to another
+time unit (e.g., `1.5h` could instead be specified as `90m`).
+
+[float]
+===== Time Zone
+
+Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+rounding is also done in UTC. The `time_zone` parameter can be used to indicate
+that bucketing should use a different time zone.
+
+Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`)  or as a timezone id, an identifier used in the TZ database like
+`America/Los_Angeles`.
+
+===== Mixing different values source
+
+The `sources` parameter accepts an array of values source.
+It is possible to mix different values source to create composite buckets.
+For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "product": { "terms": {"field": "product" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
+Each bucket is composed of two values, one for each value source defined in the aggregation.
+Any type of combinations is allowed and the order in the array is preserved
+in the composite buckets.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "shop": { "terms": {"field": "shop" } } },
+                    { "product": { "terms": { "field": "product" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+==== Order
+
+By default the composite buckets are sorted by their natural ordering. Values are sorted
+in ascending order of their values. When multiple value sources are requested, the ordering is done per value
+source, the first value of the composite bucket is compared to the first value of the other composite bucket and if they are equals the
+next values in the composite bucket are used for tie-breaking. This means that the composite bucket
+ `[foo, 100]` is considered smaller than `[foobar, 0]` because `foo` is considered smaller than `foobar`.
+It is possible to define the direction of the sort for each value source by setting `order` to `asc` (default value)
+or `desc` (descending order) directly in the value source definition.
+For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "product": { "terms": {"field": "product", "order": "asc" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
+and in ascending order when comparing values from the `terms` source.
+
+==== Size
+
+The `size` parameter can be set to define how many composite buckets should be returned.
+Each composite bucket is considered as a single bucket so setting a size of 10 will return the
+first 1O composite buckets created from the values source.
+The response contains the values for each composite bucket in an array containing the values extracted
+from each value source.
+
+==== After
+
+If the number of composite buckets is too high (or unknown) to be returned in a single response
+it is possible to split the retrieval in multiple requests.
+Since the composite buckets are flat by nature, the requested `size` is exactly the number of composite buckets
+that will be returned in the response (assuming that they are at least `size` composite buckets to return).
+If all composite buckets should be retrieved it is preferable to use a small size (`100` or `1000` for instance)
+and then use the `after` parameter to retrieve the next results.
+For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "size": 2,
+                "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "product": { "terms": {"field": "product" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "my_buckets": {
+            "buckets": [
+                {
+                    "key": {
+                        "date": 1494201600000,
+                        "product": "rocky"
+                    },
+                    "doc_count": 1
+                },
+                {
+                    "key": {     <1>
+                        "date": 1494288000000,
+                        "product": "mad max"
+                    },
+                    "doc_count": 2
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+
+<1> The last composite bucket returned by the query.
+
+The `after` parameter can be used to retrieve the composite buckets that are **after**
+the last composite buckets returned in a previous round.
+For the example below the last bucket is `"key": [1494288000000, "mad max"]` so the next
+round of result can be retrieved with:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "size": 2,
+                 "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "product": { "terms": {"field": "product", "order": "asc" } } }
+                ],
+                "after": { "date": 1494288000000, "product": "mad max" } <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Should restrict the aggregation to buckets that sort **after** the provided values.
+
+==== Sub-aggregations
+
+Like any `multi-bucket` aggregations the `composite` aggregation can hold sub-aggregations.
+These sub-aggregations can be used to compute other buckets or statistics on each composite bucket created by this
+parent aggregation.
+For instance the following example computes the average value of a field
+per composite bucket:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                 "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "product": { "terms": {"field": "product" } } }
+                ]
+            },
+            "aggregations": {
+                "the_avg": {
+                    "avg": { "field": "price" }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "my_buckets": {
+            "buckets": [
+                {
+                    "key": {
+                        "date": 1494460800000,
+                        "product": "apocalypse now"
+                    },
+                    "doc_count": 1,
+                    "the_avg": {
+                        "value": 10.0
+                    }
+                },
+                {
+                    "key": {
+                        "date": 1494374400000,
+                        "product": "mad max"
+                    },
+                    "doc_count": 1,
+                    "the_avg": {
+                        "value": 27.0
+                    }
+                },
+                {
+                    "key": {
+                        "date": 1494288000000,
+                        "product" : "mad max"
+                    },
+                    "doc_count": 2,
+                    "the_avg": {
+                        "value": 22.5
+                    }
+                },
+                {
+                    "key": {
+                        "date": 1494201600000,
+                        "product": "rocky"
+                    },
+                    "doc_count": 1,
+                    "the_avg": {
+                        "value": 10.0
+                    }
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+
+==== Index sorting
+
+By default this aggregation runs on every document that match the query.
+Though if the index sort matches the composite sort this aggregation can optimize
+the execution and can skip documents that contain composite buckets that would not
+be part of the response.
+
+For instance the following aggregations:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "size": 2,
+                "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "asc" } } },
+                    { "product": { "terms": { "field": "product", "order": "asc" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... is much faster on an index that uses the following sort:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "index" : {
+            "sort.field" : ["timestamp", "product"],
+            "sort.order" : ["asc", "asc"]
+        }
+    },
+    "mappings": {
+        "sales": {
+            "properties": {
+                "timestamp": {
+                    "type": "date"
+                },
+                "product": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: The optimization takes effect only if the fields used for sorting are single-valued and follow
+the same order as the aggregation (`desc` or `asc`).
+
+If only the aggregation results are needed it is also better to set the size of the query to 0
+and `track_total_hits` to false in order to remove other slowing factors:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "track_total_hits": false,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "size": 2,
+                "sources" : [
+                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "product": { "terms": { "field": "product" } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+See <<index-modules-index-sorting, index sorting>> for more details.

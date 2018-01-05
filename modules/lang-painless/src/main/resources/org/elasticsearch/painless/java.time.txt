@@ -24,7 +24,7 @@
 
 #### Classes
 
-class Clock -> java.time.Clock {
+class java.time.Clock {
   Clock fixed(Instant,ZoneId)
   ZoneId getZone()
   Instant instant()
@@ -33,7 +33,7 @@ class Clock -> java.time.Clock {
   Clock tick(Clock,Duration)
 }
 
-class Duration -> java.time.Duration {
+class java.time.Duration {
   Duration ZERO
   Duration abs()
   Duration between(Temporal,Temporal)
@@ -80,7 +80,7 @@ class Duration -> java.time.Duration {
   Duration withNanos(int)
 }
 
-class Instant -> java.time.Instant {
+class java.time.Instant {
   Instant EPOCH
   Instant MAX
   Instant MIN
@@ -112,7 +112,7 @@ class Instant -> java.time.Instant {
   Instant with(TemporalField,long)
 }
 
-class LocalDate -> java.time.LocalDate {
+class java.time.LocalDate {
   LocalDate MAX
   LocalDate MIN
   LocalDateTime atStartOfDay()
@@ -155,7 +155,7 @@ class LocalDate -> java.time.LocalDate {
   LocalDate withYear(int)
 }
 
-class LocalDateTime -> java.time.LocalDateTime {
+class java.time.LocalDateTime {
   LocalDateTime MIN
   LocalDateTime MAX
   OffsetDateTime atOffset(ZoneOffset)
@@ -212,7 +212,7 @@ class LocalDateTime -> java.time.LocalDateTime {
   LocalDateTime withYear(int)
 }
 
-class LocalTime -> java.time.LocalTime {
+class java.time.LocalTime {
   LocalTime MAX
   LocalTime MIDNIGHT
   LocalTime MIN
@@ -258,7 +258,7 @@ class LocalTime -> java.time.LocalTime {
   LocalTime withSecond(int)
 }
 
-class MonthDay -> java.time.MonthDay {
+class java.time.MonthDay {
   LocalDate atYear(int)
   int compareTo(MonthDay)
   String format(DateTimeFormatter)
@@ -277,7 +277,7 @@ class MonthDay -> java.time.MonthDay {
   MonthDay withMonth(int)
 }
 
-class OffsetDateTime -> java.time.OffsetDateTime {
+class java.time.OffsetDateTime {
   OffsetDateTime MAX
   OffsetDateTime MIN
   ZonedDateTime atZoneSameInstant(ZoneId)
@@ -348,7 +348,7 @@ class OffsetDateTime -> java.time.OffsetDateTime {
   OffsetDateTime withOffsetSameInstant(ZoneOffset)
 }
 
-class OffsetTime -> java.time.OffsetTime {
+class java.time.OffsetTime {
   OffsetTime MAX
   OffsetTime MIN
   int compareTo(OffsetTime)
@@ -391,7 +391,7 @@ class OffsetTime -> java.time.OffsetTime {
   OffsetTime withSecond(int)
 }
 
-class Period -> java.time.Period {
+class java.time.Period {
   Period ZERO
   Period between(LocalDate,LocalDate)
   Period from(TemporalAmount)
@@ -422,7 +422,7 @@ class Period -> java.time.Period {
   Period withYears(int)
 }
 
-class Year -> java.time.Year {
+class java.time.Year {
   int MAX_VALUE
   int MIN_VALUE
   LocalDate atDay(int)
@@ -450,7 +450,7 @@ class Year -> java.time.Year {
   Year with(TemporalField,long)
 }
 
-class YearMonth -> java.time.YearMonth {
+class java.time.YearMonth {
   LocalDate atDay(int)
   LocalDate atEndOfMonth()
   int compareTo(YearMonth)
@@ -482,7 +482,7 @@ class YearMonth -> java.time.YearMonth {
   YearMonth withMonth(int)
 }
 
-class ZonedDateTime -> java.time.ZonedDateTime {
+class java.time.ZonedDateTime {
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
   int getDayOfYear()
@@ -544,7 +544,7 @@ class ZonedDateTime -> java.time.ZonedDateTime {
   ZonedDateTime withZoneSameInstant(ZoneId)
 }
 
-class ZoneId -> java.time.ZoneId {
+class java.time.ZoneId {
   Map SHORT_IDS
   Set getAvailableZoneIds()
   ZoneId of(String)
@@ -558,7 +558,7 @@ class ZoneId -> java.time.ZoneId {
   ZoneRules getRules()
 }
 
-class ZoneOffset -> java.time.ZoneOffset {
+class java.time.ZoneOffset {
   ZoneOffset MAX
   ZoneOffset MIN
   ZoneOffset UTC
@@ -573,7 +573,7 @@ class ZoneOffset -> java.time.ZoneOffset {
 
 #### Enums
 
-class DayOfWeek -> java.time.DayOfWeek {
+class java.time.DayOfWeek {
   DayOfWeek FRIDAY
   DayOfWeek MONDAY
   DayOfWeek SATURDAY
@@ -591,7 +591,7 @@ class DayOfWeek -> java.time.DayOfWeek {
   DayOfWeek[] values()
 }
 
-class Month -> java.time.Month {
+class java.time.Month {
   Month APRIL
   Month AUGUST
   Month DECEMBER
@@ -621,7 +621,7 @@ class Month -> java.time.Month {
 
 #### Exceptions
 
-class DateTimeException -> java.time.DateTimeException {
+class java.time.DateTimeException {
   (String)
 }
 

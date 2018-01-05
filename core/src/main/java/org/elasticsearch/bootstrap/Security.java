@@ -19,9 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.Version;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,10 +48,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -117,13 +119,40 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
+        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
+        final String[] classesThatCanExit =
+                new String[]{
+                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+                        Command.class.getName()};
+        System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
+    }
+
+    /**
+     * Return a map from codebase name to codebase url of jar codebases used by ES core.
+     */
+    @SuppressForbidden(reason = "find URL path")
+    static Map<String, URL> getCodebaseJarMap(Set<URL> urls) {
+        Map<String, URL> codebases = new LinkedHashMap<>(); // maintain order
+        for (URL url : urls) {
+            try {
+                String fileName = PathUtils.get(url.toURI()).getFileName().toString();
+                if (fileName.endsWith(".jar") == false) {
+                    // tests :(
+                    continue;
+                }
+                codebases.put(fileName, url);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return codebases;
     }
 
     /**
@@ -170,7 +199,7 @@ final class Security {
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
+                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases));
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -193,34 +222,33 @@ final class Security {
      * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
+    static Policy readPolicy(URL policyFile, Map<String, URL> codebases) {
         try {
             List<String> propertiesSet = new ArrayList<>();
             try {
                 // set codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
-                    String property = "codebase." + shortName;
-                    if (shortName.startsWith("elasticsearch-rest-client")) {
-                        // The rest client is currently the only example where we have an elasticsearch built artifact
-                        // which needs special permissions in policy files when used. This temporary solution is to
-                        // pass in an extra system property that omits the -version.jar suffix the other properties have.
-                        // That allows the snapshots to reference snapshot builds of the client, and release builds to
-                        // referenced release builds of the client, all with the same grant statements.
-                        final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-                        final int index = property.indexOf("-" + esVersion + ".jar");
-                        assert index >= 0;
-                        String restClientAlias = property.substring(0, index);
-                        propertiesSet.add(restClientAlias);
-                        System.setProperty(restClientAlias, url.toString());
+                for (Map.Entry<String,URL> codebase : codebases.entrySet()) {
+                    String name = codebase.getKey();
+                    URL url = codebase.getValue();
+
+                    // We attempt to use a versionless identifier for each codebase. This assumes a specific version
+                    // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
+                    // only means policy grants would need to include the entire jar filename as they always have before.
+                    String property = "codebase." + name;
+                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    if (aliasProperty.equals(property) == false) {
+                        propertiesSet.add(aliasProperty);
+                        String previous = System.setProperty(aliasProperty, url.toString());
+                        if (previous != null) {
+                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
+                                                            ", cannot set to " + url.toString());
+                        }
                     }
                     propertiesSet.add(property);
                     String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
+                                                        ", cannot set to " + url.toString());
                     }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));

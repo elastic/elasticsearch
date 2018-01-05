@@ -112,9 +112,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
+        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
-        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
+        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
         if (resetNodeAfterTest()) {
             assert NODE != null;

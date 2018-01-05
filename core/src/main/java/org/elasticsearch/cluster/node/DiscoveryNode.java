@@ -189,9 +189,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
-        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
+        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<Role> roles = getRolesFromSettings(settings);
-
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 

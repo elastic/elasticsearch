@@ -37,6 +37,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -54,7 +55,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", home)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
     }
 
     static MockTerminal listPlugins(Path home) throws Exception {
@@ -68,7 +69,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         int status = new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+            protected Environment createEnv(Map<String, String> settings) throws UserException {
                 Settings.Builder builder = Settings.builder().put("path.home", home);
                 settings.forEach((k,v) -> builder.put(k, v));
                 final Settings realSettings = builder.build();
@@ -153,6 +154,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake"),
                 terminal.getOutput());
     }
@@ -171,6 +173,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Version: 1.0",
                 "Native Controller: true",
                 "Requires Keystore: false",
+                "Extended Plugins: []",
                 " * Classname: org.fake"),
             terminal.getOutput());
     }
@@ -189,6 +192,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Version: 1.0",
                 "Native Controller: false",
                 "Requires Keystore: true",
+                "Extended Plugins: []",
                 " * Classname: org.fake"),
             terminal.getOutput());
     }
@@ -208,6 +212,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake",
                         "fake_plugin2",
                         "- Plugin information:",
@@ -216,6 +221,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake2"),
                 terminal.getOutput());
     }

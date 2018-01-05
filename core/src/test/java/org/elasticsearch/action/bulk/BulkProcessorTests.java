@@ -67,7 +67,7 @@ public class BulkProcessorTests extends ESTestCase {
         final BulkProcessor bulkProcessor;
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
-        try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(headerKey, headerValue);
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
             bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), new BulkProcessor.Listener() {
@@ -82,7 +82,7 @@ public class BulkProcessorTests extends ESTestCase {
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 }
-            }, 1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval, threadPool);
+            }, 1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval, threadPool, () -> {});
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));

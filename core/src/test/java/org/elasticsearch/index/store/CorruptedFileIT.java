@@ -204,16 +204,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
-                        try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
-                            BytesStreamOutput os = new BytesStreamOutput();
-                            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
-                            checkIndex.setInfoStream(out);
-                            out.flush();
-                            CheckIndex.Status status = checkIndex.checkIndex();
-                            if (!status.clean) {
-                                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                                throw new IOException("index check failure");
-                            }
+                        BytesStreamOutput os = new BytesStreamOutput();
+                        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+                        CheckIndex.Status status = store.checkIndex(out);
+                        out.flush();
+                        if (!status.clean) {
+                            logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                            throw new IOException("index check failure");
                         }
                     } catch (Exception e) {
                         exception.add(e);

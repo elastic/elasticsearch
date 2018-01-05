@@ -63,17 +63,17 @@ public class EnableAllocationDecider extends AllocationDecider {
     public static final String NAME = "enable";
 
     public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.toString(), Allocation::parse,
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =
-        new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+        new Setting<>("index.routing.allocation.enable", Allocation.ALL.toString(), Allocation::parse,
             Property.Dynamic, Property.IndexScope);
 
     public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.toString(), Rebalance::parse,
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING =
-        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.toString(), Rebalance::parse,
             Property.Dynamic, Property.IndexScope);
 
     private volatile Rebalance enableRebalance;
@@ -116,20 +116,20 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to {}", setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to %s", setting(enable, usedIndexSetting));
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && shardRouting.active() == false &&
                     shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             default:
@@ -228,6 +228,11 @@ public class EnableAllocationDecider extends AllocationDecider {
                 }
             }
         }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     /**
@@ -254,6 +259,11 @@ public class EnableAllocationDecider extends AllocationDecider {
                     throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
                 }
             }
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

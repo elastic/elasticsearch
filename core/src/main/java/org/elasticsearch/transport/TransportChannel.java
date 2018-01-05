@@ -28,11 +28,7 @@ import java.io.IOException;
  */
 public interface TransportChannel {
 
-    String action();
-
     String getProfileName();
-
-    long getRequestId();
 
     String getChannelType();
 

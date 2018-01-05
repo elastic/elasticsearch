@@ -161,13 +161,21 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+        final Scroll scroll = scroll();
+        if (source != null && source.trackTotalHits() == false && scroll != null) {
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
         }
-        if (source != null && source.from() > 0 &&  scroll() != null) {
+        if (source != null && source.from() > 0 && scroll != null) {
             validationException =
                 addValidationError("using [from] is not allowed in a scroll context", validationException);
+        }
+        if (requestCache != null && requestCache && scroll != null) {
+            validationException =
+                addValidationError("[request_cache] cannot be used in a scroll context", validationException);
+        }
+        if (source != null && source.size() == 0 && scroll != null) {
+            validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
         }
         return validationException;
     }
@@ -241,8 +249,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public SearchRequest preference(String preference) {
         this.preference = preference;

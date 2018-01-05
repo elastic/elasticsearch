@@ -47,7 +47,6 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -201,11 +200,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
-        Settings nodeSettings = Settings.builder()
-            .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .build();
-        String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
-        String node1 = internalCluster().startNode(nodeSettings);
+        String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, masterOnlyNode);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         final ClusterState state = clusterService.state();
@@ -255,6 +251,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"total\" : 0,\n" +
                 "      \"pending\" : 0,\n" +
                 "      \"committed\" : 0\n" +
+                "    },\n" +
+                "    \"published_cluster_states\" : {\n" +
+                "      \"full_states\" : 0,\n" +
+                "      \"incompatible_diffs\" : 0,\n" +
+                "      \"compatible_diffs\" : 0\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -274,6 +275,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(stats.getQueueStats().getTotal(), equalTo(0));
         assertThat(stats.getQueueStats().getCommitted(), equalTo(0));
         assertThat(stats.getQueueStats().getPending(), equalTo(0));
+
+        assertThat(stats.getPublishStats(), notNullValue());
+        assertThat(stats.getPublishStats().getFullClusterStateReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getCompatibleClusterStateDiffReceivedCount(), equalTo(0L));
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();

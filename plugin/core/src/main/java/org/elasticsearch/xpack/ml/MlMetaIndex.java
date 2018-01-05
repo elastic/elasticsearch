@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 
 import java.io.IOException;
@@ -39,10 +39,10 @@ public final class MlMetaIndex {
                     .startObject(Calendar.JOB_IDS.getPreferredName())
                         .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
                     .endObject()
-                    .startObject(SpecialEvent.START_TIME.getPreferredName())
+                    .startObject(ScheduledEvent.START_TIME.getPreferredName())
                         .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
                     .endObject()
-                    .startObject(SpecialEvent.END_TIME.getPreferredName())
+                    .startObject(ScheduledEvent.END_TIME.getPreferredName())
                         .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
                     .endObject()
                 .endObject()

@@ -9,7 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -47,14 +47,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class FieldConfigWriterTests extends ESTestCase {
     private AnalysisConfig analysisConfig;
     private Set<MlFilter> filters;
-    private List<SpecialEvent> specialEvents;
+    private List<ScheduledEvent> scheduledEvents;
     private OutputStreamWriter writer;
 
     @Before
     public void setUpDeps() {
         analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())).build();
         filters = new LinkedHashSet<>();
-        specialEvents = new ArrayList<>();
+        scheduledEvents = new ArrayList<>();
     }
 
     public void testMultipleDetectorsToConfFile()
@@ -232,17 +232,17 @@ public class FieldConfigWriterTests extends ESTestCase {
         verifyNoMoreInteractions(writer);
     }
 
-    public void testWrite_GivenSpecialEvents() throws IOException {
+    public void testWrite_GivenScheduledEvents() throws IOException {
         Detector d = new Detector.Builder("count", null).build();
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
         analysisConfig = builder.build();
 
-        specialEvents.add(new SpecialEvent.Builder().description("The Ashes")
+        scheduledEvents.add(new ScheduledEvent.Builder().description("The Ashes")
                 .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
                 .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
                 .calendarId("calendar_id").build());
-        specialEvents.add(new SpecialEvent.Builder().description("elasticon")
+        scheduledEvents.add(new ScheduledEvent.Builder().description("elasticon")
                 .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
                 .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
                 .calendarId("calendar_id").build());
@@ -263,6 +263,6 @@ public class FieldConfigWriterTests extends ESTestCase {
     }
 
     private FieldConfigWriter createFieldConfigWriter() {
-        return new FieldConfigWriter(analysisConfig, filters, specialEvents, writer, mock(Logger.class));
+        return new FieldConfigWriter(analysisConfig, filters, scheduledEvents, writer, mock(Logger.class));
     }
 }

@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
-import org.elasticsearch.xpack.ml.calendars.SpecialEventTests;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -91,11 +91,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                         Collections.singletonList(new DetectionRule.Builder(conditions).build())));
 
         UpdateParams updateParams = new UpdateParams(null, detectorUpdates, true);
-        List<SpecialEvent> events = Collections.singletonList(SpecialEventTests.createSpecialEvent(randomAlphaOfLength(10)));
+        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
 
         communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
 
-        // There are 2 detectors both will be updated with the rule for the special event.
+        // There are 2 detectors both will be updated with the rule for the scheduled event.
         // The first has an additional update rule
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = Mockito.inOrder(process);
@@ -107,7 +107,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         verifyNoMoreInteractions(process);
 
 
-        // This time there is a single detector update and no special events
+        // This time there is a single detector update and no scheduled events
         detectorUpdates = Collections.singletonList(
                 new JobUpdate.DetectorUpdate(1, "updated description",
                         Collections.singletonList(new DetectionRule.Builder(conditions).build())));

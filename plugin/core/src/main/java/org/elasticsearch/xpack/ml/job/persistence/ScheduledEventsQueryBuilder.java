@@ -12,16 +12,16 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Query builder for {@link SpecialEvent}s
+ * Query builder for {@link ScheduledEvent}s
  * If <code>calendarIds</code> are not set then all calendars will match.
  */
-public class SpecialEventsQueryBuilder {
+public class ScheduledEventsQueryBuilder {
     public static final int DEFAULT_SIZE = 1000;
 
     private int from = 0;
@@ -31,27 +31,27 @@ public class SpecialEventsQueryBuilder {
     private String after;
     private String before;
 
-    public SpecialEventsQueryBuilder calendarIds(List<String> calendarIds) {
+    public ScheduledEventsQueryBuilder calendarIds(List<String> calendarIds) {
         this.calendarIds = calendarIds;
         return this;
     }
 
-    public SpecialEventsQueryBuilder after(String after) {
+    public ScheduledEventsQueryBuilder after(String after) {
         this.after = after;
         return this;
     }
 
-    public SpecialEventsQueryBuilder before(String before) {
+    public ScheduledEventsQueryBuilder before(String before) {
         this.before = before;
         return this;
     }
 
-    public SpecialEventsQueryBuilder from(int from) {
+    public ScheduledEventsQueryBuilder from(int from) {
         this.from = from;
         return this;
     }
 
-    public SpecialEventsQueryBuilder size(int size) {
+    public ScheduledEventsQueryBuilder size(int size) {
         this.size = size;
         return this;
     }
@@ -60,12 +60,12 @@ public class SpecialEventsQueryBuilder {
         List<QueryBuilder> queries = new ArrayList<>();
 
         if (after != null) {
-            RangeQueryBuilder afterQuery = QueryBuilders.rangeQuery(SpecialEvent.END_TIME.getPreferredName());
+            RangeQueryBuilder afterQuery = QueryBuilders.rangeQuery(ScheduledEvent.END_TIME.getPreferredName());
             afterQuery.gt(after);
             queries.add(afterQuery);
         }
         if (before != null) {
-            RangeQueryBuilder beforeQuery = QueryBuilders.rangeQuery(SpecialEvent.START_TIME.getPreferredName());
+            RangeQueryBuilder beforeQuery = QueryBuilders.rangeQuery(ScheduledEvent.START_TIME.getPreferredName());
             beforeQuery.lt(before);
             queries.add(beforeQuery);
         }
@@ -74,10 +74,10 @@ public class SpecialEventsQueryBuilder {
             queries.add(new TermsQueryBuilder(Calendar.ID.getPreferredName(), calendarIds));
         }
 
-        QueryBuilder typeQuery = new TermsQueryBuilder(SpecialEvent.TYPE.getPreferredName(), SpecialEvent.SPECIAL_EVENT_TYPE);
+        QueryBuilder typeQuery = new TermsQueryBuilder(ScheduledEvent.TYPE.getPreferredName(), ScheduledEvent.SCHEDULED_EVENT_TYPE);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.sort(SpecialEvent.START_TIME.getPreferredName());
+        searchSourceBuilder.sort(ScheduledEvent.START_TIME.getPreferredName());
         searchSourceBuilder.from(from);
         searchSourceBuilder.size(size);
 

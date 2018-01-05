@@ -111,17 +111,17 @@ public class UpdateProcessAction extends
 
         private ModelPlotConfig modelPlotConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
-        private boolean updateSpecialEvents = false;
+        private boolean updateScheduledEvents = false;
 
         Request() {
         }
 
         public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates,
-                       boolean updateSpecialEvents) {
+                       boolean updateScheduledEvents) {
             super(jobId);
             this.modelPlotConfig = modelPlotConfig;
             this.detectorUpdates = detectorUpdates;
-            this.updateSpecialEvents = updateSpecialEvents;
+            this.updateScheduledEvents = updateScheduledEvents;
         }
 
         public ModelPlotConfig getModelPlotConfig() {
@@ -132,8 +132,8 @@ public class UpdateProcessAction extends
             return detectorUpdates;
         }
 
-        public boolean isUpdateSpecialEvents() {
-            return updateSpecialEvents;
+        public boolean isUpdateScheduledEvents() {
+            return updateScheduledEvents;
         }
 
         @Override
@@ -144,7 +144,7 @@ public class UpdateProcessAction extends
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
             if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-                updateSpecialEvents = in.readBoolean();
+                updateScheduledEvents = in.readBoolean();
             }
         }
 
@@ -158,13 +158,13 @@ public class UpdateProcessAction extends
                 out.writeList(detectorUpdates);
             }
             if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-                out.writeBoolean(updateSpecialEvents);
+                out.writeBoolean(updateScheduledEvents);
             }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, updateSpecialEvents);
+            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, updateScheduledEvents);
         }
 
         @Override
@@ -180,7 +180,7 @@ public class UpdateProcessAction extends
             return Objects.equals(getJobId(), other.getJobId()) &&
                     Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
                     Objects.equals(detectorUpdates, other.detectorUpdates) &&
-                    Objects.equals(updateSpecialEvents, other.updateSpecialEvents);
+                    Objects.equals(updateScheduledEvents, other.updateScheduledEvents);
         }
     }
 

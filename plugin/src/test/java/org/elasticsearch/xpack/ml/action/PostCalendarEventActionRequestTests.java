@@ -10,8 +10,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
-import org.elasticsearch.xpack.ml.calendars.SpecialEventTests;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEventTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,9 +28,9 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
 
     private PostCalendarEventsAction.Request createTestInstance(String calendarId) {
         int numEvents = randomIntBetween(1, 10);
-        List<SpecialEvent> events = new ArrayList<>();
+        List<ScheduledEvent> events = new ArrayList<>();
         for (int i=0; i<numEvents; i++) {
-            events.add(SpecialEventTests.createSpecialEvent(calendarId));
+            events.add(ScheduledEventTests.createScheduledEvent(calendarId));
         }
 
         PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request(calendarId, events);
@@ -47,7 +47,7 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
         PostCalendarEventsAction.Request sourceRequest = createTestInstance();
 
         StringBuilder requestString = new StringBuilder();
-        for (SpecialEvent event: sourceRequest.getSpecialEvents()) {
+        for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
             requestString.append(Strings.toString(event)).append("\r\n");
         }
 
@@ -60,11 +60,11 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
 
     public void testParseRequest_throwsIfCalendarIdsAreDifferent() throws IOException {
         PostCalendarEventsAction.Request sourceRequest = createTestInstance("foo");
-        PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getSpecialEvents());
+        PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getScheduledEvents());
 
 
         StringBuilder requestString = new StringBuilder();
-        for (SpecialEvent event: sourceRequest.getSpecialEvents()) {
+        for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
             requestString.append(Strings.toString(event)).append("\r\n");
         }
 

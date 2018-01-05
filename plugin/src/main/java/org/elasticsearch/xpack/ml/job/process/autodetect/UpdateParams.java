@@ -15,14 +15,14 @@ public final class UpdateParams {
 
     private final ModelPlotConfig modelPlotConfig;
     private final List<JobUpdate.DetectorUpdate> detectorUpdates;
-    private final boolean updateSpecialEvents;
+    private final boolean updateScheduledEvents;
 
     public UpdateParams(@Nullable ModelPlotConfig modelPlotConfig,
                         @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
-                        boolean updateSpecialEvents) {
+                        boolean updateScheduledEvents) {
         this.modelPlotConfig = modelPlotConfig;
         this.detectorUpdates = detectorUpdates;
-        this.updateSpecialEvents = updateSpecialEvents;
+        this.updateScheduledEvents = updateScheduledEvents;
     }
 
     public ModelPlotConfig getModelPlotConfig() {
@@ -33,7 +33,7 @@ public final class UpdateParams {
         return detectorUpdates;
     }
 
-    public boolean isUpdateSpecialEvents() {
-        return updateSpecialEvents;
+    public boolean isUpdateScheduledEvents() {
+        return updateScheduledEvents;
     }
 }

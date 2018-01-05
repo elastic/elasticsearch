@@ -259,45 +259,45 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
-  - length: { special_events: 4 }
-  - match: { special_events.0.description: "event 1" }
-  - match: { special_events.1.description: "event 2" }
-  - match: { special_events.2.description: "event 3" }
-  - match: { special_events.3.description: "event 4" }
+  - length: { events: 4 }
+  - match: { events.0.description: "event 1" }
+  - match: { events.1.description: "event 2" }
+  - match: { events.2.description: "event 3" }
+  - match: { events.3.description: "event 4" }
 
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
         from: 1
         size: 2
-  - length: { special_events: 2 }
-  - match: { special_events.0.description: "event 2" }
-  - match: { special_events.1.description: "event 3" }
+  - length: { events: 2 }
+  - match: { events.0.description: "event 2" }
+  - match: { events.1.description: "event 3" }
 
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
         before: "2017-12-12T00:00:00Z"
-  - length: { special_events: 2 }
-  - match: { special_events.0.description: "event 1" }
-  - match: { special_events.1.description: "event 2" }
+  - length: { events: 2 }
+  - match: { events.0.description: "event 1" }
+  - match: { events.1.description: "event 2" }
 
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
         after: "2017-12-05T03:00:00Z"
-  - length: { special_events: 3 }
-  - match: { special_events.0.description: "event 2" }
-  - match: { special_events.1.description: "event 3" }
-  - match: { special_events.2.description: "event 4" }
+  - length: { events: 3 }
+  - match: { events.0.description: "event 2" }
+  - match: { events.1.description: "event 3" }
+  - match: { events.2.description: "event 4" }
 
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
         after: "2017-12-02T00:00:00Z"
         before: "2017-12-12T00:00:00Z"
-  - length: { special_events: 1 }
-  - match: { special_events.0.description: "event 2" }
+  - length: { events: 1 }
+  - match: { events.0.description: "event 2" }
 
 ---
 "Test get all calendar events":
@@ -327,7 +327,7 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "_all"
-  - length: { special_events: 4 }
+  - length: { events: 4 }
 
 ---
 "Test get calendar events for job":
@@ -397,7 +397,7 @@
         calendar_id: _all
         job_id: cal-crud-job-with-events
   - match: { count: 4 }
-  - length: { special_events: 4 }
+  - length: { events: 4 }
 
   - do:
       xpack.ml.get_calendar_events:
@@ -405,6 +405,6 @@
         after: "2018-01-01T00:00:00Z"
         job_id: cal-crud-job-with-events
   - match: { count: 2 }
-  - length: { special_events: 2 }
-  - match: { special_events.0.description: ny }
-  - match: { special_events.1.description: other }
+  - length: { events: 2 }
+  - match: { events.0.description: ny }
+  - match: { events.1.description: other }

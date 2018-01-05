@@ -33,24 +33,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class SpecialEvent implements ToXContentObject, Writeable {
+public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
     public static final ParseField TYPE = new ParseField("type");
 
-    public static final ParseField RESULTS_FIELD = new ParseField("special_events");
+    public static final ParseField RESULTS_FIELD = new ParseField("events");
 
-    public static final String SPECIAL_EVENT_TYPE = "special_event";
+    public static final String SCHEDULED_EVENT_TYPE = "scheduled_event";
     public static final String DOCUMENT_ID_PREFIX = "event_";
 
-    public static final ObjectParser<SpecialEvent.Builder, Void> PARSER =
-            new ObjectParser<>("special_event", Builder::new);
+    public static final ObjectParser<ScheduledEvent.Builder, Void> PARSER =
+            new ObjectParser<>("scheduled_event", Builder::new);
 
     static {
-        PARSER.declareString(SpecialEvent.Builder::description, DESCRIPTION);
-        PARSER.declareField(SpecialEvent.Builder::startTime, p -> {
+        PARSER.declareString(ScheduledEvent.Builder::description, DESCRIPTION);
+        PARSER.declareField(ScheduledEvent.Builder::startTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -59,7 +59,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + START_TIME.getPreferredName() + "]");
         }, START_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(SpecialEvent.Builder::endTime, p -> {
+        PARSER.declareField(ScheduledEvent.Builder::endTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -69,7 +69,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
                     "unexpected token [" + p.currentToken() + "] for [" + END_TIME.getPreferredName() + "]");
         }, END_TIME, ObjectParser.ValueType.VALUE);
 
-        PARSER.declareString(SpecialEvent.Builder::calendarId, Calendar.ID);
+        PARSER.declareString(ScheduledEvent.Builder::calendarId, Calendar.ID);
         PARSER.declareString((builder, s) -> {}, TYPE);
     }
 
@@ -82,14 +82,14 @@ public class SpecialEvent implements ToXContentObject, Writeable {
     private final ZonedDateTime endTime;
     private final String calendarId;
 
-    SpecialEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId) {
+    ScheduledEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId) {
         this.description = Objects.requireNonNull(description);
         this.startTime = Objects.requireNonNull(startTime);
         this.endTime = Objects.requireNonNull(endTime);
         this.calendarId = Objects.requireNonNull(calendarId);
     }
 
-    public SpecialEvent(StreamInput in) throws IOException {
+    public ScheduledEvent(StreamInput in) throws IOException {
         description = in.readString();
         startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
         endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
@@ -113,7 +113,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
     }
 
     /**
-     * Convert the special event to a detection rule.
+     * Convert the scheduled event to a detection rule.
      * The rule will have 2 time based conditions for the start and
      * end of the event.
      *
@@ -156,7 +156,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
         builder.dateField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
         builder.field(Calendar.ID.getPreferredName(), calendarId);
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
-            builder.field(TYPE.getPreferredName(), SPECIAL_EVENT_TYPE);
+            builder.field(TYPE.getPreferredName(), SCHEDULED_EVENT_TYPE);
         }
         builder.endObject();
         return builder;
@@ -168,11 +168,11 @@ public class SpecialEvent implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof SpecialEvent)) {
+        if (!(obj instanceof ScheduledEvent)) {
             return false;
         }
 
-        SpecialEvent other = (SpecialEvent) obj;
+        ScheduledEvent other = (ScheduledEvent) obj;
         // In Java 8 the tests pass with ZonedDateTime.isEquals() or ZonedDateTime.toInstant.equals()
         // but in Java 9 & 10 the same tests fail.
         // Both isEquals() and toInstant.equals() work the same; convert to epoch seconds and
@@ -223,7 +223,7 @@ public class SpecialEvent implements ToXContentObject, Writeable {
             return calendarId;
         }
 
-        public SpecialEvent build() {
+        public ScheduledEvent build() {
             if (description == null) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, DESCRIPTION.getPreferredName()));
@@ -245,11 +245,11 @@ public class SpecialEvent implements ToXContentObject, Writeable {
             }
 
             if (startTime.isBefore(endTime) == false) {
-                throw ExceptionsHelper.badRequestException("Special event start time [" + startTime +
+                throw ExceptionsHelper.badRequestException("Event start time [" + startTime +
                                 "] must come before end time [" + endTime + "]");
             }
 
-            return new SpecialEvent(description, startTime, endTime, calendarId);
+            return new ScheduledEvent(description, startTime, endTime, calendarId);
         }
     }
 }

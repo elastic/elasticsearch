@@ -25,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -261,9 +261,9 @@ public class AutodetectProcessManager extends AbstractComponent {
             return;
         }
 
-        ActionListener<QueryPage<SpecialEvent>> eventsListener = ActionListener.wrap(
-                specialEvents -> {
-                    communicator.writeUpdateProcessMessage(updateParams, specialEvents.results(), (aVoid, e) -> {
+        ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
+                events -> {
+                    communicator.writeUpdateProcessMessage(updateParams, events.results(), (aVoid, e) -> {
                         if (e == null) {
                             handler.accept(null);
                         } else {
@@ -273,11 +273,11 @@ public class AutodetectProcessManager extends AbstractComponent {
                 },
                 handler::accept);
 
-        if (updateParams.isUpdateSpecialEvents()) {
-            SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder().after(Long.toString(new Date().getTime()));
-            jobProvider.specialEventsForJob(jobTask.getJobId(), query, eventsListener);
+        if (updateParams.isUpdateScheduledEvents()) {
+            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().after(Long.toString(new Date().getTime()));
+            jobProvider.scheduledEventsForJob(jobTask.getJobId(), query, eventsListener);
         } else {
-            eventsListener.onResponse(new QueryPage<SpecialEvent>(Collections.emptyList(), 0, SpecialEvent.RESULTS_FIELD));
+            eventsListener.onResponse(new QueryPage<ScheduledEvent>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
         }
     }
 

@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -414,7 +415,7 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return ((List<String>) valueFromPrefix); // it's already unmodifiable since the builder puts it as a such
+                return Collections.unmodifiableList((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -1042,7 +1043,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder putList(String setting, List<String> values) {
             remove(setting);
-            map.put(setting, Collections.unmodifiableList(new ArrayList<>(values)));
+            map.put(setting, new ArrayList<>(values));
             return this;
         }
 
@@ -1210,10 +1211,23 @@ public final class Settings implements ToXContentFragment {
             Iterator<Map.Entry<String, Object>> entryItr = map.entrySet().iterator();
             while (entryItr.hasNext()) {
                 Map.Entry<String, Object> entry = entryItr.next();
-                if (entry.getValue() == null || entry.getValue() instanceof List) {
+                if (entry.getValue() == null) {
                     // a null value obviously can't be replaced
                     continue;
                 }
+                if (entry.getValue() instanceof List) {
+                    List<String> ls = (List<String>) entry.getValue();
+                    ListIterator<String> li = ls.listIterator();
+                    while(li.hasNext()){
+                        String value = li.next();
+                        String value2 = propertyPlaceholder.replacePlaceholders(value, placeholderResolver);
+                        if (! value.equals(value2)){
+                            li.set(value2);
+                        }
+                    }
+                    continue;
+                }
+
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it

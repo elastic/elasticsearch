@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -35,6 +36,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A set of static helpers to simplify working with aggregation buckets, in
@@ -171,6 +174,11 @@ public class BucketHelpers {
             }
 
             double value = resolveBucketValue(agg, bucket, aggPathAsList);
+
+            if (Double.isFinite(value) && isValueFromOtherAggregation(agg, aggPathAsList)) {
+                return value;
+            }
+
             // doc count never has missing values so gap policy doesn't apply here
             boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
             if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
@@ -207,5 +215,20 @@ public class BucketHelpers {
                 + " must reference either a number value or a single value numeric metric aggregation, got: "
                 + propertyValue.getClass().getCanonicalName());
         }
+    }
+
+    private static boolean isValueFromOtherAggregation(MultiBucketsAggregation agg, List<String> aggPathAsList) {
+        // we have no other pipeline aggregators
+        if (!(agg instanceof InternalAggregation)) {
+            return false;
+        }
+
+        Set<String> names = ((InternalAggregation) agg)
+            .pipelineAggregators()
+            .stream()
+            .map(PipelineAggregator::name)
+            .collect(Collectors.toSet());
+
+        return names.containsAll(aggPathAsList);
     }
 }

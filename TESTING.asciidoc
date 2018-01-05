@@ -327,7 +327,7 @@ vagrant plugin install vagrant-cachier
 download the base images and provision the boxes and immediately quit. If you
 you this again it'll skip the download step.
 
-. Run the tests with `./gradlew packagingTest`. This will cause ./gradlew to build
+. Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.

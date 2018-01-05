@@ -129,11 +129,13 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
                     if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
                         sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
                     }
-                    sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
+                    sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe");
+                    // there is a special discovery implementation for tribe
                     // nothing is going to be discovered, since no master will be elected
                     sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
                     if (sb.get("cluster.name") == null) {
-                        sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
+                        // make sure it won't join other tribe nodes in the same JVM
+                        sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID());
                     }
                     sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
 

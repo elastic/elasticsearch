@@ -425,7 +425,7 @@ cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 
-You can also use ./gradlew to prepare the test environment and then starts a single VM:
+You can also use Gradle to prepare the test environment and then starts a single VM:
 
 -------------------------------------------------
 ./gradlew vagrantFedora27#up

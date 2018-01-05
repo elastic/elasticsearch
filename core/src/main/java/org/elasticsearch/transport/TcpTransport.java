@@ -1432,13 +1432,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
-        final TransportResponse response = handler.newInstance();
-        response.remoteAddress(new TransportAddress(remoteAddress));
+        final TransportResponse response;
         try {
-            response.readFrom(stream);
+            response = handler.read(stream);
+            response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {
             handleException(handler, new TransportSerializationException(
-                "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+                "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
             return;
         }
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {

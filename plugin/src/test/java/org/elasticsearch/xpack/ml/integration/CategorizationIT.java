@@ -81,6 +81,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareRefresh("*").get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/machine-learning-cpp/pull/512")
     public void testBasicCategorization() throws Exception {
         Job.Builder job = newJobBuilder("categorization", Collections.emptyList());
         registerJob(job);
@@ -101,7 +102,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         assertThat(categories.size(), equalTo(3));
 
         CategoryDefinition category1 = categories.get(0);
-        assertThat(category1.getRegex(), equalTo(".*?started.*"));
+        assertThat(category1.getRegex(), equalTo(".*?Node.+?started.*"));
         assertThat(category1.getExamples(),
                 equalTo(Arrays.asList("Node 1 started", "Node 2 started")));
 
@@ -127,6 +128,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 equalTo(Arrays.asList("Node 1 started", "Node 2 started", "Node 3 started")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/machine-learning-cpp/pull/512")
     public void testCategorizationWithFilters() throws Exception {
         Job.Builder job = newJobBuilder("categorization-with-filters", Arrays.asList("\\[.*\\]"));
         registerJob(job);
@@ -147,7 +149,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         assertThat(categories.size(), equalTo(2));
 
         CategoryDefinition category1 = categories.get(0);
-        assertThat(category1.getRegex(), equalTo(".*?started.*"));
+        assertThat(category1.getRegex(), equalTo(".*?Node.+?started.*"));
         assertThat(category1.getExamples(),
                 equalTo(Arrays.asList("Node 1 started", "Node 2 started")));
 

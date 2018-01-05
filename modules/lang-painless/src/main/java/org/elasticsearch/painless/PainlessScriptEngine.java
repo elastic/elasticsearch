@@ -99,13 +99,16 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
 
+        // Placeholder definition used for all contexts until SPI is fully integrated.  Reduces memory foot print
+        // by re-using the same definition since caching isn't implemented at this time.
+        Definition definition = new Definition(
+            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
+
         for (ScriptContext<?> context : contexts) {
             if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
-                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, new Definition(
-                    Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)))));
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, definition));
             } else {
-                contextsToCompilers.put(context, new Compiler(context.instanceClazz, new Definition(
-                    Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)))));
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, definition));
             }
         }
 

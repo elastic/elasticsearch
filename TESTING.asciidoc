@@ -135,7 +135,7 @@ line:
 ./gradlew test -Dtests.jvms=8
 ----------------------------
 
-Or in `~/../gradlew/./gradlew.properties`:
+Or in `~/.gradle/gradle.properties`:
 
 ----------------------------
 systemProp.tests.jvms=8

@@ -17,19 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+esplugin {
+    description 'The nio transport.'
+    classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
+}
 
-import java.io.IOException;
+dependencyLicenses.enabled = false
 
-public interface ReadContext extends AutoCloseable {
+compileJava.options.compilerArgs << "-Xlint:-try"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-    int read() throws IOException;
-
-    @Override
-    void close();
-
-    @FunctionalInterface
-    interface ReadConsumer {
-        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
-    }
+dependencies {
+    compile "org.elasticsearch:elasticsearch-nio:${version}"
 }

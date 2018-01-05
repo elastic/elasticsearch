@@ -170,7 +170,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     }
 
     /**
-     * Returns an array of byte buffers from the given BytesReference.
+     * Returns BytesReference composed of the provided ByteBuffers.
      */
     public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
         ByteBufferReference[] references = new ByteBufferReference[buffers.length];

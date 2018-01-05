@@ -176,7 +176,7 @@ tests (note the exclamation mark).
 ./gradlew test -Dtests.timeoutSuite=5000! ...
 ---------------------------------------
 
-Change the logging level of ES (not ./gradlew)
+Change the logging level of ES (not Gradle)
 
 --------------------------------
 ./gradlew test -Dtests.es.logger.level=DEBUG

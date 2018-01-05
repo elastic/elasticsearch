@@ -19,7 +19,7 @@ following:
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
-run it using ./gradlew:
+run it using Gradle:
 
 -------------------------------------
 ./gradlew run

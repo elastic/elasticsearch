@@ -206,9 +206,6 @@ def provision(config,
     v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
   end
-  config.vm.synced_folder "#{Dir.home}/.gradle/caches", "/home/vagrant/.gradle/caches",
-    create: true,
-    owner: "vagrant"
   config.vm.provision "dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
@@ -273,17 +270,6 @@ def provision(config,
       rm -rf /tmp/bats
     }
 
-    installed gradle || {
-      echo "==> Installing Gradle"
-      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
-      unzip -q /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip
-      ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
-      # make nfs mounted gradle home dir writeable
-      chown vagrant:vagrant /home/vagrant/.gradle
-    }
-
-
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
@@ -293,7 +279,6 @@ export BATS=/project/build/bats
 export BATS_UTILS=/project/build/bats/utils
 export BATS_TESTS=/project/build/bats/tests
 export BATS_ARCHIVES=/project/build/bats/archives
-export GRADLE_HOME=/opt/gradle-3.3
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
 Defaults   env_keep += "ZIP"

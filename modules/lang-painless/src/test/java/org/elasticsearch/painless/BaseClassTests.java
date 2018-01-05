@@ -37,6 +37,9 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class BaseClassTests extends ScriptTestCase {
 
+    private final Definition definition = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
+
     public abstract static class Gets {
 
         private final String testString;
@@ -66,7 +69,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public void testGets() {
-        Compiler compiler = new Compiler(Gets.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(Gets.class, definition);
         Map<String, Object> map = new HashMap<>();
         map.put("s", 1);
 
@@ -84,7 +87,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute();
     }
     public void testNoArgs() {
-        Compiler compiler = new Compiler(NoArgs.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(NoArgs.class, definition);
         assertEquals(1, ((NoArgs)scriptEngine.compile(compiler, null, "1", emptyMap())).execute());
         assertEquals("foo", ((NoArgs)scriptEngine.compile(compiler, null, "'foo'", emptyMap())).execute());
 
@@ -108,13 +111,13 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(Object arg);
     }
     public void testOneArg() {
-        Compiler compiler = new Compiler(OneArg.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(OneArg.class, definition);
         Object rando = randomInt();
         assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap())).execute(rando));
         rando = randomAlphaOfLength(5);
         assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap())).execute(rando));
 
-        Compiler noargs = new Compiler(NoArgs.class, Definition.DEFINITION);
+        Compiler noargs = new Compiler(NoArgs.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile(noargs, null, "doc", emptyMap()));
         assertEquals("Variable [doc] is not defined.", e.getMessage());
@@ -129,7 +132,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(String[] arg);
     }
     public void testArrayArg() {
-        Compiler compiler = new Compiler(ArrayArg.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ArrayArg.class, definition);
         String rando = randomAlphaOfLength(5);
         assertEquals(rando, ((ArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new String[] {rando, "foo"}));
     }
@@ -139,7 +142,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(int[] arg);
     }
     public void testPrimitiveArrayArg() {
-        Compiler compiler = new Compiler(PrimitiveArrayArg.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(PrimitiveArrayArg.class, definition);
         int rando = randomInt();
         assertEquals(rando, ((PrimitiveArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new int[] {rando, 10}));
     }
@@ -149,7 +152,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(Object[] arg);
     }
     public void testDefArrayArg() {
-        Compiler compiler = new Compiler(DefArrayArg.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(DefArrayArg.class, definition);
         Object rando = randomInt();
         assertEquals(rando, ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new Object[] {rando, 10}));
         rando = randomAlphaOfLength(5);
@@ -167,7 +170,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract boolean needsD();
     }
     public void testManyArgs() {
-        Compiler compiler = new Compiler(ManyArgs.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ManyArgs.class, definition);
         int rando = randomInt();
         assertEquals(rando, ((ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap())).execute(rando, 0, 0, 0));
         assertEquals(10, ((ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).execute(1, 2, 3, 4));
@@ -195,7 +198,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(String... arg);
     }
     public void testVararg() {
-        Compiler compiler = new Compiler(VarargTest.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(VarargTest.class, definition);
         assertEquals("foo bar baz", ((VarargTest)scriptEngine.compile(compiler, null, "String.join(' ', Arrays.asList(arg))", emptyMap()))
                     .execute("foo", "bar", "baz"));
     }
@@ -211,7 +214,7 @@ public class BaseClassTests extends ScriptTestCase {
         }
     }
     public void testDefaultMethods() {
-        Compiler compiler = new Compiler(DefaultMethods.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(DefaultMethods.class, definition);
         int rando = randomInt();
         assertEquals(rando, ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap())).execute(rando, 0, 0, 0));
         assertEquals(rando, ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap())).executeWithASingleOne(rando, 0, 0));
@@ -225,7 +228,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract void execute(Map<String, Object> map);
     }
     public void testReturnsVoid() {
-        Compiler compiler = new Compiler(ReturnsVoid.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ReturnsVoid.class, definition);
         Map<String, Object> map = new HashMap<>();
         ((ReturnsVoid)scriptEngine.compile(compiler, null, "map.a = 'foo'", emptyMap())).execute(map);
         assertEquals(singletonMap("a", "foo"), map);
@@ -244,7 +247,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract boolean execute();
     }
     public void testReturnsPrimitiveBoolean() {
-        Compiler compiler = new Compiler(ReturnsPrimitiveBoolean.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ReturnsPrimitiveBoolean.class, definition);
 
         assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "true", emptyMap())).execute());
         assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "false", emptyMap())).execute());
@@ -286,7 +289,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract int execute();
     }
     public void testReturnsPrimitiveInt() {
-        Compiler compiler = new Compiler(ReturnsPrimitiveInt.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ReturnsPrimitiveInt.class, definition);
 
         assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1", emptyMap())).execute());
         assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1L", emptyMap())).execute());
@@ -328,7 +331,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract float execute();
     }
     public void testReturnsPrimitiveFloat() {
-        Compiler compiler = new Compiler(ReturnsPrimitiveFloat.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ReturnsPrimitiveFloat.class, definition);
 
         assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1f", emptyMap())).execute(), 0);
         assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "(float) 1.1d", emptyMap())).execute(), 0);
@@ -359,7 +362,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract double execute();
     }
     public void testReturnsPrimitiveDouble() {
-        Compiler compiler = new Compiler(ReturnsPrimitiveDouble.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(ReturnsPrimitiveDouble.class, definition);
 
         assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1", emptyMap())).execute(), 0);
         assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1L", emptyMap())).execute(), 0);
@@ -393,7 +396,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(String foo);
     }
     public void testNoArgumentsConstant() {
-        Compiler compiler = new Compiler(NoArgumentsConstant.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(NoArgumentsConstant.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith(
@@ -406,7 +409,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(String foo);
     }
     public void testWrongArgumentsConstant() {
-        Compiler compiler = new Compiler(WrongArgumentsConstant.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(WrongArgumentsConstant.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith(
@@ -419,7 +422,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(String foo);
     }
     public void testWrongLengthOfArgumentConstant() {
-        Compiler compiler = new Compiler(WrongLengthOfArgumentConstant.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(WrongLengthOfArgumentConstant.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith("[" + WrongLengthOfArgumentConstant.class.getName() + "#ARGUMENTS] has length [2] but ["
@@ -431,7 +434,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(UnknownArgType foo);
     }
     public void testUnknownArgType() {
-        Compiler compiler = new Compiler(UnknownArgType.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(UnknownArgType.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
@@ -443,7 +446,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract UnknownReturnType execute(String foo);
     }
     public void testUnknownReturnType() {
-        Compiler compiler = new Compiler(UnknownReturnType.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(UnknownReturnType.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
@@ -455,7 +458,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(UnknownArgTypeInArray[] foo);
     }
     public void testUnknownArgTypeInArray() {
-        Compiler compiler = new Compiler(UnknownArgTypeInArray.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(UnknownArgTypeInArray.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
@@ -467,7 +470,7 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute(boolean foo);
     }
     public void testTwoExecuteMethods() {
-        Compiler compiler = new Compiler(TwoExecuteMethods.class, Definition.DEFINITION);
+        Compiler compiler = new Compiler(TwoExecuteMethods.class, definition);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "null", emptyMap()));
         assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["

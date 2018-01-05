@@ -332,12 +332,12 @@ the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
-You can run on all the VMs by running `./gradlew -Pvagrant.boxes=all packagingTest`.
-You can run a particular VM with a command like
-`./gradlew -Pvagrant.boxes=oel-7 packagingTest`. See `./gradlew tasks` for a complete
-list of available vagrant boxes for testing. It's important to know that if you
-ctrl-c any of these `./gradlew` commands then the boxes will remain running and
-you'll have to terminate them with './gradlew stop'.
+You can run on all the VMs by running `./gradlew -Pvagrant.boxes=all
+packagingTest`. You can run a particular VM with a command like `./gradlew
+-Pvagrant.boxes=oel-7 packagingTest`. See `./gradlew tasks` for a complete list
+of available vagrant boxes for testing. It's important to know that if you
+interrupt any of these Gradle commands then the boxes will remain running and
+you'll have to terminate them with `./gradlew stop`.
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running

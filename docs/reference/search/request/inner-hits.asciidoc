@@ -1,7 +1,7 @@
 [[search-request-inner-hits]]
 === Inner hits
 
-The <<parent-join, parent-join> and <<nested, nested>> features allow the return of documents that
+The <<parent-join, parent-join>> and <<nested, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
 documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned
 based on matches in nested inner objects.

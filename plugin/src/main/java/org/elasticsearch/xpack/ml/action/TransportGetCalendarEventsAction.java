@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 
 import java.util.Collections;
 
@@ -40,7 +40,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                              ActionListener<GetCalendarEventsAction.Response> listener) {
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
-                    SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder()
+                    ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
                             .after(request.getAfter())
                             .before(request.getBefore())
                             .from(request.getPageParams().getFrom())
@@ -50,7 +50,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                         query.calendarIds(Collections.singletonList(request.getCalendarId()));
                     }
 
-                    ActionListener<QueryPage<SpecialEvent>> eventsListener = ActionListener.wrap(
+                    ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
                             events -> {
                                 listener.onResponse(new GetCalendarEventsAction.Response(events));
                             },
@@ -58,9 +58,9 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                     );
 
                     if (request.getJobId() != null) {
-                        jobProvider.specialEventsForJob(request.getJobId(), query, eventsListener);
+                        jobProvider.scheduledEventsForJob(request.getJobId(), query, eventsListener);
                     } else {
-                        jobProvider.specialEvents(query, eventsListener);
+                        jobProvider.scheduledEvents(query, eventsListener);
                     }
                 },
                 listener::onFailure);

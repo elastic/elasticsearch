@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
@@ -46,7 +46,7 @@ public class AutodetectBuilder {
     private List<Path> filesToDelete;
     private Logger logger;
     private Set<MlFilter> referencedFilters;
-    private List<SpecialEvent> specialEvents;
+    private List<ScheduledEvent> scheduledEvents;
     private Quantiles quantiles;
     private Environment env;
     private Settings settings;
@@ -71,7 +71,7 @@ public class AutodetectBuilder {
         this.filesToDelete = Objects.requireNonNull(filesToDelete);
         this.logger = Objects.requireNonNull(logger);
         referencedFilters = new HashSet<>();
-        specialEvents = Collections.emptyList();
+        scheduledEvents = Collections.emptyList();
     }
 
     public AutodetectBuilder referencedFilters(Set<MlFilter> filters) {
@@ -89,8 +89,8 @@ public class AutodetectBuilder {
         return this;
     }
 
-    public AutodetectBuilder specialEvents(List<SpecialEvent> specialEvents) {
-        this.specialEvents = specialEvents;
+    public AutodetectBuilder scheduledEvents(List<ScheduledEvent> scheduledEvents) {
+        this.scheduledEvents = scheduledEvents;
         return this;
     }
 
@@ -170,7 +170,7 @@ public class AutodetectBuilder {
             try (OutputStreamWriter osw = new OutputStreamWriter(
                     Files.newOutputStream(fieldConfigFile),
                     StandardCharsets.UTF_8)) {
-                new FieldConfigWriter(job.getAnalysisConfig(), referencedFilters, specialEvents, osw, logger).write();
+                new FieldConfigWriter(job.getAnalysisConfig(), referencedFilters, scheduledEvents, osw, logger).write();
             }
 
             String fieldConfig = FIELD_CONFIG_ARG + fieldConfigFile.toString();

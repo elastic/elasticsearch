@@ -6,53 +6,33 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Request, PostCalendarEventsAction.Response,
@@ -60,7 +40,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
     public static final PostCalendarEventsAction INSTANCE = new PostCalendarEventsAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/post";
 
-    public static final ParseField SPECIAL_EVENTS = new ParseField("special_events");
+    public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
         super(NAME);
@@ -79,7 +59,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
     public static class Request extends ActionRequest {
 
         public static Request parseRequest(String calendarId, BytesReference data, XContentType contentType) throws IOException {
-            List<SpecialEvent.Builder> events = new ArrayList<>();
+            List<ScheduledEvent.Builder> events = new ArrayList<>();
 
             XContent xContent = contentType.xContent();
             int lineNumber = 0;
@@ -95,17 +75,17 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
                 try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
                     try {
-                        SpecialEvent.Builder event = SpecialEvent.PARSER.apply(parser, null);
+                        ScheduledEvent.Builder event = ScheduledEvent.PARSER.apply(parser, null);
                         events.add(event);
                     } catch (ParsingException pe) {
-                        throw ExceptionsHelper.badRequestException("Failed to parse special event on line [" + lineNumber + "]", pe);
+                        throw ExceptionsHelper.badRequestException("Failed to parse scheduled event on line [" + lineNumber + "]", pe);
                     }
 
                     from = nextMarker + 1;
                 }
             }
 
-            for (SpecialEvent.Builder event: events) {
+            for (ScheduledEvent.Builder event: events) {
                 if (event.getCalendarId() != null && event.getCalendarId().equals(calendarId) == false) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INCONSISTENT_ID,
                             Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId));
@@ -114,7 +94,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
                 // Set the calendar Id in case it is null
                 event.calendarId(calendarId);
             }
-            return new Request(calendarId, events.stream().map(SpecialEvent.Builder::build).collect(Collectors.toList()));
+            return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
         }
 
         private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
@@ -130,22 +110,22 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         }
 
         private String calendarId;
-        private List<SpecialEvent> specialEvents;
+        private List<ScheduledEvent> scheduledEvents;
 
         Request() {
         }
 
-        public Request(String calendarId, List<SpecialEvent> specialEvents) {
+        public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
-            this.specialEvents = ExceptionsHelper.requireNonNull(specialEvents, SPECIAL_EVENTS.getPreferredName());
+            this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, EVENTS.getPreferredName());
         }
 
         public String getCalendarId() {
             return calendarId;
         }
 
-        public List<SpecialEvent> getSpecialEvents() {
-            return specialEvents;
+        public List<ScheduledEvent> getScheduledEvents() {
+            return scheduledEvents;
         }
 
         @Override
@@ -157,19 +137,19 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             calendarId = in.readString();
-            specialEvents = in.readList(SpecialEvent::new);
+            scheduledEvents = in.readList(ScheduledEvent::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeList(specialEvents);
+            out.writeList(scheduledEvents);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, specialEvents);
+            return Objects.hash(calendarId, scheduledEvents);
         }
 
         @Override
@@ -181,7 +161,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(specialEvents, other.specialEvents);
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(scheduledEvents, other.scheduledEvents);
         }
     }
 
@@ -194,41 +174,41 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        private List<SpecialEvent> specialEvent;
+        private List<ScheduledEvent> scheduledEvents;
 
         Response() {
         }
 
-        public Response(List<SpecialEvent> specialEvents) {
+        public Response(List<ScheduledEvent> scheduledEvents) {
             super(true);
-            this.specialEvent = specialEvents;
+            this.scheduledEvents = scheduledEvents;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             readAcknowledged(in);
-            in.readList(SpecialEvent::new);
+            in.readList(ScheduledEvent::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             writeAcknowledged(out);
-            out.writeList(specialEvent);
+            out.writeList(scheduledEvents);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(SPECIAL_EVENTS.getPreferredName(), specialEvent);
+            builder.field(EVENTS.getPreferredName(), scheduledEvents);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(isAcknowledged(), specialEvent);
+            return Objects.hash(isAcknowledged(), scheduledEvents);
         }
 
         @Override
@@ -240,7 +220,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(isAcknowledged(), other.isAcknowledged()) && Objects.equals(specialEvent, other.specialEvent);
+            return Objects.equals(isAcknowledged(), other.isAcknowledged()) && Objects.equals(scheduledEvents, other.scheduledEvents);
         }
     }
 }

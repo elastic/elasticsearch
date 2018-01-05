@@ -6,38 +6,27 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response,
@@ -213,36 +202,36 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private QueryPage<SpecialEvent> specialEvents;
+        private QueryPage<ScheduledEvent> scheduledEvents;
 
         Response() {
         }
 
-        public Response(QueryPage<SpecialEvent> specialEvents) {
-            this.specialEvents = specialEvents;
+        public Response(QueryPage<ScheduledEvent> scheduledEvents) {
+            this.scheduledEvents = scheduledEvents;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            specialEvents = new QueryPage<>(in, SpecialEvent::new);
+            scheduledEvents = new QueryPage<>(in, ScheduledEvent::new);
 
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            specialEvents.writeTo(out);
+            scheduledEvents.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return specialEvents.toXContent(builder, params);
+            return scheduledEvents.toXContent(builder, params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(specialEvents);
+            return Objects.hash(scheduledEvents);
         }
 
         @Override
@@ -254,7 +243,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(specialEvents, other.specialEvents);
+            return Objects.equals(scheduledEvents, other.scheduledEvents);
         }
     }
 

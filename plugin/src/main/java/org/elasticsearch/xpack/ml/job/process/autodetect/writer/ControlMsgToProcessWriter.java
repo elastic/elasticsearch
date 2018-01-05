@@ -9,7 +9,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;

@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -36,7 +36,6 @@ public class FieldConfigWriter {
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
     private static final String FILTER_PREFIX = "filter.";
-    private static final String SPECIAL_EVENT_PREFIX = "specialevent.";
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -45,15 +44,15 @@ public class FieldConfigWriter {
 
     private final AnalysisConfig config;
     private final Set<MlFilter> filters;
-    private final List<SpecialEvent> specialEvents;
+    private final List<ScheduledEvent> scheduledEvents;
     private final OutputStreamWriter writer;
     private final Logger logger;
 
-    public FieldConfigWriter(AnalysisConfig config, Set<MlFilter> filters, List<SpecialEvent> specialEvents,
+    public FieldConfigWriter(AnalysisConfig config, Set<MlFilter> filters, List<ScheduledEvent> scheduledEvents,
             OutputStreamWriter writer, Logger logger) {
         this.config = Objects.requireNonNull(config);
         this.filters = Objects.requireNonNull(filters);
-        this.specialEvents = Objects.requireNonNull(specialEvents);
+        this.scheduledEvents = Objects.requireNonNull(scheduledEvents);
         this.writer = Objects.requireNonNull(writer);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -79,7 +78,7 @@ public class FieldConfigWriter {
 
     private void writeDetectors(StringBuilder contents) throws IOException {
         int counter = 0;
-        List<DetectionRule> events = specialEvents.stream().map(e -> e.toDetectionRule(config.getBucketSpan()))
+        List<DetectionRule> events = scheduledEvents.stream().map(e -> e.toDetectionRule(config.getBucketSpan()))
                 .collect(Collectors.toList());
 
         for (Detector detector : config.getDetectors()) {
@@ -103,14 +102,14 @@ public class FieldConfigWriter {
         contents.append(NEW_LINE);
     }
 
-    private void writeDetectorRules(int detectorId, Detector detector, List<DetectionRule> specialEvents,
+    private void writeDetectorRules(int detectorId, Detector detector, List<DetectionRule> scheduledEvents,
                                     StringBuilder contents) throws IOException {
 
         List<DetectionRule> rules = new ArrayList<>();
         if (detector.getRules() != null) {
             rules.addAll(detector.getRules());
         }
-        rules.addAll(specialEvents);
+        rules.addAll(scheduledEvents);
 
         if (rules.isEmpty()) {
             return;

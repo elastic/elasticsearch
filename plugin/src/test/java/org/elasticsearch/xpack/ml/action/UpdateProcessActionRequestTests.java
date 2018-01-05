@@ -6,16 +6,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.joda.time.DateTime;
 
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<UpdateProcessAction.Request> {

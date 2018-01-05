@@ -13,15 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -31,7 +28,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
@@ -89,7 +85,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
                     settings, nativeController, processPipes)
                     .referencedFilters(autodetectParams.filters())
-                    .specialEvents(autodetectParams.specialEvents());
+                    .scheduledEvents(autodetectParams.scheduledEvents());
 
             // if state is null or empty it will be ignored
             // else it is used to restore the quantiles

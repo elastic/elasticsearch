@@ -14,7 +14,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -189,7 +189,7 @@ public class AutodetectCommunicator implements Closeable {
         }
     }
 
-    public void writeUpdateProcessMessage(UpdateParams updateParams, List<SpecialEvent> specialEvents,
+    public void writeUpdateProcessMessage(UpdateParams updateParams, List<ScheduledEvent> scheduledEvents,
                                           BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
             if (updateParams.getModelPlotConfig() != null) {
@@ -197,15 +197,15 @@ public class AutodetectCommunicator implements Closeable {
             }
 
             List<DetectionRule> eventsAsRules = Collections.emptyList();
-            if (specialEvents.isEmpty() == false) {
-                eventsAsRules = specialEvents.stream()
+            if (scheduledEvents.isEmpty() == false) {
+                eventsAsRules = scheduledEvents.stream()
                         .map(e -> e.toDetectionRule(job.getAnalysisConfig().getBucketSpan()))
                         .collect(Collectors.toList());
             }
 
             // All detection rules for a detector must be updated together as the update
             // wipes any previously set rules.
-            // Build a single list of rules for special events and detection rules.
+            // Build a single list of rules for events and detection rules.
             List<List<DetectionRule>> rules = new ArrayList<>(job.getAnalysisConfig().getDetectors().size());
             for (int i = 0; i < job.getAnalysisConfig().getDetectors().size(); i++) {
                 List<DetectionRule> detectorRules = new ArrayList<>(eventsAsRules);

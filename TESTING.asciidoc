@@ -402,7 +402,7 @@ that'd consume a ton of ram.
 
 In general its best to stick to testing in vagrant because the bats scripts are
 destructive. When working with a single package it's generally faster to run its
-tests in a tighter loop than ./gradlew provides. In one window:
+tests in a tighter loop than Gradle provides. In one window:
 
 --------------------------------
 ./gradlew :distribution:rpm:assemble

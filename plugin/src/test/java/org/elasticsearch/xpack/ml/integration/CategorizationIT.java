@@ -81,7 +81,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareRefresh("*").get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/machine-learning-cpp/pull/512")
     public void testBasicCategorization() throws Exception {
         Job.Builder job = newJobBuilder("categorization", Collections.emptyList());
         registerJob(job);
@@ -128,7 +127,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 equalTo(Arrays.asList("Node 1 started", "Node 2 started", "Node 3 started")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/machine-learning-cpp/pull/512")
     public void testCategorizationWithFilters() throws Exception {
         Job.Builder job = newJobBuilder("categorization-with-filters", Arrays.asList("\\[.*\\]"));
         registerJob(job);

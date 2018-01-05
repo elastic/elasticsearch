@@ -175,13 +175,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", Collections.singletonList(asnProperty));
-        try {
-            factory.create(null, null, config);
-            fail("Exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + asnProperty +
-                    "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + asnProperty +
+            "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
     }
 
     public void testBuildWithAsnDbAndCityFields() throws Exception {
@@ -193,13 +189,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", Collections.singletonList(cityProperty));
-        try {
-            factory.create(null, null, config);
-            fail("Exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
-                "]. valid values are [IP, ASN, ORGANIZATION_NAME]"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
+            "]. valid values are [IP, ASN, ORGANIZATION_NAME]"));
     }
 
     public void testBuildNonExistingDbFile() throws Exception {
@@ -208,12 +200,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "does-not-exist.mmdb.gz");
-        try {
-            factory.create(null, null, config);
-            fail("Exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb.gz] doesn't exist"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb.gz] doesn't exist"));
     }
 
     public void testBuildFields() throws Exception {
@@ -239,26 +227,18 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     public void testBuildIllegalFieldOption() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
-        config.put("properties", Collections.singletonList("invalid"));
-        try {
-            factory.create(null, null, config);
-            fail("exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
-                    "COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
-        }
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", Collections.singletonList("invalid"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config1));
+        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
+            "COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
 
-        config = new HashMap<>();
-        config.put("field", "_field");
-        config.put("properties", "invalid");
-        try {
-            factory.create(null, null, config);
-            fail("exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
-        }
+        Map<String, Object> config2 = new HashMap<>();
+        config2.put("field", "_field");
+        config2.put("properties", "invalid");
+        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config2));
+        assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 
     public void testLazyLoading() throws Exception {

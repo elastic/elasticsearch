@@ -228,13 +228,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "www.google.com");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        try {
-            processor.execute(ingestDocument);
-            fail("did not get expected exception");
-        } catch (IllegalArgumentException expected) {
-            assertNotNull(expected.getMessage());
-            assertThat(expected.getMessage(), containsString("not an IP string literal"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), containsString("not an IP string literal"));
     }
 
     private static InputStream getDatabaseFileInputStream(String path) throws IOException {

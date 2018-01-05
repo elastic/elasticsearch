@@ -25,7 +25,13 @@ import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
+import org.gradle.api.tasks.wrapper.Wrapper
+import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
+
 import java.nio.file.Path
+import java.security.MessageDigest
 
 // common maven publishing configuration
 subprojects {
@@ -139,8 +145,7 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 allprojects {
-  // TODO: re-enable after https://github.com/elastic/elasticsearch/pull/27881 is backported
-  ext.bwc_tests_enabled = false
+  ext.bwc_tests_enabled = true
 }
 
 task verifyBwcTestsEnabled {
@@ -401,6 +406,27 @@ task run(type: Run) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   impliesSubProjects = true
+}
+
+task wrapper(type: Wrapper)
+
+gradle.projectsEvaluated {
+
+  allprojects {
+    tasks.withType(Wrapper) { Wrapper wrapper ->
+      wrapper.distributionType = DistributionType.ALL
+
+      wrapper.doLast {
+        final DistributionLocator locator = new DistributionLocator()
+        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
+        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+        final String sha256Sum = new String(sha256Uri.toURL().bytes)
+        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+      }
+    }
+  }
+
 }
 
 /* Remove assemble on all qa projects because we don't need to publish

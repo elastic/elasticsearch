@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,13 +51,13 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
+public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new NioTransport(settings, threadPool,
+        Transport transport = new MockNioTransport(settings, threadPool,
             networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
             new NoneCircuitBreakerService()) {
 
@@ -78,10 +76,6 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
                 return version;
             }
 
-            @Override
-            protected SocketEventHandler getSocketEventHandler(Logger logger) {
-                return new TestingSocketEventHandler(logger);
-            }
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);

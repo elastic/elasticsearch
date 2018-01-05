@@ -98,6 +98,14 @@ for (File example : examplePluginsDir.listFiles()) {
   examplePlugins.add(example.name)
 }
 
+projects.add("libs")
+File libsDir = new File(rootProject.projectDir, 'libs')
+for (File libDir : new File(rootProject.projectDir, 'libs').listFiles()) {
+  if (libDir.isDirectory() == false) continue;
+  if (libDir.name.startsWith('build') || libDir.name.startsWith('.')) continue;
+  projects.add("libs:${libDir.name}".toString())
+}
+
 /* Create projects for building BWC snapshot distributions from the heads of other branches */
 final List<String> branches = ['5.6', '6.0', '6.1', '6.x']
 for (final String branch : branches) {

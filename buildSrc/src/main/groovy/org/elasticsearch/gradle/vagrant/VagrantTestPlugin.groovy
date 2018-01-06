@@ -344,7 +344,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 @Override
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
-                        println "REPRODUCE WITH: gradle ${packaging.path} " +
+                        println "REPRODUCE WITH: ./gradlew ${packaging.path} " +
                             "-Dtests.seed=${project.testSeed} "
                     }
                 }

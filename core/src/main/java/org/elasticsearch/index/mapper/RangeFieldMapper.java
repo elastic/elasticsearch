@@ -357,7 +357,9 @@ public class RangeFieldMapper extends FieldMapper {
         } else {
             XContentParser parser = context.parser();
             final XContentParser.Token start = parser.currentToken();
-            if (start == XContentParser.Token.START_OBJECT) {
+            if (start == XContentParser.Token.VALUE_NULL) {
+                return;
+            } else if (start == XContentParser.Token.START_OBJECT) {
                 RangeFieldType fieldType = fieldType();
                 RangeType rangeType = fieldType.rangeType;
                 String fieldName = null;

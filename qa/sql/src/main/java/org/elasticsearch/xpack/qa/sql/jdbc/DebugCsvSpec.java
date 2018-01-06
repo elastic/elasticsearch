@@ -15,7 +15,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 @TestLogging(JdbcTestUtils.SQL_TRACE)
-public class DebugCsvSpec extends CsvSpecTestCase {
+public abstract class DebugCsvSpec extends CsvSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -34,9 +34,9 @@ public class DebugCsvSpec extends CsvSpecTestCase {
         //
         // uncomment this to printout the result set and create new CSV tests
         //
-        JdbcTestUtils.logResultSetMetadata(elastic, log);
-        JdbcTestUtils.logResultSetData(elastic, log);
-        //JdbcAssert.assertResultSets(expected, elastic, log);
+        //JdbcTestUtils.logResultSetMetadata(elastic, log);
+        //JdbcTestUtils.logResultSetData(elastic, log);
+        JdbcAssert.assertResultSets(expected, elastic, log);
     }
 
     @Override

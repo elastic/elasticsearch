@@ -67,6 +67,10 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         @Override
         public Number getKeyAsNumber() {
             // this method is needed for scripted numeric aggs
+            try {
+                return Long.parseLong(termBytes.utf8ToString());
+            } catch (NumberFormatException numberFormatException) {
+            }
             return Double.parseDouble(termBytes.utf8ToString());
         }
 

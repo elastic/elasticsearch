@@ -23,6 +23,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 
@@ -157,5 +158,31 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             .endObject().string();
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE, false);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testIllegalFormatField() throws Exception {
+        String dynamicMapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("dynamic_date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject().string();
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject().string();
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        for (String m : Arrays.asList(mapping, dynamicMapping)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(m)));
+            assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+        }
     }
 }

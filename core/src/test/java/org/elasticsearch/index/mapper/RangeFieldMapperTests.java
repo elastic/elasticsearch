@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -432,4 +433,21 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+    public void testIllegalFormatField() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date_range")
+                            .array("format", "test_format")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+    }
 }

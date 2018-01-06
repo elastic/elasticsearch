@@ -94,7 +94,7 @@ class BuildPlugin implements Plugin<Project> {
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
             String compilerJavaHome = findCompilerJavaHome()
-            String runtimeJavaHome = findRuntimeJavaHome(project)
+            String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
             String javaVendor = System.getProperty('java.vendor')
             String javaVersion = System.getProperty('java.version')
@@ -168,42 +168,22 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Finds and enforces JAVA_HOME is set */
     private static String findCompilerJavaHome() {
-        String javaHome = System.getenv('JAVA_HOME')
-        if (javaHome == null) {
-            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
-                // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
-                javaHome = Jvm.current().javaHome
-            } else {
-                throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
-            }
-        }
-        return javaHome
+        return findJavaHome(System.getenv('JAVA_HOME'), null)
     }
 
-    private static String findRuntimeJavaHome(Project project) {
-        String java8Home = System.getenv('JAVA_8_HOME')
-        final String maybeJavaHome
-        if (java8Home == null) {
-            // if JAVA_8_HOME is not set fallback to JAVA_HOME
-            maybeJavaHome = System.getenv('JAVA_HOME')
-        } else {
-            // if JAVA_8_HOME is set it must point to a JDK 8 Java home
-            JavaVersion version = JavaVersion.toVersion(findJavaSpecificationVersion(project, java8Home))
-            if (version.majorVersion != minimumRuntimeVersion.majorVersion) {
-                throw new GradleException("if JAVA_8_HOME is set it must point to a JDK 8 Java home but was [" + java8Home + "]")
-            }
-            maybeJavaHome = java8Home
-        }
-        final String javaHome
-        if (maybeJavaHome == null) {
+    private static String findRuntimeJavaHome(final String compilerJavaHome) {
+        return findJavaHome(System.getenv('RUNTIME_JAVA_HOME'), compilerJavaHome)
+    }
+
+    private static String findJavaHome(String maybeJavaHome, String defaultJavaHome) {
+        final String javaHome = maybeJavaHome ?: defaultJavaHome
+        if (javaHome == null) {
             if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 javaHome = Jvm.current().javaHome
             } else {
                 assert false
             }
-        } else {
-            javaHome = maybeJavaHome
         }
         return javaHome
     }

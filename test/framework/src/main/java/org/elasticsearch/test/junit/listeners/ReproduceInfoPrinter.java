@@ -71,7 +71,7 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final StringBuilder b = new StringBuilder("REPRODUCE WITH: gradle ");
+        final StringBuilder b = new StringBuilder("REPRODUCE WITH: ./gradlew ");
         String task = System.getProperty("tests.task");
         // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
         b.append(task);

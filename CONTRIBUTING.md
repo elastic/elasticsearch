@@ -92,21 +92,20 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system. Gradle must be at least
-version 4.3 in order to build successfully.
+Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
+using the wrapper via the `gradlew` script in the root of the repository.
 
 We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
 minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
 IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
-Eclipse users can automatically configure their IDE: `gradle eclipse`
+Eclipse users can automatically configure their IDE: `./gradlew eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
 option `Search for nested projects`. Additionally you will want to
 ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
 accordingly to avoid GC overhead errors.
 
-IntelliJ users can automatically configure their IDE: `gradle idea`
+IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
@@ -124,7 +123,7 @@ restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you 
 classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
 reported as a source of jar hell.
 
-To run an instance of elasticsearch from the source code run `gradle run`
+To run an instance of elasticsearch from the source code run `./gradlew run`
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This
@@ -152,7 +151,7 @@ To create a distribution from the source, simply run:
 
 ```sh
 cd elasticsearch/
-gradle assemble
+./gradlew assemble
 ```
 
 You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/build/distributions/`.
@@ -160,7 +159,7 @@ You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
-gradle check
+./gradlew check
 ```
 
 Contributing as part of a class
@@ -188,7 +187,7 @@ code review process because it wastes our time.
 * We don't have the capacity to absorb an entire class full of new contributors,
 especially when they are unlikely to become long time contributors.
 
-Finally, we require that you run `gradle check` before submitting a
+Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 

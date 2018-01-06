@@ -220,43 +220,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testLocaleDependentDate() throws Exception {
-        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9 && systemPropertyAsBoolean("tests.security.manager", false));
-        assertAcked(prepareCreate("test")
-                .addMapping("type1",
-                        jsonBuilder().startObject()
-                                .startObject("type1")
-                                .startObject("properties")
-                                .startObject("date_field")
-                                .field("type", "date")
-                                .field("format", "E, d MMM yyyy HH:mm:ss Z")
-                                .field("locale", "de")
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()));
-        ensureGreen();
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", "" + i).setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800").execute().actionGet();
-            client().prepareIndex("test", "type1", "" + (10 + i)).setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800").execute().actionGet();
-        }
-
-        refresh();
-        for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
-                    .execute().actionGet();
-            assertHitCount(searchResponse, 10L);
-
-
-            searchResponse = client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
-                    .execute().actionGet();
-            assertHitCount(searchResponse, 20L);
-
-        }
-    }
-
     public void testSimpleTerminateAfterCount() throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
@@ -273,7 +236,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse;
-
         for (int i = 1; i <= max; i++) {
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))

@@ -64,6 +64,7 @@ List projects = [
   'plugins:repository-s3',
   'plugins:jvm-example',
   'plugins:store-smb',
+  'plugins:transport-nio',
   'qa:auto-create-index',
   'qa:ccs-unavailable-clusters',
   'qa:evil-tests',
@@ -96,6 +97,14 @@ for (File example : examplePluginsDir.listFiles()) {
   if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
   projects.add("example-plugins:${example.name}".toString())
   examplePlugins.add(example.name)
+}
+
+projects.add("libs")
+File libsDir = new File(rootProject.projectDir, 'libs')
+for (File libDir : new File(rootProject.projectDir, 'libs').listFiles()) {
+  if (libDir.isDirectory() == false) continue;
+  if (libDir.name.startsWith('build') || libDir.name.startsWith('.')) continue;
+  projects.add("libs:${libDir.name}".toString())
 }
 
 /* Create projects for building BWC snapshot distributions from the heads of other branches */

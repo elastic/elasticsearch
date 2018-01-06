@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.not;
 public class FieldAttributeTests extends ESTestCase {
 
     private SqlParser parser;
-    private GetIndexResult getIndexResult;
+    private IndexResolution getIndexResult;
     private FunctionRegistry functionRegistry;
     private Analyzer analyzer;
 
@@ -49,7 +49,7 @@ public class FieldAttributeTests extends ESTestCase {
         Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
-        getIndexResult = GetIndexResult.valid(test);
+        getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(functionRegistry, getIndexResult, DateTimeZone.UTC);
     }
 

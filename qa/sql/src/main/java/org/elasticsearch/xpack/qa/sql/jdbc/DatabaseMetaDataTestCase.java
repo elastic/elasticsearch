@@ -67,7 +67,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
             assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "te%", null));
             assertResultSets(
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
-                es.getMetaData().getTables("%", "%", "test1.d%", null));
+                    es.getMetaData().getTables("%", "%", "test1", null));
         }
     }
 

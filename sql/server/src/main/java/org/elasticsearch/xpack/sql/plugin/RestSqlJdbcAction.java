@@ -9,13 +9,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
@@ -102,17 +102,22 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> metaTable(MetaTableRequest request) {
-        String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
-        return channel -> indexResolver.asList(indexPattern, toActionListener(channel, list ->
+        String indexPattern = hasText(request.pattern()) ? StringUtils.likeToIndexWildcard(request.pattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.pattern()) ? StringUtils.likeToJavaPattern(request.pattern(), (char) 0) : "*";
+
+        return channel -> indexResolver.resolveNames(indexPattern, regexPattern, toActionListener(channel, list ->
                 new MetaTableResponse(list.stream()
-                        .map(EsIndex::name)
+                        .map(IndexInfo::name)
                         .collect(toList()))));
     }
 
     private Consumer<RestChannel> metaColumn(MetaColumnRequest request) {
-        String indexPattern = Strings.hasText(request.tablePattern()) ? StringUtils.jdbcToEsPattern(request.tablePattern()) : "*";
-        Pattern columnMatcher = hasText(request.columnPattern()) ? StringUtils.likeRegex(request.columnPattern()) : null;
-        return channel -> indexResolver.asList(indexPattern, toActionListener(channel, esIndices -> {
+        String indexPattern = hasText(request.tablePattern()) ? StringUtils.likeToIndexWildcard(request.tablePattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.tablePattern()) ? StringUtils.likeToJavaPattern(request.tablePattern(), (char) 0) : "*";
+
+        Pattern columnMatcher = hasText(request.columnPattern()) ? Pattern.compile(
+                StringUtils.likeToJavaPattern(request.columnPattern(), (char) 0)) : null;
+        return channel -> indexResolver.resolveAsSeparateMappings(indexPattern, regexPattern, toActionListener(channel, esIndices -> {
             List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 int pos = 0;

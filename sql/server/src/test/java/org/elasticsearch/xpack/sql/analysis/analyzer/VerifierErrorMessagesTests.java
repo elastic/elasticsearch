@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -23,10 +23,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private String verify(String sql) {
         Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
-        return verify(GetIndexResult.valid(test), sql);
+        return verify(IndexResolution.valid(test), sql);
     }
 
-    private String verify(GetIndexResult getIndexResult, String sql) {
+    private String verify(IndexResolution getIndexResult, String sql) {
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, DateTimeZone.UTC);
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
@@ -35,7 +35,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingIndex() {
-        assertEquals("1:17: Unknown index [missing]", verify(GetIndexResult.notFound("missing"), "SELECT foo FROM missing"));
+        assertEquals("1:17: Unknown index [missing]", verify(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
 
     public void testMissingColumn() {

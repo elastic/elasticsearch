@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -84,16 +84,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     /**
      * Information about the index against which the SQL is being analyzed.
      */
-    private final GetIndexResult getIndexResult;
+    private final IndexResolution indexResolution;
     /**
      * Time zone in which we're executing this SQL. It is attached to functions
      * that deal with date and time.
      */
     private final DateTimeZone timeZone;
 
-    public Analyzer(FunctionRegistry functionRegistry, GetIndexResult getIndexResult, DateTimeZone timeZone) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, DateTimeZone timeZone) {
         this.functionRegistry = functionRegistry;
-        this.getIndexResult = getIndexResult;
+        this.indexResolution = results;
         this.timeZone = timeZone;
     }
 
@@ -148,7 +148,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (e instanceof UnresolvedAttribute) {
                 UnresolvedAttribute ua = (UnresolvedAttribute) e;
                 Attribute a = resolveAgainstList(ua, plan.output(), lenient);
-                return (a != null ? a : e);
+                return a != null ? a : e;
             }
             return e;
         });
@@ -254,12 +254,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            if (getIndexResult.isValid() == false) {
-                return plan.unresolvedMessage().equals(getIndexResult.toString())
-                        ? plan : new UnresolvedRelation(plan.location(), plan.table(), plan.alias(), getIndexResult.toString());
+            if (indexResolution.isValid() == false) {
+                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan : new UnresolvedRelation(plan.location(),
+                        plan.table(), plan.alias(), indexResolution.toString());
             }
-            assert getIndexResult.matches(table.index());
-            LogicalPlan logicalPlan = new EsRelation(plan.location(), getIndexResult.get());
+            assert indexResolution.matches(table.index());
+            LogicalPlan logicalPlan = new EsRelation(plan.location(), indexResolution.get());
             SubQueryAlias sa = new SubQueryAlias(plan.location(), logicalPlan, table.index());
 
             if (plan.alias() != null) {
@@ -844,7 +844,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean hasUnresolvedAliases(List<? extends NamedExpression> expressions) {
-            return (expressions != null && expressions.stream().anyMatch(e -> e instanceof UnresolvedAlias));
+            return expressions != null && expressions.stream().anyMatch(e -> e instanceof UnresolvedAlias);
         }
 
         private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
@@ -1050,7 +1050,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         // but with a twist; only if the tree is not resolved or analyzed
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(t -> t.analyzed() || (skipResolved() && t.resolved()) ? t : rule(t), typeToken());
+            return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
         }
 
         @Override

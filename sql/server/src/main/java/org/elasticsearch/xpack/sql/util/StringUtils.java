@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,8 +39,9 @@ public abstract class StringUtils {
 
     public static <E> String limitedToString(Collection<E> c) {
         Iterator<E> it = c.iterator();
-        if (!it.hasNext())
+        if (!it.hasNext()) {
             return "[]";
+        }
 
         // ..]
         StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
@@ -55,8 +57,9 @@ public abstract class StringUtils {
             else {
                 sb.append(next);
             }
-            if (!it.hasNext())
+            if (!it.hasNext()) {
                 return sb.append(']').toString();
+            }
             sb.append(',').append(' ');
         }
     }
@@ -95,31 +98,37 @@ public abstract class StringUtils {
         return string == null ? EMPTY : string;
     }
 
-    // % -> *
+    // % -> .*
     // _ -> .
-    // consider \ as an escaping char
-    public static String sqlToJavaPattern(CharSequence sqlPattern, char escapeChar, boolean shouldEscape) {
-        StringBuilder regex = new StringBuilder(sqlPattern.length() + 4);
+    // escape character - can be 0 (in which case every regex gets escaped) or
+    // should be followed by % or _ (otherwise an exception is thrown)
+    public static String likeToJavaPattern(String pattern, char escape) {
+        StringBuilder regex = new StringBuilder(pattern.length() + 4);
 
         boolean escaped = false;
         regex.append('^');
-        for (int i = 0; i < sqlPattern.length(); i++) {
-            char curr = sqlPattern.charAt(i);
-            if (shouldEscape && !escaped && (curr == escapeChar)) {
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+            if (!escaped && (curr == escape) && escape != 0) {
                 escaped = true;
-                regex.append(curr);
+                if (i + 1 == pattern.length()) {
+                    throw new SqlIllegalArgumentException(
+                            "Invalid sequence - escape character is not followed by special wildcard char");
+                }
             }
             else {
                 switch (curr) {
                     case '%':
                         regex.append(escaped ? "%" : ".*");
-                        escaped = false;
                         break;
                     case '_':
                         regex.append(escaped ? "_" : ".");
-                        escaped = false;
                         break;
                     default:
+                        if (escaped) {
+                            throw new SqlIllegalArgumentException(
+                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                        }
                         // escape special regex characters
                         switch (curr) {
                             case '\\':
@@ -136,14 +145,11 @@ public abstract class StringUtils {
                             case ']':
                             case '{':
                             case '}':
-                                if (!escaped) {
-                                    regex.append('\\');
-                                }
+                                regex.append('\\');
                         }
-
                         regex.append(curr);
-                        escaped = false;
                 }
+                escaped = false;
             }
         }
         regex.append('$');
@@ -151,25 +157,98 @@ public abstract class StringUtils {
         return regex.toString();
     }
 
-    //TODO: likely this needs to be changed to probably its own indexNameResolver
-    public static String jdbcToEsPattern(String sqlPattern) {
-        if (Strings.hasText(sqlPattern)) {
-            // the index might include a type - since we only support only support one type per index, remove the type
-            int dotIndex = sqlPattern.indexOf(".");
-            if (dotIndex >= 0) {
-                sqlPattern = sqlPattern.substring(0, dotIndex);
+    /**
+     * Translates a like pattern to a Lucene wildcard.
+     * This methods pays attention to the custom escape char which gets converted into \ (used by Lucene).
+     * <pre>
+     * % -&gt; *
+     * _ -&gt; ?
+     * escape character - can be 0 (in which case every regex gets escaped) or should be followed by
+     * % or _ (otherwise an exception is thrown)
+     * </pre>
+     */
+    public static String likeToLuceneWildcard(String pattern, char escape) {
+        StringBuilder wildcard = new StringBuilder(pattern.length() + 4);
+
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+
+            if (!escaped && (curr == escape) && escape != 0) {
+                if (i + 1 == pattern.length()) {
+                    throw new SqlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                }
+                escaped = true;
+            } else {
+                switch (curr) {
+                    case '%':
+                        wildcard.append(escaped ? "%" : "*");
+                        break;
+                    case '_':
+                        wildcard.append(escaped ? "_" : "?");
+                        break;
+                    default:
+                        if (escaped) {
+                            throw new SqlIllegalArgumentException(
+                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                        }
+                        // escape special regex characters
+                        switch (curr) {
+                            case '\\':
+                            case '*':
+                            case '?':
+                              wildcard.append('\\');
+                        }
+                        wildcard.append(curr);
+                }
+                escaped = false;
             }
-            return sqlPattern.replace('%', '*').replace('_', '*');
         }
-        return EMPTY;
+        return wildcard.toString();
     }
 
-    public static String sqlToJavaPattern(CharSequence sqlPattern) {
-        return sqlToJavaPattern(sqlPattern, '\\', true);
+    /**
+     * Translates a like pattern to pattern for ES index name expression resolver.
+     *
+     * Note the resolver only supports * (not ?) and has no notion of escaping. This is not really an issue since we don't allow *
+     * anyway in the pattern.
+     */
+    public static String likeToIndexWildcard(String pattern, char escape) {
+        StringBuilder wildcard = new StringBuilder(pattern.length() + 4);
+
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+
+            if (!escaped && (curr == escape) && escape != 0) {
+                if (i + 1 == pattern.length()) {
+                    throw new SqlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                }
+                escaped = true;
+            } else {
+                switch (curr) {
+                    case '%':
+                        wildcard.append(escaped ? "%" : "*");
+                        break;
+                    case '_':
+                        wildcard.append(escaped ? "_" : "*");
+                        break;
+                    default:
+                        if (escaped) {
+                            throw new SqlIllegalArgumentException(
+                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                        }
+                        // the resolver doesn't support escaping...
+                        wildcard.append(curr);
+                }
+                escaped = false;
+            }
+        }
+        return wildcard.toString();
     }
 
     public static Pattern likeRegex(String likePattern) {
-        return Pattern.compile(sqlToJavaPattern(likePattern));
+        return Pattern.compile(likeToJavaPattern(likePattern, '\\'));
     }
 
     public static String toString(SearchSourceBuilder source) {

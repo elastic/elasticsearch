@@ -34,9 +34,9 @@ public class DebugCsvSpec extends CsvSpecTestCase {
         //
         // uncomment this to printout the result set and create new CSV tests
         //
-        //JdbcTestUtils.logResultSetMetadata(elastic, log);
-        //JdbcTestUtils.logResultSetData(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log);
+        JdbcTestUtils.logResultSetMetadata(elastic, log);
+        JdbcTestUtils.logResultSetData(elastic, log);
+        //JdbcAssert.assertResultSets(expected, elastic, log);
     }
 
     @Override

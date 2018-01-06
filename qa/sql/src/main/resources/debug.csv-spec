@@ -3,7 +3,8 @@
 //
 
 debug
-SELECT 5 + 2 AS a;
+SHOW TABLES test_emp;
+//DESCRIBE test_alias;
 
 table:s
 test_emp

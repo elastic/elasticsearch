@@ -345,7 +345,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testShowTablesWorksAsFullAccess() throws Exception {
         createUser("full_access", "read_all");
 
-        actions.expectMatchesAdmin("SHOW TABLES LIKE '*t'", "full_access", "SHOW TABLES");
+        actions.expectMatchesAdmin("SHOW TABLES LIKE '%t'", "full_access", "SHOW TABLES");
         new AuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .expectSqlCompositeAction("full_access", "bort", "test")
@@ -374,7 +374,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testShowTablesWithLimitedAccessUnaccessableIndex() throws Exception {
         createUser("read_bort", "read_bort");
 
-        actions.expectMatchesAdmin("SHOW TABLES LIKE 'not_created'", "read_bort", "SHOW TABLES LIKE 'test'");
+        actions.expectMatchesAdmin("SHOW TABLES LIKE 'not-created'", "read_bort", "SHOW TABLES LIKE 'test'");
         new AuditLogAsserter()
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))

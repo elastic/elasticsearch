@@ -37,6 +37,13 @@ public class DataLoader {
     }
 
     protected static void loadDatasetIntoEs(RestClient client) throws Exception {
+        loadDatasetIntoEs(client, "test_emp");
+        loadDatasetIntoEs(client, "test_emp_copy");
+        makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
+        makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
+    }
+
+    protected static void loadDatasetIntoEs(RestClient client, String index) throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
         {
@@ -63,7 +70,7 @@ public class DataLoader {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        client.performRequest("PUT", "/test_emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
+        client.performRequest("PUT", "/" + index, emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
 
         StringBuilder bulk = new StringBuilder();
         csvToLines("employees", (titles, fields) -> {
@@ -77,8 +84,14 @@ public class DataLoader {
             }
             bulk.append("}\n");
         });
-        client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"),
+        client.performRequest("POST", "/" + index + "/emp/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+    }
+
+    protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
+        for (String index : indices) {
+            client.performRequest("POST", "/" + index + "/_alias/" + aliasName);
+        }
     }
 
     private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {

@@ -9,16 +9,16 @@ import org.elasticsearch.common.Nullable;
 
 import java.util.Objects;
 
-public final class GetIndexResult {
-    public static GetIndexResult valid(EsIndex index) {
+public final class IndexResolution {
+    public static IndexResolution valid(EsIndex index) {
         Objects.requireNonNull(index, "index must not be null if it was found");
-        return new GetIndexResult(index, null);
+        return new IndexResolution(index, null);
     }
-    public static GetIndexResult invalid(String invalid) {
+    public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new GetIndexResult(null, invalid);
+        return new IndexResolution(null, invalid);
     }
-    public static GetIndexResult notFound(String name) {
+    public static IndexResolution notFound(String name) {
         Objects.requireNonNull(name, "name must not be null");
         return invalid("Unknown index [" + name + "]");
     }
@@ -27,7 +27,7 @@ public final class GetIndexResult {
     @Nullable
     private final String invalid;
 
-    private GetIndexResult(EsIndex index, @Nullable String invalid) {
+    private IndexResolution(EsIndex index, @Nullable String invalid) {
         this.index = index;
         this.invalid = invalid;
     }
@@ -60,7 +60,7 @@ public final class GetIndexResult {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        GetIndexResult other = (GetIndexResult) obj;
+        IndexResolution other = (IndexResolution) obj;
         return Objects.equals(index, other.index)
                 && Objects.equals(invalid, other.invalid);
     }

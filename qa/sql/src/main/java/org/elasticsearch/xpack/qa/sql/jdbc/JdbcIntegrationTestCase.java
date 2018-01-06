@@ -16,12 +16,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.qa.sql.embed.EmbeddedJdbcServer;
-import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;

@@ -46,7 +46,7 @@ public class ShowColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        session.indexResolver().asIndex(index, ActionListener.wrap(
+        session.indexResolver().resolveWithSameMapping(index, null, ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {

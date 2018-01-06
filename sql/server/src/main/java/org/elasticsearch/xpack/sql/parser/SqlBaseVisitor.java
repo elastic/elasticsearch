@@ -271,6 +271,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPredicate(SqlBaseParser.PredicateContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#pattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPattern(SqlBaseParser.PatternContext ctx);
+  /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link SqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -368,13 +374,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitNullLiteral(SqlBaseParser.NullLiteralContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code typeConstructor}
-   * labeled alternative in {@link SqlBaseParser#constant}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitTypeConstructor(SqlBaseParser.TypeConstructorContext ctx);
   /**
    * Visit a parse tree produced by the {@code numericLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.

@@ -13,13 +13,18 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class Like extends BinaryExpression {
 
-    public Like(Location location, Expression left, Expression right) {
+    public Like(Location location, Expression left, LikePattern right) {
         super(location, left, right);
     }
 
     @Override
+    public LikePattern right() {
+        return (LikePattern) super.right();
+    }
+
+    @Override
     public Like swapLeftAndRight() {
-        return new Like(location(), right(), left());
+        return this;
     }
 
     @Override

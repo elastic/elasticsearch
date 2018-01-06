@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
@@ -20,10 +19,9 @@ import org.joda.time.DateTimeZone;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-
-import static java.util.stream.Collectors.toList;
 
 public class SqlParserTests extends ESTestCase {
     public void testSelectStar() {
@@ -94,7 +92,7 @@ public class SqlParserTests extends ESTestCase {
     }
 
     private Project project(LogicalPlan plan) {
-        List<Project> sync = new ArrayList<Project>(1);
+        List<Project> sync = new ArrayList<>(1);
         projectRecur(plan, sync);
         assertThat("expected only one SELECT", sync, hasSize(1));
         return sync.get(0);

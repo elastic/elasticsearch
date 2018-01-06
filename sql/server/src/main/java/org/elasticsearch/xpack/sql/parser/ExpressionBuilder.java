@@ -9,6 +9,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredi
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
+import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicatedContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimitiveDataTypeContext;
@@ -186,10 +189,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 e = new In(loc, exp, expressions(pCtx.expression()));
                 break;
             case SqlBaseParser.LIKE:
-                e = new Like(loc, exp, expression(pCtx.pattern));
+                e = new Like(loc, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, expression(pCtx.pattern));
+                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataTypes.KEYWORD));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -202,10 +205,60 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return pCtx.NOT() != null ? new Not(loc, e) : e;
     }
 
+    @Override
+    public LikePattern visitPattern(PatternContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        String pattern = string(ctx.value);
+        int pos = pattern.indexOf('*');
+        if (pos >= 0) {
+            throw new ParsingException(source(ctx.value),
+                    "Invalid char [*] found in pattern [%s] at position %d; use [%%] or [_] instead",
+                    pattern, pos);
+        }
+
+        char escape = 0;
+        String escapeString = string(ctx.escape);
+
+        if (Strings.hasText(escapeString)) {
+            // shouldn't happen but adding validation in case the string parsing gets wonky
+            if (escapeString.length() > 1) {
+                throw new ParsingException(source(ctx.escape), "A character not a string required for escaping; found [%s]", escapeString);
+            } else if (escapeString.length() == 1) {
+                escape = escapeString.charAt(0);
+                // these chars already have a meaning
+                if (escape == '*' || escape == '%' || escape == '_') {
+                    throw new ParsingException(source(ctx.escape), "Char [%c] cannot be used for escaping", escape);
+                }
+                // lastly validate that escape chars (if present) are followed by special chars
+                for (int i = 0; i < pattern.length(); i++) {
+                    char current = pattern.charAt(i);
+                    if (current == escape) {
+                        if (i + 1 == pattern.length()) {
+                            throw new ParsingException(source(ctx.value),
+                                    "Pattern [%s] is invalid as escape char [%c] at position %d does not escape anything", pattern, escape,
+                                    i);
+                        }
+                        char next = pattern.charAt(i + 1);
+                        if (next != '%' && next != '_') {
+                            throw new ParsingException(source(ctx.value),
+                                    "Pattern [%s] is invalid as escape char [%c] at position %d can only escape wildcard chars; found [%c]",
+                                    pattern, escape, i, next);
+                        }
+                    }
+                }
+            }
+        }
+
+        return new LikePattern(source(ctx), pattern, escape);
+    }
+
+
     //
     // Arithmetic
     //
-
     @Override
     public Object visitArithmeticUnary(ArithmeticUnaryContext ctx) {
         Expression value = expression(ctx.valueExpression());
@@ -317,7 +370,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String name = visitIdentifier(ctx.identifier());
         boolean isDistinct = false;
         if (ctx.setQuantifier() != null) {
-            isDistinct = (ctx.setQuantifier().DISTINCT() != null);
+            isDistinct = ctx.setQuantifier().DISTINCT() != null;
         }
 
         return new UnresolvedFunction(source(ctx), name, isDistinct, expressions(ctx.expression()));

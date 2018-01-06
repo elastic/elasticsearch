@@ -7,19 +7,25 @@ package org.elasticsearch.xpack.sql.expression.regex;
 
 import org.elasticsearch.xpack.sql.expression.BinaryExpression;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class RLike extends BinaryExpression {
 
-    public RLike(Location location, Expression left, Expression right) {
+    public RLike(Location location, Expression left, Literal right) {
         super(location, left, right);
     }
 
     @Override
+    public Literal right() {
+        return (Literal) super.right();
+    }
+
+    @Override
     public RLike swapLeftAndRight() {
-        return new RLike(location(), right(), left());
+        return this;
     }
 
     @Override

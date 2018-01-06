@@ -107,10 +107,10 @@ MINUTE_OF_DAY   |SCALAR
 ;
 
 showTables
-SHOW TABLES;
+SHOW TABLES 'test_emp';
 
- table:s
-test_emp
+ name:s        | type:s
+test_emp       |INDEX
 ;
 
 // DESCRIBE

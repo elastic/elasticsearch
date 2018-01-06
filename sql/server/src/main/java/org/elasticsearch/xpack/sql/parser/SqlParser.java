@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.DiagnosticErrorListener;
+import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -65,9 +70,11 @@ public class SqlParser {
         SqlBaseParser parser = new SqlBaseParser(tokenStream);
 
         parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
+
         parser.removeErrorListeners();
         parser.addErrorListener(ERROR_LISTENER);
 
+        //debug(parser);
         ParserRuleContext tree;
         try {
             // first, try parsing with potentially faster SLL mode
@@ -85,6 +92,20 @@ public class SqlParser {
         postProcess(lexer, parser, tree);
 
         return visitor.apply(new AstBuilder(timeZone), tree);
+    }
+
+    private void debug(SqlBaseParser parser) {
+        parser.addParseListener(parser.new TraceListener());
+
+        parser.addErrorListener(new DiagnosticErrorListener() {
+            @Override
+            public void reportAttemptingFullContext(Parser recognizer, DFA dfa,
+                    int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {}
+
+            @Override
+            public void reportContextSensitivity(Parser recognizer, DFA dfa,
+                    int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {}
+        });
     }
 
     protected void postProcess(SqlBaseLexer lexer, SqlBaseParser parser, ParserRuleContext tree) {

@@ -12,19 +12,14 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableIdentifierContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
-        String index = text(ctx.index);
-
+        String index = ctx.getText();
         Location source = source(ctx);
-        validateIndex(index, source);
 
+        validateIndex(ctx.getText(), source);
         return new TableIdentifier(source, index);
     }
 
@@ -33,10 +28,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         for (int i = 0; i < index.length(); i++) {
             char c = index.charAt(i);
             if (Character.isUpperCase(c)) {
-                throw new ParsingException(source, format(Locale.ROOT, "Invalid index name (needs to be lowercase) %s", index));
+                throw new ParsingException(source, "Invalid index name (needs to be lowercase) %s", index);
             }
             if (c == '\\' || c == '/' || c == '<' || c == '>' || c == '|' || c == ',' || c == ' ') {
-                throw new ParsingException(source, format(Locale.ROOT, "Invalid index name (illegal character %c) %s", c, index));
+                throw new ParsingException(source, "Invalid index name (illegal character %c) %s", c, index);
             }
         }
     }
@@ -51,7 +46,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         if (ctx == null) {
             return null;
         }
-        // TODO: maybe it makes sense to introduce a dedicated object?
+
         return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
     }
 }

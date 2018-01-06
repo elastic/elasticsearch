@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredi
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
+import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
@@ -439,30 +440,27 @@ abstract class QueryTranslator {
                 target = nameOf(inexact ? fa : fa.exactAttribute());
             }
 
-            String pattern = sqlToEsPatternMatching(stringValueOf(e.right()));
             if (e instanceof Like) {
+                LikePattern p = ((Like) e).right();
                 if (inexact) {
-                    q = new QueryStringQuery(e.location(), pattern, target);
+                    q = new QueryStringQuery(e.location(), p.asLuceneWildcard(), target);
                 }
                 else {
-                    q = new WildcardQuery(e.location(), nameOf(e.left()), pattern);
+                    q = new WildcardQuery(e.location(), nameOf(e.left()), p.asLuceneWildcard());
                 }
             }
 
             if (e instanceof RLike) {
+                String pattern = stringValueOf(e.right());
                 if (inexact) {
                     q = new QueryStringQuery(e.location(), "/" + pattern + "/", target);
                 }
                 else {
-                    q = new RegexQuery(e.location(), nameOf(e.left()), sqlToEsPatternMatching(stringValueOf(e.right())));
+                    q = new RegexQuery(e.location(), nameOf(e.left()), pattern);
                 }
             }
 
             return q != null ? new QueryTranslation(wrapIfNested(q, e.left())) : null;
-        }
-
-        private static String sqlToEsPatternMatching(String pattern) {
-            return pattern.replace("%", "*").replace("_", "?");
         }
     }
 

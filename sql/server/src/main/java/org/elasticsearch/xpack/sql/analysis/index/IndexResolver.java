@@ -5,15 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Types;
 
@@ -22,8 +28,61 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
+
+import static java.util.Collections.emptyList;
 
 public class IndexResolver {
+
+    public enum IndexType {
+        INDEX, ALIAS;
+    }
+
+    public static class IndexInfo {
+        private final String name;
+        private final IndexType type;
+
+        private IndexInfo(String name, IndexType type) {
+            this.name = name;
+            this.type = type;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public IndexType type() {
+            return type;
+        }
+        
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+
+            IndexResolver.IndexInfo other = (IndexResolver.IndexInfo) obj;
+            return Objects.equals(name, other.name)
+                    && Objects.equals(type, other.type);
+        }
+    }
 
     private final Client client;
 
@@ -32,42 +91,134 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a single index by name.
+     * Resolves only the names, differentiating between indices and aliases.
+     * This method is required since the other methods rely on mapping which is tied to an index (not an alias).
      */
-    public void asIndex(final String index, ActionListener<GetIndexResult> listener) {
-        GetIndexRequest getIndexRequest = createGetIndexRequest(index);
-        client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-            GetIndexResult result;
-            if (getIndexResponse.getMappings().size() > 1) {
-                result = GetIndexResult.invalid(
-                        "[" + index + "] is an alias pointing to more than one index which is currently incompatible with sql");
-            } else if (getIndexResponse.getMappings().size() == 1){
-                ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings =
-                        getIndexResponse.getMappings().iterator().next();
-                String concreteIndex = indexMappings.key;
-                /*
-                 * here we don't support wildcards: we can either have an alias or an index. However names get resolved (through
-                 * security or not) we need to preserve the original names as they will be used in the subsequent search request.
-                 * With security enabled, if the user is authorized for an alias and not its corresponding concrete index, we have to
-                 * make sure that the search is executed against the same alias name from the original command, rather than
-                 * the resolved concrete index that we get back from the get index API
-                 */
-                result = buildGetIndexResult(concreteIndex, index, indexMappings.value);
-            } else {
-                result = GetIndexResult.notFound(index);
+    public void resolveNames(String indexWildcard, String javaRegex, ActionListener<Set<IndexInfo>> listener) {
+        // first get aliases
+        GetAliasesRequest aliasRequest = new GetAliasesRequest()
+                .local(true)
+                .aliases(indexWildcard)
+                .indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases -> 
+                        resolveIndices(indexWildcard, javaRegex, aliases, listener),
+                        ex -> {
+                            // with security, two exception can be thrown:
+                            // INFE - if no alias matches
+                            // security exception is the user cannot access aliases
+
+                            // in both cases, that is allowed and we continue with the indices request
+                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                                resolveIndices(indexWildcard, javaRegex, null, listener);
+                            } else {
+                                listener.onFailure(ex);
+                            }
+                        }));
+    }
+
+    private void resolveIndices(String indexWildcard, String javaRegex,  GetAliasesResponse aliases, 
+            ActionListener<Set<IndexInfo>> listener) {
+        GetIndexRequest indexRequest = new GetIndexRequest()
+                .local(true)
+                .indices(indexWildcard)
+                .indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        client.admin().indices().getIndex(indexRequest, ActionListener.wrap(indices -> {
+            String[] indicesNames = indices.indices();
+
+            // since the index name does not support ?, filter the results manually
+            Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
+
+            Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
+            // unpack aliases (if present)
+            if (aliases != null) {
+                for (ObjectCursor<List<AliasMetaData>> cursor : aliases.getAliases().values()) {
+                    for (AliasMetaData amd : cursor.value) {
+                        String alias = amd.alias();
+                        if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
+                            result.add(new IndexInfo(alias, IndexType.ALIAS));
+                        }
+                    }
+                }
             }
+            if (indicesNames != null) {
+                for (String indexName : indicesNames) {
+                    if (pattern == null || pattern.matcher(indexName).matches()) {
+                        result.add(new IndexInfo(indexName, IndexType.INDEX));
+                    }
+                }
+            }
+            
             listener.onResponse(result);
         }, listener::onFailure));
     }
 
+
     /**
-     *  Discover (multiple) matching indices for a given name.
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void asList(String index, ActionListener<List<EsIndex>> listener) {
-        GetIndexRequest getIndexRequest = createGetIndexRequest(index);
+    public void resolveWithSameMapping(String indexWildcard, String javaRegex, ActionListener<IndexResolution> listener) {
+        GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
+        client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(response -> {
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.getMappings();
+
+            List<IndexResolution> resolutions;
+            if (mappings.size() > 0) {
+                resolutions = new ArrayList<>(mappings.size());
+                Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
+                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
+                    String concreteIndex = indexMappings.key;
+                    if (pattern == null || pattern.matcher(concreteIndex).matches()) {
+                        resolutions.add(buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value));
+                    }
+                }
+            } else {
+                resolutions = emptyList();
+            }
+
+            listener.onResponse(merge(resolutions, indexWildcard));
+        }, listener::onFailure));
+    }
+
+    static IndexResolution merge(List<IndexResolution> resolutions, String indexWildcard) {
+        IndexResolution merged = null;
+        for (IndexResolution resolution : resolutions) {
+            // everything that follows gets compared
+            if (!resolution.isValid()) {
+                return resolution;
+            }
+            // initialize resolution on first run
+            if (merged == null) {
+                merged = resolution;
+            }
+            // need the same mapping across all resolutions
+            if (!merged.get().mapping().equals(resolution.get().mapping())) {
+                return IndexResolution.invalid(
+                        "[" + indexWildcard + "] points to indices [" + resolution.get().name() + "] "
+                                + "and [" + resolution.get().name() + "] which have different mappings. "
+                                + "When using multiple indices, the mappings must be identical.");
+            }
+        }
+        if (merged != null) {
+            // at this point, we are sure there's the same mapping across all (if that's the case) indices
+            // to keep things simple, use the given pattern as index name
+            merged = IndexResolution.valid(new EsIndex(indexWildcard, merged.get().mapping()));
+        } else {
+            merged = IndexResolution.notFound(indexWildcard);
+        }
+        return merged;
+    }
+
+    /**
+     * Resolves a pattern to multiple, separate indices.
+     */
+    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, ActionListener<List<EsIndex>> listener) {
+        GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.getMappings();
             List<EsIndex> results = new ArrayList<>(mappings.size());
+            Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
             for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
                 /*
                  * We support wildcard expressions here, and it's only for commands that only perform the get index call.
@@ -76,9 +227,11 @@ public class IndexResolver {
                  * and not the concrete index: there is a well known information leak of the concrete index name in the response.
                  */
                 String concreteIndex = indexMappings.key;
-                GetIndexResult getIndexResult = buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value);
-                if (getIndexResult.isValid()) {
-                    results.add(getIndexResult.get());
+                if (pattern == null || pattern.matcher(concreteIndex).matches()) {
+                    IndexResolution getIndexResult = buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value);
+                    if (getIndexResult.isValid()) {
+                        results.add(getIndexResult.get());
+                    }
                 }
             }
             results.sort(Comparator.comparing(EsIndex::name));
@@ -96,7 +249,7 @@ public class IndexResolver {
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
     }
 
-    private static GetIndexResult buildGetIndexResult(String concreteIndex, String indexOrAlias,
+    private static IndexResolution buildGetIndexResult(String concreteIndex, String indexOrAlias,
             ImmutableOpenMap<String, MappingMetaData> mappings) {
 
         // Make sure that the index contains only a single type
@@ -119,17 +272,17 @@ public class IndexResolver {
         }
 
         if (singleType == null) {
-            return GetIndexResult.invalid("[" + indexOrAlias + "] doesn't have any types so it is incompatible with sql");
+            return IndexResolution.invalid("[" + indexOrAlias + "] doesn't have any types so it is incompatible with sql");
         } else if (typeNames != null) {
             Collections.sort(typeNames);
-            return GetIndexResult.invalid(
+            return IndexResolution.invalid(
                     "[" + indexOrAlias + "] contains more than one type " + typeNames + " so it is incompatible with sql");
         } else {
             try {
                 Map<String, DataType> mapping = Types.fromEs(singleType.sourceAsMap());
-                return GetIndexResult.valid(new EsIndex(indexOrAlias, mapping));
+                return IndexResolution.valid(new EsIndex(indexOrAlias, mapping));
             } catch (MappingException ex) {
-                return GetIndexResult.invalid(ex.getMessage());
+                return IndexResolution.invalid(ex.getMessage());
             }
         }
     }

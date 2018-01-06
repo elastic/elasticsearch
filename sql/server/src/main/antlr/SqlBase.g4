@@ -51,10 +51,10 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (LIKE? pattern=STRING)?                                                                 #showTables
+    | SHOW TABLES (LIKE? pattern)?                                                                        #showTables
     | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
-    | SHOW FUNCTIONS (LIKE? pattern=STRING)?                                                              #showFunctions
+    | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     ;
 
@@ -171,8 +171,13 @@ predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
     | NOT? kind=IN '(' expression (',' expression)* ')'
     | NOT? kind=IN '(' query ')'
-    | NOT? kind=(LIKE | RLIKE) pattern=valueExpression
+    | NOT? kind=LIKE pattern
+    | NOT? kind=RLIKE regex=STRING
     | IS NOT? kind=NULL
+    ;
+
+pattern
+    : value=STRING (ESCAPE escape=STRING)?
     ;
 
 valueExpression
@@ -188,7 +193,7 @@ primaryExpression
     | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
     | constant                                                                       #constantDefault
     | ASTERISK                                                                       #star
-    | (qualifiedName '.')? ASTERISK                                                  #star
+    | (qualifiedName DOT)? ASTERISK                                                  #star
     | identifier '(' (setQuantifier? expression (',' expression)*)? ')'              #functionCall
     | '(' query ')'                                                                  #subqueryExpression
     | identifier                                                                     #columnReference
@@ -199,7 +204,6 @@ primaryExpression
     
 constant
     : NULL                                                                                     #nullLiteral
-    | identifier STRING                                                                        #typeConstructor
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
@@ -218,11 +222,11 @@ dataType
     ;
 
 qualifiedName
-    : (path=identifier '.')* name=identifier
+    : (identifier DOT)* identifier
     ;
 
 tableIdentifier
-    : index=identifier
+    : identifier
     ;
 
 identifier
@@ -252,7 +256,7 @@ nonReserved
     | COLUMNS 
     | DEBUG 
     | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS | FROM 
+    | FORMAT | FUNCTIONS 
     | GRAPHVIZ 
     | MAPPED 
     | OPTIMIZED 
@@ -279,6 +283,7 @@ DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
+ESCAPE: 'ESCAPE';
 EXECUTABLE: 'EXECUTABLE';
 EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
@@ -338,6 +343,7 @@ ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
 CONCAT: '||';
+DOT: '.';
 
 STRING
     : '\'' ( ~'\'' | '\'\'' )* '\''
@@ -348,10 +354,10 @@ INTEGER_VALUE
     ;
 
 DECIMAL_VALUE
-    : DIGIT+ '.' DIGIT*
-    | '.' DIGIT+
-    | DIGIT+ ('.' DIGIT*)? EXPONENT
-    | '.' DIGIT+ EXPONENT
+    : DIGIT+ DOT DIGIT*
+    | DOT DIGIT+
+    | DIGIT+ (DOT DIGIT*)? EXPONENT
+    | DOT DIGIT+ EXPONENT
     ;
 
 IDENTIFIER

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.planner;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -33,7 +33,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        GetIndexResult getIndexResult = GetIndexResult.valid(test);
+        IndexResolution getIndexResult = IndexResolution.valid(test);
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, DateTimeZone.UTC);
         LogicalPlan plan = optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true));
         PlanningException e = expectThrows(PlanningException.class, () -> planner.mapPlan(plan, true));

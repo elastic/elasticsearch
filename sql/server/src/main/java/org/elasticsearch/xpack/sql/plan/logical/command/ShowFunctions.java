@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -25,27 +26,27 @@ import static java.util.stream.Collectors.toList;
 
 public class ShowFunctions extends Command {
 
-    private final String pattern;
+    private final LikePattern pattern;
 
-    public ShowFunctions(Location location, String pattern) {
+    public ShowFunctions(Location location, LikePattern pattern) {
         super(location);
         this.pattern = pattern;
     }
 
-    public String pattern() {
+    public LikePattern pattern() {
         return pattern;
     }
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(location(), "name", DataTypes.KEYWORD), 
+        return asList(new FieldAttribute(location(), "name", DataTypes.KEYWORD),
                 new FieldAttribute(location(), "type", DataTypes.KEYWORD));
     }
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         FunctionRegistry registry = session.functionRegistry();
-        Collection<FunctionDefinition> functions = registry.listFunctions(pattern);
+        Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.pattern() : null);
 
         listener.onResponse(Rows.of(output(), functions.stream()
                 .map(f -> asList(f.name(), f.type().name()))

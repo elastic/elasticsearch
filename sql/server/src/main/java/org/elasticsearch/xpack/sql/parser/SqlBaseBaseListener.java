@@ -489,6 +489,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterPattern(SqlBaseParser.PatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPattern(SqlBaseParser.PatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterValueExpressionDefault(SqlBaseParser.ValueExpressionDefaultContext ctx) { }
   /**
    * {@inheritDoc}
@@ -652,18 +664,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitNullLiteral(SqlBaseParser.NullLiteralContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterTypeConstructor(SqlBaseParser.TypeConstructorContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitTypeConstructor(SqlBaseParser.TypeConstructorContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -102,12 +102,12 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitShowFunctions(ShowFunctionsContext ctx) {
-        return new ShowFunctions(source(ctx), string(ctx.pattern));
+        return new ShowFunctions(source(ctx), visitPattern(ctx.pattern()));
     }
 
     @Override
     public Object visitShowTables(ShowTablesContext ctx) {
-        return new ShowTables(source(ctx), string(ctx.pattern));
+        return new ShowTables(source(ctx), visitPattern(ctx.pattern()));
     }
 
     @Override

@@ -221,10 +221,6 @@ public class Scroller {
             this.query = query;
         }
 
-        @Override
-        public void onResponse(SearchResponse response) {
-            super.onResponse(response);
-        }
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
@@ -313,8 +309,9 @@ public class Scroller {
                 ShardSearchFailure[] failure = response.getShardFailures();
                 if (!CollectionUtils.isEmpty(failure)) {
                     cleanupScroll(response, new ExecutionException(failure[0].reason(), failure[0].getCause()));
+                } else {
+                    handleResponse(response, listener);
                 }
-                handleResponse(response, listener);
             } catch (Exception ex) {
                 cleanupScroll(response, ex);
             }
@@ -326,11 +323,11 @@ public class Scroller {
         protected final void cleanupScroll(SearchResponse response, Exception ex) {
             if (response != null && response.getScrollId() != null) {
                 client.prepareClearScroll().addScrollId(response.getScrollId())
-                // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                        .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
-                            ex.addSuppressed(e);
-                            listener.onFailure(ex);
-                        }));
+                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
+                    .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
+                        ex.addSuppressed(e);
+                        listener.onFailure(ex);
+                    }));
             }
         }
 

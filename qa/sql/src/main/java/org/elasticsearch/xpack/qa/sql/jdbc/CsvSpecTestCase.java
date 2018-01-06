@@ -46,7 +46,8 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
                 readScriptSpec("/fulltext.csv-spec", parser),
                 readScriptSpec("/agg.csv-spec", parser),
                 readScriptSpec("/columns.csv-spec", parser),
-                readScriptSpec("/datetime.csv-spec", parser)
+                readScriptSpec("/datetime.csv-spec", parser),
+                readScriptSpec("/alias.csv-spec", parser)
                 );
     }
 
@@ -148,6 +149,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
             case "l": return "long";
             case "f": return "float";
             case "d": return "double";
+            case "ts": return "timestamp";
             default: return type;
         }
     }
@@ -164,7 +166,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         public Object parse(String line) {
             // beginning of the section
             if (testCase == null) {
-                // pick up the query 
+                // pick up the query
                 testCase = new CsvTestCase();
                 testCase.query = line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
             }

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,9 +46,14 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
         // TODO: This is wrong
         // See https://github.com/elastic/x-pack-elasticsearch/pull/3438/commits/61b7c26fe08db2721f0431579f215fe493744af3
         // and https://github.com/elastic/x-pack-elasticsearch/issues/3460
-        String indexPattern = Strings.hasText(request.getTablePattern()) ? StringUtils.jdbcToEsPattern(request.getTablePattern()) : "*";
-        Pattern columnMatcher = hasText(request.getColumnPattern()) ? StringUtils.likeRegex(request.getColumnPattern()) : null;
-        indexResolver.asList(indexPattern, ActionListener.wrap(esIndices -> {
+        String indexPattern = hasText(request.getTablePattern()) ?
+                StringUtils.likeToIndexWildcard(request.getTablePattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.getTablePattern()) ?
+                StringUtils.likeToJavaPattern(request.getTablePattern(), (char) 0) : "*";
+        Pattern columnMatcher = hasText(request.getColumnPattern()) ?
+                Pattern.compile(StringUtils.likeToJavaPattern(request.getColumnPattern(), (char) 0)) : null;
+
+        indexResolver.resolveAsSeparateMappings(indexPattern, regexPattern, ActionListener.wrap(esIndices -> {
             List<ColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {

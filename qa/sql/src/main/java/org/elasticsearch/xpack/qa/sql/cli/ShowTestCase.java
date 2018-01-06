@@ -16,7 +16,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
     public void testShowTables() throws IOException {
         index("test1", body -> body.field("test_field", "test_value"));
         index("test2", body -> body.field("test_field", "test_value"));
-        assertThat(command("SHOW TABLES"), RegexMatcher.matches("\\s*table\\s*"));
+        assertThat(command("SHOW TABLES"), RegexMatcher.matches("\\s*name\\s*"));
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));

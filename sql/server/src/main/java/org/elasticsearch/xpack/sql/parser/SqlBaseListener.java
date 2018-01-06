@@ -445,6 +445,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitPredicate(SqlBaseParser.PredicateContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#pattern}.
+   * @param ctx the parse tree
+   */
+  void enterPattern(SqlBaseParser.PatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#pattern}.
+   * @param ctx the parse tree
+   */
+  void exitPattern(SqlBaseParser.PatternContext ctx);
+  /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link SqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -612,18 +622,6 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitNullLiteral(SqlBaseParser.NullLiteralContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code typeConstructor}
-   * labeled alternative in {@link SqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void enterTypeConstructor(SqlBaseParser.TypeConstructorContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code typeConstructor}
-   * labeled alternative in {@link SqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void exitTypeConstructor(SqlBaseParser.TypeConstructorContext ctx);
   /**
    * Enter a parse tree produced by the {@code numericLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.

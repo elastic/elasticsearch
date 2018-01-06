@@ -10,7 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
-import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -36,7 +36,7 @@ public class SqlSession {
     private final Planner planner;
 
     // TODO rename to `configuration`
-    private Configuration settings;
+    private final Configuration settings;
 
     public SqlSession(SqlSession other) {
         this(other.settings, other.client, other.functionRegistry, other.indexResolver,
@@ -102,25 +102,25 @@ public class SqlSession {
             return;
         }
 
-        preAnalyze(parsed, getIndexResult -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, getIndexResult, settings.timeZone());
+        preAnalyze(parsed, r -> {
+            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone());
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, Function<GetIndexResult, T> action, ActionListener<T> listener) {
+    private <T> void preAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {
         PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
-            indexResolver.asIndex(preAnalysis.indices.get(0),
+            indexResolver.resolveWithSameMapping(preAnalysis.indices.get(0), null,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {
-                //TODO when can this ever happen? shouldn't it be an exception instead?
-                listener.onResponse(action.apply(GetIndexResult.invalid("_na_")));
+                // occurs when dealing with local relations (SELECT 5+2)
+                listener.onResponse(action.apply(IndexResolution.invalid("[none specified]")));
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }

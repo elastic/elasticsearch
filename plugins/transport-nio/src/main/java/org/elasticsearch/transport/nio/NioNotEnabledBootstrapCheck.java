@@ -17,19 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.transport.nio;
 
-import java.io.IOException;
+import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 
-public interface ReadContext extends AutoCloseable {
-
-    int read() throws IOException;
+public class NioNotEnabledBootstrapCheck implements BootstrapCheck {
 
     @Override
-    void close();
-
-    @FunctionalInterface
-    interface ReadConsumer {
-        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+    public BootstrapCheckResult check(BootstrapContext context) {
+        return BootstrapCheckResult.failure("The transport-nio plugin is experimental and not ready for production usage. It should " +
+            "not be enabled in production.");
     }
 }

@@ -21,11 +21,12 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.nio.AcceptingSelector;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
 /**
@@ -34,9 +35,12 @@ import java.nio.channels.ServerSocketChannel;
  */
 public class TcpNioServerSocketChannel extends NioServerSocketChannel implements TcpChannel {
 
-    TcpNioServerSocketChannel(ServerSocketChannel socketChannel, TcpChannelFactory channelFactory, AcceptingSelector selector)
-        throws IOException {
+    private final String profile;
+
+    TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel, TcpChannelFactory channelFactory,
+                              AcceptingSelector selector) throws IOException {
         super(socketChannel, channelFactory, selector);
+        this.profile = profile;
     }
 
     @Override
@@ -47,6 +51,16 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
     @Override
     public void setSoLinger(int value) throws IOException {
         throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
+    }
+
+    @Override
+    public InetSocketAddress getRemoteAddress() {
+        return null;
+    }
+
+    @Override
+    public String getProfile() {
+        return profile;
     }
 
     @Override

@@ -43,7 +43,7 @@ public final class Definition {
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
-    private static final String[] DEFINITION_FILES = new String[] {
+    public static final String[] DEFINITION_FILES = new String[] {
             "org.elasticsearch.txt",
             "java.lang.txt",
             "java.math.txt",
@@ -522,6 +522,12 @@ public final class Definition {
         return runtimeMap.get(clazz);
     }
 
+    public Class<?> getClassFromBinaryName(String name) {
+        Struct struct = structsMap.get(name.replace('$', '.'));
+
+        return struct == null ? null : struct.clazz;
+    }
+
     /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
     Collection<Type> allSimpleTypes() {
         return simpleTypesMap.values();
@@ -535,7 +541,7 @@ public final class Definition {
 
     public AnalyzerCaster caster;
 
-    private Definition(List<Whitelist> whitelists) {
+    public Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();

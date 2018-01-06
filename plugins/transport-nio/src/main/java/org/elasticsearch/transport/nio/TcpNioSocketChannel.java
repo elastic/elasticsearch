@@ -22,8 +22,8 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.net.StandardSocketOptions;
@@ -31,12 +31,15 @@ import java.nio.channels.SocketChannel;
 
 public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
 
-    public TcpNioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+    private final String profile;
+
+    TcpNioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
+        this.profile = profile;
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getWriteContext().sendMessage(reference, ActionListener.toBiConsumer(listener));
+        getWriteContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
     }
 
     @Override
@@ -44,6 +47,11 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
         if (isOpen()) {
             getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
         }
+    }
+
+    @Override
+    public String getProfile() {
+        return profile;
     }
 
     @Override

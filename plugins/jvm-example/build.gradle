@@ -38,7 +38,7 @@ dependencies {
 
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn project.configurations.exampleFixture
-  executable = new File(project.javaHome, 'bin/java')
+  executable = new File(project.runtimeJavaHome, 'bin/java')
   args '-cp', "${ -> project.configurations.exampleFixture.asPath }",
        'example.ExampleTestFixture',
        baseDir

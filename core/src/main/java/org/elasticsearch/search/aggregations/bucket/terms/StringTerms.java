@@ -69,8 +69,10 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             // this method is needed for scripted numeric aggs
             try {
                 return Long.parseLong(termBytes.utf8ToString());
-            } catch (NumberFormatException numberFormatException) {
+            } catch (NumberFormatException ignored) {
             }
+            //first the number is tried to be parsed as a Long
+            //if it fails, it will be parsed as a Double
             return Double.parseDouble(termBytes.utf8ToString());
         }
 

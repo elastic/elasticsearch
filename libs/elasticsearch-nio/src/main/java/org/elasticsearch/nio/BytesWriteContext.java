@@ -17,41 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
-
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.SocketSelector;
-import org.elasticsearch.nio.WriteContext;
-import org.elasticsearch.nio.WriteOperation;
+package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
-public class TcpWriteContext implements WriteContext {
+public class BytesWriteContext implements WriteContext {
 
     private final NioSocketChannel channel;
     private final LinkedList<WriteOperation> queued = new LinkedList<>();
 
-    public TcpWriteContext(NioSocketChannel channel) {
+    public BytesWriteContext(NioSocketChannel channel) {
         this.channel = channel;
     }
 
     @Override
     public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
-        BytesReference reference = (BytesReference) message;
+        ByteBuffer[] buffers = (ByteBuffer[]) message;
         if (channel.isWritable() == false) {
             listener.accept(null, new ClosedChannelException());
             return;
         }
 
-        WriteOperation writeOperation = new WriteOperation(channel, toByteBuffers(reference), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, buffers, listener);
         SocketSelector selector = channel.getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
@@ -115,23 +106,6 @@ public class TcpWriteContext implements WriteContext {
             WriteOperation op = queued.pop();
             singleFlush(op);
             lastOpCompleted = op.isFullyFlushed();
-        }
-    }
-
-        private static ByteBuffer[] toByteBuffers(BytesReference bytesReference) {
-        BytesRefIterator byteRefIterator = bytesReference.iterator();
-        BytesRef r;
-        try {
-            // Most network messages are composed of three buffers.
-            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
-            while ((r = byteRefIterator.next()) != null) {
-                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
-            }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
-
-        } catch (IOException e) {
-            // this is really an error since we don't do IO in our bytesreferences
-            throw new AssertionError("won't happen", e);
         }
     }
 }

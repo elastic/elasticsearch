@@ -19,10 +19,10 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -34,12 +34,15 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptorEventHandler;
+import org.elasticsearch.nio.BytesReadContext;
+import org.elasticsearch.nio.BytesWriteContext;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.ReadContext;
 import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 
@@ -56,8 +59,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class NioTransport extends TcpTransport {
 
-    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
-    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
+    private static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
+    private static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
@@ -72,9 +75,9 @@ public class NioTransport extends TcpTransport {
     private volatile NioGroup nioGroup;
     private volatile TcpChannelFactory clientChannelFactory;
 
-    public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                        PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                        CircuitBreakerService circuitBreakerService) {
+    NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                 CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
     }
@@ -104,17 +107,16 @@ public class NioTransport extends TcpTransport {
             }
             nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                NioTransport.NIO_WORKER_COUNT.get(settings), this::getSocketEventHandler);
+                NioTransport.NIO_WORKER_COUNT.get(settings), SocketEventHandler::new);
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
-            clientChannelFactory = new TcpChannelFactory(clientProfileSettings, getContextSetter("client"), getServerContextSetter());
+            clientChannelFactory = new TcpChannelFactory(clientProfileSettings, getContextSetter(), getServerContextSetter());
 
             if (useNetworkServer) {
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;
-                    Consumer<NioSocketChannel> contextSetter = getContextSetter(profileName);
-                    TcpChannelFactory factory = new TcpChannelFactory(profileSettings, contextSetter, getServerContextSetter());
+                    TcpChannelFactory factory = new TcpChannelFactory(profileSettings, getContextSetter(), getServerContextSetter());
                     profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
@@ -141,22 +143,20 @@ public class NioTransport extends TcpTransport {
         profileToChannelFactory.clear();
     }
 
-    protected SocketEventHandler getSocketEventHandler(Logger logger) {
-        return new SocketEventHandler(logger);
-    }
-
     final void exceptionCaught(NioSocketChannel channel, Exception exception) {
-        onException((TcpNioSocketChannel) channel, exception);
+        onException((TcpChannel) channel, exception);
     }
 
-    private Consumer<NioSocketChannel> getContextSetter(String profileName) {
+    private Consumer<TcpNioSocketChannel> getContextSetter() {
         return (c) -> {
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
-            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName, this), new InboundChannelBuffer(pageSupplier)),
-                new TcpWriteContext(c), this::exceptionCaught);
+            ReadContext.ReadConsumer nioReadConsumer = channelBuffer ->
+                consumeNetworkReads(c, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
+            BytesReadContext readContext = new BytesReadContext(c, nioReadConsumer, new InboundChannelBuffer(pageSupplier));
+            c.setContexts(readContext, new BytesWriteContext(c), this::exceptionCaught);
         };
     }
 
@@ -165,7 +165,7 @@ public class NioTransport extends TcpTransport {
 
     }
 
-    private Consumer<NioServerSocketChannel> getServerContextSetter() {
+    private Consumer<TcpNioServerSocketChannel> getServerContextSetter() {
         return (c) -> c.setAcceptContext(this::acceptChannel);
     }
 }

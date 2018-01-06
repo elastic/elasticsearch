@@ -27,6 +27,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.function.ToIntBiFunction;
 
 /**
@@ -146,6 +148,37 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
             return bytesRef.bytes;
         }
         return BytesRef.deepCopyOf(bytesRef).bytes;
+    }
+
+    /**
+     * Returns an array of byte buffers from the given BytesReference.
+     */
+    public static ByteBuffer[] toByteBuffers(BytesReference reference) {
+        BytesRefIterator byteRefIterator = reference.iterator();
+        BytesRef r;
+        try {
+            ArrayList<ByteBuffer> buffers = new ArrayList<>();
+            while ((r = byteRefIterator.next()) != null) {
+                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
+            }
+            return buffers.toArray(new ByteBuffer[buffers.size()]);
+
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
+    }
+
+    /**
+     * Returns BytesReference composed of the provided ByteBuffers.
+     */
+    public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
+        ByteBufferReference[] references = new ByteBufferReference[buffers.length];
+        for (int i = 0; i < references.length; ++i) {
+            references[i] = new ByteBufferReference(buffers[i]);
+        }
+
+        return new CompositeBytesReference(references);
     }
 
     @Override

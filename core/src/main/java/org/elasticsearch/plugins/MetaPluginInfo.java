@@ -37,19 +37,16 @@ public class MetaPluginInfo {
 
     private final String name;
     private final String description;
-    private final String[] plugins;
 
     /**
      * Construct plugin info.
      *
      * @param name                the name of the plugin
      * @param description         a description of the plugin
-     * @param plugins             the list of sub-plugin names that this meta plugin contains
      */
-    private MetaPluginInfo(String name, String description, String[] plugins) {
+    private MetaPluginInfo(String name, String description) {
         this.name = name;
         this.description = description;
-        this.plugins = plugins;
     }
 
     /**
@@ -57,6 +54,13 @@ public class MetaPluginInfo {
      */
     public static boolean isMetaPlugin(final Path path) {
         return Files.exists(path.resolve(ES_META_PLUGIN_PROPERTIES));
+    }
+
+    /**
+     * @return Whether the provided {@code path} is a meta properties file.
+     */
+    public static boolean isPropertiesFile(final Path path) {
+        return ES_META_PLUGIN_PROPERTIES.equals(path.getFileName().toString());
     }
 
     /** reads (and validates) meta plugin metadata descriptor file */
@@ -91,20 +95,11 @@ public class MetaPluginInfo {
                     "property [description] is missing for meta plugin [" + name + "]");
         }
 
-        final String pluginsString = propsMap.remove("plugins");
-        if (pluginsString == null || pluginsString.trim().isEmpty()) {
-            throw new IllegalArgumentException(
-                "property [plugins] is missing or empty for meta plugin [" + name + "]");
-        }
-        String[] plugins = Arrays.stream(pluginsString.split(","))
-            .map(String::trim)
-            .toArray(String[]::new);
-
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in meta plugin descriptor: " + propsMap.keySet());
         }
 
-        return new MetaPluginInfo(name, description, plugins);
+        return new MetaPluginInfo(name, description);
     }
 
     /**
@@ -123,14 +118,6 @@ public class MetaPluginInfo {
      */
     public String getDescription() {
         return description;
-    }
-
-    /**
-     * The names of the sub plugins bundled in this meta plugin.
-     * @return the name of the sub-plugins
-     */
-    public String[] getPlugins() {
-        return plugins;
     }
 
     @Override
@@ -155,8 +142,7 @@ public class MetaPluginInfo {
         final StringBuilder information = new StringBuilder()
                 .append("- Plugin information:\n")
                 .append("Name: ").append(name).append("\n")
-                .append("Description: ").append(description).append("\n")
-                .append("Plugins: ").append(Arrays.toString(plugins));
+                .append("Description: ").append(description);
         return information.toString();
     }
 

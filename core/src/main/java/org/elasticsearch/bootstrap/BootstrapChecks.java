@@ -132,7 +132,7 @@ final class BootstrapChecks {
         }
 
         if (enforceLimits) {
-            logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+            logger.info("bound or publishing to a non-loopback address, enforcing bootstrap checks");
         } else if (enforceBootstrapChecks) {
             logger.info("explicitly enforcing bootstrap checks");
         }
@@ -176,11 +176,10 @@ final class BootstrapChecks {
      * @return {@code true} if the checks should be enforced
      */
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
-        final Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
-                t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
+        final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
-                isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
+                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
         return bound && !"single-node".equals(discoveryType);
     }
 

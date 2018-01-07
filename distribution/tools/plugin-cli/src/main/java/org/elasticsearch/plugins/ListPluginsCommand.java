@@ -61,32 +61,32 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
             if (MetaPluginInfo.isMetaPlugin(plugin)) {
-                MetaPluginInfo info = MetaPluginInfo.readFromProperties(plugin);
-                Set<String> subPluginNames = Arrays.stream(info.getPlugins()).collect(Collectors.toSet());
+                MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(plugin);
                 List<Path> subPluginPaths = new ArrayList<>();
                 try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(plugin)) {
                     for (Path subPlugin : subPaths) {
-                        if (subPluginNames.contains(subPlugin.getFileName().toString())) {
-                            subPluginPaths.add(subPlugin);
+                        if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
+                            continue;
                         }
+                        subPluginPaths.add(subPlugin);
                     }
                 }
                 Collections.sort(subPluginPaths);
+                terminal.println(Terminal.Verbosity.SILENT, metaInfo.getName());
                 for (Path subPlugin : subPluginPaths) {
-                    printPlugin(env, terminal, subPlugin, info.getName());
+                    printPlugin(env, terminal, subPlugin, "\t");
                 }
             } else {
-                printPlugin(env, terminal, plugin, null);
+                printPlugin(env, terminal, plugin, "");
             }
         }
     }
 
-    private void printPlugin(Environment env, Terminal terminal, Path plugin, @Nullable String metaPlugin) throws IOException {
-        String name = (metaPlugin != null ? metaPlugin + ":" : "") + plugin.getFileName().toString();
-        terminal.println(Terminal.Verbosity.SILENT, name);
+    private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
+        terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         try {
-            PluginInfo info = PluginInfo.readFromProperties(metaPlugin, env.pluginsFile().resolve(plugin.toAbsolutePath()));
-            terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+            PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+            terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         } catch (IllegalArgumentException e) {
             if (e.getMessage().contains("incompatible with version")) {
                 terminal.println("WARNING: " + e.getMessage());

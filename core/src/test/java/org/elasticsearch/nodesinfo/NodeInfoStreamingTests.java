@@ -46,6 +46,7 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,15 +143,16 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginInfo> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
-                String metaPlugin = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
-                plugins.add(new PluginInfo(metaPlugin, randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
-                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean(), randomBoolean()));
+                plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), Collections.emptyList(),
+                    randomBoolean(), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
-                modules.add(new PluginInfo(null, randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
-                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomBoolean(), randomBoolean()));
+                modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), Collections.emptyList(),
+                    randomBoolean(), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);
         }

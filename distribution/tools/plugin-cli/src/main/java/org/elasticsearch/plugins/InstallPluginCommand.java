@@ -63,9 +63,11 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -533,7 +535,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName, String installDirName) throws UserException, IOException {
+    private void verifyPluginName(Path pluginPath, String pluginName, Path candidateDir) throws UserException, IOException {
         final Path destination = pluginPath.resolve(pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
@@ -547,28 +549,28 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // checks meta plugins too
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginPath)) {
             for (Path plugin : stream) {
-                if (installDirName.equals(plugin.getFileName().toString())) {
+                if (candidateDir.equals(plugin.resolve(pluginName)) || MetaPluginInfo.isPropertiesFile(plugin)) {
                     continue;
                 }
-                if (MetaPluginInfo.isMetaPlugin(plugin)) {
-                    if (Files.exists(plugin.resolve(pluginName))) {
-                        final String message = String.format(
-                            Locale.ROOT,
-                            "plugin directory [%s] already exists; if you need to update the plugin, " +
-                                "uninstall it first using command 'remove %s'",
-                            destination.toAbsolutePath(),
-                            pluginName);
-                        throw new UserException(PLUGIN_EXISTS, message);
-                    }
+                if (MetaPluginInfo.isMetaPlugin(plugin) && Files.exists(plugin.resolve(pluginName))) {
+                    final String message = String.format(
+                        Locale.ROOT,
+                        "plugin directory [%s] already exists; if you need to update the plugin, " +
+                            "uninstall it first using command 'remove %s'",
+                        plugin.resolve(pluginName).toAbsolutePath(),
+                        pluginName);
+                    throw new UserException(PLUGIN_EXISTS, message);
                 }
             }
         }
     }
 
-    /** Verify that the plugin can be installed with no errors. */
-    private void verify(Terminal terminal, Path pluginRoot, PluginInfo info, boolean isBatch, Environment env) throws Exception {
-        Path excludePath = info.getMetaPlugin() != null ? pluginRoot.getParent() : pluginRoot;
-        verifyPluginName(env.pluginsFile(), info.getName(), excludePath.getFileName().toString());
+    /** Load information about the plugin, and verify it can be installed with no errors. */
+    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
+        final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+
+        // checking for existing version of the plugin
+        verifyPluginName(env.pluginsFile(), info.getName(), pluginRoot);
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
@@ -582,7 +584,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsFile());
+        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user
@@ -590,31 +592,31 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(policy)) {
             PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
         }
+
+        return info;
     }
 
     /** check a candidate plugin for jar hell before installing it */
-    void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir) throws Exception {
+    void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
 
-        // read existing bundles excluding the current candidate.
-        // this does some checks on the installation too.
-        Path excludePath = candidateInfo.getMetaPlugin() != null ? candidateDir.getParent() : candidateDir;
-        PluginsService.getPluginBundles(pluginsDir, Collections.singleton(excludePath.getFileName().toString()));
+        // read existing bundles. this does some checks on the installation too.
+        Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
+        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
+        bundles.add(new PluginsService.Bundle(candidateInfo, candidateDir));
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
 
-        // add plugin jars to the list
-        Path pluginJars[] = FileSystemUtils.files(candidateDir, "*.jar");
-        for (Path jar : pluginJars) {
-            if (jars.add(jar.toUri().toURL()) == false) {
-                throw new IllegalStateException("jar hell! duplicate plugin jar: " + jar);
-            }
+        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
+        // TODO: optimize to skip any bundles not connected to the candidate plugin?
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (PluginsService.Bundle bundle : sortedBundles) {
+            PluginsService.checkBundleJarHell(bundle, transitiveUrls);
         }
+
         // TODO: no jars should be an error
         // TODO: verify the classname exists in one of the jars!
-
-        // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars);
     }
 
     private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {
@@ -623,7 +625,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         try {
             if (MetaPluginInfo.isMetaPlugin(tmpRoot)) {
                 final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
-                verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot.getFileName().toString());
+                verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
                 final Path metaPath = env.pluginsFile().resolve(metaInfo.getName());
                 terminal.println(VERBOSE, metaInfo.toString());
 
@@ -638,16 +640,21 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 setFileAttributes(metaInfoDest, PLUGIN_FILES_PERMS);
 
                 // install all plugins
-                for (String plugin : metaInfo.getPlugins()) {
-                    final PluginInfo info = PluginInfo.readFromProperties(metaInfo.getName(), tmpRoot.resolve(plugin));
-                    installPlugin(terminal, isBatch, tmpRoot.resolve(plugin), info, env, deleteOnFailure);
+                try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(tmpRoot)) {
+                    for (Path subPlugin : subPaths) {
+                        if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
+                            continue;
+                        }
+                        installPlugin(terminal, isBatch, subPlugin, env.pluginsFile().resolve(metaInfo.getName()),
+                            env.binFile().resolve(metaInfo.getName()), env.configFile().resolve(metaInfo.getName()), env, deleteOnFailure);
+                    }
                 }
                 // clean up installation
                 IOUtils.rm(tmpRoot);
                 terminal.println("-> Installed " + metaInfo.getName());
             } else {
-                final PluginInfo info = PluginInfo.readFromProperties(null, tmpRoot);
-                installPlugin(terminal, isBatch, tmpRoot, info, env, deleteOnFailure);
+                installPlugin(terminal, isBatch, tmpRoot, env.pluginsFile(), env.binFile(),
+                    env.configFile(), env, deleteOnFailure);
             }
         } catch (Exception installProblem) {
             try {
@@ -663,15 +670,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are copied.
      */
-    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
-                               PluginInfo info, Environment env,  List<Path> deleteOnFailure) throws Exception {
-        verify(terminal, tmpRoot, info, isBatch, env);
-        final Path destination = info.getPath(env.pluginsFile());
+    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Path pluginsDir, Path binDir, Path configDir,
+                               Environment env, List<Path> deleteOnFailure) throws Exception {
+        final PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
+        final Path destination = pluginsDir.resolve(info.getName());
         deleteOnFailure.add(destination);
 
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
-            Path destBinDir = info.getPath(env.binFile());
+            Path destBinDir = binDir.resolve(info.getName());
             deleteOnFailure.add(destBinDir);
             installBin(info, tmpBinDir, destBinDir);
         }
@@ -680,7 +687,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(tmpConfigDir)) {
             // some files may already exist, and we don't remove plugin config files on plugin removal,
             // so any installed config files are left on failure too
-            Path destConfigDir = info.getPath(env.configFile());
+            Path destConfigDir = configDir.resolve(info.getName());
             installConfig(info, tmpConfigDir, destConfigDir);
         }
 

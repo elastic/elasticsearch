@@ -70,9 +70,9 @@ final class Spawner implements Closeable {
          * For each plugin, attempt to spawn the controller daemon. Silently ignore any plugin that
          * don't include a controller for the correct platform.
          */
-        List<PluginInfo> infos = PluginInfo.extractAllPlugins(pluginsFile);
-        for (PluginInfo info : infos) {
-            final Path plugin = info.getPath(pluginsFile);
+        List<Path> paths = PluginInfo.extractAllPlugins(pluginsFile);
+        for (Path plugin : paths) {
+            final PluginInfo info = PluginInfo.readFromProperties(plugin);
             final Path spawnPath = Platforms.nativeControllerPath(plugin);
             if (!Files.isRegularFile(spawnPath)) {
                 continue;

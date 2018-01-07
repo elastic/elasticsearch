@@ -11,6 +11,4 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: example-rescore  }
-    - match:  { nodes.$master.plugins.0.meta_plugin: my_meta_plugin  }
     - match:  { nodes.$master.plugins.1.name: script-expert-scoring  }
-    - match:  { nodes.$master.plugins.1.meta_plugin: my_meta_plugin  }

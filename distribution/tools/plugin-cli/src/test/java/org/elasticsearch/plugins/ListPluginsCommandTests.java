@@ -139,13 +139,11 @@ public class ListPluginsCommandTests extends ESTestCase {
     private static void buildFakeMetaPlugin(
         final Environment env,
         final String description,
-        final String name,
-        final String plugins) throws IOException {
+        final String name) throws IOException {
         PluginTestUtil.writeMetaPluginProperties(
             env.pluginsFile().resolve(name),
             "description", description,
-            "name", name,
-            "plugins", plugins);
+            "name", name);
     }
 
     public void testPluginsDirMissing() throws Exception {
@@ -173,13 +171,13 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
 
     public void testMetaPlugin() throws Exception {
-        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake1,fake2");
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin");
         buildFakePlugin(env, "meta_plugin", "fake desc", "fake1", "org.fake1");
         buildFakePlugin(env, "meta_plugin",  "fake desc 2", "fake2", "org.fake2");
         buildFakePlugin(env, "fake desc 3", "fake3", "org.fake3");
         buildFakePlugin(env, "fake desc 4", "fake4", "org.fake4");
         MockTerminal terminal = listPlugins(home);
-        assertEquals(buildMultiline("fake3", "fake4", "meta_plugin:fake1", "meta_plugin:fake2"), terminal.getOutput());
+        assertEquals(buildMultiline("fake3", "fake4", "meta_plugin", "\tfake1", "\tfake2"), terminal.getOutput());
     }
 
     public void testPluginWithVerbose() throws Exception {
@@ -196,6 +194,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake"),
                 terminal.getOutput());
     }
@@ -214,6 +213,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Version: 1.0",
                 "Native Controller: true",
                 "Requires Keystore: false",
+                "Extended Plugins: []",
                 " * Classname: org.fake"),
             terminal.getOutput());
     }
@@ -232,6 +232,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Version: 1.0",
                 "Native Controller: false",
                 "Requires Keystore: true",
+                "Extended Plugins: []",
                 " * Classname: org.fake"),
             terminal.getOutput());
     }
@@ -251,6 +252,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake",
                         "fake_plugin2",
                         "- Plugin information:",
@@ -259,12 +261,13 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Version: 1.0",
                         "Native Controller: false",
                         "Requires Keystore: false",
+                        "Extended Plugins: []",
                         " * Classname: org.fake2"),
                 terminal.getOutput());
     }
 
     public void testPluginWithVerboseMetaPlugins() throws Exception {
-        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1,fake_plugin2");
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin");
         buildFakePlugin(env, "meta_plugin", "fake desc 1", "fake_plugin1", "org.fake");
         buildFakePlugin(env, "meta_plugin",  "fake desc 2", "fake_plugin2", "org.fake2");
         String[] params = { "-v" };
@@ -272,24 +275,25 @@ public class ListPluginsCommandTests extends ESTestCase {
         assertEquals(
             buildMultiline(
                 "Plugins directory: " + env.pluginsFile(),
-                "meta_plugin:fake_plugin1",
-                "- Plugin information:",
-                "Meta Plugin: meta_plugin",
-                "Name: fake_plugin1",
-                "Description: fake desc 1",
-                "Version: 1.0",
-                "Native Controller: false",
-                "Requires Keystore: false",
-                " * Classname: org.fake",
-                "meta_plugin:fake_plugin2",
-                "- Plugin information:",
-                "Meta Plugin: meta_plugin",
-                "Name: fake_plugin2",
-                "Description: fake desc 2",
-                "Version: 1.0",
-                "Native Controller: false",
-                "Requires Keystore: false",
-                " * Classname: org.fake2"),
+                "meta_plugin",
+                "\tfake_plugin1",
+                "\t- Plugin information:",
+                "\tName: fake_plugin1",
+                "\tDescription: fake desc 1",
+                "\tVersion: 1.0",
+                "\tNative Controller: false",
+                "\tRequires Keystore: false",
+                "\tExtended Plugins: []",
+                "\t * Classname: org.fake",
+                "\tfake_plugin2",
+                "\t- Plugin information:",
+                "\tName: fake_plugin2",
+                "\tDescription: fake desc 2",
+                "\tVersion: 1.0",
+                "\tNative Controller: false",
+                "\tRequires Keystore: false",
+                "\tExtended Plugins: []",
+                "\t * Classname: org.fake2"),
             terminal.getOutput());
     }
 
@@ -321,7 +325,7 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
 
     public void testMetaPluginWithWrongDescriptorFile() throws Exception{
-        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1,fake_plugin2");
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin");
         final Path pluginDir = env.pluginsFile().resolve("meta_plugin").resolve("fake_plugin1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
         IllegalArgumentException e = expectThrows(
@@ -359,7 +363,7 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
 
     public void testExistingIncompatibleMetaPlugin() throws Exception {
-        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1");
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin");
         PluginTestUtil.writePluginProperties(env.pluginsFile().resolve("meta_plugin").resolve("fake_plugin1"),
             "description", "fake desc 1",
             "name", "fake_plugin1",
@@ -376,12 +380,12 @@ public class ListPluginsCommandTests extends ESTestCase {
             Version.CURRENT.toString(),
             "1.0.0");
         assertEquals(
-            "fake_plugin2\n" + "meta_plugin:fake_plugin1\n" + "WARNING: " + message + "\n",
+            "fake_plugin2\nmeta_plugin\n\tfake_plugin1\n" + "WARNING: " + message + "\n",
             terminal.getOutput());
 
         String[] params = {"-s"};
         terminal = listPlugins(home, params);
-        assertEquals("fake_plugin2\nmeta_plugin:fake_plugin1\n", terminal.getOutput());
+        assertEquals("fake_plugin2\nmeta_plugin\n\tfake_plugin1\n", terminal.getOutput());
     }
 
 }

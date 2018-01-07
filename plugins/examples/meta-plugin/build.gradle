@@ -27,7 +27,7 @@ File plugins = new File(buildDir, 'plugins-unzip')
 // unzip the rescore plugin in a tmp directory
 task unzipRescorePlugins(type:Copy, dependsOn:':example-plugins:rescore:bundlePlugin') {
     File pluginsRescore = new File(plugins, 'example-rescore')
-    from(zipTree(project(':example-plugins:rescore').bundlePlugin.outputs.files.singleFile))
+    from { zipTree(project(':example-plugins:rescore').bundlePlugin.outputs.files.singleFile) }
     eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
     into pluginsRescore
 }
@@ -35,7 +35,7 @@ task unzipRescorePlugins(type:Copy, dependsOn:':example-plugins:rescore:bundlePl
 // Unzip the script-expert-scoring plugin in a tmp directory
 task unzipScriptScoringPlugins(type:Copy, dependsOn:':example-plugins:script-expert-scoring:bundlePlugin') {
     File pluginsScript = new File(plugins, 'script-expert-scoring')
-    from(zipTree(project(':example-plugins:script-expert-scoring').bundlePlugin.outputs.files.singleFile))
+    from { zipTree(project(':example-plugins:script-expert-scoring').bundlePlugin.outputs.files.singleFile) }
     eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
     into pluginsScript
 }

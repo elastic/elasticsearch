@@ -61,7 +61,7 @@ public class PluginsAndModules implements Writeable, ToXContentFragment {
      */
     public List<PluginInfo> getPluginInfos() {
         List<PluginInfo> plugins = new ArrayList<>(this.plugins);
-        Collections.sort(plugins, Comparator.comparing(PluginInfo::getFullName));
+        Collections.sort(plugins, Comparator.comparing(PluginInfo::getName));
         return plugins;
     }
 

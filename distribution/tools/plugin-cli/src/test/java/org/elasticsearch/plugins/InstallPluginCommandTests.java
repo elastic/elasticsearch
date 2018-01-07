@@ -28,7 +28,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -116,7 +115,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         super.setUp();
         skipJarHellCommand = new InstallPluginCommand() {
             @Override
-            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir) throws Exception {
+            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };
@@ -216,15 +215,14 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     /** creates an meta plugin .zip and returns the url for testing */
-    static String createMetaPluginUrl(String name, Path structure, String... plugins) throws IOException {
-        return createMetaPlugin(name, structure, plugins).toUri().toURL().toString();
+    static String createMetaPluginUrl(String name, Path structure) throws IOException {
+        return createMetaPlugin(name, structure).toUri().toURL().toString();
     }
 
-    static void writeMetaPlugin(String name, Path structure, String... plugins) throws IOException {
+    static void writeMetaPlugin(String name, Path structure) throws IOException {
         PluginTestUtil.writeMetaPluginProperties(structure,
             "description", "fake desc",
-            "name", name,
-            "plugins", Strings.arrayToCommaDelimitedString(plugins)
+            "name", name
         );
     }
 
@@ -251,8 +249,8 @@ public class InstallPluginCommandTests extends ESTestCase {
         return writeZip(structure, "elasticsearch");
     }
 
-    static Path createMetaPlugin(String name, Path structure, String... plugins) throws IOException {
-        writeMetaPlugin(name, structure, plugins);
+    static Path createMetaPlugin(String name, Path structure) throws IOException {
+        writeMetaPlugin(name, structure);
         return writeZip(structure, "elasticsearch");
     }
 
@@ -387,7 +385,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         writePlugin("fake1", pluginDir.resolve("fake1"), false);
         Files.createDirectory(pluginDir.resolve("fake2"));
         writePlugin("fake2", pluginDir.resolve("fake2"), false);
-        String pluginZip = createMetaPluginUrl("my_plugins", pluginDir, "fake1", "fake2");
+        String pluginZip = createMetaPluginUrl("my_plugins", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertMetaPlugin("my_plugins", "fake1", pluginDir, env.v2());
         assertMetaPlugin("my_plugins", "fake2", pluginDir, env.v2());
@@ -408,7 +406,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expected)));
 
         // test with meta plugin
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         final IllegalStateException e1 = expectThrows(IllegalStateException.class, () -> installPlugin(metaZip, env.v1()));
         assertThat(e1, hasToString(containsString(expected)));
     }
@@ -483,7 +481,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createDirectory(pluginDir.resolve("fake2"));
         writePlugin("fake2", pluginDir.resolve("fake2"), false); // adds plugin.jar with Fake2Plugin
         writeJar(pluginDir.resolve("fake2").resolve("other.jar"), "Fake2Plugin");
-        String pluginZip = createMetaPluginUrl("my_plugins", pluginDir, "fake1", "fake2");
+        String pluginZip = createMetaPluginUrl("my_plugins", pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> installPlugin(pluginZip, environment.v1(), defaultCommand));
         assertTrue(e.getMessage(), e.getMessage().contains("jar hell"));
@@ -524,7 +522,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
         assertInstallCleaned(env.v2());
 
-        String anotherZip = createMetaPluginUrl("another_plugins", metaZip, "fake");
+        String anotherZip = createMetaPluginUrl("another_plugins", metaZip);
         e = expectThrows(UserException.class, () -> installPlugin(anotherZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
         assertInstallCleaned(env.v2());
@@ -550,7 +548,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        String pluginZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String pluginZip = createMetaPluginUrl("my_plugins", metaDir);
         installPlugin(pluginZip, env.v1());
         assertMetaPlugin("my_plugins","fake", pluginDir, env.v2());
     }
@@ -567,7 +565,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
 
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         e = expectThrows(UserException.class, () -> installPlugin(metaZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
@@ -586,7 +584,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in bin dir for plugin"));
         assertInstallCleaned(env.v2());
 
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         e = expectThrows(UserException.class, () -> installPlugin(metaZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in bin dir for plugin"));
         assertInstallCleaned(env.v2());
@@ -632,7 +630,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        String pluginZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String pluginZip = createMetaPluginUrl("my_plugins", metaDir);
         try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.v2().binFile())) {
             Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
             // make sure at least one execute perm is missing, so we know we forced it during installation
@@ -747,7 +745,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createDirectory(configDir);
         Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
         Files.createFile(configDir.resolve("other.yml"));
-        String pluginZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String pluginZip = createMetaPluginUrl("my_plugins", metaDir);
         installPlugin(pluginZip, env.v1());
         assertMetaPlugin("my_plugins", "fake", pluginDir, env.v2());
         List<String> configLines = Files.readAllLines(envConfigDir.resolve("custom.yml"), StandardCharsets.UTF_8);
@@ -768,7 +766,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
 
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         e = expectThrows(UserException.class, () -> installPlugin(metaZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
@@ -797,7 +795,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
 
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         e = expectThrows(NoSuchFileException.class, () -> installPlugin(metaZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
@@ -934,7 +932,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         writePlugin("fake", pluginDir.resolve("fake"), false);
         Files.createDirectory(pluginDir.resolve("other"));
         writePlugin("other", pluginDir.resolve("other"), false);
-        String metaZip = createMetaPluginUrl("other", pluginDir, "fake", "other");
+        String metaZip = createMetaPluginUrl("other", pluginDir);
         final UserException e = expectThrows(UserException.class,
             () -> installPlugin(metaZip, env.v1(), randomFrom(skipJarHellCommand, defaultCommand)));
         assertThat(
@@ -986,7 +984,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 return stagingHash;
             }
             @Override
-            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir) throws Exception {
+            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };
@@ -1152,7 +1150,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = metaDir.resolve("fake");
         Files.createDirectory(pluginDir);
         writePlugin("fake", pluginDir, false, "requires.keystore", "true");
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir, "fake");
+        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         MockTerminal terminal = installPlugin(metaZip, env.v1());
         assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
     }

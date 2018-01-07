@@ -39,14 +39,10 @@ public class MetaPluginInfoTests extends ESTestCase {
         Path pluginDir = createTempDir().resolve("fake-meta-plugin");
         PluginTestUtil.writeMetaPluginProperties(pluginDir,
             "description", "fake desc",
-            "name", "my_meta_plugin",
-            "plugins", "fake_plugin1,fake_plugin2");
+            "name", "my_meta_plugin");
         MetaPluginInfo info = MetaPluginInfo.readFromProperties(pluginDir);
         assertEquals("my_meta_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
-        assertEquals(2, info.getPlugins().length);
-        assertEquals("fake_plugin1", info.getPlugins()[0]);
-        assertEquals("fake_plugin2", info.getPlugins()[1]);
     }
 
     public void testReadFromPropertiesNameMissing() throws Exception {
@@ -67,101 +63,15 @@ public class MetaPluginInfoTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[description] is missing"));
     }
 
-    public void testReadFromPropertiesPluginsMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
-        PluginTestUtil.writeMetaPluginProperties(pluginDir,
-            "name", "fake-meta-plugin",
-            "description", "desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[plugins] is missing"));
-    }
-
-    public void testReadFromPropertiesPluginsEmpty() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
-        PluginTestUtil.writeMetaPluginProperties(pluginDir,
-            "name", "fake-meta-plugin",
-            "description", "desc",
-            "plugins", "");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[plugins] is missing or empty"));
-    }
-
-    public void testReadFromPropertiesPluginsTrim() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
-        PluginTestUtil.writeMetaPluginProperties(pluginDir,
-            "name", "fake-meta-plugin",
-            "description", "desc",
-            "plugins", " fake_plugin1, fake_plugin2 ,fake_plugin3  ");
-        MetaPluginInfo info = MetaPluginInfo.readFromProperties(pluginDir);
-        assertEquals(3, info.getPlugins().length);
-        assertEquals("fake_plugin1", info.getPlugins()[0]);
-        assertEquals("fake_plugin2", info.getPlugins()[1]);
-        assertEquals("fake_plugin3", info.getPlugins()[2]);
-    }
-
     public void testUnknownProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-meta-plugin");
         PluginTestUtil.writeMetaPluginProperties(pluginDir,
             "extra", "property",
             "unknown", "property",
             "description", "fake desc",
-            "plugins", "my_fake_plugin_1",
             "name", "my_meta_plugin");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("Unknown properties in meta-plugin descriptor"));
-    }
-
-    public void testExtractAllPlugins() throws Exception {
-        Path pluginDir = createTempDir().resolve("plugins");
-        // Simple plugin
-        Path plugin1 = pluginDir.resolve("plugin1");
-        Files.createDirectories(plugin1);
-        PluginTestUtil.writePluginProperties(plugin1,
-            "description", "fake desc",
-            "name", "plugin1",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin");
-
-        // Meta plugin
-        Path metaPlugin = pluginDir.resolve("meta_plugin");
-        Files.createDirectory(metaPlugin);
-        PluginTestUtil.writeMetaPluginProperties(metaPlugin,
-            "description", "fake desc",
-            "plugins", "plugin2,plugin3",
-            "name", "meta_plugin");
-        Path plugin2 = metaPlugin.resolve("plugin2");
-        Files.createDirectory(plugin2);
-        PluginTestUtil.writePluginProperties(plugin2,
-            "description", "fake desc",
-            "name", "plugin2",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin");
-        Path plugin3 = metaPlugin.resolve("plugin3");
-        Files.createDirectory(plugin3);
-        PluginTestUtil.writePluginProperties(plugin3,
-            "description", "fake desc",
-            "name", "plugin3",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin");
-
-        List<PluginInfo> infos = PluginInfo.extractAllPlugins(pluginDir);
-        Collections.sort(infos, Comparator.comparing(PluginInfo::getFullName));
-        assertEquals(infos.size(), 3);
-        assertEquals(infos.get(0).getName(), "plugin1");
-        assertNull(infos.get(0).getMetaPlugin());
-        assertEquals(infos.get(0).getPath(pluginDir), plugin1);
-        assertEquals(infos.get(1).getName(), "plugin2");
-        assertEquals(infos.get(1).getMetaPlugin(), "meta_plugin");
-        assertEquals(infos.get(1).getPath(pluginDir), plugin2);
-        assertEquals(infos.get(2).getName(), "plugin3");
-        assertEquals(infos.get(2).getMetaPlugin(), "meta_plugin");
-        assertEquals(infos.get(2).getPath(pluginDir), plugin3);
+        assertThat(e.getMessage(), containsString("Unknown properties in meta plugin descriptor"));
     }
 
     public void testExtractAllPluginsWithDuplicates() throws Exception {
@@ -182,7 +92,6 @@ public class MetaPluginInfoTests extends ESTestCase {
         Files.createDirectory(metaPlugin);
         PluginTestUtil.writeMetaPluginProperties(metaPlugin,
             "description", "fake desc",
-            "plugins", "plugin1,plugin2",
             "name", "meta_plugin");
         Path plugin2 = metaPlugin.resolve("plugin1");
         Files.createDirectory(plugin2);

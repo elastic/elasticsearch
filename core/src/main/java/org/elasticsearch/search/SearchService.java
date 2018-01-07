@@ -964,7 +964,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns true if the given search source builder can be early terminated by rewriting to a match none query. Or in other words
-     * if the execution of a the search request can be early terminated without executing it. This is for instance not possible if
+     * iff the execution of a the search request can be early terminated without executing it. This is for instance not possible if
      * a global aggregation is part of this request or if there is a suggest builder present.
      */
     public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {

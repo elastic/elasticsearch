@@ -70,9 +70,8 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             try {
                 return Long.parseLong(termBytes.utf8ToString());
             } catch (NumberFormatException ignored) {
+                //failed to be parsed as a Long, it will be parsed as a Double
             }
-            //first the number is tried to be parsed as a Long
-            //if it fails, it will be parsed as a Double
             return Double.parseDouble(termBytes.utf8ToString());
         }
 

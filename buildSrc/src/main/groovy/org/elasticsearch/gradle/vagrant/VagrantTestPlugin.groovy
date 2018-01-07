@@ -1,7 +1,12 @@
 package org.elasticsearch.gradle.vagrant
 
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
-import org.gradle.api.*
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
@@ -356,8 +361,9 @@ class VagrantTestPlugin implements Plugin<Project> {
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
+                    final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                     if (state.failure != null) {
-                        println "REPRODUCE WITH: ./gradlew ${packaging.path} " +
+                        println "REPRODUCE WITH: ${gradlew} ${packaging.path} " +
                             "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
                     }
                 }

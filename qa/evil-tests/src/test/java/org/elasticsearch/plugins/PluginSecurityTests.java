@@ -48,7 +48,7 @@ public class PluginSecurityTests extends ESTestCase {
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
         final PluginInfo info =
-                new PluginInfo(null, "fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
+                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         terminal.addTextInput("y");
@@ -63,7 +63,7 @@ public class PluginSecurityTests extends ESTestCase {
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
         final PluginInfo info =
-                new PluginInfo(null, "fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
+                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         terminal.addTextInput("n");
@@ -79,7 +79,7 @@ public class PluginSecurityTests extends ESTestCase {
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
         final PluginInfo info =
-                new PluginInfo(null, "fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), false, false);
+                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), false, false);
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");

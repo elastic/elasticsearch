@@ -1308,8 +1308,10 @@ public class Setting<T> implements ToXContentObject {
             if (suffix == null) {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
-                // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
+                /**
+                 * the last part of this regexp is to support both {@link ListKey} and {@link GroupKey}
+                 */
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
         }
 

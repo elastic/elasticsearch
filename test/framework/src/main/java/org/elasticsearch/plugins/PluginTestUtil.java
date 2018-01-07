@@ -27,8 +27,8 @@ import java.util.Properties;
 
 /** Utility methods for testing plugins */
 public class PluginTestUtil {
-    public static void writeUberPluginProperties(Path pluginDir, String... stringProps) throws IOException {
-        writeProperties(pluginDir.resolve(UberPluginInfo.ES_UBER_PLUGIN_PROPERTIES), stringProps);
+    public static void writeMetaPluginProperties(Path pluginDir, String... stringProps) throws IOException {
+        writeProperties(pluginDir.resolve(MetaPluginInfo.ES_META_PLUGIN_PROPERTIES), stringProps);
     }
 
     public static void writePluginProperties(Path pluginDir, String... stringProps) throws IOException {

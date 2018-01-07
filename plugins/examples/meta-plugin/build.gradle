@@ -17,7 +17,7 @@
  * under the License.
  */
 
-// An uber-plugin packaging example that bundles two sub-plugins in a single zip.
+// A meta plugin packaging example that bundles two plugins in a single zip.
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -40,10 +40,10 @@ task unzipScriptScoringPlugins(type:Copy, dependsOn:':example-plugins:script-exp
     into pluginsScript
 }
 
-// Build the uber-plugin zip from the sub-plugin directories
+// Build the meta plugin zip from the sub-plugin directories
 task buildZip(type:Zip, dependsOn: ['unzipRescorePlugins', 'unzipScriptScoringPlugins']) {
     from plugins
-    from 'src/main/resources/uber-plugin-descriptor.properties'
+    from 'src/main/resources/meta-plugin-descriptor.properties'
     into 'elasticsearch'
     includeEmptyDirs false
 }
@@ -56,8 +56,8 @@ integTestCluster {
     // processors are being used that are in ingest-common module.
     distribution = 'zip'
 
-    // Install the uber-plugin before start.
-    setupCommand 'installUberPlugin',
+    // Install the meta plugin before start.
+    setupCommand 'installMetaPlugin',
             'bin/elasticsearch-plugin', 'install', 'file:' + buildZip.archivePath
 }
 check.dependsOn integTest

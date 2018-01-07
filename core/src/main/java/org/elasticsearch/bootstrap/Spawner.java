@@ -24,7 +24,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.UberPluginInfo;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**

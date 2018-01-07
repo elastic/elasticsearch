@@ -30,10 +30,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * An in-memory representation of the uber-plugin descriptor.
+ * An in-memory representation of the meta plugin descriptor.
  */
-public class UberPluginInfo {
-    static final String ES_UBER_PLUGIN_PROPERTIES = "uber-plugin-descriptor.properties";
+public class MetaPluginInfo {
+    static final String ES_META_PLUGIN_PROPERTIES = "meta-plugin-descriptor.properties";
 
     private final String name;
     private final String description;
@@ -44,32 +44,32 @@ public class UberPluginInfo {
      *
      * @param name                the name of the plugin
      * @param description         a description of the plugin
-     * @param plugins             the list of sub-plugin names that this uber plugin contains
+     * @param plugins             the list of sub-plugin names that this meta plugin contains
      */
-    private UberPluginInfo(String name, String description, String[] plugins) {
+    private MetaPluginInfo(String name, String description, String[] plugins) {
         this.name = name;
         this.description = description;
         this.plugins = plugins;
     }
 
     /**
-     * @return Whether the provided {@code path} is an uber plugin.
+     * @return Whether the provided {@code path} is a meta plugin.
      */
-    public static boolean isUberPlugin(final Path path) {
-        return Files.exists(path.resolve(ES_UBER_PLUGIN_PROPERTIES));
+    public static boolean isMetaPlugin(final Path path) {
+        return Files.exists(path.resolve(ES_META_PLUGIN_PROPERTIES));
     }
 
-    /** reads (and validates) uber-plugin metadata descriptor file */
+    /** reads (and validates) meta plugin metadata descriptor file */
 
     /**
-     * Reads and validates the uber-plugin descriptor file.
+     * Reads and validates the meta plugin descriptor file.
      *
-     * @param path the path to the root directory for the uber-plugin
-     * @return the uber-plugin info
-     * @throws IOException if an I/O exception occurred reading the uber-plugin descriptor
+     * @param path the path to the root directory for the meta plugin
+     * @return the meta plugin info
+     * @throws IOException if an I/O exception occurred reading the meta plugin descriptor
      */
-    public static UberPluginInfo readFromProperties(final Path path) throws IOException {
-        final Path descriptor = path.resolve(ES_UBER_PLUGIN_PROPERTIES);
+    public static MetaPluginInfo readFromProperties(final Path path) throws IOException {
+        final Path descriptor = path.resolve(ES_META_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
         {
@@ -83,50 +83,50 @@ public class UberPluginInfo {
         final String name = propsMap.remove("name");
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException(
-                    "property [name] is missing for uber-plugin in [" + descriptor + "]");
+                    "property [name] is missing for meta plugin in [" + descriptor + "]");
         }
         final String description = propsMap.remove("description");
         if (description == null) {
             throw new IllegalArgumentException(
-                    "property [description] is missing for uber-plugin [" + name + "]");
+                    "property [description] is missing for meta plugin [" + name + "]");
         }
 
         final String pluginsString = propsMap.remove("plugins");
         if (pluginsString == null || pluginsString.trim().isEmpty()) {
             throw new IllegalArgumentException(
-                "property [plugins] is missing or empty for uber-plugin [" + name + "]");
+                "property [plugins] is missing or empty for meta plugin [" + name + "]");
         }
         String[] plugins = Arrays.stream(pluginsString.split(","))
             .map(String::trim)
             .toArray(String[]::new);
 
         if (propsMap.isEmpty() == false) {
-            throw new IllegalArgumentException("Unknown properties in uber-plugin descriptor: " + propsMap.keySet());
+            throw new IllegalArgumentException("Unknown properties in meta plugin descriptor: " + propsMap.keySet());
         }
 
-        return new UberPluginInfo(name, description, plugins);
+        return new MetaPluginInfo(name, description, plugins);
     }
 
     /**
-     * The name of the uber-plugin.
+     * The name of the meta plugin.
      *
-     * @return the uber-plugin name
+     * @return the meta plugin name
      */
     public String getName() {
         return name;
     }
 
     /**
-     * The description of the uber-plugin.
+     * The description of the meta plugin.
      *
-     * @return the uber-plugin description
+     * @return the meta plugin description
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * The names of the sub-plugins bundled in this uber-plugin.
+     * The names of the sub plugins bundled in this meta plugin.
      * @return the name of the sub-plugins
      */
     public String[] getPlugins() {
@@ -138,7 +138,7 @@ public class UberPluginInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        UberPluginInfo that = (UberPluginInfo) o;
+        MetaPluginInfo that = (MetaPluginInfo) o;
 
         if (!name.equals(that.name)) return false;
 

@@ -60,8 +60,8 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            if (UberPluginInfo.isUberPlugin(plugin)) {
-                UberPluginInfo info = UberPluginInfo.readFromProperties(plugin);
+            if (MetaPluginInfo.isMetaPlugin(plugin)) {
+                MetaPluginInfo info = MetaPluginInfo.readFromProperties(plugin);
                 Set<String> subPluginNames = Arrays.stream(info.getPlugins()).collect(Collectors.toSet());
                 List<Path> subPluginPaths = new ArrayList<>();
                 try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(plugin)) {
@@ -81,11 +81,11 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void printPlugin(Environment env, Terminal terminal, Path plugin, @Nullable String uberPlugin) throws IOException {
-        String name = (uberPlugin != null ? uberPlugin + ":" : "") + plugin.getFileName().toString();
+    private void printPlugin(Environment env, Terminal terminal, Path plugin, @Nullable String metaPlugin) throws IOException {
+        String name = (metaPlugin != null ? metaPlugin + ":" : "") + plugin.getFileName().toString();
         terminal.println(Terminal.Verbosity.SILENT, name);
         try {
-            PluginInfo info = PluginInfo.readFromProperties(uberPlugin, env.pluginsFile().resolve(plugin.toAbsolutePath()));
+            PluginInfo info = PluginInfo.readFromProperties(metaPlugin, env.pluginsFile().resolve(plugin.toAbsolutePath()));
             terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
         } catch (IllegalArgumentException e) {
             if (e.getMessage().contains("incompatible with version")) {

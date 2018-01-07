@@ -55,7 +55,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private final String uberPlugin;
+    private final String metaPlugin;
     private final String name;
     private final String description;
     private final String version;
@@ -66,7 +66,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     /**
      * Construct plugin info.
      *
-     * @param uberPlugin          the name of the uber plugin or null if this plugin is a standalone plugin
+     * @param metaPlugin          the name of the meta plugin or null if this plugin is a standalone plugin
      * @param name                the name of the plugin
      * @param description         a description of the plugin
      * @param version             the version of Elasticsearch the plugin is built for
@@ -74,9 +74,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param hasNativeController whether or not the plugin has a native controller
      * @param requiresKeystore    whether or not the plugin requires the elasticsearch keystore to be created
      */
-    public PluginInfo(@Nullable String uberPlugin, String name, String description, String version, String classname,
+    public PluginInfo(@Nullable String metaPlugin, String name, String description, String version, String classname,
                       boolean hasNativeController, boolean requiresKeystore) {
-        this.uberPlugin = uberPlugin;
+        this.metaPlugin = metaPlugin;
         this.name = name;
         this.description = description;
         this.version = version;
@@ -93,9 +93,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public PluginInfo(final StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            this.uberPlugin = in.readOptionalString();
+            this.metaPlugin = in.readOptionalString();
         } else {
-            this.uberPlugin = null;
+            this.metaPlugin = null;
         }
         this.name = in.readString();
         this.description = in.readString();
@@ -116,7 +116,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeOptionalString(uberPlugin);
+            out.writeOptionalString(metaPlugin);
         }
         out.writeString(name);
         out.writeString(description);
@@ -131,7 +131,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding uber-plugins if needed.
+     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding meta plugins if needed.
      * @param rootPath the path where the plugins are installed
      * @return A list of all plugins installed in the {@code rootPath}
      * @throws IOException if an I/O exception occurred reading the plugin descriptors
@@ -141,7 +141,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding uber-plugins if needed.
+     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding meta plugins if needed.
      * @param rootPath the path where the plugins are installed
      * @param excludePlugins the set of plugins names to exclude
      * @return A list of all plugins installed in the {@code rootPath}
@@ -159,27 +159,27 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     if (excludePlugins.contains(plugin.getFileName().toString())) {
                         continue;
                     }
-                    if (UberPluginInfo.isUberPlugin(plugin)) {
-                        final UberPluginInfo uberInfo;
+                    if (MetaPluginInfo.isMetaPlugin(plugin)) {
+                        final MetaPluginInfo metaInfo;
                         try {
-                            uberInfo = UberPluginInfo.readFromProperties(plugin);
+                            metaInfo = MetaPluginInfo.readFromProperties(plugin);
                         } catch (IOException e) {
-                            throw new IllegalStateException("Could not load uber plugin descriptor for existing uber plugin ["
+                            throw new IllegalStateException("Could not load meta plugin descriptor for existing meta plugin ["
                                 + plugin.getFileName() + "].", e);
                         }
-                        Set<String> subPlugins = Arrays.stream(uberInfo.getPlugins()).collect(Collectors.toSet());
+                        Set<String> subPlugins = Arrays.stream(metaInfo.getPlugins()).collect(Collectors.toSet());
                         try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
                             for (Path subPlugin : subStream) {
                                 String filename = subPlugin.getFileName().toString();
-                                if (UberPluginInfo.ES_UBER_PLUGIN_PROPERTIES.equals(filename) ||
+                                if (MetaPluginInfo.ES_META_PLUGIN_PROPERTIES.equals(filename) ||
                                         FileSystemUtils.isDesktopServicesStore(subPlugin)) {
                                     continue;
                                 }
                                 if (subPlugins.contains(filename) == false) {
                                     throw new IllegalStateException(
-                                        "invalid plugin: " + subPlugin + " for uber-plugin: " + uberInfo.getName());
+                                        "invalid plugin: " + subPlugin + " for meta plugin: " + metaInfo.getName());
                                 }
-                                final PluginInfo info = PluginInfo.readFromProperties(uberInfo.getName(), subPlugin);
+                                final PluginInfo info = PluginInfo.readFromProperties(metaInfo.getName(), subPlugin);
                                 if (seen.add(info.getName()) == false) {
                                     throw new IllegalStateException("duplicate plugin: " + info.getName());
                                 }
@@ -219,12 +219,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
     /**
      * Reads and validates the plugin descriptor file.
      *
-     * @param uberPlugin the name of the uber plugin or null if this plugin is a standalone plugin
+     * @param metaPlugin the name of the meta plugin or null if this plugin is a standalone plugin
      * @param path the path to the root directory for the plugin
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
-    public static PluginInfo readFromProperties(@Nullable final String uberPlugin, final Path path) throws IOException {
+    public static PluginInfo readFromProperties(@Nullable final String metaPlugin, final Path path) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
@@ -320,7 +320,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(uberPlugin, name, description, version, classname, hasNativeController, requiresKeystore);
+        return new PluginInfo(metaPlugin, name, description, version, classname, hasNativeController, requiresKeystore);
     }
 
     /**
@@ -329,16 +329,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @return The path of this plugin
      */
     public Path getPath(Path rootPath) {
-        return uberPlugin != null ? rootPath.resolve(uberPlugin).resolve(name) : rootPath.resolve(name);
+        return metaPlugin != null ? rootPath.resolve(metaPlugin).resolve(name) : rootPath.resolve(name);
     }
 
     /**
-     * The name of the uber-plugin that installed this plugin or null if this plugin is a standalone plugin.
+     * The name of the meta plugin that installed this plugin or null if this plugin is a standalone plugin.
      *
-     * @return The name of the uber-plugin
+     * @return The name of the meta plugin
      */
-    public String getUberPlugin() {
-        return uberPlugin;
+    public String getMetaPlugin() {
+        return metaPlugin;
     }
 
     /**
@@ -351,11 +351,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * The name of the plugin prefixed with the {@code uberPlugin} name.
+     * The name of the plugin prefixed with the {@code metaPlugin} name.
      * @return the full name of the plugin
      */
     public String getFullName() {
-        return (uberPlugin != null ? uberPlugin + ":" : "")  + name;
+        return (metaPlugin != null ? metaPlugin + ":" : "")  + name;
     }
 
     /**
@@ -407,8 +407,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            if (uberPlugin != null) {
-                builder.field("uber_plugin", uberPlugin);
+            if (metaPlugin != null) {
+                builder.field("meta_plugin", metaPlugin);
             }
             builder.field("name", name);
             builder.field("version", version);
@@ -443,8 +443,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         final StringBuilder information = new StringBuilder().append("- Plugin information:\n");
-        if (uberPlugin != null) {
-            information.append("Uber Plugin: ").append(uberPlugin).append("\n");
+        if (metaPlugin != null) {
+            information.append("Meta Plugin: ").append(metaPlugin).append("\n");
         }
         information
             .append("Name: ").append(name).append("\n")

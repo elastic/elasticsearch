@@ -33,9 +33,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -100,11 +98,11 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     private static void buildFakePlugin(
             final Environment env,
-            final String uberPlugin,
+            final String metaPlugin,
             final String description,
             final String name,
             final String classname) throws IOException {
-        buildFakePlugin(env, uberPlugin, description, name, classname, false, false);
+        buildFakePlugin(env, metaPlugin, description, name, classname, false, false);
     }
 
     private static void buildFakePlugin(
@@ -119,13 +117,13 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     private static void buildFakePlugin(
             final Environment env,
-            final String uberPlugin,
+            final String metaPlugin,
             final String description,
             final String name,
             final String classname,
             final boolean hasNativeController,
             final boolean requiresKeystore) throws IOException {
-        Path dest = uberPlugin != null ? env.pluginsFile().resolve(uberPlugin) : env.pluginsFile();
+        Path dest = metaPlugin != null ? env.pluginsFile().resolve(metaPlugin) : env.pluginsFile();
         PluginTestUtil.writePluginProperties(
                 dest.resolve(name),
                 "description", description,
@@ -138,12 +136,12 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "requires.keystore", Boolean.toString(requiresKeystore));
     }
 
-    private static void buildFakeUberPlugin(
+    private static void buildFakeMetaPlugin(
         final Environment env,
         final String description,
         final String name,
         final String plugins) throws IOException {
-        PluginTestUtil.writeUberPluginProperties(
+        PluginTestUtil.writeMetaPluginProperties(
             env.pluginsFile().resolve(name),
             "description", description,
             "name", name,
@@ -174,14 +172,14 @@ public class ListPluginsCommandTests extends ESTestCase {
         assertEquals(buildMultiline("fake1", "fake2"), terminal.getOutput());
     }
 
-    public void testUberPlugin() throws Exception {
-        buildFakeUberPlugin(env, "fake uber desc", "uber_plugin", "fake1,fake2");
-        buildFakePlugin(env, "uber_plugin", "fake desc", "fake1", "org.fake1");
-        buildFakePlugin(env, "uber_plugin",  "fake desc 2", "fake2", "org.fake2");
+    public void testMetaPlugin() throws Exception {
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake1,fake2");
+        buildFakePlugin(env, "meta_plugin", "fake desc", "fake1", "org.fake1");
+        buildFakePlugin(env, "meta_plugin",  "fake desc 2", "fake2", "org.fake2");
         buildFakePlugin(env, "fake desc 3", "fake3", "org.fake3");
         buildFakePlugin(env, "fake desc 4", "fake4", "org.fake4");
         MockTerminal terminal = listPlugins(home);
-        assertEquals(buildMultiline("fake3", "fake4", "uber_plugin:fake1", "uber_plugin:fake2"), terminal.getOutput());
+        assertEquals(buildMultiline("fake3", "fake4", "meta_plugin:fake1", "meta_plugin:fake2"), terminal.getOutput());
     }
 
     public void testPluginWithVerbose() throws Exception {
@@ -265,27 +263,27 @@ public class ListPluginsCommandTests extends ESTestCase {
                 terminal.getOutput());
     }
 
-    public void testPluginWithVerboseUberPlugins() throws Exception {
-        buildFakeUberPlugin(env, "fake uber desc", "uber_plugin", "fake_plugin1,fake_plugin2");
-        buildFakePlugin(env, "uber_plugin", "fake desc 1", "fake_plugin1", "org.fake");
-        buildFakePlugin(env, "uber_plugin",  "fake desc 2", "fake_plugin2", "org.fake2");
+    public void testPluginWithVerboseMetaPlugins() throws Exception {
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1,fake_plugin2");
+        buildFakePlugin(env, "meta_plugin", "fake desc 1", "fake_plugin1", "org.fake");
+        buildFakePlugin(env, "meta_plugin",  "fake desc 2", "fake_plugin2", "org.fake2");
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(home, params);
         assertEquals(
             buildMultiline(
                 "Plugins directory: " + env.pluginsFile(),
-                "uber_plugin:fake_plugin1",
+                "meta_plugin:fake_plugin1",
                 "- Plugin information:",
-                "Uber Plugin: uber_plugin",
+                "Meta Plugin: meta_plugin",
                 "Name: fake_plugin1",
                 "Description: fake desc 1",
                 "Version: 1.0",
                 "Native Controller: false",
                 "Requires Keystore: false",
                 " * Classname: org.fake",
-                "uber_plugin:fake_plugin2",
+                "meta_plugin:fake_plugin2",
                 "- Plugin information:",
-                "Uber Plugin: uber_plugin",
+                "Meta Plugin: meta_plugin",
                 "Name: fake_plugin2",
                 "Description: fake desc 2",
                 "Version: 1.0",
@@ -322,9 +320,9 @@ public class ListPluginsCommandTests extends ESTestCase {
                 e.getMessage());
     }
 
-    public void testUberPluginWithWrongDescriptorFile() throws Exception{
-        buildFakeUberPlugin(env, "fake uber desc", "uber_plugin", "fake_plugin1,fake_plugin2");
-        final Path pluginDir = env.pluginsFile().resolve("uber_plugin").resolve("fake_plugin1");
+    public void testMetaPluginWithWrongDescriptorFile() throws Exception{
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1,fake_plugin2");
+        final Path pluginDir = env.pluginsFile().resolve("meta_plugin").resolve("fake_plugin1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -360,9 +358,9 @@ public class ListPluginsCommandTests extends ESTestCase {
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
     }
 
-    public void testExistingIncompatibleUberPlugin() throws Exception {
-        buildFakeUberPlugin(env, "fake uber desc", "uber_plugin", "fake_plugin1");
-        PluginTestUtil.writePluginProperties(env.pluginsFile().resolve("uber_plugin").resolve("fake_plugin1"),
+    public void testExistingIncompatibleMetaPlugin() throws Exception {
+        buildFakeMetaPlugin(env, "fake meta desc", "meta_plugin", "fake_plugin1");
+        PluginTestUtil.writePluginProperties(env.pluginsFile().resolve("meta_plugin").resolve("fake_plugin1"),
             "description", "fake desc 1",
             "name", "fake_plugin1",
             "version", "1.0",
@@ -378,12 +376,12 @@ public class ListPluginsCommandTests extends ESTestCase {
             Version.CURRENT.toString(),
             "1.0.0");
         assertEquals(
-            "fake_plugin2\n" + "uber_plugin:fake_plugin1\n" + "WARNING: " + message + "\n",
+            "fake_plugin2\n" + "meta_plugin:fake_plugin1\n" + "WARNING: " + message + "\n",
             terminal.getOutput());
 
         String[] params = {"-s"};
         terminal = listPlugins(home, params);
-        assertEquals("fake_plugin2\nuber_plugin:fake_plugin1\n", terminal.getOutput());
+        assertEquals("fake_plugin2\nmeta_plugin:fake_plugin1\n", terminal.getOutput());
     }
 
 }

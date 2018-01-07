@@ -1,6 +1,6 @@
-# Integration tests for testing uber plugins
+# Integration tests for testing meta plugins
 #
-"Check uber plugin install":
+"Check meta plugin install":
     - do:
         cluster.state: {}
 
@@ -11,6 +11,6 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: example-rescore  }
-    - match:  { nodes.$master.plugins.0.uber_plugin: my_uber_plugin  }
+    - match:  { nodes.$master.plugins.0.meta_plugin: my_meta_plugin  }
     - match:  { nodes.$master.plugins.1.name: script-expert-scoring  }
-    - match:  { nodes.$master.plugins.1.uber_plugin: my_uber_plugin  }
+    - match:  { nodes.$master.plugins.1.meta_plugin: my_meta_plugin  }

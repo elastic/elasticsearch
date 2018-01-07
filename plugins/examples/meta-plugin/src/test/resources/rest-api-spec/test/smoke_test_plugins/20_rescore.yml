@@ -1,4 +1,4 @@
-# Integration tests for the rescore example plugin bundled inside an uber plugin
+# Integration tests for the rescore example plugin bundled inside a meta plugin
 ---
 setup:
   - do:

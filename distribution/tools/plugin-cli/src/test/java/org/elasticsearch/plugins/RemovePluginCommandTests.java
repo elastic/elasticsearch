@@ -111,14 +111,14 @@ public class RemovePluginCommandTests extends ESTestCase {
         assertRemoveCleaned(env);
     }
 
-    public void testBasicUber() throws Exception {
-        Path path = env.pluginsFile().resolve("uber").resolve("fake1");
+    public void testBasicMeta() throws Exception {
+        Path path = env.pluginsFile().resolve("meta").resolve("fake1");
         Files.createDirectories(path);
         Files.createFile(path.resolve("plugin.jar"));
         Files.createDirectory(path.resolve("subdir"));
         Files.createDirectory(env.pluginsFile().resolve("other"));
-        removePlugin("uber", home, randomBoolean());
-        assertFalse(Files.exists(env.pluginsFile().resolve("uber")));
+        removePlugin("meta", home, randomBoolean());
+        assertFalse(Files.exists(env.pluginsFile().resolve("meta")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
         assertRemoveCleaned(env);
 

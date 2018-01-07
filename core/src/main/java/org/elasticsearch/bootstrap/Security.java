@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.UberPluginInfo;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;

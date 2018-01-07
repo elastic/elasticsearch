@@ -32,7 +32,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -164,9 +163,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     }
 
     /**
-     * Two plugins in an uber plugin - one with a controller daemon and one without.
+     * Two plugins in an meta plugin - one with a controller daemon and one without.
      */
-    public void testControllerSpawnUberPlugin() throws IOException, InterruptedException {
+    public void testControllerSpawnMetaPlugin() throws IOException, InterruptedException {
         /*
          * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
          * file as an argument and that's out of the remit of the controller daemon process spawner.
@@ -180,16 +179,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Path uberPlugin = environment.pluginsFile().resolve("uber_plugin");
-        Files.createDirectories(uberPlugin);
-        PluginTestUtil.writeUberPluginProperties(
-            uberPlugin,
+        Path metaPlugin = environment.pluginsFile().resolve("meta_plugin");
+        Files.createDirectories(metaPlugin);
+        PluginTestUtil.writeMetaPluginProperties(
+            metaPlugin,
             "description", "test_plugin",
-            "name", "uber_plugin",
+            "name", "meta_plugin",
             "plugins", "test_plugin,other_plugin");
 
         // this plugin will have a controller daemon
-        Path plugin = uberPlugin.resolve("test_plugin");
+        Path plugin = metaPlugin.resolve("test_plugin");
 
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
@@ -205,7 +204,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         createControllerProgram(controllerProgram);
 
         // this plugin will not have a controller daemon
-        Path otherPlugin = uberPlugin.resolve("other_plugin");
+        Path otherPlugin = metaPlugin.resolve("other_plugin");
         Files.createDirectories(otherPlugin);
         PluginTestUtil.writePluginProperties(
             otherPlugin,

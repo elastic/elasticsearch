@@ -28,22 +28,21 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
-public class UberPluginInfoTests extends ESTestCase {
+public class MetaPluginInfoTests extends ESTestCase {
 
     public void testReadFromProperties() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir,
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir,
             "description", "fake desc",
-            "name", "my_uber_plugin",
+            "name", "my_meta_plugin",
             "plugins", "fake_plugin1,fake_plugin2");
-        UberPluginInfo info = UberPluginInfo.readFromProperties(pluginDir);
-        assertEquals("my_uber_plugin", info.getName());
+        MetaPluginInfo info = MetaPluginInfo.readFromProperties(pluginDir);
+        assertEquals("my_meta_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
         assertEquals(2, info.getPlugins().length);
         assertEquals("fake_plugin1", info.getPlugins()[0]);
@@ -51,49 +50,49 @@ public class UberPluginInfoTests extends ESTestCase {
     }
 
     public void testReadFromPropertiesNameMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing for"));
 
-        PluginTestUtil.writeUberPluginProperties(pluginDir, "name", "");
-        e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
+        PluginTestUtil.writeMetaPluginProperties(pluginDir, "name", "");
+        e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing for"));
     }
 
     public void testReadFromPropertiesDescriptionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir, "name", "fake-uber-plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir, "name", "fake-meta-plugin");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[description] is missing"));
     }
 
     public void testReadFromPropertiesPluginsMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir,
-            "name", "fake-uber-plugin",
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir,
+            "name", "fake-meta-plugin",
             "description", "desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[plugins] is missing"));
     }
 
     public void testReadFromPropertiesPluginsEmpty() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir,
-            "name", "fake-uber-plugin",
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir,
+            "name", "fake-meta-plugin",
             "description", "desc",
             "plugins", "");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[plugins] is missing or empty"));
     }
 
     public void testReadFromPropertiesPluginsTrim() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir,
-            "name", "fake-uber-plugin",
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir,
+            "name", "fake-meta-plugin",
             "description", "desc",
             "plugins", " fake_plugin1, fake_plugin2 ,fake_plugin3  ");
-        UberPluginInfo info = UberPluginInfo.readFromProperties(pluginDir);
+        MetaPluginInfo info = MetaPluginInfo.readFromProperties(pluginDir);
         assertEquals(3, info.getPlugins().length);
         assertEquals("fake_plugin1", info.getPlugins()[0]);
         assertEquals("fake_plugin2", info.getPlugins()[1]);
@@ -101,15 +100,15 @@ public class UberPluginInfoTests extends ESTestCase {
     }
 
     public void testUnknownProperties() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-uber-plugin");
-        PluginTestUtil.writeUberPluginProperties(pluginDir,
+        Path pluginDir = createTempDir().resolve("fake-meta-plugin");
+        PluginTestUtil.writeMetaPluginProperties(pluginDir,
             "extra", "property",
             "unknown", "property",
             "description", "fake desc",
             "plugins", "my_fake_plugin_1",
-            "name", "my_uber_plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> UberPluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("Unknown properties in uber-plugin descriptor"));
+            "name", "my_meta_plugin");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetaPluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Unknown properties in meta-plugin descriptor"));
     }
 
     public void testExtractAllPlugins() throws Exception {
@@ -125,14 +124,14 @@ public class UberPluginInfoTests extends ESTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
 
-        // Uber plugin
-        Path uberPlugin = pluginDir.resolve("uber_plugin");
-        Files.createDirectory(uberPlugin);
-        PluginTestUtil.writeUberPluginProperties(uberPlugin,
+        // Meta plugin
+        Path metaPlugin = pluginDir.resolve("meta_plugin");
+        Files.createDirectory(metaPlugin);
+        PluginTestUtil.writeMetaPluginProperties(metaPlugin,
             "description", "fake desc",
             "plugins", "plugin2,plugin3",
-            "name", "uber_plugin");
-        Path plugin2 = uberPlugin.resolve("plugin2");
+            "name", "meta_plugin");
+        Path plugin2 = metaPlugin.resolve("plugin2");
         Files.createDirectory(plugin2);
         PluginTestUtil.writePluginProperties(plugin2,
             "description", "fake desc",
@@ -141,7 +140,7 @@ public class UberPluginInfoTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
-        Path plugin3 = uberPlugin.resolve("plugin3");
+        Path plugin3 = metaPlugin.resolve("plugin3");
         Files.createDirectory(plugin3);
         PluginTestUtil.writePluginProperties(plugin3,
             "description", "fake desc",
@@ -155,13 +154,13 @@ public class UberPluginInfoTests extends ESTestCase {
         Collections.sort(infos, Comparator.comparing(PluginInfo::getFullName));
         assertEquals(infos.size(), 3);
         assertEquals(infos.get(0).getName(), "plugin1");
-        assertNull(infos.get(0).getUberPlugin());
+        assertNull(infos.get(0).getMetaPlugin());
         assertEquals(infos.get(0).getPath(pluginDir), plugin1);
         assertEquals(infos.get(1).getName(), "plugin2");
-        assertEquals(infos.get(1).getUberPlugin(), "uber_plugin");
+        assertEquals(infos.get(1).getMetaPlugin(), "meta_plugin");
         assertEquals(infos.get(1).getPath(pluginDir), plugin2);
         assertEquals(infos.get(2).getName(), "plugin3");
-        assertEquals(infos.get(2).getUberPlugin(), "uber_plugin");
+        assertEquals(infos.get(2).getMetaPlugin(), "meta_plugin");
         assertEquals(infos.get(2).getPath(pluginDir), plugin3);
     }
 
@@ -178,14 +177,14 @@ public class UberPluginInfoTests extends ESTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
 
-        // Uber plugin
-        Path uberPlugin = pluginDir.resolve("uber_plugin");
-        Files.createDirectory(uberPlugin);
-        PluginTestUtil.writeUberPluginProperties(uberPlugin,
+        // Meta plugin
+        Path metaPlugin = pluginDir.resolve("meta_plugin");
+        Files.createDirectory(metaPlugin);
+        PluginTestUtil.writeMetaPluginProperties(metaPlugin,
             "description", "fake desc",
             "plugins", "plugin1,plugin2",
-            "name", "uber_plugin");
-        Path plugin2 = uberPlugin.resolve("plugin1");
+            "name", "meta_plugin");
+        Path plugin2 = metaPlugin.resolve("plugin1");
         Files.createDirectory(plugin2);
         PluginTestUtil.writePluginProperties(plugin2,
             "description", "fake desc",
@@ -194,7 +193,7 @@ public class UberPluginInfoTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
-        Path plugin3 = uberPlugin.resolve("plugin2");
+        Path plugin3 = metaPlugin.resolve("plugin2");
         Files.createDirectory(plugin3);
         PluginTestUtil.writePluginProperties(plugin3,
             "description", "fake desc",

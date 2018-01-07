@@ -573,26 +573,59 @@ public class SettingTests extends ESTestCase {
         assertTrue(listAffixSetting.hasComplexMatcher());
         assertTrue(listAffixSetting.match("foo.test.bar"));
         assertTrue(listAffixSetting.match("foo.test_1.bar"));
+        assertTrue(listAffixSetting.match("foo.test_1.bar.1"));
         assertFalse(listAffixSetting.match("foo.buzz.baz.bar"));
         assertFalse(listAffixSetting.match("foo.bar"));
         assertFalse(listAffixSetting.match("foo.baz"));
         assertFalse(listAffixSetting.match("foo"));
+
+        Setting<Settings> groupAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+        assertTrue(groupAffixSetting.hasComplexMatcher());
+        assertTrue(groupAffixSetting.match("foo.test.bar"));
+        assertTrue(groupAffixSetting.match("foo.test.bar.1.value"));
+        assertTrue(groupAffixSetting.match("foo.test.bar.2.value"));
+        assertTrue(groupAffixSetting.match("foo.buzz.bar.anything"));
+        assertFalse(groupAffixSetting.match("foo.bar"));
+        assertFalse(groupAffixSetting.match("foo"));
     }
 
     public void testAffixSettingNamespaces() {
-        Setting.AffixSetting<Boolean> setting =
+        Setting.AffixSetting<Boolean> booleanAffixSetting =
             Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
-        Settings build = Settings.builder()
+        Settings booleanSettins = Settings.builder()
             .put("foo.bar.enable", "true")
             .put("foo.baz.enable", "true")
             .put("foo.boom.enable", "true")
             .put("something.else", "true")
             .build();
-        Set<String> namespaces = setting.getNamespaces(build);
+        Set<String> namespaces = booleanAffixSetting.getNamespaces(booleanSettins);
         assertEquals(3, namespaces.size());
         assertTrue(namespaces.contains("bar"));
         assertTrue(namespaces.contains("baz"));
         assertTrue(namespaces.contains("boom"));
+
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "enable",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+        List<String> input = Arrays.asList("test1", "test2", "test3");
+        Settings listSettings = Settings.builder().putList("foo.bay.enable", input.toArray(new String[0])).build();
+        namespaces = listAffixSetting.getNamespaces(listSettings);
+        assertEquals(1, namespaces.size());
+        assertTrue(namespaces.contains("bay"));
+
+        Setting.AffixSetting<Settings> groupAffixSetting = Setting.affixKeySetting("foo.", "enable",
+            (key) -> Setting.groupSetting(key + ".", Property.NodeScope));
+        Settings groupSettings = Settings.builder()
+            .put("foo.test.enable.1.value", "1")
+            .put("foo.test.enable.2.value", "2")
+            .put("foo.test.enable.3.value", "3")
+            .put("foo.bar.enable.boom", "something")
+            .put("foo.bar.enable.buzz", "anything")
+            .build();
+        namespaces = groupAffixSetting.getNamespaces(groupSettings);
+        assertEquals(2, namespaces.size());
+        assertTrue(namespaces.contains("test"));
+        assertTrue(namespaces.contains("bar"));
     }
 
     public void testAffixAsMap() {

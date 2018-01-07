@@ -163,7 +163,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     }
 
     /**
-     * Two plugins in an meta plugin - one with a controller daemon and one without.
+     * Two plugins in a meta plugin - one with a controller daemon and one without.
      */
     public void testControllerSpawnMetaPlugin() throws IOException, InterruptedException {
         /*

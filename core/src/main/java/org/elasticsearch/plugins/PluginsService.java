@@ -80,9 +80,8 @@ public final class PluginsService {
         Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final PluginsAndModules pluginsAndModules;
-    List<Tuple<PluginInfo, Class<? extends Plugin>>> pluginClasses;
     private final Settings settings;
-    private Map<PluginInfo, Plugin.PluginSettings> pluginSettings = new HashMap<>();
+    private final Map<PluginInfo, Plugin.PluginSettings> pluginSettings = new HashMap<>();
 
     /**
      * Constructs a new PluginService
@@ -93,7 +92,7 @@ public final class PluginsService {
      */
     public PluginsService(Settings nodeSettings, Path modulesDirectory, Path pluginsDirectory, Path configPath,
                       Collection<Class<? extends Plugin>> classpathPlugins) {
-        pluginClasses = new ArrayList<>();
+        final List<Tuple<PluginInfo, Class<? extends Plugin>>> pluginClasses = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
         List<PluginInfo> modulesList = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
@@ -101,7 +100,9 @@ public final class PluginsService {
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
                 pluginClass.getName(), Collections.emptyList(), false, false);
             pluginClasses.add(new Tuple<>(pluginInfo, pluginClass));
+            pluginsList.add(pluginInfo);
         }
+
         Logger logger = Loggers.getLogger(PluginsService.class, nodeSettings);
         Set<Bundle> seenBundles = loadBundles(logger, modulesDirectory, pluginsDirectory);
         pluginClasses.addAll(loadBundleClasses(seenBundles));

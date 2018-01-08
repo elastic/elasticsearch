@@ -47,14 +47,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
@@ -575,5 +573,13 @@ public class PluginsServiceTests extends ESTestCase {
         }
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
+    }
+
+    public void testPluginsAndModulesWithClasspathPlugins() {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
+        assertThat(service.info().getPluginInfos().stream().map(i -> i.getName()).collect(Collectors.toList())
+            , contains(AdditionalSettingsPlugin1.class.getName()));
     }
 }

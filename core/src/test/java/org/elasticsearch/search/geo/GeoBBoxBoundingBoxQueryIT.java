@@ -343,8 +343,8 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
                 .endArray()
                 .endObject()).execute().actionGet();
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. [geo_bounding_box] type does not support "
-                + "multivalues when [wrap_dateline] parameter is set to [true]"));
+            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. [geo_bounding_box] type does " +
+                "not support multivalues when [wrap_dateline] parameter is set to [true]"));
         }
     }
 

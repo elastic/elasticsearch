@@ -49,7 +49,7 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
         String indexPattern = hasText(request.getTablePattern()) ?
                 StringUtils.likeToIndexWildcard(request.getTablePattern(), (char) 0) : "*";
         String regexPattern = hasText(request.getTablePattern()) ?
-                StringUtils.likeToJavaPattern(request.getTablePattern(), (char) 0) : "*";
+                StringUtils.likeToJavaPattern(request.getTablePattern(), (char) 0) : null;
         Pattern columnMatcher = hasText(request.getColumnPattern()) ?
                 Pattern.compile(StringUtils.likeToJavaPattern(request.getColumnPattern(), (char) 0)) : null;
 

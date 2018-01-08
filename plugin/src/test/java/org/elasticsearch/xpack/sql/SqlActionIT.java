@@ -66,14 +66,14 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         SqlListTablesResponse response = client().prepareExecute(SqlListTablesAction.INSTANCE)
                 .pattern("").get();
         List<String> tables = removeInternal(response.getTables());
-        assertThat(tables, hasSize(3));
-        assertThat(tables, containsInAnyOrder("foo", "bar", "baz"));
+        assertThat(tables, hasSize(4));
+        assertThat(tables, containsInAnyOrder("foo", "bar", "baz", "broken"));
 
 
         response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("b*").get();
         tables = removeInternal(response.getTables());
-        assertThat(tables, hasSize(2));
-        assertThat(tables, containsInAnyOrder("bar", "baz"));
+        assertThat(tables, hasSize(3));
+        assertThat(tables, containsInAnyOrder("bar", "baz", "broken"));
 
         response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("not_found").get();
         tables = removeInternal(response.getTables());
@@ -81,7 +81,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("broken").get();
         tables = removeInternal(response.getTables());
-        assertThat(tables, emptyCollectionOf(String.class));
+        assertThat(tables, hasSize(1));
     }
 
 

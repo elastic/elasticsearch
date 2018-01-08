@@ -103,7 +103,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
 
     private Consumer<RestChannel> metaTable(MetaTableRequest request) {
         String indexPattern = hasText(request.pattern()) ? StringUtils.likeToIndexWildcard(request.pattern(), (char) 0) : "*";
-        String regexPattern = hasText(request.pattern()) ? StringUtils.likeToJavaPattern(request.pattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.pattern()) ? StringUtils.likeToJavaPattern(request.pattern(), (char) 0) : null;
 
         return channel -> indexResolver.resolveNames(indexPattern, regexPattern, toActionListener(channel, list ->
                 new MetaTableResponse(list.stream()
@@ -113,7 +113,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
 
     private Consumer<RestChannel> metaColumn(MetaColumnRequest request) {
         String indexPattern = hasText(request.tablePattern()) ? StringUtils.likeToIndexWildcard(request.tablePattern(), (char) 0) : "*";
-        String regexPattern = hasText(request.tablePattern()) ? StringUtils.likeToJavaPattern(request.tablePattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.tablePattern()) ? StringUtils.likeToJavaPattern(request.tablePattern(), (char) 0) : null;
 
         Pattern columnMatcher = hasText(request.columnPattern()) ? Pattern.compile(
                 StringUtils.likeToJavaPattern(request.columnPattern(), (char) 0)) : null;

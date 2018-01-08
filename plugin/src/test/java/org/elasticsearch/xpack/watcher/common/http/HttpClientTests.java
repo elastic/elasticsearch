@@ -10,7 +10,6 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -499,7 +498,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatBodyWithUTF8Content() throws Exception {
-        assumeTrue("This test fails under windows, disabled temporary",Constants.WINDOWS == false);
         String body = "title あいうえお";
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(body));
 

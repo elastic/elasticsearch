@@ -125,6 +125,7 @@ public class InternalEngine extends Engine {
 
     private final String uidField;
 
+    private final CombinedDeletionPolicy combinedDeletionPolicy;
     private final SnapshotDeletionPolicy snapshotDeletionPolicy;
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
@@ -184,9 +185,9 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
-                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
-                );
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(
+                    openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint);
+                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(combinedDeletionPolicy);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
@@ -1572,6 +1573,15 @@ public class InternalEngine extends Engine {
     // testing
     void clearDeletedTombstones() {
         versionMap.clearTombstones();
+    }
+
+    @Override
+    public void onTranslogSynced() throws IOException {
+        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            // This will revisit the index deletion policy with the existing index commits.
+            // We can clean up unneeded index commits without having a new index commit.
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     @Override

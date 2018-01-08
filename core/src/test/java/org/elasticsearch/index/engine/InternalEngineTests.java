@@ -4319,4 +4319,39 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(totalNumDocs, searcher.reader().numDocs());
         }
     }
+
+    public void testCleanUpCommitsWhenNewGlobalCheckpointPersisted() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            final int numDocs = scaledRandomIntBetween(10, 100);
+            for (int docId = 0; docId < numDocs; docId++) {
+                index(engine, docId);
+                if (rarely()) {
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
+                    engine.getTranslog().sync();
+                }
+                if (frequently()) {
+                    engine.flush(randomBoolean(), randomBoolean());
+                }
+            }
+            engine.flush(false, randomBoolean());
+            // Advancing the global checkpoint (without flushing) can clean up unreferenced commits.
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
+            engine.getTranslog().sync();
+            engine.onTranslogSynced();
+            final long lastSyncedGlobalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            for (int i = 1; i < commits.size(); i++) {
+                assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    greaterThan(lastSyncedGlobalCheckpoint));
+            }
+            // When the global checkpoint is in-sync with the max_seqno, we should keep one commit.
+            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
+            engine.getTranslog().sync();
+            engine.onTranslogSynced();
+            assertThat(DirectoryReader.listCommits(store.directory()), Matchers.hasSize(1));
+        }
+    }
 }

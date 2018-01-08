@@ -2302,6 +2302,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 final Engine engine = getEngine();
                 engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+                engine.onTranslogSynced();
             } catch (AlreadyClosedException ex) {
                 // that's fine since we already synced everything on engine close - this also is conform with the methods
                 // documentation
@@ -2329,6 +2330,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public final void sync() throws IOException {
         verifyNotClosed();
         getEngine().getTranslog().sync();
+        getEngine().onTranslogSynced();
     }
 
     /**

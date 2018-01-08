@@ -92,7 +92,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 public abstract class Engine implements Closeable {
 
@@ -176,6 +175,13 @@ public abstract class Engine implements Closeable {
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
+
+    /**
+     * This method should be called after the translog has been synced.
+     */
+    public void onTranslogSynced() throws IOException {
+
+    }
 
     /**
      * A throttling class that can be activated, causing the

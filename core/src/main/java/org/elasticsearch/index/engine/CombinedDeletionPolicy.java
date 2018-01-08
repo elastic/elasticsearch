@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
@@ -42,6 +43,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
+    private final AtomicLong maxSeqNoOfSafeCommit = new AtomicLong();
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier) {
@@ -75,7 +77,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         for (int i = 0; i < keptPosition; i++) {
             commits.get(i).delete();
         }
-        updateTranslogDeletionPolicy(commits.get(keptPosition), commits.get(commits.size() - 1));
+        final IndexCommit safeCommit = commits.get(keptPosition);
+        if (safeCommit.getUserData().containsKey(SequenceNumbers.MAX_SEQ_NO)) {
+            maxSeqNoOfSafeCommit.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+        }
+        updateTranslogDeletionPolicy(safeCommit, commits.get(commits.size() - 1));
     }
 
     private void updateTranslogDeletionPolicy(final IndexCommit minRequiredCommit, final IndexCommit lastCommit) throws IOException {
@@ -138,5 +144,12 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
          * However, that commit may not be a safe commit if writes are in progress in the primary.
          */
         return 0;
+    }
+
+    /**
+     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
+     */
+    boolean hasUnreferencedCommits() {
+        return globalCheckpointSupplier.getAsLong() > maxSeqNoOfSafeCommit.get();
     }
 }

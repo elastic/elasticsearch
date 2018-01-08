@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService {
+public final class PluginsService {
 
     /**
      * We keep around a list of plugins and modules

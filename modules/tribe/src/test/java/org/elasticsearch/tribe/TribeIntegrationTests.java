@@ -166,7 +166,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.addAll(getMockPlugins());
         plugins.add(MockTribePlugin.class);
-        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        plugins.add(TestZenDiscovery.TestPlugin.class);
         plugins.add(TestCustomMetaDataPlugin.class);
         return plugins;
     }
@@ -174,38 +174,6 @@ public class TribeIntegrationTests extends ESIntegTestCase {
     @Override
     protected boolean addTestZenDiscovery() {
         return false;
-    }
-
-    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
-
-        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
-            super(settings);
-        }
-
-        public static PluginSettings getPluginSettings(Settings settings) {
-            PluginSettings pluginSettings = TestZenDiscovery.TestPlugin.getPluginSettings(settings);
-            return new PluginSettings() {
-                @Override
-                public List<Setting<?>> getDeclaredSettings() {
-                    return pluginSettings.getDeclaredSettings();
-                }
-
-                @Override
-                public List<String> getSettingsFilter() {
-                    return pluginSettings.getSettingsFilter();
-                }
-
-                @Override
-                public Settings getSettings() {
-                    if (settings.getGroups("tribe", true).isEmpty()) {
-                        return pluginSettings.getSettings();
-                    } else {
-                        return Settings.EMPTY;
-                    }
-                }
-            };
-        }
-
     }
 
     @Before

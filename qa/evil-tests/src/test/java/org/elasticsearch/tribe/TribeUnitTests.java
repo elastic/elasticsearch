@@ -69,7 +69,7 @@ public class TribeUnitTests extends ESTestCase {
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
+        classpathPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
 
         tribe1 = new MockNode(
             Settings.builder()
@@ -93,15 +93,6 @@ public class TribeUnitTests extends ESTestCase {
         classpathPlugins = null;
         tribe1 = null;
         tribe2 = null;
-    }
-
-    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
-        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
-            super(settings);
-        }
-        public static PluginSettings getPluginSettings(Settings settings) {
-            return TribeAwareTestZenDiscoveryPlugin.getPluginSettings(settings);
-        }
     }
 
     public static class MockTribePlugin extends TribePlugin {

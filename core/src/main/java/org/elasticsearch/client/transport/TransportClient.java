@@ -65,7 +65,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -128,14 +130,14 @@ public abstract class TransportClient extends AbstractClient {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
-        final Settings settings = Settings.builder().put(defaultSettings).put(pluginsService.updatedSettings()).build();
+        final Settings settings = Settings.builder().put(defaultSettings).put(pluginsService.getSettings()).build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getDeclaredSettings());
-            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
+            final Set<String> additionalSettingsFilter = new HashSet<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }

@@ -92,7 +92,7 @@ public class PluginsServiceTests extends ESTestCase {
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService pluginsService = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = pluginsService.updatedSettings();
+        Settings newSettings = pluginsService.getSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings

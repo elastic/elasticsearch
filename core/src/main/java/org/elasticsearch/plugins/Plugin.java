@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -365,9 +366,9 @@ public abstract class Plugin implements Closeable {
         default List<Setting<?>> getDeclaredSettings() { return Collections.emptyList(); }
 
         /**
-         * Returns a list of additional settings filter for this plugin
+         * Returns a {@link java.util.Set} of additional settings filter for this plugin
          */
-        default List<String> getSettingsFilter() { return Collections.emptyList(); }
+        default Set<String> getSettingsFilter() { return Collections.emptySet(); }
     }
 
 }

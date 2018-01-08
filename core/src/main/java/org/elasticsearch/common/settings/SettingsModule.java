@@ -54,10 +54,10 @@ public class SettingsModule implements Module {
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptySet());
     }
 
-    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
+    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, Set<String> settingsFilter) {
         logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {

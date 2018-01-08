@@ -1032,7 +1032,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
-            nodeSettings = pluginsService.updatedSettings();
+            nodeSettings = pluginsService.getSettings();
 
             List<Setting<?>> additionalSettings = pluginsService.getDeclaredSettings();
             additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);

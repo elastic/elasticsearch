@@ -33,7 +33,10 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -69,8 +72,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public List<String> getSettingsFilter() {
-                    return Arrays.asList("index.filter_test.foo", "index.filter_test.bar*");
+                public Set<String> getSettingsFilter() {
+                    return new HashSet<>(Arrays.asList("index.filter_test.foo", "index.filter_test.bar*"))  ;
                 }
             };
         }

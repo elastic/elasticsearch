@@ -79,54 +79,6 @@ public class PluginsService {
     public static final Setting<List<String>> MANDATORY_SETTING =
         Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
-    private static Plugin.PluginSettings load(Class<? extends Plugin> pluginClass, Settings nodeSettings) {
-        try {
-            Method getPluginSettings = pluginClass.getMethod("getPluginSettings", Settings.class);
-            if ((getPluginSettings.getModifiers() | Modifier.STATIC) == 0) {
-                throw new IllegalStateException("getPluginSettings must be static");
-            }
-            if ((getPluginSettings.getModifiers() | Modifier.PUBLIC) == 0) {
-                throw new IllegalStateException("getPluginSettings must be public");
-            }
-            Plugin.PluginSettings invoke = (Plugin.PluginSettings) getPluginSettings.invoke(pluginClass, nodeSettings);
-            return invoke;
-        } catch (NoSuchMethodException e) {
-            // that's fine this plugin doesn't have any settings to extend
-            return null;
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("can't load plugin settings", e);
-        } catch (InvocationTargetException e) {
-            throw new IllegalStateException("can't load plugin settings", e);
-        }
-    }
-
-    static Set<Bundle> loadBundles(Logger logger, Path modulesDirectory, Path pluginsDirectory) {
-        Set<Bundle> seenBundles = new LinkedHashSet<>();
-        // load modules
-        if (modulesDirectory != null) {
-            try {
-                Set<Bundle> modules = getModuleBundles(modulesDirectory);
-                seenBundles.addAll(modules);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Unable to initialize modules", ex);
-            }
-        }
-
-        // now, find all the ones that are in plugins/
-        if (pluginsDirectory != null) {
-            try {
-                // TODO: remove this leniency, but tests bogusly rely on it
-                if (isAccessibleDirectory(pluginsDirectory, logger)) {
-                    checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                    seenBundles.addAll(plugins);
-                }
-            } catch (IOException ex) {
-                throw new IllegalStateException("Unable to initialize plugins", ex);
-            }
-        }
-        return seenBundles;
-    }
     private final PluginsAndModules pluginsAndModules;
     List<Tuple<PluginInfo, Class<? extends Plugin>>> pluginClasses;
     private final Settings settings;
@@ -227,10 +179,58 @@ public class PluginsService {
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
     }
 
-    public Settings updatedSettings() {
-        return settings;
+    private static Plugin.PluginSettings load(Class<? extends Plugin> pluginClass, Settings nodeSettings) {
+        try {
+            Method getPluginSettings = pluginClass.getMethod("getPluginSettings", Settings.class);
+            if ((getPluginSettings.getModifiers() | Modifier.STATIC) == 0) {
+                throw new IllegalStateException("getPluginSettings must be static");
+            }
+            if ((getPluginSettings.getModifiers() | Modifier.PUBLIC) == 0) {
+                throw new IllegalStateException("getPluginSettings must be public");
+            }
+            Plugin.PluginSettings invoke = (Plugin.PluginSettings) getPluginSettings.invoke(pluginClass, nodeSettings);
+            return invoke;
+        } catch (NoSuchMethodException e) {
+            // that's fine this plugin doesn't have any settings to extend
+            return null;
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("can't load plugin settings", e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalStateException("can't load plugin settings", e);
+        }
     }
 
+    private static Set<Bundle> loadBundles(Logger logger, Path modulesDirectory, Path pluginsDirectory) {
+        Set<Bundle> seenBundles = new LinkedHashSet<>();
+        // load modules
+        if (modulesDirectory != null) {
+            try {
+                Set<Bundle> modules = getModuleBundles(modulesDirectory);
+                seenBundles.addAll(modules);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize modules", ex);
+            }
+        }
+
+        // now, find all the ones that are in plugins/
+        if (pluginsDirectory != null) {
+            try {
+                // TODO: remove this leniency, but tests bogusly rely on it
+                if (isAccessibleDirectory(pluginsDirectory, logger)) {
+                    checkForFailedPluginRemovals(pluginsDirectory);
+                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
+                    seenBundles.addAll(plugins);
+                }
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize plugins", ex);
+            }
+        }
+        return seenBundles;
+    }
+
+    /**
+     * Returns all plugin declared settings
+     */
     public List<Setting<?>> getDeclaredSettings() {
         List<Setting<?>> declaredSettings = new ArrayList<>();
         for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
@@ -240,8 +240,12 @@ public class PluginsService {
         return declaredSettings;
     }
 
-    public List<String> getPluginSettingsFilter() {
-        List<String> pluginSettingsFilter = new ArrayList<>();
+    /**
+     * Returns all plugin declared settings filter
+     * @return
+     */
+    public Set<String> getPluginSettingsFilter() {
+        Set<String> pluginSettingsFilter = new HashSet<>();
         for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
             Plugin.PluginSettings pluginSettings = loaded.getValue();
             pluginSettingsFilter.addAll(pluginSettings.getSettingsFilter());

@@ -338,7 +338,7 @@ public abstract class Plugin implements Closeable {
     public final void onModule(DiscoveryModule module) {}
 
     /**
-     * PluginSettings allow plugins to extend the core by decaring custom settings, adding settings in addition to the defined
+     * PluginSettings allow plugins to extend the core by declaring custom settings, adding settings in addition to the defined
      * node level settings and allows to filter settings based on simple expression filters.
      * Since the settings must be present before any plugins are instantiated the PluginService will try to obtain a {@link PluginSettings}
      * instance in a static context. A plugin that needs to extend elasticsearch with settings must define a static method as follows:

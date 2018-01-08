@@ -242,7 +242,6 @@ public final class PluginsService {
 
     /**
      * Returns all plugin declared settings filter
-     * @return
      */
     public Set<String> getPluginSettingsFilter() {
         Set<String> pluginSettingsFilter = new HashSet<>();

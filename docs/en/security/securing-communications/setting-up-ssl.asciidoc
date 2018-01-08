@@ -20,7 +20,7 @@ the cluster:
 . Restart Elasticsearch.
 
 [[installing-node-certificates]]
-==== Node Certificates
+==== Generating Node Certificates
 
 TLS requires X.509 certificates to perform encryption and authentication of the application
 that is being communicated with. In order for the communication between nodes to be truly
@@ -29,20 +29,37 @@ certificate authenticity in a Elasticsearch cluster is to trust the certificate 
 that signed the certificate. By doing this, as nodes are added to your cluster they just need
 to use a certificate signed by the same CA and the node is automatically allowed to join the
 cluster. Additionally, it is recommended that the certificates contain subject alternative
-names (SAN) that correspond to the node's ip address and dns name so that hostname verification
+names (SAN) that correspond to the node's IP address and DNS name so that hostname verification
 can be performed.
 
 In order to simplify the process of generating certificates for the Elastic Stack, a command
-line tool, `certgen` has been included with {xpack}. This tool takes care of the generating
-a CA and signing certificates with the CA. `certgen` can be used interactively or in a silent
-mode through the use of an input file. The `certgen` tool also supports generation of certificate
-signing requests (CSR), so that a commercial or organization specific CA may be used to sign
-the certificates. For more information, see {ref}/certgen.html[certgen].
+line tool, {ref}/certutil.html[`certutil`] has been included with {xpack}. This
+tool takes care of the generating
+a CA and signing certificates with the CA. `certutil` can be used interactively or in a silent
+mode through the use of an input file. The `certutil` tool also supports generation of certificate
+signing requests (CSR), so that a commercial or organization specific CA can be used to sign
+the certificates. For example:
 
-NOTE: If you choose not to use `certgen`, the certificates that you obtain must allow for both
+1. Optional: Create a certificate authority by using the `certutil ca` command.
+2. Generate a certificate for each node by using the `certutil cert` command.
++
+--
+NOTE: You should secure the output files, since they contain the private keys
+for your instance.
+
+--
+3. Copy the node certificate to the appropriate locations. For each Elastic
+product that you want to configure, copy the certificates to the relevant
+configuration directory. For more information, see
+<<enable-ssl,Configuring security in {es}>>,
+{kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}], and
+{logstash-ref}/ls-security.html[Configuring security in Logstash].
+
+NOTE: If you choose not to use `certutil`, the certificates that you obtain must allow for both
 `clientAuth` and `serverAuth` if the extended key usage extension is present. The certificates
-need to be in PEM format. Although not required, it is highly recommended that the certificate contain
-the dns name(s) and/or ip address(es) of the node so that hostname verification may be used.
+need to be in PEM or PKCS#12 format. Although not required, it is highly recommended that the certificate contain
+the DNS names and/or IP addresses of the node so that hostname verification can be used.
+
 
 [[enable-ssl]]
 ==== Enabling SSL in the Node Configuration

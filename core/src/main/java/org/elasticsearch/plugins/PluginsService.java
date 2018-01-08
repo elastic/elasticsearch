@@ -222,8 +222,19 @@ public class PluginsService extends AbstractComponent {
     private PluginsService(Settings settings, Path configPath, PluginsAndModules pluginsAndModules, List<Tuple<PluginInfo, Class<? extends Plugin>>> plugins) {
         super(settings);
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
+        Map<String, Plugin> extensiblePluginMap = new HashMap<>();
         for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : plugins) {
-            pluginsLoaded.add(new Tuple<>(plugin.v1(), loadPlugin(plugin.v2(), settings, configPath)));
+            Plugin instance = loadPlugin(plugin.v2(), settings, configPath);
+            extensiblePluginMap.put(plugin.v1().getName(), instance);
+            pluginsLoaded.add(new Tuple<>(plugin.v1(), instance));
+        }
+        for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : plugins) {
+            ClassLoader loader = extensiblePluginMap.get(plugin.v1().getName()).getClass().getClassLoader();
+            // reload SPI with any new services from the plugin
+            reloadLuceneSPI(loader);
+            for (String extendedPluginName : plugin.v1().getExtendedPlugins()) {
+                ExtensiblePlugin.class.cast(extensiblePluginMap.get(extendedPluginName)).reloadSPI(loader);
+            }
         }
         this.info = pluginsAndModules;
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
@@ -549,13 +560,6 @@ public class PluginsService extends AbstractComponent {
         // create a child to load the plugin in this bundle
         ClassLoader parentLoader = PluginLoaderIndirection.createLoader(PluginsService.class.getClassLoader(), extendedLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
-
-        // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loader);
-        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            // note: already asserted above that extended plugins are loaded and extensible
-            ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).reloadSPI(loader);
-        }
 
         Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
         loaded.put(name, pluginClass);

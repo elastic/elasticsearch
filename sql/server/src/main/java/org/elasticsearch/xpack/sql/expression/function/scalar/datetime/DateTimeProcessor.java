@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
@@ -77,14 +77,12 @@ public class DateTimeProcessor implements Processor {
             return null;
         }
 
-        ReadableDateTime dt;
-        // most dates are returned as long
-        if (l instanceof Long) {
-            dt = new DateTime(((Long) l).longValue(), DateTimeZone.UTC);
+        if (!(l instanceof ReadableDateTime)) {
+            throw new SqlIllegalArgumentException("A date/time is required; received %s", l);
         }
-        else {
-            dt = (ReadableDateTime) l;
-        }
+
+        ReadableDateTime dt = (ReadableDateTime) l;
+
         if (!DateTimeZone.UTC.equals(timeZone)) {
             dt = dt.toDateTime().withZone(timeZone);
         }

@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Payload;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 import org.elasticsearch.xpack.sql.protocol.shared.SqlDataOutput;
+import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -42,6 +43,9 @@ class SqlResponsePayload implements Payload {
             for (int c = 0; c < row.size(); c++) {
                 JDBCType type = typeLookup.get(c);
                 Object value = row.get(c);
+                if (value instanceof ReadableDateTime) {
+                    value = Long.valueOf(((ReadableDateTime) value).getMillis());
+                }
                 ProtoUtils.writeValue(out, value, type);
             }
         }

@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
-import org.joda.time.ReadableInstant;
+import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.List;
@@ -102,11 +102,9 @@ public class FieldHitExtractor implements HitExtractor {
         if (values instanceof Map) {
             throw new ExecutionException("Objects (returned by [%s]) are not supported", fieldName);
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean
+                || values instanceof ReadableDateTime) {
             return values;
-        }
-        if (values instanceof ReadableInstant) {
-            return ((ReadableInstant) values).getMillis();
         }
         throw new ExecutionException("Type %s (returned by [%s]) is not supported", values.getClass().getSimpleName(), fieldName);
     }

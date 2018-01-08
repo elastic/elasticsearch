@@ -310,7 +310,7 @@ public class Scroller {
                 if (!CollectionUtils.isEmpty(failure)) {
                     cleanupScroll(response, new ExecutionException(failure[0].reason(), failure[0].getCause()));
                 } else {
-                    handleResponse(response, listener);
+                    handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanupScroll(response, e)));
                 }
             } catch (Exception ex) {
                 cleanupScroll(response, ex);

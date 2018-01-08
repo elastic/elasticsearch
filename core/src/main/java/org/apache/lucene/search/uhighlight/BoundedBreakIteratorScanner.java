@@ -23,15 +23,23 @@ import java.text.CharacterIterator;
 import java.util.Locale;
 
 /**
- * A custom break iterator that scans text to find break-delimited passages bounded by
- * a provided maximum length. This class delegates the boundary search to a first level
- * break iterator. When this break iterator finds a passage greater than the maximum length
+ * A custom break iterator that is used to find break-delimited passages bounded by
+ * a provided maximum length in the {@link UnifiedHighlighter} context.
+ * This class uses a {@link BreakIterator} to find the last break after the provided offset
+ * that would create a passage smaller than <code>maxLen</code>.
+ * If the {@link BreakIterator} cannot find a passage smaller than the maximum length,
  * a secondary break iterator is used to re-split the passage at the first boundary after
  * maximum length.
+ *
  * This is useful to split passages created by {@link BreakIterator}s like `sentence` that
  * can create big outliers on semi-structured text.
  *
+ *
  * WARNING: This break iterator is designed to work with the {@link UnifiedHighlighter}.
+ *
+ * TODO: We should be able to create passages incrementally, starting from the offset of the first match and expanding or not
+ * depending on the offsets of subsequent matches. This is currently impossible because {@link FieldHighlighter} uses
+ * only the first matching offset to derive the start and end of each passage.
  **/
 public class BoundedBreakIteratorScanner extends BreakIterator {
     private final BreakIterator mainBreak;
@@ -93,7 +101,15 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
             innerEnd = windowEnd;
         } else {
             windowStart = innerStart = mainBreak.preceding(offset);
-            windowEnd = innerEnd = mainBreak.following(offset-1);
+            windowEnd = innerEnd = mainBreak.following(offset - 1);
+            // expand to next break until we reach maxLen
+            while (innerEnd - innerStart < maxLen) {
+                int newEnd = mainBreak.following(innerEnd);
+                if (newEnd == DONE || (newEnd - innerStart) > maxLen) {
+                    break;
+                }
+                windowEnd = innerEnd = newEnd;
+            }
         }
 
         if (innerEnd - innerStart > maxLen) {

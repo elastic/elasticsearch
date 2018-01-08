@@ -184,6 +184,20 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 10), 0, outputs);
     }
 
+    public void testSmallSentenceBoundedBreakIterator() throws Exception {
+        final String[] inputs = {
+            "A short sentence. Followed by a bigger sentence that should be truncated. And a last short sentence."
+        };
+        final String[] outputs = {
+            "A short <b>sentence</b>.",
+            "Followed by a bigger <b>sentence</b>",
+            "And a last short <b>sentence</b>"
+        };
+        TermQuery query = new TermQuery(new Term("text", "sentence"));
+        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 20), 0, outputs);
+    }
+
     public void testRepeat() throws Exception {
         final String[] inputs = {
             "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun"
@@ -205,4 +219,25 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 10), 0, outputs);
     }
+
+    public void testGroupSentences() throws Exception {
+        final String[] inputs = {
+            "Two words. Followed by many words in a big sentence. One. Two. Three. And more words."
+        };
+        final String[] outputs = {
+            "<b>Two</b> <b>words</b>.",
+            "Followed by many <b>words</b>",
+            "<b>One</b>. <b>Two</b>. <b>Three</b>.",
+            "And more <b>words</b>.",
+        };
+        BooleanQuery query = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("text", "one")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "two")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "three")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "words")), BooleanClause.Occur.SHOULD)
+            .build();
+        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 20), 0, outputs);
+    }
+
 }

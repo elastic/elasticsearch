@@ -52,7 +52,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
@@ -579,7 +583,7 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        assertThat(service.info().getPluginInfos().stream().map(i -> i.getName()).collect(Collectors.toList())
-            , contains(AdditionalSettingsPlugin1.class.getName()));
+        assertThat(service.info().getPluginInfos().stream().map(i -> i.getName()).collect(Collectors.toList()),
+            contains(AdditionalSettingsPlugin1.class.getName()));
     }
 }

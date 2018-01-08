@@ -681,6 +681,44 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
     }
 
+
+    /**
+     * Checks invalid or unknown settings. Any setting that is not recognized or fails validation
+     * will be processed by consumers.
+     * An exception will be thrown if any invalid or unknown setting is found.
+     *
+     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
+     *                        associated value)
+     * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
+     *                        associated value and an exception)
+     */
+    public void checkUnknownOrInvalidSettings(
+            final Settings settings,
+            final Consumer<Map.Entry<String, String>> unknownConsumer,
+            final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer) {
+        List<String> failedKeys = new ArrayList<>();
+        for (String key : settings.keySet()) {
+            try {
+                Setting<?> setting = get(key);
+                if (setting != null) {
+                    setting.get(settings);
+                } else {
+                    if (!isPrivateSetting(key)) {
+                        failedKeys.add(key);
+                        unknownConsumer.accept(new Entry(key, settings));
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                failedKeys.add(key);
+                invalidConsumer.accept(new Entry(key, settings), ex);
+            }
+        }
+        if (failedKeys.size() > 0) {
+            throw new IllegalStateException("Invalid or unknown settings: " + String.join(", ", failedKeys));
+        }
+    }
+
     private static final class Entry implements Map.Entry<String, String> {
 
         private final String key;

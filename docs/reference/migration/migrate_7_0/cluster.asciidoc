@@ -14,3 +14,9 @@ primary shards of the opened index to be allocated.
 
 ==== Shard preferences `_primary`, `_primary_first`, `_replica`, and `_replica_first` are removed
 These shard preferences are removed in favour of the `_prefer_nodes` and `_only_nodes` preferences.
+
+==== Discontinue archiving broken cluster settings
+We will no longer archive unknown or invalid cluster settings (prepending "archived." to a broken setting's name).
+Instead, we will fail to recover a cluster state with broken cluster settings.
+The solution for users in an upgrade case would be to rollback to the previous version,
+address the settings that would be unknown or invalid in the next major version, and then proceed with the upgrade.

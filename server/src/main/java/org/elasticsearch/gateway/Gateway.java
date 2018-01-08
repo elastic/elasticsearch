@@ -137,27 +137,25 @@ public class Gateway extends AbstractComponent {
             }
         }
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        metaDataBuilder.persistentSettings(
-            clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.persistentSettings(),
-                e -> logUnknownSetting("persistent", e),
-                (e, ex) -> logInvalidSetting("persistent", e, ex)));
-        metaDataBuilder.transientSettings(
-            clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.transientSettings(),
-                e -> logUnknownSetting("transient", e),
-                (e, ex) -> logInvalidSetting("transient", e, ex)));
+        clusterSettings.checkUnknownOrInvalidSettings(
+            metaDataBuilder.persistentSettings(),
+            e -> logUnknownSetting("persistent", e),
+            (e, ex) -> logInvalidSetting("persistent", e, ex));
+        clusterSettings.checkUnknownOrInvalidSettings(
+            metaDataBuilder.transientSettings(),
+            e -> logUnknownSetting("transient", e),
+            (e, ex) -> logInvalidSetting("transient", e, ex));
         ClusterState.Builder builder = clusterService.newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
 
     private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {
-        logger.warn("ignoring unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
+        logger.warn("unknown {} setting: [{}] with value [{}]", settingType, e.getKey(), e.getValue());
     }
 
     private void logInvalidSetting(String settingType, Map.Entry<String, String> e, IllegalArgumentException ex) {
-        logger.warn(() -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
+        logger.warn(() -> new ParameterizedMessage("invalid {} setting: [{}] with value [{}]",
                     settingType, e.getKey(), e.getValue()), ex);
     }
 

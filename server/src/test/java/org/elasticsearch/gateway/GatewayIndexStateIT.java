@@ -49,6 +49,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +66,8 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
 
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
     private final Logger logger = Loggers.getLogger(GatewayIndexStateIT.class);
 
     public void testMappingMetaDataParsed() throws Exception {
@@ -479,7 +483,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
-    public void testArchiveBrokenClusterSettings() throws Exception {
+    public void testFailBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -502,20 +506,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
             MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
         }
+
+        expectedException.expect(ElasticsearchException.class);
         internalCluster().fullRestart();
-        ensureYellow("test"); // wait for state recovery
-        state = client().admin().cluster().prepareState().get().getState();
-        assertEquals("true", state.metaData().persistentSettings().get("archived.this.is.unknown"));
-        assertEquals("broken", state.metaData().persistentSettings().get("archived."
-            + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
-
-        // delete these settings
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get();
-
-        state = client().admin().cluster().prepareState().get().getState();
-        assertNull(state.metaData().persistentSettings().get("archived.this.is.unknown"));
-        assertNull(state.metaData().persistentSettings().get("archived."
-            + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
+
 }

@@ -81,7 +81,11 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
@@ -300,6 +304,63 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     expectThrows(Exception.class, () -> updateSeedNodes(connection, Arrays.asList(seedNode)));
                     assertFalse(service.nodeConnected(seedNode));
                     assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testRemoteConnectionVersionMatchesTransportConnectionVersion() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final Version previousVersion = VersionUtils.getPreviousVersion();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, previousVersion);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            assertThat(seedNode, notNullValue());
+            knownNodes.add(seedNode);
+
+            DiscoveryNode oldVersionNode = discoverableTransport.getLocalDiscoNode();
+            assertThat(oldVersionNode, notNullValue());
+            knownNodes.add(oldVersionNode);
+
+            assertThat(seedNode.getVersion(), not(equalTo(oldVersionNode.getVersion())));
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                final Transport.Connection seedConnection = new Transport.Connection() {
+                    @Override
+                    public DiscoveryNode getNode() {
+                        return seedNode;
+                    }
+
+                    @Override
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                        throws IOException, TransportException {
+                        // no-op
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        // no-op
+                    }
+                };
+                service.addDelegate(seedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
+                    @Override
+                    public Connection getConnection(DiscoveryNode node) {
+                        if (node == seedNode) {
+                            return seedConnection;
+                        }
+                        return super.getConnection(node);
+                    }
+                });
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    connection.addConnectedNode(seedNode);
+                    for (DiscoveryNode node : knownNodes) {
+                        final Transport.Connection transportConnection = connection.getConnection(node);
+                        assertThat(transportConnection.getVersion(), equalTo(previousVersion));
+                    }
+                    assertThat(knownNodes, iterableWithSize(2));
                 }
             }
         }

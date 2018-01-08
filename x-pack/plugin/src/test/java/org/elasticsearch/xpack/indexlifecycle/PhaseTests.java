@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,15 +24,10 @@ import java.util.List;
 import java.util.Map;
 
 public class PhaseTests extends AbstractSerializingTestCase<Phase> {
-    
-    private NamedXContentRegistry registry;
     private String phaseName;
 
     @Before
     public void setup() {
-        List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
-        registry = new NamedXContentRegistry(entries);
         phaseName = randomAlphaOfLength(20); // NORELEASE we need to randomise the phase name rather 
                                              // than use the same name for all instances
     }
@@ -49,8 +44,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     @Override
     protected Phase doParseInstance(XContentParser parser) throws IOException {
-        
-        return Phase.parse(parser, new Tuple<>(phaseName, registry));
+        return Phase.parse(parser, phaseName);
     }
 
     @Override
@@ -61,6 +55,13 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Arrays
                 .asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+        return new NamedXContentRegistry(entries);
     }
 
     @Override

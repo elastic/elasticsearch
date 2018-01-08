@@ -10,12 +10,10 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,18 +46,17 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public static final ParseField TYPE_FIELD = new ParseField("type");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
-            "lifecycle_policy", false, (a, c) -> {
-                String name = c.v1();
+    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
+            (a, name) -> {
                 LifecycleType type = (LifecycleType) a[0];
                 List<Phase> phases = (List<Phase>) a[1];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
                 return new LifecyclePolicy(type, name, phaseMap);
             });
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> c.v2().parseNamedObject(LifecycleType.class, p.text(), p, null), TYPE_FIELD,
+        PARSER.declareField(constructorArg(), (p, c) -> p.namedObject(LifecycleType.class, p.text(), null), TYPE_FIELD,
                 ValueType.STRING);
-        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> Phase.parse(p, new Tuple<>(n, c.v2())), v -> {
+        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
     }
@@ -91,8 +88,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
     }
 
-    public static LifecyclePolicy parse(XContentParser parser, Tuple<String, NamedXContentRegistry> context) {
-        return PARSER.apply(parser, context);
+    public static LifecyclePolicy parse(XContentParser parser, String name) {
+        return PARSER.apply(parser, name);
     }
 
     @Override

@@ -140,8 +140,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                         activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
                                             rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                             rolloverRequest.masterNodeTimeout(),
-                                            isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
-                                                                                    conditionResults, false, true, true, isShardsAcked)),
+                                            isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
+                                                                sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
+                                                                isShardsAcknowledged)),
                                             listener::onFailure);
                                     } else {
                                         listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,

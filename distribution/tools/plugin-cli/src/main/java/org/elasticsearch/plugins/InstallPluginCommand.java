@@ -33,7 +33,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
@@ -88,8 +87,8 @@ import static org.elasticsearch.plugins.MetaPluginInfo.ES_META_PLUGIN_PROPERTIES
  * <li>A URL to a plugin zip</li>
  * </ul>
  *
- * Plugins are packaged as zip files. Each packaged plugin must contain a
- * plugin properties file See {@link PluginInfo} or a meta plugin properties file See {@link MetaPluginInfo}.
+ * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file
+ * or a meta plugin properties file. See {@link PluginInfo} and {@link MetaPluginInfo}, respectively.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -625,34 +624,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         deleteOnFailure.add(tmpRoot);
         try {
             if (MetaPluginInfo.isMetaPlugin(tmpRoot)) {
-                final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
-                verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
-                final Path metaPath = env.pluginsFile().resolve(metaInfo.getName());
-                terminal.println(VERBOSE, metaInfo.toString());
-
-                // creates the meta plugin directory where all plugins are copied
-                Files.createDirectory(metaPath);
-                deleteOnFailure.add(metaPath);
-                setFileAttributes(metaPath, PLUGIN_DIR_PERMS);
-
-                // copy the meta plugin properties file in the meta plugin directory
-                Path metaInfoDest = metaPath.resolve(ES_META_PLUGIN_PROPERTIES);
-                Files.copy(tmpRoot.resolve(ES_META_PLUGIN_PROPERTIES), metaInfoDest);
-                setFileAttributes(metaInfoDest, PLUGIN_FILES_PERMS);
-
-                // install all plugins
-                try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(tmpRoot)) {
-                    for (Path subPlugin : subPaths) {
-                        if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
-                            continue;
-                        }
-                        installPlugin(terminal, isBatch, subPlugin, env.pluginsFile().resolve(metaInfo.getName()),
-                            env.binFile().resolve(metaInfo.getName()), env.configFile().resolve(metaInfo.getName()), env, deleteOnFailure);
-                    }
-                }
-                // clean up installation
-                IOUtils.rm(tmpRoot);
-                terminal.println("-> Installed " + metaInfo.getName());
+                installMetaPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
             } else {
                 installPlugin(terminal, isBatch, tmpRoot, env.pluginsFile(), env.binFile(),
                     env.configFile(), env, deleteOnFailure);
@@ -665,6 +637,42 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
             throw installProblem;
         }
+    }
+
+
+    /**
+     * Installs all plugins bundled in the meta plugin into the plugins dir (under the meta plugin directory).
+     */
+    private void installMetaPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
+                                   Environment env, List<Path> deleteOnFailure) throws Exception {
+        final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
+        verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
+        final Path metaPath = env.pluginsFile().resolve(metaInfo.getName());
+        terminal.println(VERBOSE, metaInfo.toString());
+
+        // creates the meta plugin directory where all plugins are copied
+        Files.createDirectory(metaPath);
+        deleteOnFailure.add(metaPath);
+        setFileAttributes(metaPath, PLUGIN_DIR_PERMS);
+
+        // copy the meta plugin properties file in the meta plugin directory
+        Path metaInfoDest = metaPath.resolve(ES_META_PLUGIN_PROPERTIES);
+        Files.copy(tmpRoot.resolve(ES_META_PLUGIN_PROPERTIES), metaInfoDest);
+        setFileAttributes(metaInfoDest, PLUGIN_FILES_PERMS);
+
+        // install all plugins
+        try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(tmpRoot)) {
+            for (Path subPlugin : subPaths) {
+                if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
+                    continue;
+                }
+                installPlugin(terminal, isBatch, subPlugin, env.pluginsFile().resolve(metaInfo.getName()),
+                    env.binFile().resolve(metaInfo.getName()), env.configFile().resolve(metaInfo.getName()), env, deleteOnFailure);
+            }
+        }
+        // clean up installation
+        IOUtils.rm(tmpRoot);
+        terminal.println("-> Installed " + metaInfo.getName());
     }
 
     /**

@@ -1,4 +1,3 @@
-[role="xpack"]
 [[sql-rest]]
 == SQL REST API
 
@@ -21,12 +20,12 @@ Which returns:
 [source,text]
 --------------------------------------------------
      author      |        name        |  page_count   | release_date
------------------+--------------------+---------------+---------------
-Peter F. Hamilton|Pandora's Star      |768            |1078185600000
-Vernor Vinge     |A Fire Upon the Deep|613            |707356800000
-Frank Herbert    |Dune                |604            |-144720000000
-Alastair Reynolds|Revelation Space    |585            |953078400000
-James S.A. Corey |Leviathan Wakes     |561            |1306972800000
+-----------------+--------------------+---------------+------------------------
+Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00.000Z
+Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00.000Z
+Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
+Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
@@ -65,11 +64,11 @@ Which returns:
         {"name": "release_date", "type": "date",  "jdbc_type": 93, "display_size": 20}
     ],
     "rows": [
-        ["Peter F. Hamilton",  "Pandora's Star",       768, 1078185600000],
-        ["Vernor Vinge",       "A Fire Upon the Deep", 613,  707356800000],
-        ["Frank Herbert",      "Dune",                 604, -144720000000],
-        ["Alastair Reynolds",  "Revelation Space",     585,  953078400000],
-        ["James S.A. Corey",   "Leviathan Wakes",      561, 1306972800000]
+        ["Peter F. Hamilton",  "Pandora's Star",       768, "2004-03-02T00:00:00.000Z"],
+        ["Vernor Vinge",       "A Fire Upon the Deep", 613, "1992-06-01T00:00:00.000Z"],
+        ["Frank Herbert",      "Dune",                 604, "1965-06-01T00:00:00.000Z"],
+        ["Alastair Reynolds",  "Revelation Space",     585, "2000-03-15T00:00:00.000Z"],
+        ["James S.A. Corey",   "Leviathan Wakes",      561, "2011-06-02T00:00:00.000Z"]
     ],
     "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8="
 }
@@ -96,11 +95,11 @@ Which looks like:
 --------------------------------------------------
 {
     "rows" : [
-        ["Dan Simmons",        "Hyperion",             482,  612144000000],
-        ["Iain M. Banks",      "Consider Phlebas",     471,  546134400000],
-        ["Neal Stephenson",    "Snow Crash",           470,  707356800000],
-        ["Frank Herbert",      "God Emperor of Dune",  454,  359856000000],
-        ["Frank Herbert",      "Children of Dune",     408,  198892800000]
+        ["Dan Simmons",        "Hyperion",             482,  "1989-05-26T00:00:00.000Z"],
+        ["Iain M. Banks",      "Consider Phlebas",     471,  "1987-04-23T00:00:00.000Z"],
+        ["Neal Stephenson",    "Snow Crash",           470,  "1992-06-01T00:00:00.000Z"],
+        ["Frank Herbert",      "God Emperor of Dune",  454,  "1981-05-28T00:00:00.000Z"],
+        ["Frank Herbert",      "Children of Dune",     408,  "1976-04-21T00:00:00.000Z"]
     ],
     "cursor" : "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWODRMaXBUaVlRN21iTlRyWHZWYUdrdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl9f///w8="
 }
@@ -170,8 +169,8 @@ Which returns:
 [source,text]
 --------------------------------------------------
     author     |                name                |  page_count   | release_date
----------------+------------------------------------+---------------+---------------
-Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |308534400000
+---------------+------------------------------------+---------------+------------------------
+Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]

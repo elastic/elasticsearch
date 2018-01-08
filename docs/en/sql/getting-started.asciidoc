@@ -34,9 +34,9 @@ Which should return something along the lines of:
 [source,text]
 --------------------------------------------------
     author     |     name      |  page_count   | release_date
----------------+---------------+---------------+---------------
-Dan Simmons    |Hyperion       |482            |612144000000
-Frank Herbert  |Dune           |604            |-144720000000
+---------------+---------------+---------------+------------------------
+Dan Simmons    |Hyperion       |482            |1989-05-26T00:00:00.000Z
+Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
@@ -55,7 +55,7 @@ From there you can run the same query:
 --------------------------------------------------
 sql> SELECT * FROM library WHERE release_date < '2000-01-01';
     author     |     name      |  page_count   | release_date
----------------+---------------+---------------+---------------
-Dan Simmons    |Hyperion       |482            |612144000000
-Frank Herbert  |Dune           |604            |-144720000000
+---------------+---------------+---------------+------------------------
+Dan Simmons    |Hyperion       |482            |1989-05-26T00:00:00.000Z
+Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z
 --------------------------------------------------

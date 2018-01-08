@@ -230,7 +230,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // running shards is missed, then the snapshot is removed is a subsequent cluster
                 // state update, which is being processed here
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().shards.values()) {
-                    if (snapshotStatus.stage() == Stage.INIT || snapshotStatus.stage() == Stage.STARTED) {
+                    Stage stage = snapshotStatus.stage();
+                    if (stage == Stage.INIT || stage == Stage.STARTED) {
                         snapshotStatus.abort();
                     }
                 }

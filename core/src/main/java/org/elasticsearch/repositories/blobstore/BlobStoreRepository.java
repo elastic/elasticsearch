@@ -814,8 +814,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
         } catch (Exception e) {
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
-            snapshotStatus.failure(ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE,ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {

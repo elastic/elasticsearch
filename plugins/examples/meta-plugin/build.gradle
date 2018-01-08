@@ -17,31 +17,24 @@
  * under the License.
  */
 
-// A meta plugin packaging example that bundles two plugins in a single zip.
-
+// A meta plugin packaging example that bundles multiple plugins in a single zip.
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 File plugins = new File(buildDir, 'plugins-unzip')
-
-// unzip the rescore plugin in a tmp directory
-task unzipRescorePlugins(type:Copy, dependsOn:':example-plugins:rescore:bundlePlugin') {
-    File pluginsRescore = new File(plugins, 'example-rescore')
-    from { zipTree(project(':example-plugins:rescore').bundlePlugin.outputs.files.singleFile) }
-    eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
-    into pluginsRescore
+subprojects {
+    // unzip the subproject plugins
+    task unzip(type:Copy, dependsOn: "${project.path}:bundlePlugin") {
+        File dest = new File(plugins, project.name)
+        from { zipTree(project(project.path).bundlePlugin.outputs.files.singleFile) }
+        eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
+        into dest
+    }
 }
 
-// Unzip the script-expert-scoring plugin in a tmp directory
-task unzipScriptScoringPlugins(type:Copy, dependsOn:':example-plugins:script-expert-scoring:bundlePlugin') {
-    File pluginsScript = new File(plugins, 'script-expert-scoring')
-    from { zipTree(project(':example-plugins:script-expert-scoring').bundlePlugin.outputs.files.singleFile) }
-    eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
-    into pluginsScript
-}
-
-// Build the meta plugin zip from the sub-plugin directories
-task buildZip(type:Zip, dependsOn: ['unzipRescorePlugins', 'unzipScriptScoringPlugins']) {
+// Build the meta plugin zip from the subproject plugins (unzipped)
+task buildZip(type:Zip) {
+    subprojects.each { dependsOn("${it.name}:unzip") }
     from plugins
     from 'src/main/resources/meta-plugin-descriptor.properties'
     into 'elasticsearch'

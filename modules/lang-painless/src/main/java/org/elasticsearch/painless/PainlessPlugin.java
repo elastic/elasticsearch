@@ -37,11 +37,6 @@ import java.util.List;
  */
 public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin {
 
-    // force to parse our definition at startup (not on the user's first script)
-    static {
-        Definition.DEFINITION.hashCode();
-    }
-
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new PainlessScriptEngine(settings, contexts);

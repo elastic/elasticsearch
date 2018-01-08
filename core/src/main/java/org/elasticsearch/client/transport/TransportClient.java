@@ -96,13 +96,13 @@ public abstract class TransportClient extends AbstractClient {
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
         Setting.boolSetting("client.transport.sniff", false, Setting.Property.NodeScope);
 
-    private static PluginsService.PluginServiceFactory newPluginServiceFactory(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
+    private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
                 .put(TcpTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                 .put(InternalSettingsPreparer.prepareSettings(settings))
                 .put(NetworkService.NETWORK_SERVER.getKey(), false)
                 .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
-        return new PluginsService.PluginServiceFactory(settingsBuilder.build(), null, null, plugins);
+        return new PluginsService(settingsBuilder.build(), null, null, null, plugins);
     }
 
     protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,
@@ -127,16 +127,15 @@ public abstract class TransportClient extends AbstractClient {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
-        final PluginsService.PluginServiceFactory pluginsServiceFactory = newPluginServiceFactory(providedSettings, plugins);
-        final Settings settings = Settings.builder().put(defaultSettings).put(pluginsServiceFactory.updatedSettings()).build();
-        final PluginsService pluginsService = pluginsServiceFactory.create(settings, null);
+        final PluginsService pluginsService = newPluginService(providedSettings, plugins);
+        final Settings settings = Settings.builder().put(defaultSettings).put(pluginsService.updatedSettings()).build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         try {
-            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsServiceFactory.getDeclaredSettings());
-            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsServiceFactory.getPluginSettingsFilter());
+            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getDeclaredSettings());
+            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }

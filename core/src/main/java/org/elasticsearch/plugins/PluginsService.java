@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService extends AbstractComponent {
+public class PluginsService {
 
     /**
      * We keep around a list of plugins and modules
@@ -127,108 +127,70 @@ public class PluginsService extends AbstractComponent {
         }
         return seenBundles;
     }
-
-
-    public static class PluginServiceFactory {
-        private final PluginsAndModules pluginsAndModules;
-        List<Tuple<PluginInfo, Class<? extends Plugin>>> pluginClasses;
-        private final Settings nodeSettings;
-        private Map<PluginInfo, Plugin.PluginSettings> pluginSettings = new HashMap<>();
-        /**
-         * Constructs a new PluginService
-         * @param nodeSettings The settings of the system
-         * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-         * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-         * @param classpathPlugins Plugins that exist in the classpath which should be loaded
-         */
-        public PluginServiceFactory(Settings nodeSettings, Path modulesDirectory, Path pluginsDirectory,
-                                     Collection<Class<? extends Plugin>> classpathPlugins) {
-            this.nodeSettings = nodeSettings;
-            pluginClasses = new ArrayList<>();
-            List<PluginInfo> pluginsList = new ArrayList<>();
-            List<PluginInfo> modulesList = new ArrayList<>();
-            // first we load plugins that are on the classpath. this is for tests and transport clients
-            for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-                PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
-                    pluginClass.getName(), Collections.emptyList(), false, false);
-                pluginClasses.add(new Tuple<>(pluginInfo, pluginClass));
-            }
-            Logger logger = Loggers.getLogger(PluginsService.class, nodeSettings);
-            Set<Bundle> seenBundles = loadBundles(logger, modulesDirectory, pluginsDirectory);
-            pluginClasses.addAll(loadBundleClasses(seenBundles));
-            for (Bundle bundle : seenBundles) {
-                if (bundle.isModule) {
-                    modulesList.add(bundle.plugin);
-                } else {
-                    pluginsList.add(bundle.plugin);
-                }
-            }
-            pluginsAndModules = new PluginsAndModules(pluginsList, modulesList);
-            for (Tuple<PluginInfo, Class<? extends Plugin>> pluginClass : pluginClasses) {
-                Plugin.PluginSettings loaded = load(pluginClass.v2(), nodeSettings);
-                if (loaded != null) {
-                    pluginSettings.put(pluginClass.v1(), loaded);
-                }
-            }
-        }
-
-        public Settings updatedSettings() {
-            Map<String, String> foundSettings = new HashMap<>();
-            final Settings.Builder builder = Settings.builder();
-            for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded  : pluginSettings.entrySet()) {
-                PluginInfo info = loaded.getKey();
-                Plugin.PluginSettings pluginSettings = loaded.getValue();
-                Settings settings = pluginSettings.getSettings();
-                for (String setting : settings.keySet()) {
-                    String oldPlugin = foundSettings.put(setting, info.getName());
-                    if (oldPlugin != null) {
-                        throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +
-                            "in plugin [" + info.getName() + "], already added in plugin [" + oldPlugin + "]");
-                    }
-                }
-                builder.put(settings);
-            }
-            return builder.put(nodeSettings).build();
-        }
-
-        public List<Setting<?>> getDeclaredSettings() {
-            List<Setting<?>> declaredSettings = new ArrayList<>();
-            for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
-                Plugin.PluginSettings pluginSettings = loaded.getValue();
-                declaredSettings.addAll(pluginSettings.getDeclaredSettings());
-            }
-            return declaredSettings;
-        }
-
-        public List<String> getPluginSettingsFilter() {
-            List<String> pluginSettingsFilter = new ArrayList<>();
-            for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
-                Plugin.PluginSettings pluginSettings = loaded.getValue();
-                pluginSettingsFilter.addAll(pluginSettings.getSettingsFilter());
-            }
-            return pluginSettingsFilter;
-        }
-
-
-        public PluginsService create(Settings settings, Path configPath) {
-            return new PluginsService(settings, configPath, pluginsAndModules, pluginClasses);
-        }
-
-    }
+    private final PluginsAndModules pluginsAndModules;
+    List<Tuple<PluginInfo, Class<? extends Plugin>>> pluginClasses;
+    private final Settings settings;
+    private Map<PluginInfo, Plugin.PluginSettings> pluginSettings = new HashMap<>();
 
     /**
      * Constructs a new PluginService
+     * @param nodeSettings The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    private PluginsService(Settings settings, Path configPath, PluginsAndModules pluginsAndModules, List<Tuple<PluginInfo, Class<? extends Plugin>>> plugins) {
-        super(settings);
+    public PluginsService(Settings nodeSettings, Path modulesDirectory, Path pluginsDirectory, Path configPath,
+                      Collection<Class<? extends Plugin>> classpathPlugins) {
+        pluginClasses = new ArrayList<>();
+        List<PluginInfo> pluginsList = new ArrayList<>();
+        List<PluginInfo> modulesList = new ArrayList<>();
+        // first we load plugins that are on the classpath. this is for tests and transport clients
+        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
+                pluginClass.getName(), Collections.emptyList(), false, false);
+            pluginClasses.add(new Tuple<>(pluginInfo, pluginClass));
+        }
+        Logger logger = Loggers.getLogger(PluginsService.class, nodeSettings);
+        Set<Bundle> seenBundles = loadBundles(logger, modulesDirectory, pluginsDirectory);
+        pluginClasses.addAll(loadBundleClasses(seenBundles));
+        for (Bundle bundle : seenBundles) {
+            if (bundle.isModule) {
+                modulesList.add(bundle.plugin);
+            } else {
+                pluginsList.add(bundle.plugin);
+            }
+        }
+        pluginsAndModules = new PluginsAndModules(pluginsList, modulesList);
+        for (Tuple<PluginInfo, Class<? extends Plugin>> pluginClass : pluginClasses) {
+            Plugin.PluginSettings loaded = load(pluginClass.v2(), nodeSettings);
+            if (loaded != null) {
+                pluginSettings.put(pluginClass.v1(), loaded);
+            }
+        }
+        Map<String, String> foundSettings = new HashMap<>();
+        final Settings.Builder builder = Settings.builder();
+        for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded  : pluginSettings.entrySet()) {
+            PluginInfo info = loaded.getKey();
+            Plugin.PluginSettings pluginSettings = loaded.getValue();
+            Settings settings = pluginSettings.getSettings();
+            for (String setting : settings.keySet()) {
+                String oldPlugin = foundSettings.put(setting, info.getName());
+                if (oldPlugin != null) {
+                    throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +
+                        "in plugin [" + info.getName() + "], already added in plugin [" + oldPlugin + "]");
+                }
+            }
+            builder.put(settings);
+        }
+        settings = builder.put(nodeSettings).build();
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         Map<String, Plugin> extensiblePluginMap = new HashMap<>();
-        for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : plugins) {
+        for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : pluginClasses) {
             Plugin instance = loadPlugin(plugin.v2(), settings, configPath);
             extensiblePluginMap.put(plugin.v1().getName(), instance);
             pluginsLoaded.add(new Tuple<>(plugin.v1(), instance));
         }
-        for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : plugins) {
+        for (Tuple<PluginInfo, Class<? extends Plugin>> plugin : pluginClasses) {
             ClassLoader loader = extensiblePluginMap.get(plugin.v1().getName()).getClass().getClassLoader();
             // reload SPI with any new services from the plugin
             reloadLuceneSPI(loader);
@@ -263,6 +225,28 @@ public class PluginsService extends AbstractComponent {
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
+    }
+
+    public Settings updatedSettings() {
+        return settings;
+    }
+
+    public List<Setting<?>> getDeclaredSettings() {
+        List<Setting<?>> declaredSettings = new ArrayList<>();
+        for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
+            Plugin.PluginSettings pluginSettings = loaded.getValue();
+            declaredSettings.addAll(pluginSettings.getDeclaredSettings());
+        }
+        return declaredSettings;
+    }
+
+    public List<String> getPluginSettingsFilter() {
+        List<String> pluginSettingsFilter = new ArrayList<>();
+        for (Map.Entry<PluginInfo, Plugin.PluginSettings> loaded : pluginSettings.entrySet()) {
+            Plugin.PluginSettings pluginSettings = loaded.getValue();
+            pluginSettingsFilter.addAll(pluginSettings.getSettingsFilter());
+        }
+        return pluginSettingsFilter;
     }
 
     private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {

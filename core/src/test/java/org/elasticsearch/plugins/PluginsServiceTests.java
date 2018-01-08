@@ -82,12 +82,8 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, classpathPlugins);
-        return factory.create(factory.updatedSettings(), null);
-    }
-
-    static PluginsService.PluginServiceFactory newPluginsServiceFactort(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService.PluginServiceFactory(settings, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        return new PluginsService(settings, null, TestEnvironment.newEnvironment(settings).pluginsFile(), null, Arrays.asList
+            (classpathPlugins));
     }
 
     public void testAdditionalSettings() {
@@ -95,8 +91,8 @@ public class PluginsServiceTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
-        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = factory.updatedSettings();
+        PluginsService pluginsService = newPluginsService(settings, AdditionalSettingsPlugin1.class);
+        Settings newSettings = pluginsService.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
@@ -105,9 +101,8 @@ public class PluginsServiceTests extends ESTestCase {
     public void testAdditionalSettingsClash() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService.PluginServiceFactory factory = newPluginsServiceFactort(settings, AdditionalSettingsPlugin1.class,  AdditionalSettingsPlugin2.class);
         try {
-            factory.updatedSettings();
+            newPluginsService(settings, AdditionalSettingsPlugin1.class,  AdditionalSettingsPlugin2.class);
             fail("Expected exception when building updated settings");
         } catch (IllegalArgumentException e) {
             String msg = e.getMessage();

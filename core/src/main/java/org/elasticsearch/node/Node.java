@@ -298,9 +298,9 @@ public class Node implements Closeable {
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
 
-            PluginsService.PluginServiceFactory factory = new PluginsService.PluginServiceFactory(tmpSettings,environment.modulesFile(),
-                environment.pluginsFile(), classpathPlugins);
-            this.settings = factory.updatedSettings();
+            pluginsService = new PluginsService(tmpSettings, environment.modulesFile(),
+                environment.pluginsFile(), environment.configFile(), classpathPlugins);
+            this.settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             // create the environment based on the finalized (processed) view of the settings
@@ -309,7 +309,6 @@ public class Node implements Closeable {
 
             Environment.assertEquivalent(environment, this.environment);
 
-            pluginsService = factory.create(settings, environment.configFile());
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
@@ -317,12 +316,12 @@ public class Node implements Closeable {
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             DeprecationLogger.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
-            List<Setting<?>> additionalSettings = new ArrayList<>(factory.getDeclaredSettings());
+            List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getDeclaredSettings());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings,
-                factory.getPluginSettingsFilter());
+                pluginsService.getPluginSettingsFilter());
             client = new NodeClient(settings, threadPool);
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));

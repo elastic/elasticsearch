@@ -372,8 +372,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return;
             }
             clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {
-                boolean accepted = false;
-                SnapshotsInProgress.Entry updatedSnapshot;
+
+                SnapshotsInProgress.Entry endSnapshot;
                 String failure = null;
 
                 @Override
@@ -394,9 +394,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 Set<String> missing = indicesWithMissingShards.v1();
                                 Set<String> closed = indicesWithMissingShards.v2();
                                 if (missing.isEmpty() == false || closed.isEmpty() == false) {
-                                    StringBuilder failureMessage = new StringBuilder();
-                                    updatedSnapshot = new SnapshotsInProgress.Entry(entry, State.FAILED, shards);
-                                    entries.add(updatedSnapshot);
+                                    endSnapshot = new SnapshotsInProgress.Entry(entry, State.FAILED, shards);
+                                    entries.add(endSnapshot);
+
+                                    final StringBuilder failureMessage = new StringBuilder();
                                     if (missing.isEmpty() == false) {
                                         failureMessage.append("Indices don't have primary shards ");
                                         failureMessage.append(missing);
@@ -412,15 +413,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     continue;
                                 }
                             }
-                            updatedSnapshot = new SnapshotsInProgress.Entry(entry, State.STARTED, shards);
+                            SnapshotsInProgress.Entry updatedSnapshot = new SnapshotsInProgress.Entry(entry, State.STARTED, shards);
                             entries.add(updatedSnapshot);
-                            if (completed(shards.values()) == false) {
-                                accepted = true;
+                            if (completed(shards.values())) {
+                                endSnapshot = updatedSnapshot;
                             }
                         } else {
-                            failure = "snapshot state changed to " + entry.state() + " during initialization";
-                            updatedSnapshot = entry;
-                            entries.add(updatedSnapshot);
+                            assert entry.state() == State.ABORTED : "expecting snapshot to be aborted during initialization";
+                            failure = "snapshot was aborted during initialization";
+                            endSnapshot = entry;
+                            entries.add(endSnapshot);
                         }
                     }
                     return ClusterState.builder(currentState)
@@ -455,8 +457,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // We should end snapshot only if 1) we didn't accept it for processing (which happens when there
                     // is nothing to do) and 2) there was a snapshot in metadata that we should end. Otherwise we should
                     // go ahead and continue working on this snapshot rather then end here.
-                    if (!accepted && updatedSnapshot != null) {
-                        endSnapshot(updatedSnapshot, failure);
+                    if (endSnapshot != null) {
+                        endSnapshot(endSnapshot, failure);
                     }
                 }
             });
@@ -1164,7 +1166,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // snapshot is still initializing, mark it as aborted
                         shards = snapshotEntry.shards();
 
-                    } else if (snapshotEntry.state() == State.STARTED) {
+                    } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshotEntry.shards()) {

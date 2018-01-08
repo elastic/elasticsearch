@@ -88,7 +88,7 @@ public class DependenciesInfoTask extends DefaultTask {
      * <u>
      *     <li><em>UNKNOWN</em> if LICENSE file is not present for this dependency.</li>
      *     <li><em>one SPDX identifier</em> if the LICENSE content matches with an SPDX license.</li>
-     *     <li><em>Custom:URL</em> if it's not an SPDX license,
+     *     <li><em>Custom;URL</em> if it's not an SPDX license,
      *          URL is the Github URL to the LICENSE file in elasticsearch repository.</li>
      * </ul>
      *
@@ -116,7 +116,7 @@ public class DependenciesInfoTask extends DefaultTask {
                 // As we have the license file, we create a Custom entry with the URL to this license file.
                 final gitBranch = System.getProperty('build.branch', 'master')
                 final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/${gitBranch}/"
-                return "Custom:${license.getCanonicalPath().replaceFirst('.*/elasticsearch/', githubBaseURL)}"
+                return "Custom;${license.getCanonicalPath().replaceFirst('.*/elasticsearch/', githubBaseURL)}"
             }
             return spdx
         } else {
@@ -156,10 +156,10 @@ public class DependenciesInfoTask extends DefaultTask {
                 spdx = 'LGPL-3.0'
                 break
             case ~/.*${CDDL_1_0}.*/:
-                spdx = 'CDDL_1_0'
+                spdx = 'CDDL-1.0'
                 break
             case ~/.*${CDDL_1_1}.*/:
-                spdx = 'CDDL_1_1'
+                spdx = 'CDDL-1.1'
                 break
             case ~/.*${ICU}.*/:
                 spdx = 'ICU'

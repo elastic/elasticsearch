@@ -32,6 +32,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -289,12 +290,12 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             spawner.spawnNativePluginControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final IllegalStateException e =
-                    expectThrows(IllegalStateException.class, () -> spawner.spawnNativePluginControllers(environment));
+            final FileSystemException e =
+                    expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
             if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
+                assertThat(e, instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e.getCause().getMessage(), hasToString(containsString("Not a directory")));
+                assertThat(e, hasToString(containsString("Not a directory")));
             }
         }
     }

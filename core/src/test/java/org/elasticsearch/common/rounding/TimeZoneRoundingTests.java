@@ -515,6 +515,56 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
+     * Test for a time zone whose days overlap because the clocks are set back across midnight at the end of DST.
+     */
+    public void testDST_America_St_Johns() {
+        // time zone "America/St_Johns", rounding to days.
+        DateTimeUnit timeUnit = DateTimeUnit.DAY_OF_MONTH;
+        DateTimeZone tz = DateTimeZone.forID("America/St_Johns");
+        Rounding rounding = new TimeUnitRounding(timeUnit, tz);
+
+        // 29 October 2006 - Daylight Saving Time ended, changing the UTC offset from -02:30 to -03:30.
+        // This happened at 02:31 UTC, 00:01 local time, so the clocks were set back 1 hour to 23:01 on the 28th.
+        // This means that 2006-10-29 has _two_ midnights, one in the -02:30 offset and one in the -03:30 offset.
+        // Both of these are "rounded" even though they are only an hour apart.
+
+        {
+            // Times before the first midnight should be rounded up to the first midnight.
+            long timeBeforeFirstMidnight = time("2006-10-28T23:30:00.000-02:30");
+            long floor = rounding.round(timeBeforeFirstMidnight);
+            assertThat(floor, isDate(time("2006-10-28T00:00:00.000-02:30"), tz));
+            long ceiling = rounding.nextRoundingValue(timeBeforeFirstMidnight);
+            assertThat(ceiling, isDate(time("2006-10-29T00:00:00.000-02:30"), tz));
+            assertInterval(floor, timeBeforeFirstMidnight, ceiling, rounding, tz);
+        }
+
+        {
+            // Times after the second midnight should be rounded down to the second midnight.
+            long timeAfterSecondMidnight = time("2006-10-29T06:00:00.000-03:30");
+            long floor = rounding.round(timeAfterSecondMidnight);
+            assertThat(floor, isDate(time("2006-10-29T00:00:00.000-03:30"), tz));
+            long ceiling = rounding.nextRoundingValue(timeAfterSecondMidnight);
+            assertThat(ceiling, isDate(time("2006-10-30T00:00:00.000-03:30"), tz));
+            assertInterval(floor, timeAfterSecondMidnight, ceiling, rounding, tz);
+        }
+
+        {
+            // Times between the two midnights should be rounded down to the first one and up to the second.
+            long timeBetweenMidnights = time("2006-10-28T23:30:00.000-03:30");
+            // (this is halfway through the hour after the clocks changed, in which local time was ambiguous)
+
+            long floor = rounding.round(timeBetweenMidnights);
+            assertThat(floor, isDate(time("2006-10-29T00:00:00.000-02:30"), tz));
+            // Yes, this really rounds a time on 2006-10-28 _down_ to give a time on 2006-10-29. Note the offsets.
+
+            long ceiling = rounding.nextRoundingValue(timeBetweenMidnights);
+            assertThat(ceiling, isDate(time("2006-10-29T00:00:00.000-03:30"), tz));
+
+            assertInterval(floor, timeBetweenMidnights, ceiling, rounding, tz);
+        }
+    }
+
+    /**
      * tests for dst transition with overlaps and day roundings.
      */
     public void testDST_END_Edgecases() {
@@ -527,11 +577,15 @@ public class TimeZoneRoundingTests extends ESTestCase {
 
         // Sunday, 29 October 2000, 01:00:00 clocks were turned backward 1 hour
         // to Sunday, 29 October 2000, 00:00:00 local standard time instead
+        // which means there were two midnights that day.
 
         long midnightBeforeTransition = time("2000-10-29T00:00:00", tz);
+        long midnightOfTransition = time("2000-10-29T00:00:00-01:00");
+        assertEquals(60L * 60L * 1000L, midnightOfTransition - midnightBeforeTransition);
         long nextMidnight = time("2000-10-30T00:00:00", tz);
 
-        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+        assertInterval(midnightBeforeTransition, midnightOfTransition, rounding, 60, tz);
+        assertInterval(midnightOfTransition, nextMidnight, rounding, 24 * 60, tz);
 
         // Second case, dst happens at 0am local time, switching back one hour to 23pm local time.
         // We want the overlapping hour to count for the previous day here
@@ -584,9 +638,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
      * @param nextRoundingValue the expected upper end of the rounding interval
      * @param rounding the rounding instance
      */
-    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding,
-            DateTimeZone tz) {
-        assert rounded <= unrounded && unrounded <= nextRoundingValue;
+    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding, DateTimeZone tz) {
         assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
         assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
         assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
@@ -596,14 +648,15 @@ public class TimeZoneRoundingTests extends ESTestCase {
                 isDate(nextRoundingValue, tz));
 
         long dateBetween = dateBetween(rounded, nextRoundingValue);
-        assertThat("dateBetween should round down to roundedDate", rounding.round(dateBetween), isDate(rounded, tz));
-        assertThat("dateBetween should round up to nextRoundingValue", rounding.nextRoundingValue(dateBetween),
-                isDate(nextRoundingValue, tz));
+        assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round down to roundedDate",
+            rounding.round(dateBetween), isDate(rounded, tz));
+        assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round up to nextRoundingValue",
+            rounding.nextRoundingValue(dateBetween), isDate(nextRoundingValue, tz));
     }
 
     private static long dateBetween(long lower, long upper) {
-        long dateBetween = lower + Math.abs((randomLong() % (upper - lower)));
-        assert lower <= dateBetween && dateBetween <= upper;
+        long dateBetween = randomLongBetween(lower, upper - 1);
+        assert lower <= dateBetween && dateBetween < upper;
         return dateBetween;
     }
 
@@ -629,7 +682,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("Expected: " + new DateTime(expected, tz) + " [" + expected + "] ");
+                description.appendText(new DateTime(expected, tz) + " [" + expected + "] ");
             }
 
             @Override

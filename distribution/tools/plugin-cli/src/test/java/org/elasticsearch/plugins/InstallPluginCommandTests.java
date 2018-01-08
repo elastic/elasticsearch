@@ -937,7 +937,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             () -> installPlugin(metaZip, env.v1(), randomFrom(skipJarHellCommand, defaultCommand)));
         assertThat(
             e.getMessage(),
-            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake") + "] already exists; " +
+            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake").resolve("other") + "] already exists; " +
                 "if you need to update the plugin, uninstall it first using command 'remove fake'"));
     }
 

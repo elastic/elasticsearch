@@ -153,7 +153,6 @@ public class NioTransport extends TcpTransport {
 
     private void acceptChannel(NioSocketChannel channel) {
         serverAcceptedChannel((TcpNioSocketChannel) channel);
-
     }
 
     private class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> {

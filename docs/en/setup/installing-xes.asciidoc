@@ -146,11 +146,12 @@ the correct value for your environment, you may consider setting the value to
  `*` which will allow automatic creation of all indices.
 =============================================================================
 
-. Configure passwords and SSL/TLS.
-.. If you have a non-trial license and you want to use {security}, you must
-configure SSL/TLS for internode-communication.
+. Configure Transport Layer Security (TLS/SSL).
 +
 --
+If you have a non-trial license and you want to use {security}, you must
+configure TLS for internode-communication.
+
 NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
 clusters that use a loopback interface do not have this requirement.  For more
@@ -158,46 +159,97 @@ information, see
 {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 
 --
-... Generate node certificates. For example, you can use the `certgen` command
-line tool to generate a certificate authority and signed certificates for your
-nodes.
+.. Generate node certificates. For example, you can use the `certutil` command
+line tool to generate a certificate authority (CA) and signed certificates for
+your nodes. For more information, see <<certutil>>.
+
+... Generate a new Certificate Authority (CA) for your {es} cluster:
 +
 --
 [source,shell]
 ----------------------------------------------------------
-bin/x-pack/certgen
+bin/x-pack/certutil ca
 ----------------------------------------------------------
-This command generates a zip file with the CA certificate, private key, and
-signed certificates and keys in the PEM format for each node that you specify.
-If you want to use a commercial or organization-specific CA, you can use the
-`-csr` parameter to generate certificate signing requests (CSR) for the nodes
-in your cluster. For more information, see <<certgen>>.
 
-TIP: For easier setup, use the node name as the instance name when you run
-this tool.
+You can configure the cluster to trust all nodes that have a certificate that
+has been signed by this CA.
 
+The command outputs a single file, with a default name of `elastic-stack-ca.p12`.
+This file is a PKCS#12 keystore that contains the public certificate for your CA
+and the private key that is used to sign the certificates for each node.
+
+The `certutil` command also prompts you for a password to protect the file and
+key. If you plan to add more nodes to your cluster in the future, retain a copy
+of the file and remember its password.
 --
-... Copy the certificate data into a directory within the {es} configuration
-directory. For example,
-`/home/es/config/certs`.
-... Add the following information to the `elasticsearch.yml` on all nodes:
+
+... Generate a certificate and private key for each node in your cluster:
++
+--
+[source,shell]
+----------------------------------------------------------
+bin/x-pack/certutil cert --ca elastic-stack-ca.p12
+----------------------------------------------------------
+The output is a single PKCS#12 keystore that includes the node certificate, node
+key, and CA certificate.
+
+You are also prompted for a password. You can enter a password for your
+certificate and key, or you can leave the password blank by pressing Enter.
+
+By default `certutil` generates certificates that have no hostname information
+in them (that is, they do not have any Subject Alternative Name fields).
+This means that you can use the certificate for every node in your cluster, but
+you must turn off hostname verification as shown in the configuration below.
+
+If you want to use hostname verification within your cluster, run the
+`certutil cert` command once for each of your nodes and provide the `--name`,
+`--dns` and `--ip` options.
+--
+... Alternatively, if you want to use a commercial or organization-specific CA,
+you can use the `certutil csr` command to generate certificate signing requests
+(CSR) for the nodes in your cluster. For more information, see <<certutil>>.
+
+.. Copy the applicable `.p12` file into a directory within the {es} configuration
+directory on each node. For example, `/home/es/config/certs`. There is no need
+to copy the CA file to this directory.
+
+.. Add the following information to the `elasticsearch.yml` file on each node:
 +
 --
 [source,yaml]
 -----------------------------------------------------------
-xpack.ssl.key: certs/${node.name}/${node.name}.key <1>
-xpack.ssl.certificate: certs/${node.name}/${node.name}.crt <2>
-xpack.ssl.certificate_authorities: certs/ca/ca.crt <3>
+xpack.ssl.keystore.path: certs/elastic-certificates.p12 <1>
+xpack.ssl.truststore.path: certs/elastic-certificates.p12 <2>
+xpack.security.transport.ssl.verification_mode: certificate <3>
 xpack.security.transport.ssl.enabled: true
 -----------------------------------------------------------
-<1> If this path does not exist on every node or the file name does not match
-the `node.name` configuration setting, you must specify the full path to the
-node key file.
-<2> Alternatively, specify the full path to the node certificate.
-<3> Alternatively specify the full path to the CA certificate.
+<1> If you created a separate certificate for each node, then you might need to
+customize this path on each node. If the filename matches the node name, you can
+use the `certs/${node.name}.p12` format, for example.
+<2> The `certutil` output includes the CA certificate inside the PKCS#12
+keystore, therefore the keystore can also be used as the truststore. This name
+should match the `keystore.path` value.
+<3> If you used the `--dns` or `--ip` options with the `certutil cert` command
+and you want to enable strict hostname checking, set the verification mode to
+`full`.
+
+For more information about these settings, see
+{ref}/security-settings.html[Security Settings in {es}].
 --
 
-.. Start {es}.
+.. If you secured the node's PKCS#12 file with a password, then you must add
+the password to your {es} keystore. Run the following commands:
++
+--
+[source,shell]
+-----------------------------------------------------------
+bin/elasticsearch-keystore add xpack.ssl.keystore.secure_password
+
+bin/elasticsearch-keystore add xpack.ssl.truststore.secure_password
+-----------------------------------------------------------
+--
+
+. Start {es}.
 +
 --
 [source,shell]
@@ -206,7 +258,7 @@ bin/elasticsearch
 ----------------------------------------------------------
 --
 
-.. Set the passwords for all built-in users. The +setup-passwords+ command is
+. Set the passwords for all built-in users. The +setup-passwords+ command is
 the simplest method to set the built-in users' passwords for the first time.
 +
 --

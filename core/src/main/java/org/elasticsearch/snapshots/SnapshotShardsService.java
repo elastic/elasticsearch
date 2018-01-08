@@ -230,9 +230,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // state update, which is being processed here
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().shards.values()) {
                     final IndexShardSnapshotStatus.Stage stage = snapshotStatus.asCopy().getStage();
-                    if (stage == Stage.INIT || stage == Stage.STARTED) {
-                        snapshotStatus.moveToAborted("snapshot has been removed in cluster state, aborting");
-                    }
+                    snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
                 }
             }
         }
@@ -278,33 +276,26 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // Abort all running shards for this snapshot
                     SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshot());
                     if (snapshotShards != null) {
+                        final String failure = "snapshot has been aborted";
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
 
                             final IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.key);
                             if (snapshotStatus != null) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.abortIfNotCompleted(failure);
                                 final Stage stage = lastSnapshotStatus.getStage();
-                                switch (stage) {
-                                    case INIT:
-                                    case STARTED:
-                                        snapshotStatus.moveToAborted("snapshot has been aborted");
-                                        break;
-                                    case FINALIZE:
-                                        logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +
-                                                     "letting it finish", entry.snapshot(), shard.key);
-                                        break;
-                                    case DONE:
-                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, " +
-                                                     "updating status on the master", entry.snapshot(), shard.key);
-                                        notifySuccessfulSnapshotShard(entry.snapshot(), shard.key, localNodeId);
-                                        break;
-                                    case FAILURE:
-                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, " +
-                                                     "updating status on the master", entry.snapshot(), shard.key);
-                                        notifyFailedSnapshotShard(entry.snapshot(), shard.key, localNodeId, lastSnapshotStatus.getFailure());
-                                        break;
-                                    default:
-                                        throw new IllegalStateException("Unknown snapshot shard stage " + stage);
+                                if (stage == Stage.FINALIZE) {
+                                    logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +
+                                        "letting it finish", entry.snapshot(), shard.key);
+
+                                } else if (stage == Stage.DONE) {
+                                    logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, " +
+                                        "updating status on the master", entry.snapshot(), shard.key);
+                                    notifySuccessfulSnapshotShard(entry.snapshot(), shard.key, localNodeId);
+
+                                }  else if (stage == Stage.FAILURE) {
+                                    logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, " +
+                                        "updating status on the master", entry.snapshot(), shard.key);
+                                    notifyFailedSnapshotShard(entry.snapshot(), shard.key, localNodeId, lastSnapshotStatus.getFailure());
                                 }
                             }
                         }

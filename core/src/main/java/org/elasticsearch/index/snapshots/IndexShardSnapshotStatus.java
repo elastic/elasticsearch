@@ -64,9 +64,9 @@ public class IndexShardSnapshotStatus {
     private long startTime;
     private long totalTime;
     private int numberOfFiles;
-    private volatile int processedFiles;
+    private int processedFiles;
     private long totalSize;
-    private volatile long processedSize;
+    private long processedSize;
     private long indexVersion;
     private String failure;
 
@@ -85,41 +85,49 @@ public class IndexShardSnapshotStatus {
     }
 
     public synchronized Copy moveToStarted(final long startTime, final int numberOfFiles, final long totalSize) {
-        ensureNotAborted();
         if (stage.compareAndSet(Stage.INIT, Stage.STARTED)) {
             this.startTime = startTime;
             this.numberOfFiles = numberOfFiles;
             this.totalSize = totalSize;
         } else {
-            throw new IllegalStateException("Unable to move the shard snapshot status to started: it is not initializing");
+            throw new IllegalStateException("Unable to move the shard snapshot status to [STARTED]: " +
+                "expecting [INIT] but got [" + stage.get() + "]");
         }
         return asCopy();
     }
 
     public synchronized Copy moveToFinalize(final long indexVersion) {
-        ensureNotAborted();
         if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
             this.indexVersion = indexVersion;
         } else {
-            throw new IllegalStateException("Unable to move the shard snapshot status to finalize: it is not started");
+            throw new IllegalStateException("Unable to move the shard snapshot status to [FINALIZE]: " +
+                "expecting [STARTED] but got [" + stage.get() + "]");
         }
         return asCopy();
     }
 
     public synchronized Copy moveToDone(final long endTime) {
-        ensureNotAborted();
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
             this.totalTime = Math.max(0L, endTime - startTime);
         } else {
-            throw new IllegalStateException("Unable to move the shard snapshot status to done: it is not finalizing");
+            throw new IllegalStateException("Unable to move the shard snapshot status to [DONE]: " +
+                "expecting [FINALIZE] but got [" + stage.get() + "]");
         }
         return asCopy();
     }
 
-    public synchronized void moveToAborted(final String failure) {
+    public synchronized Copy moveToAborted(final String failure) {
         if (stage.getAndSet(Stage.ABORTED) != Stage.ABORTED) {
             this.failure = failure;
         }
+        return asCopy();
+    }
+
+    public synchronized Copy abortIfNotCompleted(final String failure) {
+        if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
+            this.failure = failure;
+        }
+        return asCopy();
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {

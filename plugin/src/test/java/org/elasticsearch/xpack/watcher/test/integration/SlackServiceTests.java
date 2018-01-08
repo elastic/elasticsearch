@@ -56,7 +56,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         SlackService service = getInstanceFromMaster(SlackService.class);
         Attachment[] attachments = new Attachment[] {
                 new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext `code` *bold*", "author_name", null, null,
-                        "title", null, "_text `code` *bold*", null, null, null, new String[] { "text", "pretext" })
+                        "title あいうえお", null, "_text `code` *bold*", null, null, null, new String[] { "text", "pretext" })
         };
         SlackMessage message = new SlackMessage(
                 "SlackServiceTests",

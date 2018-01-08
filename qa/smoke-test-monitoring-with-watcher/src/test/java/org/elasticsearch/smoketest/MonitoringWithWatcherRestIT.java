@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.MINUTES;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.client:TRACE")
+@TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After

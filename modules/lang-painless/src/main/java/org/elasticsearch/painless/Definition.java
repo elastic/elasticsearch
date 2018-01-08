@@ -41,6 +41,9 @@ import java.util.regex.Pattern;
  */
 public final class Definition {
 
+    private static final Map<String, Method> methodCache = new HashMap<>();
+    private static final Map<String, Field> fieldCache = new HashMap<>();
+
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
     public static final String[] DEFINITION_FILES = new String[] {
@@ -533,6 +536,43 @@ public final class Definition {
         return simpleTypesMap.values();
     }
 
+    private static Method putMethodInCache(Method method) {
+        StringBuilder key = new StringBuilder();
+        key.append(method.owner.name);
+        key.append(method.name);
+
+        for (Type argument : method.arguments) {
+            key.append(argument.name);
+        }
+
+        Method cached = methodCache.get(key.toString());
+
+        if (cached == null) {
+            methodCache.put(key.toString(), method);
+
+            return method;
+        } else {
+            return cached;
+        }
+    }
+
+    private static Field putFieldInCache(Field field) {
+        StringBuilder key = new StringBuilder();
+        key.append(field.owner.name);
+        key.append(field.name);
+        key.append(field.type.name);
+
+        Field cached = fieldCache.get(key.toString());
+
+        if (cached == null) {
+            fieldCache.put(key.toString(), field);
+
+            return field;
+        } else {
+            return cached;
+        }
+    }
+
     // INTERNAL IMPLEMENTATION:
 
     private final Map<Class<?>, RuntimeClass> runtimeMap;
@@ -941,7 +981,7 @@ public final class Definition {
 
                 painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType,
                     painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
-                ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
+                ownerStruct.staticMethods.put(painlessMethodKey, putMethodInCache(painlessMethod));
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                     painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
                 throw new IllegalArgumentException("illegal duplicate static methods [" + painlessMethodKey + "] " +
@@ -965,7 +1005,7 @@ public final class Definition {
 
                 painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
                     painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
-                ownerStruct.methods.put(painlessMethodKey, painlessMethod);
+                ownerStruct.methods.put(painlessMethodKey, putMethodInCache(painlessMethod));
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                 painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
                 throw new IllegalArgumentException("illegal duplicate member methods [" + painlessMethodKey + "] " +
@@ -1018,7 +1058,7 @@ public final class Definition {
             if (painlessField == null) {
                 painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
                     ownerStruct, painlessFieldType, javaField.getModifiers(), null, null);
-                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, putFieldInCache(painlessField));
             } else if (painlessField.type.equals(painlessFieldType) == false) {
                 throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
@@ -1042,7 +1082,7 @@ public final class Definition {
             if (painlessField == null) {
                 painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
                     ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter);
-                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, putFieldInCache(painlessField));
             } else if (painlessField.type.equals(painlessFieldType) == false) {
                 throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");

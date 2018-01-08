@@ -30,13 +30,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +56,12 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
     public static final Version SUPPORTED_IN_VERSION = Version.V_6_1_0;
     public static final String FIELD_XDL_SUFFIX = "__xdl";
 
+    public static class Names {
+        public static final ParseField WRAP_DATELINE = new ParseField("wrap_dateline");
+    }
+
     public static class Defaults {
+        public static final Explicit<Boolean> WRAP_DATELINE = new Explicit<>(false, false);
         public static final GeoBoundingBoxFieldType FIELD_TYPE = new GeoBoundingBoxFieldType();
         static {
             FIELD_TYPE.setTokenized(false);
@@ -63,22 +72,37 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, GeoBoundingBoxFieldMapper> {
+        protected Boolean wrapDateline;
+
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
+        public Builder wrapDateline(boolean wrapDateline) {
+            this.wrapDateline = wrapDateline;
+            return builder;
+        }
+
+        protected Explicit<Boolean> wrapDateline() {
+            if (wrapDateline != null) {
+                return new Explicit<>(wrapDateline, true);
+            }
+            return Defaults.WRAP_DATELINE;
+        }
+
         public GeoBoundingBoxFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                                MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields,
-                                               CopyTo copyTo) {
+                                               Explicit<Boolean> wrapDateline, CopyTo copyTo) {
             setupFieldType(context);
-            return new GeoBoundingBoxFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            return new GeoBoundingBoxFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
+                wrapDateline, copyTo);
         }
 
         @Override
         public GeoBoundingBoxFieldMapper build(BuilderContext context) {
             return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
-                multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), wrapDateline(), copyTo);
         }
 
         /** todo add support for docValues */
@@ -97,13 +121,37 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
                 throws MapperParsingException {
             Builder builder = new GeoBoundingBoxFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String propName = entry.getKey();
+                Object propNode = entry.getValue();
+
+                if (propName.equals(Names.WRAP_DATELINE.getPreferredName())) {
+                    builder.wrapDateline(TypeParsers.nodeBooleanValue(name, Names.WRAP_DATELINE.getPreferredName(),
+                        propNode, parserContext));
+                    iterator.remove();
+                }
+            }
             return builder;
         }
     }
 
+    protected Explicit<Boolean> wrapDateline;
+
     public GeoBoundingBoxFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                     Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                     Settings indexSettings, MultiFields multiFields, Explicit<Boolean> wrapDateline,
+                                     CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        this.wrapDateline = wrapDateline;
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        GeoBoundingBoxFieldMapper gbbfmMergeWith = (GeoBoundingBoxFieldMapper) mergeWith;
+        if (gbbfmMergeWith.wrapDateline.explicit()) {
+            this.wrapDateline = gbbfmMergeWith.wrapDateline;
+        }
     }
 
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
@@ -112,11 +160,19 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
+        if (wrapDateline.value() && context.doc().getField(name()) != null) {
+            throw new ElasticsearchParseException("failed to index [{}] field. [{}] type does not support "
+                + "multivalues when [{}] parameter is set to [{}]", name(), CONTENT_TYPE, Names.WRAP_DATELINE, wrapDateline.value());
+        }
         context.path().add(simpleName());
         Rectangle rect = context.parseExternalValue(Rectangle.class);
         try {
             if (rect == null) {
                 rect = parseBoundingBox(context.parser());
+            }
+            if (rect.crossesDateline() && wrapDateline.value() == false) {
+                throw new ElasticsearchParseException("failed to index [{}] field. Box crosses dateline but [{}] parameter "
+                    + "is set to [{}]", name(), Names.WRAP_DATELINE, wrapDateline.value());
             }
             indexFields(context, rect);
         } catch (Exception e) {
@@ -210,6 +266,14 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
+        }
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+        if (includeDefaults || wrapDateline.explicit()) {
+            builder.field(Names.WRAP_DATELINE.getPreferredName(), wrapDateline.value());
         }
     }
 }

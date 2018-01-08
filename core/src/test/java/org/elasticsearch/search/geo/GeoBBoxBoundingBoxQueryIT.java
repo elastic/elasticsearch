@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.GeoBoundingBoxFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.SearchHit;
 
@@ -29,6 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 import static org.elasticsearch.common.geo.GeoUtils.MAX_LON;
@@ -315,5 +317,100 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
                     .setCorners(90, 0, -90, 360).type("indexed")
             ).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+    }
+
+    public void testMultivalueWithWrapDateline() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
+            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+
+        try {
+            // multi values
+            client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "BBox 1")
+                .startArray("location")
+                .startObject()
+                .field("top_left", new GeoPoint(40.0, -74.0059731))
+                .field("bottom_right", new GeoPoint(39.0 , -73.0059731))
+                .endObject()
+                .startObject()
+                .field("top_left", new GeoPoint(-40.0, -74.0))
+                .field("bottom_right", new GeoPoint(-41.0, -73.0))
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        } catch (Exception e) {
+            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. [geo_bounding_box] type does not support "
+                + "multivalues when [wrap_dateline] parameter is set to [true]"));
+        }
+    }
+
+    public void testMulivalueMixedDatelineCrossing() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+
+        try {
+            // Not crossing
+            client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "BBox 1")
+                .startArray("location")
+                .startObject()
+                .field("top_left", new GeoPoint(40.0, -74.0059731))
+                .field("bottom_right", new GeoPoint(39.0, -73.0059731))
+                .endObject()
+                .startObject()
+                .field("top_left", new GeoPoint(-40.0, -74.0))
+                .field("bottom_right", new GeoPoint(-41.0, -73.0))
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+            // XDL
+            client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("name", "BBox 2 - xdl")
+                .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
+                .field("bottom_right", new GeoPoint(39.0, -179.0)).endObject()
+                .endObject()).execute().actionGet();
+        } catch (Exception e) {
+            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. Box crosses "
+                + "dateline but [wrap_dateline] parameter is set to [false]"));
+        }
+    }
+
+    public void testMulivalue() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+
+        // Not crossing
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+            .field("name", "BBox 1")
+            .startArray("location")
+            .startObject()
+            .field("top_left", new GeoPoint(40.0, -74.0059731))
+            .field("bottom_right", new GeoPoint(39.0, -73.0059731))
+            .endObject()
+            .startObject()
+            .field("top_left", new GeoPoint(-40.0, -74.0))
+            .field("bottom_right", new GeoPoint(-41.0, -73.0))
+            .endObject()
+            .endArray()
+            .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+            .field("name", "BBox 2 - xdl")
+            .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
+            .field("bottom_right", new GeoPoint(39.0, 179.9)).endObject()
+            .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
     }
 }

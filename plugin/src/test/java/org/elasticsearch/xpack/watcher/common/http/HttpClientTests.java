@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -21,12 +23,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.TestsSSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -493,5 +495,22 @@ public class HttpClientTests extends ESTestCase {
         HttpResponse response = httpClient.execute(request);
         assertThat(response.body(), is(nullValue()));
         assertThat(webServer.requests(), hasSize(1));
+    }
+
+    public void testThatBodyWithUTF8Content() throws Exception {
+        String body = "title あいうえお";
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(body));
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
+                .path("/")
+                .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
+                .body(body)
+                .build();
+        HttpResponse response = httpClient.execute(request);
+        assertThat(response.body().utf8ToString(), is(body));
+
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+        assertThat(webServer.requests().get(0).getBody(), is(body));
     }
 }

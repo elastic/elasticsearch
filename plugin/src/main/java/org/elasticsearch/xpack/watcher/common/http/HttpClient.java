@@ -23,7 +23,8 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
@@ -38,10 +39,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
@@ -104,8 +105,15 @@ public class HttpClient extends AbstractComponent {
             internalRequest = new HttpHead(uri);
         } else {
             HttpMethodWithEntity methodWithEntity = new HttpMethodWithEntity(uri, request.method.name());
-            if (request.body != null) {
-                methodWithEntity.setEntity(new StringEntity(request.body));
+            if (request.hasBody()) {
+                ByteArrayEntity entity = new ByteArrayEntity(request.body.getBytes(StandardCharsets.UTF_8));
+                String contentType = request.headers().get(HttpHeaders.CONTENT_TYPE);
+                if (Strings.hasLength(contentType)) {
+                    entity.setContentType(contentType);
+                } else {
+                    entity.setContentType(ContentType.TEXT_PLAIN.toString());
+                }
+                methodWithEntity.setEntity(entity);
             }
             internalRequest = methodWithEntity;
         }

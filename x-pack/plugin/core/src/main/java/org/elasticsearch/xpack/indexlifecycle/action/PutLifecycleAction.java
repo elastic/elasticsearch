@@ -13,11 +13,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -106,10 +104,10 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static final ParseField POLICY_FIELD = new ParseField("policy");
-        private static final ConstructingObjectParser<Request, Tuple<String, NamedXContentRegistry>> PARSER =
+        private static final ConstructingObjectParser<Request, String> PARSER =
             new ConstructingObjectParser<>("put_lifecycle_request", a -> new Request((LifecyclePolicy) a[0]));
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> LifecyclePolicy.parse(p, c), POLICY_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, name) -> LifecyclePolicy.parse(p, name), POLICY_FIELD);
         }
         
         private LifecyclePolicy policy;
@@ -130,8 +128,8 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
             return null;
         }
 
-        public static Request parseRequest(String name, XContentParser parser, NamedXContentRegistry namedXContentRegistry) {
-            return PARSER.apply(parser, new Tuple<>(name, namedXContentRegistry));
+        public static Request parseRequest(String name, XContentParser parser) {
+            return PARSER.apply(parser, name);
         }
 
         @Override

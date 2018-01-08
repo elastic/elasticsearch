@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -17,9 +18,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,17 +30,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTestCase<MetaData.Custom> {
-
-    private NamedXContentRegistry registry;
-
-    @Before
-    public void setup() {
-        List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                        new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                                (p) -> TestLifecycleType.INSTANCE));
-        registry = new NamedXContentRegistry(entries);
-    }
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
@@ -65,7 +55,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
 
     @Override
     protected IndexLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
-        return IndexLifecycleMetadata.PARSER.apply(parser, registry);
+        return IndexLifecycleMetadata.PARSER.apply(parser, null);
     }
 
     @Override
@@ -78,6 +68,15 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
                         new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
+                (p) -> TestLifecycleType.INSTANCE));
+        return new NamedXContentRegistry(entries);
     }
 
     @Override

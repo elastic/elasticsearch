@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,11 +35,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     private Phase secondPhase;
     private Phase thirdPhase;
     private LifecyclePolicy policy;
-    private NamedXContentRegistry registry;
 
     @Override
     protected LifecyclePolicy doParseInstance(XContentParser parser) throws IOException {
-        return LifecyclePolicy.parse(parser, new Tuple<String, NamedXContentRegistry>(lifecycleName, registry));
+        return LifecyclePolicy.parse(parser, lifecycleName);
     }
 
     @Override
@@ -46,6 +46,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
                         new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
+                (p) -> TestLifecycleType.INSTANCE));
+        return new NamedXContentRegistry(entries);
     }
 
     @Override
@@ -91,11 +100,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     @Before
     public void setupPolicy() {
-        List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                        new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                                (p) -> TestLifecycleType.INSTANCE));
-        registry = new NamedXContentRegistry(entries);
         indexName = randomAlphaOfLengthBetween(1, 20);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();

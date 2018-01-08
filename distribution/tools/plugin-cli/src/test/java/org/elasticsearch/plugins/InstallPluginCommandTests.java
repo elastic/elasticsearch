@@ -932,12 +932,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         writePlugin("fake", pluginDir.resolve("fake"), false);
         Files.createDirectory(pluginDir.resolve("other"));
         writePlugin("other", pluginDir.resolve("other"), false);
-        String metaZip = createMetaPluginUrl("other", pluginDir);
+        String metaZip = createMetaPluginUrl("meta", pluginDir);
         final UserException e = expectThrows(UserException.class,
             () -> installPlugin(metaZip, env.v1(), randomFrom(skipJarHellCommand, defaultCommand)));
         assertThat(
             e.getMessage(),
-            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake").resolve("other") + "] already exists; " +
+            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake") + "] already exists; " +
                 "if you need to update the plugin, uninstall it first using command 'remove fake'"));
     }
 

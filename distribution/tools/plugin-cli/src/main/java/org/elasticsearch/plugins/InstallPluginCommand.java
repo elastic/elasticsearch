@@ -549,16 +549,17 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // checks meta plugins too
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginPath)) {
             for (Path plugin : stream) {
-                if (candidateDir.equals(plugin.resolve(pluginName)) || MetaPluginInfo.isPropertiesFile(plugin)) {
+                if (candidateDir.equals(plugin.resolve(pluginName))) {
                     continue;
                 }
                 if (MetaPluginInfo.isMetaPlugin(plugin) && Files.exists(plugin.resolve(pluginName))) {
+                    final MetaPluginInfo info = MetaPluginInfo.readFromProperties(plugin);
                     final String message = String.format(
                         Locale.ROOT,
-                        "plugin directory [%s] already exists; if you need to update the plugin, " +
+                        "plugin name [%s] already exists in a meta plugin; if you need to update the meta plugin, " +
                             "uninstall it first using command 'remove %s'",
                         plugin.resolve(pluginName).toAbsolutePath(),
-                        plugin.getFileName().toString());
+                        info.getName());
                     throw new UserException(PLUGIN_EXISTS, message);
                 }
             }

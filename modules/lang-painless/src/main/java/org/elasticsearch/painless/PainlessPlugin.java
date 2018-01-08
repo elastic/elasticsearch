@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -34,12 +35,7 @@ import java.util.List;
 /**
  * Registers Painless as a plugin.
  */
-public final class PainlessPlugin extends Plugin implements ScriptPlugin {
-
-    // force to parse our definition at startup (not on the user's first script)
-    static {
-        Definition.DEFINITION.hashCode();
-    }
+public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {

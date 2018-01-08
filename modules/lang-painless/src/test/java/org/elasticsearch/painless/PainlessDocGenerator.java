@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,6 @@ import java.util.function.Consumer;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.painless.Definition.DEFINITION;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link Definition}.
@@ -68,7 +68,9 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Type> types = DEFINITION.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<Type> types = new Definition(Collections.singletonList(
+                    WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES))).
+                    allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
                 if (type.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference

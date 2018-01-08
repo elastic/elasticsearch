@@ -67,6 +67,7 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
+        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
@@ -88,14 +89,15 @@ public class UnifiedHighlighter implements Highlighter {
                 // get back a snippet per value
                 CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
                 highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
-                    field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue, field.fieldOptions().noMatchSize());
+                    field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue, field.fieldOptions().noMatchSize(),
+                    maxAnalyzedOffset);
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
                 BreakIterator bi = getBreakIterator(field);
                 highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
                     field.fieldOptions().boundaryScannerLocale(), bi,
-                    fieldValue, field.fieldOptions().noMatchSize());
+                    fieldValue, field.fieldOptions().noMatchSize(), maxAnalyzedOffset);
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
 

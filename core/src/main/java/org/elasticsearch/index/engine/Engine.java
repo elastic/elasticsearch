@@ -568,28 +568,7 @@ public abstract class Engine implements Closeable {
      * @return the sequence number service
      */
     public abstract LocalCheckpointTracker getLocalCheckpointTracker();
-
-    /**
-     * Read the last segments info from the commit pointed to by the searcher manager
-     */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final ReferenceManager<IndexSearcher> sm, final Store store) throws IOException {
-        IndexSearcher searcher = sm.acquire();
-        try {
-            IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
-            return Lucene.readSegmentInfos(latestCommit);
-        } catch (IOException e) {
-            // Fall back to reading from the store if reading from the commit fails
-            try {
-                return store.readLastCommittedSegmentsInfo();
-            } catch (IOException e2) {
-                e2.addSuppressed(e);
-                throw e2;
-            }
-        } finally {
-            sm.release(searcher);
-        }
-    }
-
+    
     /**
      * Global stats on segments.
      */

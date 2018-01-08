@@ -696,7 +696,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
         ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
-        ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class); //deprecated in 6.0
+        ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
         ids.put(31, org.elasticsearch.indices.InvalidAliasNameException.class);
@@ -748,7 +748,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
         ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
         ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
-        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class); //deprecated in 6.0
+        ids.put(80, null); // was IndexFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);

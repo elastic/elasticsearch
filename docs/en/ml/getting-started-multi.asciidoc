@@ -76,7 +76,7 @@ wizard in {kib}, you can accomplish this split by using the
 
 --
 
-.. For the **Key Fields**, select `host`. Note that the `service` field
+.. For the **Key Fields (Influencers)**, select `host`. Note that the `service` field
 is also automatically selected because you used it to split the data. These key
 fields are also known as _influencers_.
 When you identify a field as an influencer, you are indicating that you think
@@ -108,21 +108,22 @@ overwhelming and there is a small overhead to the analysis.
 
 . Click **Use full server-metrics* data**. Two graphs are generated for each
 `service` value, which represent the high mean `response` values and
-sum `total` values over time.
-//TBD What is the use of the document count table?
+sum `total` values over time. For example:
++
+--
+[role="screenshot"]
+image::images/ml-gs-job2-split.jpg["Kibana charts for data split by service"]
+--
 
 . Provide a name for the job, for example `response_requests_by_app`. The job
 name must be unique in your cluster. You can also optionally provide a
 description of the job.
 
-. Click **Create Job**. As the job is created, the graphs are updated to give a
-visual representation of the progress of {ml} as the data is processed. For
-example:
-+
---
-[role="screenshot"]
-image::images/ml-gs-job2-results.jpg["Job results updating as data is processed"]
---
+. Click **Create Job**.
+
+When the job is created, you can choose to view the results, continue the job in
+real-time, and create a watch. In this tutorial, we will proceed to view the
+results.
 
 TIP: The `create_multi_metic.sh` script creates a similar job and {dfeed} by
 using the {ml} APIs. You can download that script by clicking

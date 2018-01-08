@@ -277,7 +277,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // we only find a template when its an API call (a new index)
                 // find templates, highest order are better matching
-                List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
                 Map<String, Custom> customs = new HashMap<>();
 
@@ -563,22 +563,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             }
             super.onFailure(source, e);
-        }
-
-        private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
-            List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
-            for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
-                IndexTemplateMetaData metadata = cursor.value;
-                for (String template: metadata.patterns()) {
-                    if (Regex.simpleMatch(template, request.index())) {
-                        templateMetadata.add(metadata);
-                        break;
-                    }
-                }
-            }
-
-            CollectionUtil.timSort(templateMetadata, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
-            return templateMetadata;
         }
     }
 

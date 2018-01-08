@@ -84,6 +84,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -397,6 +398,19 @@ public class TasksIT extends ESIntegTestCase {
             assertThat(taskInfo.getDescription().length(), greaterThan(0));
         }
 
+    }
+
+    public void testSearchTaskHeaderLimit() {
+        int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Opaque-Id", "my_id");
+        headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().filterWithHeader(headers).admin().cluster().prepareListTasks().get()
+        );
+        assertThat(ex.getMessage(), startsWith("Request exceeded the maximum size of task headers "));
     }
 
     private void assertTaskHeaders(TaskInfo taskInfo) {

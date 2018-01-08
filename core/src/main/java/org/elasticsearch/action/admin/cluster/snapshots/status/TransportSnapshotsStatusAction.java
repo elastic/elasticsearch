@@ -233,7 +233,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     Map<ShardId, IndexShardSnapshotStatus> shardStatues =
                         snapshotsService.snapshotShards(request.repository(), snapshotInfo);
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
-                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
+                        IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
+                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
                     }
                     final SnapshotsInProgress.State state;
                     switch (snapshotInfo.state()) {

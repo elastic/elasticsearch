@@ -19,6 +19,12 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Represent shard snapshot status
  */
@@ -47,119 +53,86 @@ public class IndexShardSnapshotStatus {
         /**
          * Snapshot failed
          */
-        FAILURE
+        FAILURE,
+        /**
+         * Snapshot aborted
+         */
+        ABORTED
     }
 
-    private Stage stage = Stage.INIT;
-
+    private final AtomicReference<Stage> stage;
     private long startTime;
-
-    private long time;
-
+    private long totalTime;
     private int numberOfFiles;
-
     private volatile int processedFiles;
-
     private long totalSize;
-
     private volatile long processedSize;
-
     private long indexVersion;
-
-    private volatile boolean aborted;
-
     private String failure;
 
-    /**
-     * Returns current snapshot stage
-     *
-     * @return current snapshot stage
-     */
-    public Stage stage() {
-        return this.stage;
-    }
-
-    /**
-     * Sets new snapshot stage
-     *
-     * @param stage new snapshot stage
-     */
-    public void updateStage(Stage stage) {
-        this.stage = stage;
-    }
-
-    /**
-     * Returns snapshot start time
-     *
-     * @return snapshot start time
-     */
-    public long startTime() {
-        return this.startTime;
-    }
-
-    /**
-     * Sets snapshot start time
-     *
-     * @param startTime snapshot start time
-     */
-    public void startTime(long startTime) {
+    private IndexShardSnapshotStatus(final Stage stage, final long startTime, final long totalTime,
+                                     final int numberOfFiles, final int processedFiles, final long totalSize, final long processedSize,
+                                     final long indexVersion, final String failure) {
+        this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.startTime = startTime;
-    }
-
-    /**
-     * Returns snapshot processing time
-     *
-     * @return processing time
-     */
-    public long time() {
-        return this.time;
-    }
-
-    /**
-     * Sets snapshot processing time
-     *
-     * @param time snapshot processing time
-     */
-    public void time(long time) {
-        this.time = time;
-    }
-
-    /**
-     * Returns true if snapshot process was aborted
-     *
-     * @return true if snapshot process was aborted
-     */
-    public boolean aborted() {
-        return this.aborted;
-    }
-
-    /**
-     * Marks snapshot as aborted
-     */
-    public void abort() {
-        this.aborted = true;
-    }
-
-    /**
-     * Sets files stats
-     *
-     * @param numberOfFiles number of files in this snapshot
-     * @param totalSize     total size of files in this snapshot
-     */
-    public void files(int numberOfFiles, long totalSize) {
+        this.totalTime = totalTime;
         this.numberOfFiles = numberOfFiles;
+        this.processedFiles = processedFiles;
         this.totalSize = totalSize;
+        this.processedSize = processedSize;
+        this.indexVersion = indexVersion;
+        this.failure = failure;
     }
 
-    /**
-     * Sets processed files stats
-     *
-     * @param numberOfFiles number of files in this snapshot
-     * @param totalSize     total size of files in this snapshot
-     */
-    public synchronized void processedFiles(int numberOfFiles, long totalSize) {
-        processedFiles = numberOfFiles;
-        processedSize = totalSize;
+    public synchronized Copy moveToStarted(final long startTime, final int numberOfFiles, final long totalSize) {
+        ensureNotAborted();
+        if (stage.compareAndSet(Stage.INIT, Stage.STARTED)) {
+            this.startTime = startTime;
+            this.numberOfFiles = numberOfFiles;
+            this.totalSize = totalSize;
+        } else {
+            throw new IllegalStateException("Unable to move the shard snapshot status to started: it is not initializing");
+        }
+        return asCopy();
+    }
+
+    public synchronized Copy moveToFinalize(final long indexVersion) {
+        ensureNotAborted();
+        if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
+            this.indexVersion = indexVersion;
+        } else {
+            throw new IllegalStateException("Unable to move the shard snapshot status to finalize: it is not started");
+        }
+        return asCopy();
+    }
+
+    public synchronized Copy moveToDone(final long endTime) {
+        ensureNotAborted();
+        if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
+            this.totalTime = Math.max(0L, endTime - startTime);
+        } else {
+            throw new IllegalStateException("Unable to move the shard snapshot status to done: it is not finalizing");
+        }
+        return asCopy();
+    }
+
+    public synchronized void moveToAborted(final String failure) {
+        if (stage.getAndSet(Stage.ABORTED) != Stage.ABORTED) {
+            this.failure = failure;
+        }
+    }
+
+    public synchronized void moveToFailed(final long endTime, final String failure) {
+        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+            this.totalTime = Math.max(0L, endTime - startTime);
+            this.failure = failure;
+        }
+    }
+
+    public void ensureNotAborted() {
+        if (stage.get() == Stage.ABORTED) {
+            throw new IllegalStateException("Aborted");
+        }
     }
 
     /**
@@ -171,71 +144,105 @@ public class IndexShardSnapshotStatus {
     }
 
     /**
-     * Number of files
+     * Returns a copy of the current {@link IndexShardSnapshotStatus}. This method is
+     * intended to be used when a coherent state of {@link IndexShardSnapshotStatus} is needed.
      *
-     * @return number of files
+     * @return a  {@link IndexShardSnapshotStatus.Copy}
      */
-    public int numberOfFiles() {
-        return numberOfFiles;
+    public synchronized IndexShardSnapshotStatus.Copy asCopy() {
+        return new IndexShardSnapshotStatus.Copy(stage.get(), startTime, totalTime, numberOfFiles, processedFiles, totalSize, processedSize,
+                                                 indexVersion, failure);
+    }
+
+    public static IndexShardSnapshotStatus newInitializing() {
+        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, null);
+    }
+
+    public static IndexShardSnapshotStatus newFailed(final String failure) {
+        if (failure == null) {
+            throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
+        }
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, failure);
+    }
+
+    public static IndexShardSnapshotStatus newDone(final long startTime, final long totalTime, final int files, final long size) {
+        // The snapshot is done which means the number of processed files is the same as total
+        return new IndexShardSnapshotStatus(Stage.DONE, startTime, totalTime, files, files, size, size, 0, null);
     }
 
     /**
-     * Total snapshot size
-     *
-     * @return snapshot size
+     * Returns an immutable state of {@link IndexShardSnapshotStatus} at a given point in time.
      */
-    public long totalSize() {
-        return totalSize;
-    }
+    public static class Copy {
 
-    /**
-     * Number of processed files
-     *
-     * @return number of processed files
-     */
-    public int processedFiles() {
-        return processedFiles;
-    }
+        private final Stage stage;
+        private final long startTime;
+        private final long totalTime;
+        private final int numberOfFiles;
+        private final int processedFiles;
+        private final long totalSize;
+        private final long processedSize;
+        private final long indexVersion;
+        private final String failure;
 
-    /**
-     * Size of processed files
-     *
-     * @return size of processed files
-     */
-    public long processedSize() {
-        return processedSize;
-    }
+        public Copy(final Stage stage, final long startTime, final long totalTime,
+                    final int numberOfFiles, final int processedFiles, final long totalSize, final long processedSize,
+                    final long indexVersion, final String failure) {
+            this.stage = stage;
+            this.startTime = startTime;
+            this.totalTime = totalTime;
+            this.numberOfFiles = numberOfFiles;
+            this.processedFiles = processedFiles;
+            this.totalSize = totalSize;
+            this.processedSize = processedSize;
+            this.indexVersion = indexVersion;
+            this.failure = failure;
+        }
 
+        public Stage getStage() {
+            return stage;
+        }
 
-    /**
-     * Sets index version
-     *
-     * @param indexVersion index version
-     */
-    public void indexVersion(long indexVersion) {
-        this.indexVersion = indexVersion;
-    }
+        public long getStartTime() {
+            return startTime;
+        }
 
-    /**
-     * Returns index version
-     *
-     * @return index version
-     */
-    public long indexVersion() {
-        return indexVersion;
-    }
+        public long getTotalTime() {
+            return totalTime;
+        }
 
-    /**
-     * Sets the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
-     */
-    public void failure(String failure) {
-        this.failure = failure;
-    }
+        public int getNumberOfFiles() {
+            return numberOfFiles;
+        }
 
-    /**
-     * Returns the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
-     */
-    public String failure() {
-        return failure;
+        public int getProcessedFiles() {
+            return processedFiles;
+        }
+
+        public long getTotalSize() {
+            return totalSize;
+        }
+
+        public long getProcessedSize() {
+            return processedSize;
+        }
+
+        public long getIndexVersion() {
+            return indexVersion;
+        }
+
+        public String getFailure() {
+            return failure;
+        }
+
+        @Override
+        public String toString() {
+            return new StringBuilder()
+                .append("took [").append(TimeValue.timeValueMillis(getTotalTime())).append("], ")
+                .append("index version [").append(getIndexVersion()).append("], ")
+                .append("number_of_files [").append(getNumberOfFiles()).append("], ")
+                .append("total_size [").append(new ByteSizeValue(getTotalSize())).append("]")
+                .toString();
+        }
     }
 }

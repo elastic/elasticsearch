@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.test.ESTestCase;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ExpressionIdTests extends ESTestCase {
     /**

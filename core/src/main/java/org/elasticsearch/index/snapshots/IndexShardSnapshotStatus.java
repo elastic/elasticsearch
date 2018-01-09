@@ -113,13 +113,6 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized Copy moveToAborted(final String failure) {
-        if (stage.getAndSet(Stage.ABORTED) != Stage.ABORTED) {
-            this.failure = failure;
-        }
-        return asCopy();
-    }
-
     public synchronized Copy abortIfNotCompleted(final String failure) {
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
             this.failure = failure;
@@ -134,10 +127,8 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    public void ensureNotAborted() {
-        if (stage.get() == Stage.ABORTED) {
-            throw new IllegalStateException("Aborted");
-        }
+    public boolean isAborted() {
+        return stage.get() == Stage.ABORTED;
     }
 
     /**
@@ -164,6 +155,7 @@ public class IndexShardSnapshotStatus {
     }
 
     public static IndexShardSnapshotStatus newFailed(final String failure) {
+        assert failure != null : "expecting non null failure for a failed IndexShardSnapshotStatus";
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }

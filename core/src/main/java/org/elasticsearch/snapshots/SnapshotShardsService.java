@@ -187,7 +187,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             Map<ShardId, IndexShardSnapshotStatus> shards = snapshotShards.getValue().shards;
             if (shards.containsKey(shardId)) {
                 logger.debug("[{}] shard closing, abort snapshotting for snapshot [{}]", shardId, snapshotShards.getKey().getSnapshotId());
-                shards.get(shardId).moveToAborted("shard is closing, aborting");
+                shards.get(shardId).abortIfNotCompleted("shard is closing, aborting");
             }
         }
     }
@@ -229,7 +229,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // running shards is missed, then the snapshot is removed is a subsequent cluster
                 // state update, which is being processed here
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().shards.values()) {
-                    final IndexShardSnapshotStatus.Stage stage = snapshotStatus.asCopy().getStage();
                     snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
                 }
             }

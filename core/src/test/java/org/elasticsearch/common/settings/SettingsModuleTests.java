@@ -23,6 +23,8 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -103,14 +105,14 @@ public class SettingsModuleTests extends ModuleTestCase {
         try {
             new SettingsModule(settings, Arrays.asList(Setting.boolSetting("foo.bar", true, Property.NodeScope),
             Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
-            Setting.boolSetting("bar.baz", true, Property.NodeScope)), Arrays.asList("foo.*", "bar.foo"));
+            Setting.boolSetting("bar.baz", true, Property.NodeScope)), new HashSet<>(Arrays.asList("foo.*", "bar.foo")));
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("filter [bar.foo] has already been registered", ex.getMessage());
         }
         SettingsModule module = new SettingsModule(settings, Arrays.asList(Setting.boolSetting("foo.bar", true, Property.NodeScope),
             Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
-            Setting.boolSetting("bar.baz", true, Property.NodeScope)), Arrays.asList("foo.*"));
+            Setting.boolSetting("bar.baz", true, Property.NodeScope)), Collections.singleton("foo.*"));
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).size() == 1);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).keySet().contains("bar.baz"));

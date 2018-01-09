@@ -100,37 +100,41 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         });
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-        // Register EC2 discovery settings: discovery.ec2
-        AwsEc2Service.ACCESS_KEY_SETTING,
-        AwsEc2Service.SECRET_KEY_SETTING,
-        AwsEc2Service.ENDPOINT_SETTING,
-        AwsEc2Service.PROTOCOL_SETTING,
-        AwsEc2Service.PROXY_HOST_SETTING,
-        AwsEc2Service.PROXY_PORT_SETTING,
-        AwsEc2Service.PROXY_USERNAME_SETTING,
-        AwsEc2Service.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.READ_TIMEOUT_SETTING,
-        AwsEc2Service.HOST_TYPE_SETTING,
-        AwsEc2Service.ANY_GROUP_SETTING,
-        AwsEc2Service.GROUPS_SETTING,
-        AwsEc2Service.AVAILABILITY_ZONES_SETTING,
-        AwsEc2Service.NODE_CACHE_TIME_SETTING,
-        AwsEc2Service.TAG_SETTING,
-        // Register cloud node settings: cloud.node
-        AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
-    }
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    // Register EC2 discovery settings: discovery.ec2
+                    AwsEc2Service.ACCESS_KEY_SETTING,
+                    AwsEc2Service.SECRET_KEY_SETTING,
+                    AwsEc2Service.ENDPOINT_SETTING,
+                    AwsEc2Service.PROTOCOL_SETTING,
+                    AwsEc2Service.PROXY_HOST_SETTING,
+                    AwsEc2Service.PROXY_PORT_SETTING,
+                    AwsEc2Service.PROXY_USERNAME_SETTING,
+                    AwsEc2Service.PROXY_PASSWORD_SETTING,
+                    AwsEc2Service.READ_TIMEOUT_SETTING,
+                    AwsEc2Service.HOST_TYPE_SETTING,
+                    AwsEc2Service.ANY_GROUP_SETTING,
+                    AwsEc2Service.GROUPS_SETTING,
+                    AwsEc2Service.AVAILABILITY_ZONES_SETTING,
+                    AwsEc2Service.NODE_CACHE_TIME_SETTING,
+                    AwsEc2Service.TAG_SETTING,
+                    // Register cloud node settings: cloud.node
+                    AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
+            }
 
-    @Override
-    public Settings additionalSettings() {
-        Settings.Builder builder = Settings.builder();
+            @Override
+            public Settings getSettings() {
+                Settings.Builder builder = Settings.builder();
 
-        // Adds a node attribute for the ec2 availability zone
-        String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
-        return builder.build();
+                // Adds a node attribute for the ec2 availability zone
+                String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";
+                builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+                return builder.build();
+            }
+        };
     }
 
     // pkg private for testing

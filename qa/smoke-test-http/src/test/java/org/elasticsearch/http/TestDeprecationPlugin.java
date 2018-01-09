@@ -50,12 +50,16 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
         return Collections.singletonList(new TestDeprecationHeaderRestAction(settings, restController));
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2,
-            TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2,
+                    TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
+            }
+        };
     }
 
     @Override

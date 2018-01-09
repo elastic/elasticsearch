@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -165,7 +166,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.addAll(getMockPlugins());
         plugins.add(MockTribePlugin.class);
-        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        plugins.add(TestZenDiscovery.TestPlugin.class);
         plugins.add(TestCustomMetaDataPlugin.class);
         return plugins;
     }
@@ -173,22 +174,6 @@ public class TribeIntegrationTests extends ESIntegTestCase {
     @Override
     protected boolean addTestZenDiscovery() {
         return false;
-    }
-
-    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
-
-        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public Settings additionalSettings() {
-            if (settings.getGroups("tribe", true).isEmpty()) {
-                return super.additionalSettings();
-            } else {
-                return Settings.EMPTY;
-            }
-        }
     }
 
     @Before

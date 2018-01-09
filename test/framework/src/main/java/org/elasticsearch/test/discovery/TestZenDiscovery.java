@@ -98,18 +98,26 @@ public class TestZenDiscovery extends ZenDiscovery {
             return Collections.singletonMap("test-zen", supplier);
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(USE_MOCK_PINGS);
-        }
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public Settings getSettings() {
+                    if (settings.getGroups("tribe", true).isEmpty()) {
+                        return Settings.builder()
+                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+                            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+                            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                            .build();
+                    } else {
+                        return Settings.EMPTY;
+                    }
+                }
 
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-                .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
-                .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
-                .build();
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Collections.singletonList(USE_MOCK_PINGS);
+                }
+            };
         }
 
         @Override

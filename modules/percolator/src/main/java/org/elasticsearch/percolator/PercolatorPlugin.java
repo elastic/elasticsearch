@@ -55,15 +55,18 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
         );
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING,
-            PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING,
+                    PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+            }
+        };
     }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
-
 }

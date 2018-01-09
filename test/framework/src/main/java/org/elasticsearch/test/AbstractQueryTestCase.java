@@ -1027,17 +1027,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
-            PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
-
+            PluginsService pluginsService = new PluginsService(nodeSettings, env.modulesFile(), env.pluginsFile(), null, plugins);
             client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
+            nodeSettings = pluginsService.getSettings();
+
+            List<Setting<?>> additionalSettings = pluginsService.getDeclaredSettings();
             additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

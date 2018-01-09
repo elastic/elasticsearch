@@ -91,9 +91,13 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             };
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(UPDATE_TEMPLATE_DUMMY_SETTING);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Collections.singletonList(UPDATE_TEMPLATE_DUMMY_SETTING);
+                }
+            };
         }
     }
 

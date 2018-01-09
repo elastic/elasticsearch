@@ -43,12 +43,16 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final String NIO_TRANSPORT_NAME = "nio-transport";
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            NioTransport.NIO_WORKER_COUNT,
-            NioTransport.NIO_ACCEPTOR_COUNT
-        );
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    NioTransport.NIO_WORKER_COUNT,
+                    NioTransport.NIO_ACCEPTOR_COUNT
+                );
+            }
+        };
     }
 
     @Override

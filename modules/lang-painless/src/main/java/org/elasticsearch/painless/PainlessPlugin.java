@@ -41,9 +41,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new PainlessScriptEngine(settings, contexts);
     }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(CompilerSettings.REGEX_ENABLED);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(CompilerSettings.REGEX_ENABLED);
+            }
+        };
     }
 }

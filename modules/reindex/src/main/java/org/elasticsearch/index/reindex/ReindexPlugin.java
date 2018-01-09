@@ -69,8 +69,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
                 new RestRethrottleAction(settings, restController, nodesInCluster));
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return singletonList(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return singletonList(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+            }
+        };
     }
 }

@@ -71,9 +71,14 @@ import java.util.concurrent.ExecutionException;
 public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(AzureComputeService.Management.ENDPOINT_SETTING);
+
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(AzureComputeService.Management.ENDPOINT_SETTING);
+                }
+            };
         }
     }
 

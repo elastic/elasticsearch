@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -119,14 +120,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
-     * overwritten with the additional settings. These settings added if they don't exist.
-     */
-    public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
-    }
-
-    /**
      * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
      * @see NamedWriteableRegistry
      */
@@ -150,13 +143,33 @@ public abstract class Plugin implements Closeable {
 
     /**
      * Returns a list of additional {@link Setting} definitions for this plugin.
+     * @deprecated plugin settings must be provided in a static context, see {@link PluginSettings}
      */
-    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+    @Deprecated
+    public final List<Setting<?>> getSettings() {
+        assert false : "should not be called";
+        return Collections.emptyList();
+    }
 
     /**
      * Returns a list of additional settings filter for this plugin
+     * @deprecated plugin settings must be provided in a static context, see {@link PluginSettings}
      */
-    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+    @Deprecated
+    public final List<String> getSettingsFilter() {
+        assert false : "should not be called";
+        return Collections.emptyList();
+    }
+
+    /**
+     * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
+     * overwritten with the additional settings. These settings added if they don't exist.
+     * @deprecated plugin settings must be provided in a static context, see {@link PluginSettings}
+     */
+    @Deprecated
+    public final Settings additionalSettings() {
+        assert false : "should not be called";        return Settings.Builder.EMPTY_SETTINGS;
+    }
 
     /**
      * Provides a function to modify global custom meta data on startup.
@@ -324,4 +337,38 @@ public abstract class Plugin implements Closeable {
      */
     @Deprecated
     public final void onModule(DiscoveryModule module) {}
+
+    /**
+     * PluginSettings allow plugins to extend the core by declaring custom settings, adding settings in addition to the defined
+     * node level settings and allows to filter settings based on simple expression filters.
+     * Since the settings must be present before any plugins are instantiated the PluginService will try to obtain a {@link PluginSettings}
+     * instance in a static context. A plugin that needs to extend elasticsearch with settings must define a static method as follows:
+     * <pre>
+     *   public static PluginSettings getPluginSettings(Settings settings) {
+     *     return new PluginSettings() {};
+     *  }
+     * </pre>
+     *
+     * Previously Plugins were able to extends settings after the plugin was instantiated via {@link Plugin#additionalSettings()},
+     * {@link Plugin#getSettingsFilter()} and {@link Plugin#getSettings()}. These methods are all declared final and should not be used
+     * anymore.
+     */
+    public interface PluginSettings {
+        /**
+         * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
+         * overwritten with the additional settings. These settings added if they don't exist.
+         */
+        default Settings getSettings() { return Settings.EMPTY; }
+
+        /**
+         * Returns a list of additional {@link Setting} definitions for this plugin.
+         */
+        default List<Setting<?>> getDeclaredSettings() { return Collections.emptyList(); }
+
+        /**
+         * Returns a {@link java.util.Set} of additional settings filter for this plugin
+         */
+        default Set<String> getSettingsFilter() { return Collections.emptySet(); }
+    }
+
 }

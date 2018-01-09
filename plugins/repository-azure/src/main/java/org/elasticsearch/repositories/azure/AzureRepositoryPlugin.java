@@ -55,16 +55,20 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
             (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, createStorageService(env.settings())));
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            AzureStorageSettings.ACCOUNT_SETTING,
-            AzureStorageSettings.KEY_SETTING,
-            AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
-            AzureStorageSettings.TIMEOUT_SETTING,
-            AzureStorageSettings.PROXY_TYPE_SETTING,
-            AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING
-        );
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return Arrays.asList(
+                    AzureStorageSettings.ACCOUNT_SETTING,
+                    AzureStorageSettings.KEY_SETTING,
+                    AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
+                    AzureStorageSettings.TIMEOUT_SETTING,
+                    AzureStorageSettings.PROXY_TYPE_SETTING,
+                    AzureStorageSettings.PROXY_HOST_SETTING,
+                    AzureStorageSettings.PROXY_PORT_SETTING
+                );
+            }
+        };
     }
 }

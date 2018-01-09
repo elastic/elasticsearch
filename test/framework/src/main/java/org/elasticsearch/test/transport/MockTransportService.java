@@ -94,9 +94,13 @@ public final class MockTransportService extends TransportService {
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+                }
+            };
         }
     }
 

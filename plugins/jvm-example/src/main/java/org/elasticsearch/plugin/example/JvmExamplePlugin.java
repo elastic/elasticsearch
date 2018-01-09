@@ -47,9 +47,16 @@ public class JvmExamplePlugin extends Plugin implements ActionPlugin {
         config = new ExamplePluginConfiguration(new Environment(settings, configPath));
     }
 
-    @Override
-    public Settings additionalSettings() {
-        return Settings.EMPTY;
+    /**
+     * Static extension of settings. This method is invoked before the plugin is instantiated
+     */
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public Settings getSettings() {
+                return Settings.EMPTY;
+            }
+        };
     }
 
     @Override

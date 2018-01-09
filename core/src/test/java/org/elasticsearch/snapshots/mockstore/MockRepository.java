@@ -67,10 +67,13 @@ public class MockRepository extends FsRepository {
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
             return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env, namedXContentRegistry));
         }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
+        public static PluginSettings getPluginSettings(Settings settings) {
+            return new PluginSettings() {
+                @Override
+                public List<Setting<?>> getDeclaredSettings() {
+                    return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
+                }
+            };
         }
     }
 

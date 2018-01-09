@@ -21,6 +21,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -39,8 +40,12 @@ public class RecoverySettingsChunkSizePlugin extends Plugin {
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.chunk_size",
             RecoverySettings.DEFAULT_CHUNK_SIZE, Property.Dynamic, Property.NodeScope);
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return singletonList(CHUNK_SIZE_SETTING);
+    public static PluginSettings getPluginSettings(Settings settings) {
+        return new PluginSettings() {
+            @Override
+            public List<Setting<?>> getDeclaredSettings() {
+                return singletonList(CHUNK_SIZE_SETTING);
+            }
+        };
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -68,7 +69,7 @@ public class TribeUnitTests extends ESTestCase {
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
+        classpathPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
 
         tribe1 = new MockNode(
             Settings.builder()
@@ -92,22 +93,6 @@ public class TribeUnitTests extends ESTestCase {
         classpathPlugins = null;
         tribe1 = null;
         tribe2 = null;
-    }
-
-    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
-
-        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public Settings additionalSettings() {
-            if (settings.getGroups("tribe", true).isEmpty()) {
-                return super.additionalSettings();
-            } else {
-                return Settings.EMPTY;
-            }
-        }
     }
 
     public static class MockTribePlugin extends TribePlugin {

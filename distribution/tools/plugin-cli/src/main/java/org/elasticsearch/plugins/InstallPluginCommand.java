@@ -649,28 +649,35 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path destination = env.pluginsFile().resolve(metaInfo.getName());
         deleteOnFailure.add(destination);
         terminal.println(VERBOSE, metaInfo.toString());
-        final List<PluginInfo> pluginInfos = new ArrayList<>();
-        try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(tmpRoot)) {
-            for (Path subPlugin : subPaths) {
-                if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
+        final List<Path> pluginPaths = new ArrayList<>();
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(tmpRoot)) {
+            // Extract bundled plugins path and validate plugin names
+            for (Path plugin : paths) {
+                if (MetaPluginInfo.isPropertiesFile(plugin)) {
                     continue;
                 }
-                final PluginInfo info = verify(terminal, subPlugin, isBatch, env);
-                pluginInfos.add(info);
-                Path tmpBinDir = subPlugin.resolve("bin");
-                if (Files.exists(tmpBinDir)) {
-                    Path destBinDir = env.binFile().resolve(metaInfo.getName()).resolve(info.getName());
-                    deleteOnFailure.add(destBinDir);
-                    installBin(info, tmpBinDir, destBinDir);
-                }
+                final PluginInfo info = PluginInfo.readFromProperties(plugin);
+                verifyPluginName(env.pluginsFile(), info.getName(), plugin);
+                pluginPaths.add(plugin);
+            }
+        }
+        final List<PluginInfo> pluginInfos = new ArrayList<>();
+        for (Path plugin : pluginPaths) {
+            final PluginInfo info = verify(terminal, plugin, isBatch, env);
+            pluginInfos.add(info);
+            Path tmpBinDir = plugin.resolve("bin");
+            if (Files.exists(tmpBinDir)) {
+                Path destBinDir = env.binFile().resolve(metaInfo.getName()).resolve(info.getName());
+                deleteOnFailure.add(destBinDir);
+                installBin(info, tmpBinDir, destBinDir);
+            }
 
-                Path tmpConfigDir = subPlugin.resolve("config");
-                if (Files.exists(tmpConfigDir)) {
-                    // some files may already exist, and we don't remove plugin config files on plugin removal,
-                    // so any installed config files are left on failure too
-                    Path destConfigDir = env.configFile().resolve(metaInfo.getName()).resolve(info.getName());
-                    installConfig(info, tmpConfigDir, destConfigDir);
-                }
+            Path tmpConfigDir = plugin.resolve("config");
+            if (Files.exists(tmpConfigDir)) {
+                // some files may already exist, and we don't remove plugin config files on plugin removal,
+                // so any installed config files are left on failure too
+                Path destConfigDir = env.configFile().resolve(metaInfo.getName()).resolve(info.getName());
+                installConfig(info, tmpConfigDir, destConfigDir);
             }
         }
         movePlugin(tmpRoot, destination);

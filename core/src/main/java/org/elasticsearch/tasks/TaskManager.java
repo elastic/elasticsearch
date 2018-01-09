@@ -40,9 +40,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -58,7 +60,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
-    private final Set<String> taskHeaders;
+    private final List<String> taskHeaders;
     private final ThreadPool threadPool;
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
@@ -79,7 +81,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         super(settings);
         this.threadPool = threadPool;
-        this.taskHeaders = taskHeaders;
+        this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 

@@ -1062,14 +1062,16 @@ public class JobProvider {
                             List<ScheduledEvent> events = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                events.add(parseSearchHit(hit, ScheduledEvent.PARSER, handler::onFailure).build());
+                                ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.PARSER, handler::onFailure);
+                                event.eventId(hit.getId());
+                                events.add(event.build());
                             }
 
                             handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits(),
                                     ScheduledEvent.RESULTS_FIELD));
                         },
-                        handler::onFailure)
-                , client::search);
+                        handler::onFailure),
+                client::search);
     }
 
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,

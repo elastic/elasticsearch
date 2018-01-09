@@ -57,7 +57,7 @@ public class OpenIndexResponseTests extends ESTestCase {
     
     private static OpenIndexResponse createTestItem() {
         boolean acknowledged = randomBoolean();
-        boolean shardsAcked = acknowledged && randomBoolean();
-        return new OpenIndexResponse(acknowledged, shardsAcked);
+        boolean shardsAcknowledged = acknowledged && randomBoolean();
+        return new OpenIndexResponse(acknowledged, shardsAcknowledged);
     }
 }

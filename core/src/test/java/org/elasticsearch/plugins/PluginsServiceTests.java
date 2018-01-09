@@ -531,6 +531,12 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testNonExtensibleDep() throws Exception {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
+
         Path homeDir = createTempDir();
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
         Path pluginsDir = homeDir.resolve("plugins");

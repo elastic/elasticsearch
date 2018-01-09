@@ -128,5 +128,4 @@ public class NioTransportIT extends NioIntegTestCase {
         }
 
     }
-
 }

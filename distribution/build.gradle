@@ -175,6 +175,7 @@ configure(distributions) {
       into 'lib'
       from project(':core').jar
       from project(':core').configurations.runtime
+      from { project(':libs:plugin-classloader').jar }
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':distribution:tools:launchers').jar }
       from { project(':distribution:tools:plugin-cli').jar }
@@ -334,6 +335,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   task createEtc(type: EmptyDirTask) {
     dir "${packagingFiles}/etc/elasticsearch"
     dirMode 0750
+    outputs.dir dir
   }
 
   task fillEtc(type: Copy) {

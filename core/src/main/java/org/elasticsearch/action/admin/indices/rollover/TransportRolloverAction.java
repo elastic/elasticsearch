@@ -37,9 +37,11 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -115,6 +117,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
+        checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
             new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -140,8 +143,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                         activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
                                             rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                             rolloverRequest.masterNodeTimeout(),
-                                            isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
-                                                                                    conditionResults, false, true, true, isShardsAcked)),
+                                            isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
+                                                                sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
+                                                                isShardsAcknowledged)),
                                             listener::onFailure);
                                     } else {
                                         listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
@@ -237,4 +241,19 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .mappings(createIndexRequest.mappings());
     }
 
+    /**
+     * If the newly created index matches with an index template whose aliases contains the rollover alias,
+     * the rollover alias will point to multiple indices. This causes indexing requests to be rejected.
+     * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
+     */
+    static void checkNoDuplicatedAliasInIndexTemplate(MetaData metaData, String rolloverIndexName, String rolloverRequestAlias) {
+        final List<IndexTemplateMetaData> matchedTemplates = MetaDataIndexTemplateService.findTemplates(metaData, rolloverIndexName);
+        for (IndexTemplateMetaData template : matchedTemplates) {
+            if (template.aliases().containsKey(rolloverRequestAlias)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                    rolloverRequestAlias, template.aliases().keys(), template.name()));
+            }
+        }
+    }
 }

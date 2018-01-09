@@ -46,11 +46,16 @@ import java.util.concurrent.TimeoutException;
 public interface TcpChannel extends Releasable {
 
     /**
-     * Closes the channel. This might be an asynchronous process. There is notguarantee that the channel
+     * Closes the channel. This might be an asynchronous process. There is no guarantee that the channel
      * will be closed when this method returns. Use the {@link #addCloseListener(ActionListener)} method
      * to implement logic that depends on knowing when the channel is closed.
      */
     void close();
+
+    /**
+     * This returns the profile for this channel.
+     */
+    String getProfile();
 
     /**
      * Adds a listener that will be executed when the channel is closed. If the channel is still open when
@@ -85,6 +90,13 @@ public interface TcpChannel extends Releasable {
      * @return the local address of this channel.
      */
     InetSocketAddress getLocalAddress();
+
+    /**
+     * Returns the remote address for this channel. Can be null if channel does not have a remote address.
+     *
+     * @return the remote address of this channel.
+     */
+    InetSocketAddress getRemoteAddress();
 
     /**
      * Sends a tcp message to the channel. The listener will be executed once the send process has been

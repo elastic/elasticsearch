@@ -28,4 +28,8 @@ public interface ReadContext extends AutoCloseable {
     @Override
     void close();
 
+    @FunctionalInterface
+    interface ReadConsumer {
+        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+    }
 }

@@ -271,6 +271,10 @@ fi
     install_and_check_plugin store smb
 }
 
+@test "[$GROUP] install transport-nio plugin" {
+    install_and_check_plugin transport nio
+}
+
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
     "$ESHOME/bin/elasticsearch-plugin" list | cut -d'@' -f1 > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
@@ -371,6 +375,10 @@ fi
 
 @test "[$GROUP] remove store-smb plugin" {
     remove_plugin store-smb
+}
+
+@test "[$GROUP] remove transport-nio plugin" {
+    remove_plugin transport-nio
 }
 
 @test "[$GROUP] start elasticsearch with all plugins removed" {

@@ -878,7 +878,7 @@ public final class Definition {
 
             painlessConstructor = new Method("<init>", ownerStruct, null, getTypeInternal("void"), painlessParametersTypes,
                 asmConstructor, javaConstructor.getModifiers(), javaHandle);
-            ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
+            ownerStruct.constructors.put(painlessMethodKey, putMethodInCache(painlessConstructor));
         } else if (painlessConstructor.arguments.equals(painlessParametersTypes) == false){
             throw new IllegalArgumentException(
                     "illegal duplicate constructors [" + painlessMethodKey + "] found within the struct [" + ownerStruct.name + "] " +

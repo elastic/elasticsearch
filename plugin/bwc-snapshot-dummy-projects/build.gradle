@@ -192,7 +192,7 @@ subprojects {
       } else {
         executable = new File(xpackCheckoutDir, 'gradlew').toString()
       }
-      final ArrayList<String> commandLineArgs = [":x-pack-elasticsearch:plugin:assemble"]
+      final ArrayList<String> commandLineArgs = [":x-pack-elasticsearch:plugin:assemble", "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"]
       final LogLevel logLevel = gradle.startParameter.logLevel
       if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
         commandLineArgs << "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

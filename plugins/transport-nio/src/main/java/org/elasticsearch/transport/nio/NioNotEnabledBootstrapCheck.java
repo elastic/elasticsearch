@@ -19,30 +19,14 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.BootstrapContext;
 
-import java.io.IOException;
+public class NioNotEnabledBootstrapCheck implements BootstrapCheck {
 
-public class TcpReadHandler {
-
-    private final String profile;
-    private final NioTransport transport;
-
-    public TcpReadHandler(String profile, NioTransport transport) {
-        this.profile = profile;
-        this.transport = transport;
-    }
-
-    public void handleMessage(BytesReference reference, TcpNioSocketChannel channel, int messageBytesLength) {
-        try {
-            transport.messageReceived(reference, channel, profile, channel.getRemoteAddress(), messageBytesLength);
-        } catch (IOException e) {
-            handleException(channel, e);
-        }
-    }
-
-    public void handleException(NioSocketChannel channel, Exception e) {
-        transport.exceptionCaught(channel, e);
+    @Override
+    public BootstrapCheckResult check(BootstrapContext context) {
+        return BootstrapCheckResult.failure("The transport-nio plugin is experimental and not ready for production usage. It should " +
+            "not be enabled in production.");
     }
 }

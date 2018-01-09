@@ -33,9 +33,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class NioTransportPlugin extends Plugin implements NetworkPlugin {
+public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
 
-    public static final String NIO_TRANSPORT_NAME = "nio-transport";
+    public static final String MOCK_NIO_TRANSPORT_NAME = "mock-nio";
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
@@ -43,15 +43,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry,
                                                           NetworkService networkService) {
-        Settings settings1;
-        if (NioTransport.NIO_WORKER_COUNT.exists(settings) == false) {
-            // As this is only used for tests right now, limit the number of worker threads.
-            settings1 = Settings.builder().put(settings).put(NioTransport.NIO_WORKER_COUNT.getKey(), 2).build();
-        } else {
-            settings1 = settings;
-        }
-        return Collections.singletonMap(NIO_TRANSPORT_NAME,
-            () -> new NioTransport(settings1, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
+        return Collections.singletonMap(MOCK_NIO_TRANSPORT_NAME,
+            () -> new MockNioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
                 circuitBreakerService));
     }
 }

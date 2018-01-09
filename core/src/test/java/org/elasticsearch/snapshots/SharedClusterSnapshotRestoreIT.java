@@ -3151,7 +3151,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(15L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27974")
+    @TestLogging("org.elasticsearch.snapshots:TRACE")
     public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
         final Client client = client();
 
@@ -3163,11 +3163,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             ));
 
         createIndex("test-idx");
-        final int nbDocs = scaledRandomIntBetween(1, 100);
+        final int nbDocs = scaledRandomIntBetween(100, 500);
         for (int i = 0; i < nbDocs; i++) {
             index("test-idx", "_doc", Integer.toString(i), "foo", "bar" + i);
         }
-        refresh();
+        flushAndRefresh("test-idx");
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits(), equalTo((long) nbDocs));
 
         // Create a snapshot

@@ -313,7 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
-            // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
+            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
         if (searchRequest.isSuggestOnly()) {
@@ -338,8 +338,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
             // we try to set a default of max concurrent shard requests based on
             // the node count but upper-bound it by 256 by default to keep it sane. A single
-            // search request that fans out lots of shards should hit a cluster too hard while 256 is already a lot
-            // we multiply is by the default number of shards such that a single request in a cluster of 1 would hit all shards of a
+            // search request that fans out lots of shards should hit a cluster too hard while 256 is already a lot.
+            // we multiply it by the default number of shards such that a single request in a cluster of 1 would hit all shards of a
             // default index.
             searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount
                 * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));

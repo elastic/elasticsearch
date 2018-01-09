@@ -17,7 +17,7 @@
  * under the License.
  */
 
-
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import java.util.regex.Matcher
@@ -118,7 +118,12 @@ if (project.hasProperty('bwcVersion')) {
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
-    executable = new File(checkoutDir, 'gradlew').toString()
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      executable 'cmd'
+      args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+    } else {
+      executable = new File(checkoutDir, 'gradlew').toString()
+    }
     final ArrayList<String> commandLineArgs = [
             ":distribution:deb:assemble",
             ":distribution:rpm:assemble",
@@ -135,7 +140,7 @@ if (project.hasProperty('bwcVersion')) {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       commandLineArgs << "--full-stacktrace"
     }
-    args = commandLineArgs
+    args commandLineArgs
     doLast {
       List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
         false == file.exists()

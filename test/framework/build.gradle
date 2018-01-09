@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks;
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch:elasticsearch-nio:${version}"
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch:elasticsearch-cli:${version}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -45,6 +46,7 @@ forbiddenApisMain {
 
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.excludes = [
   // classes are missing

@@ -24,7 +24,7 @@
 
 #### Interfaces
 
-class Collection -> java.util.Collection {
+class java.util.Collection {
   boolean add(def)
   boolean addAll(Collection)
   void clear()
@@ -50,7 +50,7 @@ class Collection -> java.util.Collection {
   List org.elasticsearch.painless.api.Augmentation split(Predicate)
 }
 
-class Comparator -> java.util.Comparator {
+class java.util.Comparator {
   int compare(def,def)
   Comparator comparing(Function)
   Comparator comparing(Function,Comparator)
@@ -70,7 +70,7 @@ class Comparator -> java.util.Comparator {
   Comparator thenComparingLong(ToLongFunction)
 }
 
-class Deque -> java.util.Deque {
+class java.util.Deque {
   void addFirst(def)
   void addLast(def)
   Iterator descendingIterator()
@@ -91,26 +91,26 @@ class Deque -> java.util.Deque {
   boolean removeLastOccurrence(def)
 }
 
-class Enumeration -> java.util.Enumeration {
+class java.util.Enumeration {
   boolean hasMoreElements()
   def nextElement()
 }
 
-class EventListener -> java.util.EventListener {
+class java.util.EventListener {
 }
 
-class Formattable -> java.util.Formattable {
+class java.util.Formattable {
   void formatTo(Formatter,int,int,int)
 }
 
-class Iterator -> java.util.Iterator {
+class java.util.Iterator {
   void forEachRemaining(Consumer)
   boolean hasNext()
   def next()
   void remove()
 }
 
-class List -> java.util.List {
+class java.util.List {
   void add(int,def)
   boolean addAll(int,Collection)
   boolean equals(Object)
@@ -128,7 +128,7 @@ class List -> java.util.List {
   List subList(int,int)
 }
 
-class ListIterator -> java.util.ListIterator {
+class java.util.ListIterator {
   void add(def)
   boolean hasPrevious()
   int nextIndex()
@@ -136,7 +136,7 @@ class ListIterator -> java.util.ListIterator {
   void set(def)
 }
 
-class Map -> java.util.Map {
+class java.util.Map {
   void clear()
   def compute(def,BiFunction)
   def computeIfAbsent(def,Function)
@@ -176,7 +176,7 @@ class Map -> java.util.Map {
   Map org.elasticsearch.painless.api.Augmentation groupBy(BiFunction)
 }
 
-class Map.Entry -> java.util.Map$Entry {
+class java.util.Map$Entry {
   Comparator comparingByKey()
   Comparator comparingByKey(Comparator)
   Comparator comparingByValue()
@@ -188,7 +188,7 @@ class Map.Entry -> java.util.Map$Entry {
   def setValue(def)
 }
 
-class NavigableMap -> java.util.NavigableMap {
+class java.util.NavigableMap {
   Map.Entry ceilingEntry(def)
   def ceilingKey(def)
   NavigableSet descendingKeySet()
@@ -208,7 +208,7 @@ class NavigableMap -> java.util.NavigableMap {
   NavigableMap tailMap(def,boolean)
 }
 
-class NavigableSet -> java.util.NavigableSet {
+class java.util.NavigableSet {
   def ceiling(def)
   Iterator descendingIterator()
   NavigableSet descendingSet()
@@ -222,30 +222,30 @@ class NavigableSet -> java.util.NavigableSet {
   NavigableSet tailSet(def,boolean)
 }
 
-class Observer -> java.util.Observer {
+class java.util.Observer {
   void update(Observable,Object)
 }
 
-class PrimitiveIterator -> java.util.PrimitiveIterator {
+class java.util.PrimitiveIterator {
   void forEachRemaining(def)
 }
 
-class PrimitiveIterator.OfDouble -> java.util.PrimitiveIterator$OfDouble {
+class java.util.PrimitiveIterator$OfDouble {
   Double next()
   double nextDouble()
 }
 
-class PrimitiveIterator.OfInt -> java.util.PrimitiveIterator$OfInt {
+class java.util.PrimitiveIterator$OfInt {
   Integer next()
   int nextInt()
 }
 
-class PrimitiveIterator.OfLong -> java.util.PrimitiveIterator$OfLong {
+class java.util.PrimitiveIterator$OfLong {
   Long next()
   long nextLong()
 }
 
-class Spliterator -> java.util.Spliterator {
+class java.util.Spliterator {
   int CONCURRENT
   int DISTINCT
   int IMMUTABLE
@@ -264,25 +264,25 @@ class Spliterator -> java.util.Spliterator {
   Spliterator trySplit()
 }
 
-class Spliterator.OfPrimitive -> java.util.Spliterator$OfPrimitive {
+class java.util.Spliterator$OfPrimitive {
   void forEachRemaining(def)
   boolean tryAdvance(def)
   Spliterator.OfPrimitive trySplit()
 }
 
-class Spliterator.OfDouble -> java.util.Spliterator$OfDouble {
+class java.util.Spliterator$OfDouble {
   Spliterator.OfDouble trySplit()
 }
 
-class Spliterator.OfInt -> java.util.Spliterator$OfInt {
+class java.util.Spliterator$OfInt {
   Spliterator.OfInt trySplit()
 }
 
-class Spliterator.OfLong -> java.util.Spliterator$OfLong {
+class java.util.Spliterator$OfLong {
   Spliterator.OfLong trySplit()
 }
 
-class Queue -> java.util.Queue {
+class java.util.Queue {
   def element()
   boolean offer(def)
   def peek()
@@ -290,16 +290,16 @@ class Queue -> java.util.Queue {
   def remove()
 }
 
-class RandomAccess -> java.util.RandomAccess {
+class java.util.RandomAccess {
 }
 
-class Set -> java.util.Set {
+class java.util.Set {
   boolean equals(Object)
   int hashCode()
   boolean remove(def)
 }
 
-class SortedMap -> java.util.SortedMap {
+class java.util.SortedMap {
   Comparator comparator()
   def firstKey()
   SortedMap headMap(def)
@@ -308,7 +308,7 @@ class SortedMap -> java.util.SortedMap {
   SortedMap tailMap(def)
 }
 
-class SortedSet -> java.util.SortedSet {
+class java.util.SortedSet {
   Comparator comparator()
   def first()
   SortedSet headSet(def)
@@ -319,55 +319,55 @@ class SortedSet -> java.util.SortedSet {
 
 #### Classes
 
-class AbstractCollection -> java.util.AbstractCollection {
+class java.util.AbstractCollection {
 }
 
-class AbstractList -> java.util.AbstractList {
+class java.util.AbstractList {
 }
 
-class AbstractMap -> java.util.AbstractMap {
+class java.util.AbstractMap {
 }
 
-class AbstractMap.SimpleEntry -> java.util.AbstractMap$SimpleEntry {
+class java.util.AbstractMap$SimpleEntry {
   (def,def)
   (Map.Entry)
 }
 
-class AbstractMap.SimpleImmutableEntry -> java.util.AbstractMap$SimpleImmutableEntry {
+class java.util.AbstractMap$SimpleImmutableEntry {
   (def,def)
   (Map.Entry)
 }
 
-class AbstractQueue -> java.util.AbstractQueue {
+class java.util.AbstractQueue {
 }
 
-class AbstractSequentialList -> java.util.AbstractSequentialList {
+class java.util.AbstractSequentialList {
 }
 
-class AbstractSet -> java.util.AbstractSet {
+class java.util.AbstractSet {
 }
 
-class ArrayDeque -> java.util.ArrayDeque {
+class java.util.ArrayDeque {
   ()
   (Collection)
   ArrayDeque clone()
 }
 
-class ArrayList -> java.util.ArrayList {
+class java.util.ArrayList {
   ()
   (Collection)
   def clone()
   void trimToSize()
 }
 
-class Arrays -> java.util.Arrays {
+class java.util.Arrays {
   List asList(Object[])
   boolean deepEquals(Object[],Object[])
   int deepHashCode(Object[])
   String deepToString(Object[])
 }
 
-class Base64 -> java.util.Base64 {
+class java.util.Base64 {
   Base64.Decoder getDecoder()
   Base64.Encoder getEncoder()
   Base64.Decoder getMimeDecoder()
@@ -377,18 +377,18 @@ class Base64 -> java.util.Base64 {
   Base64.Encoder getUrlEncoder()
 }
 
-class Base64.Decoder -> java.util.Base64$Decoder {
+class java.util.Base64$Decoder {
   int decode(byte[],byte[])
   byte[] decode(String)
 }
 
-class Base64.Encoder -> java.util.Base64$Encoder {
+class java.util.Base64$Encoder {
   int encode(byte[],byte[])
   String encodeToString(byte[])
   Base64.Encoder withoutPadding()
 }
 
-class BitSet -> java.util.BitSet {
+class java.util.BitSet {
   ()
   (int)
   void and(BitSet)
@@ -418,7 +418,7 @@ class BitSet -> java.util.BitSet {
   void xor(BitSet)
 }
 
-class Calendar -> java.util.Calendar {
+class java.util.Calendar {
   int ALL_STYLES
   int AM
   int AM_PM
@@ -516,7 +516,7 @@ class Calendar -> java.util.Calendar {
   Instant toInstant()
 }
 
-class Calendar.Builder -> java.util.Calendar$Builder {
+class java.util.Calendar$Builder {
   ()
   Calendar build()
   Calendar.Builder set(int,int)
@@ -533,7 +533,7 @@ class Calendar.Builder -> java.util.Calendar$Builder {
   Calendar.Builder setWeekDefinition(int,int)
 }
 
-class Collections -> java.util.Collections {
+class java.util.Collections {
   List EMPTY_LIST
   Map EMPTY_MAP
   Set EMPTY_SET
@@ -588,7 +588,7 @@ class Collections -> java.util.Collections {
   SortedSet unmodifiableSortedSet(SortedSet)
 }
 
-class Currency -> java.util.Currency {
+class java.util.Currency {
   Set getAvailableCurrencies()
   String getCurrencyCode()
   int getDefaultFractionDigits()
@@ -600,7 +600,7 @@ class Currency -> java.util.Currency {
   String getSymbol(Locale)
 }
 
-class Date -> java.util.Date {
+class java.util.Date {
   ()
   (long)
   boolean after(Date)
@@ -612,7 +612,7 @@ class Date -> java.util.Date {
   void setTime(long)
 }
 
-class Dictionary -> java.util.Dictionary {
+class java.util.Dictionary {
   Enumeration elements()
   def get(def)
   boolean isEmpty()
@@ -622,7 +622,7 @@ class Dictionary -> java.util.Dictionary {
   int size()
 }
 
-class DoubleSummaryStatistics -> java.util.DoubleSummaryStatistics {
+class java.util.DoubleSummaryStatistics {
   ()
   void combine(DoubleSummaryStatistics)
   double getAverage()
@@ -632,22 +632,22 @@ class DoubleSummaryStatistics -> java.util.DoubleSummaryStatistics {
   double getSum()
 }
 
-class EventListenerProxy -> java.util.EventListenerProxy {
+class java.util.EventListenerProxy {
   EventListener getListener()
 }
 
-class EventObject -> java.util.EventObject {
+class java.util.EventObject {
   (Object)
   Object getSource()
 }
 
-class FormattableFlags -> java.util.FormattableFlags {
+class java.util.FormattableFlags {
   int ALTERNATE
   int LEFT_JUSTIFY
   int UPPERCASE
 }
 
-class Formatter -> java.util.Formatter {
+class java.util.Formatter {
   ()
   (Appendable)
   (Appendable,Locale)
@@ -657,7 +657,7 @@ class Formatter -> java.util.Formatter {
   Appendable out()
 }
 
-class GregorianCalendar -> java.util.GregorianCalendar {
+class java.util.GregorianCalendar {
   int AD
   int BC
   ()
@@ -673,31 +673,31 @@ class GregorianCalendar -> java.util.GregorianCalendar {
   ZonedDateTime toZonedDateTime()
 }
 
-class HashMap -> java.util.HashMap {
+class java.util.HashMap {
   ()
   (Map)
   def clone()
 }
 
-class HashSet -> java.util.HashSet {
+class java.util.HashSet {
   ()
   (Collection)
   def clone()
 }
 
-class Hashtable -> java.util.Hashtable {
+class java.util.Hashtable {
   ()
   (Map)
   def clone()
 }
 
-class IdentityHashMap -> java.util.IdentityHashMap {
+class java.util.IdentityHashMap {
   ()
   (Map)
   def clone()
 }
 
-class IntSummaryStatistics -> java.util.IntSummaryStatistics {
+class java.util.IntSummaryStatistics {
   ()
   void combine(IntSummaryStatistics)
   double getAverage()
@@ -707,23 +707,23 @@ class IntSummaryStatistics -> java.util.IntSummaryStatistics {
   long getSum()
 }
 
-class LinkedHashMap -> java.util.LinkedHashMap {
+class java.util.LinkedHashMap {
   ()
   (Map)
 }
 
-class LinkedHashSet -> java.util.LinkedHashSet {
+class java.util.LinkedHashSet {
   ()
   (Collection)
 }
 
-class LinkedList -> java.util.LinkedList {
+class java.util.LinkedList {
   ()
   (Collection)
   def clone()
 }
 
-class Locale -> java.util.Locale {
+class java.util.Locale {
   Locale CANADA
   Locale CANADA_FRENCH
   Locale CHINA
@@ -788,7 +788,7 @@ class Locale -> java.util.Locale {
   String toLanguageTag()
 }
 
-class Locale.Builder -> java.util.Locale$Builder {
+class java.util.Locale$Builder {
   ()
   Locale.Builder addUnicodeLocaleAttribute(String)
   Locale build()
@@ -805,7 +805,7 @@ class Locale.Builder -> java.util.Locale$Builder {
   Locale.Builder setVariant(String)
 }
 
-class Locale.LanguageRange -> java.util.Locale$LanguageRange {
+class java.util.Locale$LanguageRange {
   double MAX_WEIGHT
   double MIN_WEIGHT
   (String)
@@ -817,7 +817,7 @@ class Locale.LanguageRange -> java.util.Locale$LanguageRange {
   List parse(String,Map)
 }
 
-class LongSummaryStatistics -> java.util.LongSummaryStatistics {
+class java.util.LongSummaryStatistics {
   ()
   void combine(LongSummaryStatistics)
   double getAverage()
@@ -827,7 +827,7 @@ class LongSummaryStatistics -> java.util.LongSummaryStatistics {
   long getSum()
 }
 
-class Objects -> java.util.Objects {
+class java.util.Objects {
   int compare(def,def,Comparator)
   boolean deepEquals(Object,Object)
   boolean equals(Object,Object)
@@ -841,7 +841,7 @@ class Objects -> java.util.Objects {
   String toString(Object,String)
 }
 
-class Observable -> java.util.Observable {
+class java.util.Observable {
   ()
   void addObserver(Observer)
   int countObservers()
@@ -852,7 +852,7 @@ class Observable -> java.util.Observable {
   void notifyObservers(Object)
 }
 
-class Optional -> java.util.Optional {
+class java.util.Optional {
   Optional empty()
   Optional filter(Predicate)
   Optional flatMap(Function)
@@ -867,7 +867,7 @@ class Optional -> java.util.Optional {
   def orElseThrow(Supplier)
 }
 
-class OptionalDouble -> java.util.OptionalDouble {
+class java.util.OptionalDouble {
   OptionalDouble empty()
   double getAsDouble()
   void ifPresent(DoubleConsumer)
@@ -878,7 +878,7 @@ class OptionalDouble -> java.util.OptionalDouble {
   double orElseThrow(Supplier)
 }
 
-class OptionalInt -> java.util.OptionalInt {
+class java.util.OptionalInt {
   OptionalInt empty()
   int getAsInt()
   void ifPresent(IntConsumer)
@@ -889,7 +889,7 @@ class OptionalInt -> java.util.OptionalInt {
   int orElseThrow(Supplier)
 }
 
-class OptionalLong -> java.util.OptionalLong {
+class java.util.OptionalLong {
   OptionalLong empty()
   long getAsLong()
   void ifPresent(LongConsumer)
@@ -900,12 +900,12 @@ class OptionalLong -> java.util.OptionalLong {
   long orElseThrow(Supplier)
 }
 
-class PriorityQueue -> java.util.PriorityQueue {
+class java.util.PriorityQueue {
   ()
   (Comparator)
 }
 
-class Random -> java.util.Random {
+class java.util.Random {
   ()
   (long)
   DoubleStream doubles(long)
@@ -925,7 +925,7 @@ class Random -> java.util.Random {
   void setSeed(long)
 }
 
-class SimpleTimeZone -> java.util.SimpleTimeZone {
+class java.util.SimpleTimeZone {
   int STANDARD_TIME
   int UTC_TIME
   int WALL_TIME
@@ -944,7 +944,7 @@ class SimpleTimeZone -> java.util.SimpleTimeZone {
   void setStartYear(int)
 }
 
-class Spliterators -> java.util.Spliterators {
+class java.util.Spliterators {
   Spliterator.OfDouble emptyDoubleSpliterator()
   Spliterator.OfInt emptyIntSpliterator()
   Spliterator.OfLong emptyLongSpliterator()
@@ -955,7 +955,7 @@ class Spliterators -> java.util.Spliterators {
   Spliterator spliteratorUnknownSize(Iterator,int)
 }
 
-class Stack -> java.util.Stack {
+class java.util.Stack {
   ()
   def push(def)
   def pop()
@@ -964,7 +964,7 @@ class Stack -> java.util.Stack {
   int search(def)
 }
 
-class StringJoiner -> java.util.StringJoiner {
+class java.util.StringJoiner {
   (CharSequence)
   (CharSequence,CharSequence,CharSequence)
   StringJoiner add(CharSequence)
@@ -973,7 +973,7 @@ class StringJoiner -> java.util.StringJoiner {
   StringJoiner setEmptyValue(CharSequence)
 }
 
-class StringTokenizer -> java.util.StringTokenizer {
+class java.util.StringTokenizer {
   (String)
   (String,String)
   (String,String,boolean)
@@ -983,7 +983,7 @@ class StringTokenizer -> java.util.StringTokenizer {
   String nextToken(String)
 }
 
-class TimeZone -> java.util.TimeZone {
+class java.util.TimeZone {
   int LONG
   int SHORT
   def clone()
@@ -1008,19 +1008,19 @@ class TimeZone -> java.util.TimeZone {
   boolean useDaylightTime()
 }
 
-class TreeMap -> java.util.TreeMap {
+class java.util.TreeMap {
   ()
   (Comparator)
   def clone()
 }
 
-class TreeSet -> java.util.TreeSet {
+class java.util.TreeSet {
   ()
   (Comparator)
   def clone()
 }
 
-class UUID -> java.util.UUID {
+class java.util.UUID {
   (long,long)
   int compareTo(UUID)
   int clockSequence()
@@ -1034,7 +1034,7 @@ class UUID -> java.util.UUID {
   int version()
 }
 
-class Vector -> java.util.Vector {
+class java.util.Vector {
   ()
   (Collection)
   void addElement(def)
@@ -1054,19 +1054,19 @@ class Vector -> java.util.Vector {
 
 #### Enums
 
-class Formatter.BigDecimalLayoutForm -> java.util.Formatter$BigDecimalLayoutForm {
+class java.util.Formatter$BigDecimalLayoutForm {
   Formatter.BigDecimalLayoutForm DECIMAL_FLOAT
   Formatter.BigDecimalLayoutForm SCIENTIFIC
 }
 
-class Locale.Category -> java.util.Locale$Category {
+class java.util.Locale$Category {
   Locale.Category DISPLAY
   Locale.Category FORMAT
   Locale.Category valueOf(String)
   Locale.Category[] values()
 }
 
-class Locale.FilteringMode -> java.util.Locale$FilteringMode {
+class java.util.Locale$FilteringMode {
   Locale.FilteringMode AUTOSELECT_FILTERING
   Locale.FilteringMode EXTENDED_FILTERING
   Locale.FilteringMode IGNORE_EXTENDED_RANGES
@@ -1078,101 +1078,101 @@ class Locale.FilteringMode -> java.util.Locale$FilteringMode {
 
 #### Exceptions
 
-class ConcurrentModificationException -> java.util.ConcurrentModificationException {
+class java.util.ConcurrentModificationException {
   ()
   (String)
 }
 
-class DuplicateFormatFlagsException -> java.util.DuplicateFormatFlagsException {
+class java.util.DuplicateFormatFlagsException {
   (String)
   String getFlags()
 }
 
-class EmptyStackException -> java.util.EmptyStackException {
+class java.util.EmptyStackException {
   ()
 }
 
-class FormatFlagsConversionMismatchException -> java.util.FormatFlagsConversionMismatchException {
+class java.util.FormatFlagsConversionMismatchException {
   (String,char)
   char getConversion()
   String getFlags()
 }
 
-class FormatterClosedException -> java.util.FormatterClosedException {
+class java.util.FormatterClosedException {
   ()
 }
 
-class IllegalFormatCodePointException -> java.util.IllegalFormatCodePointException {
+class java.util.IllegalFormatCodePointException {
   (int)
   int getCodePoint()
 }
 
-class IllegalFormatConversionException -> java.util.IllegalFormatConversionException {
+class java.util.IllegalFormatConversionException {
   char getConversion()
 }
 
-class IllegalFormatException -> java.util.IllegalFormatException {
+class java.util.IllegalFormatException {
 }
 
-class IllegalFormatFlagsException -> java.util.IllegalFormatFlagsException {
+class java.util.IllegalFormatFlagsException {
   (String)
   String getFlags()
 }
 
-class IllegalFormatPrecisionException -> java.util.IllegalFormatPrecisionException {
+class java.util.IllegalFormatPrecisionException {
   (int)
   int getPrecision()
 }
 
-class IllegalFormatWidthException -> java.util.IllegalFormatWidthException {
+class java.util.IllegalFormatWidthException {
   (int)
   int getWidth()
 }
 
-class IllformedLocaleException -> java.util.IllformedLocaleException {
+class java.util.IllformedLocaleException {
   ()
   (String)
   (String,int)
   int getErrorIndex()
 }
 
-class InputMismatchException -> java.util.InputMismatchException {
+class java.util.InputMismatchException {
   ()
   (String)
 }
 
-class MissingFormatArgumentException -> java.util.MissingFormatArgumentException {
+class java.util.MissingFormatArgumentException {
   (String)
   String getFormatSpecifier()
 }
 
-class MissingFormatWidthException -> java.util.MissingFormatWidthException {
+class java.util.MissingFormatWidthException {
   (String)
   String getFormatSpecifier()
 }
 
-class MissingResourceException -> java.util.MissingResourceException {
+class java.util.MissingResourceException {
   (String,String,String)
   String getClassName()
   String getKey()
 }
 
-class NoSuchElementException -> java.util.NoSuchElementException {
+class java.util.NoSuchElementException {
   ()
   (String)
 }
 
-class TooManyListenersException -> java.util.TooManyListenersException {
+class java.util.TooManyListenersException {
   ()
   (String)
 }
 
-class UnknownFormatConversionException -> java.util.UnknownFormatConversionException {
+class java.util.UnknownFormatConversionException {
   (String)
   String getConversion()
 }
 
-class UnknownFormatFlagsException -> java.util.UnknownFormatFlagsException {
+class java.util.UnknownFormatFlagsException {
   (String)
   String getFlags()
 }

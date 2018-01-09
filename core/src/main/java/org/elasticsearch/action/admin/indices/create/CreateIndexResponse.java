@@ -52,16 +52,16 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
     }
 
-    private boolean shardsAcked;
+    private boolean shardsAcknowledged;
     private String index;
 
     protected CreateIndexResponse() {
     }
 
-    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked, String index) {
+    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged);
-        assert acknowledged || shardsAcked == false; // if its not acknowledged, then shards acked should be false too
-        this.shardsAcked = shardsAcked;
+        assert acknowledged || shardsAcknowledged == false; // if its not acknowledged, then shardsAcknowledged should be false too
+        this.shardsAcknowledged = shardsAcknowledged;
         this.index = index;
     }
 
@@ -69,7 +69,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
-        shardsAcked = in.readBoolean();
+        shardsAcknowledged = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             index = in.readString();
         }
@@ -79,7 +79,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
-        out.writeBoolean(shardsAcked);
+        out.writeBoolean(shardsAcknowledged);
         if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeString(index);
         }
@@ -87,11 +87,23 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
 
     /**
      * Returns true if the requisite number of shards were started before
-     * returning from the index creation operation.  If {@link #isAcknowledged()}
+     * returning from the index creation operation. If {@link #isAcknowledged()}
+     * is false, then this also returns false.
+     * 
+     * @deprecated use {@link #isShardsAcknowledged()}
+     */
+    @Deprecated
+    public boolean isShardsAcked() {
+        return shardsAcknowledged;
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started before
+     * returning from the index creation operation. If {@link #isAcknowledged()}
      * is false, then this also returns false.
      */
-    public boolean isShardsAcked() {
-        return shardsAcked;
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 
     public String index() {
@@ -99,7 +111,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     }
 
     public void addCustomFields(XContentBuilder builder) throws IOException {
-        builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcked());
+        builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcknowledged());
         builder.field(INDEX.getPreferredName(), index());
     }
 

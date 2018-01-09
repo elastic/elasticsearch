@@ -56,7 +56,7 @@ public interface DocValueFormat extends NamedWriteable {
      *  such as the {@code long}, {@code double} or {@code date} fields. */
     String format(double value);
 
-    /** Format a double value. This is used by terms aggregations to format
+    /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
     String format(BytesRef value);

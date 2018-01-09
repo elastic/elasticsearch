@@ -24,17 +24,24 @@ package org.elasticsearch.cluster.ack;
  */
 public class CreateIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 
-    private final boolean shardsAcked;
+    private final boolean shardsAcknowledged;
 
-    public CreateIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcked) {
+    public CreateIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
-        this.shardsAcked = shardsAcked;
+        this.shardsAcknowledged = shardsAcknowledged;
     }
 
     /**
      * Returns whether the requisite number of shard copies started before the completion of the operation.
+     * 
+     * @deprecated use {@link #isShardsAcknowledged()}
      */
+    @Deprecated
     public boolean isShardsAcked() {
-        return shardsAcked;
+        return shardsAcknowledged;
+    }
+    
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 }

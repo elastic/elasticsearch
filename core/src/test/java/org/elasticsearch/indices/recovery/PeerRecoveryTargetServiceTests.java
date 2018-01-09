@@ -75,7 +75,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             final Translog translog = replica.getTranslog();
             final String translogUUID = translog.getTranslogUUID();
-            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
 
             translogLocation.set(writeTranslog(replica.shardId(), translogUUID, translog.currentFileGeneration(), maxSeqNo - 1));
 
@@ -114,7 +114,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 generation,
                 resolve,
                 FileChannel::open,
-                TranslogConfig.DEFAULT_BUFFER_SIZE, () -> globalCheckpoint, generation, () -> generation)) {}
+                TranslogConfig.DEFAULT_BUFFER_SIZE, generation, globalCheckpoint, () -> globalCheckpoint, () -> generation)) {}
         return tempDir;
     }
 

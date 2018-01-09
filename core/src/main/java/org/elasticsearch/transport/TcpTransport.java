@@ -184,8 +184,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
-    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
+    // This is the number of bytes necessary to read the message size
+    public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     public static final int PING_DATA_SIZE = -1;
+    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
+    private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
+
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
     protected final ScheduledPing scheduledPing;
@@ -195,22 +199,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    protected volatile TransportService transportService;
-    // node id to actual channel
-    protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
+    private volatile TransportService transportService;
 
-    protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    // node id to actual channel
+    private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     private final Map<String, List<TcpChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    protected final KeyedLock<String> connectionLock = new KeyedLock<>();
+    private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
-    protected final ReadWriteLock closeLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     protected final boolean compress;
-    protected volatile BoundTransportAddress boundAddress;
+    private volatile BoundTransportAddress boundAddress;
     private final String transportName;
     protected final ConnectionProfile defaultConnectionProfile;
 
@@ -317,8 +321,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public class ScheduledPing extends AbstractLifecycleRunnable {
 
         /**
-         * The magic number (must be lower than 0) for a ping message. This is handled
-         * specifically in {@link TcpTransport#validateMessageHeader}.
+         * The magic number (must be lower than 0) for a ping message.
          */
         private final BytesReference pingHeader;
         final CounterMetric successfulPings = new CounterMetric();
@@ -438,7 +441,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             if (closed.compareAndSet(false, true)) {
                 try {
                     if (lifecycle.stopped()) {
@@ -582,7 +585,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
@@ -602,6 +605,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
                         TcpChannel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
+                        logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                         channels.add(channel);
                     } catch (Exception e) {
                         // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
@@ -1041,6 +1045,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accept channel set once";
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
 
     /**
@@ -1208,7 +1213,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param length          the payload length in bytes
      * @see TcpHeader
      */
-    final BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
             TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
@@ -1245,76 +1250,135 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Validates the first N bytes of the message header and returns <code>false</code> if the message is
-     * a ping message and has no payload ie. isn't a real user level message.
+     * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
+     * in this call.
      *
-     * @throws IllegalStateException    if the message is too short, less than the header or less that the header plus the message size
-     * @throws HttpOnTransportException if the message has no valid header and appears to be a HTTP message
-     * @throws IllegalArgumentException if the message is greater that the maximum allowed frame size. This is dependent on the available
-     *                                  memory.
+     * @param channel the channel read from
+     * @param bytesReference the bytes available to consume
+     * @return the number of bytes consumed
+     * @throws StreamCorruptedException if the message header format is not recognized
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
+     *                                  This is dependent on the available memory.
      */
-    public static boolean validateMessageHeader(BytesReference buffer) throws IOException {
-        final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        if (buffer.length() < sizeHeaderLength) {
-            throw new IllegalStateException("message size must be >= to the header size");
-        }
-        int offset = 0;
-        if (buffer.get(offset) != 'E' || buffer.get(offset + 1) != 'S') {
-            // special handling for what is probably HTTP
-            if (bufferStartsWith(buffer, offset, "GET ") ||
-                bufferStartsWith(buffer, offset, "POST ") ||
-                bufferStartsWith(buffer, offset, "PUT ") ||
-                bufferStartsWith(buffer, offset, "HEAD ") ||
-                bufferStartsWith(buffer, offset, "DELETE ") ||
-                bufferStartsWith(buffer, offset, "OPTIONS ") ||
-                bufferStartsWith(buffer, offset, "PATCH ") ||
-                bufferStartsWith(buffer, offset, "TRACE ")) {
+    public int consumeNetworkReads(TcpChannel channel, BytesReference bytesReference) throws IOException {
+        BytesReference message = decodeFrame(bytesReference);
 
-                throw new HttpOnTransportException("This is not a HTTP port");
+        if (message == null) {
+            return 0;
+        } else if (message.length() == 0) {
+            // This is a ping and should not be handled.
+            return BYTES_NEEDED_FOR_MESSAGE_SIZE;
+        } else {
+            try {
+                messageReceived(message, channel);
+            } catch (Exception e) {
+                onException(channel, e);
+            }
+            return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;
+        }
+    }
+
+    /**
+     * Attempts to a decode a message from the provided bytes. If a full message is not available, null is
+     * returned. If the message is a ping, an empty {@link BytesReference} will be returned.
+     *
+     * @param networkBytes the will be read
+     * @return the message decoded
+     * @throws StreamCorruptedException if the message header format is not recognized
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
+     *                                  This is dependent on the available memory.
+     */
+    public static BytesReference decodeFrame(BytesReference networkBytes) throws IOException {
+        int messageLength = readMessageLength(networkBytes);
+        if (messageLength == -1) {
+            return null;
+        } else {
+            int totalLength = messageLength + BYTES_NEEDED_FOR_MESSAGE_SIZE;
+            if (totalLength > networkBytes.length()) {
+                return null;
+            } else if (totalLength == 6) {
+                return EMPTY_BYTES_REFERENCE;
+            } else {
+                return networkBytes.slice(BYTES_NEEDED_FOR_MESSAGE_SIZE, messageLength);
+            }
+        }
+    }
+
+    /**
+     * Validates the first 6 bytes of the message header and returns the length of the message. If 6 bytes
+     * are not available, it returns -1.
+     *
+     * @param networkBytes the will be read
+     * @return the length of the message
+     * @throws StreamCorruptedException if the message header format is not recognized
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
+     *                                  This is dependent on the available memory.
+     */
+    public static int readMessageLength(BytesReference networkBytes) throws IOException {
+        if (networkBytes.length() < BYTES_NEEDED_FOR_MESSAGE_SIZE) {
+            return -1;
+        } else {
+            return readHeaderBuffer(networkBytes);
+        }
+    }
+
+    private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
+        if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
+            if (appearsToBeHTTP(headerBuffer)) {
+                throw new TcpTransport.HttpOnTransportException("This is not a HTTP port");
             }
 
-            // we have 6 readable bytes, show 4 (should be enough)
             throw new StreamCorruptedException("invalid internal transport message format, got ("
-                + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
+                + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","
+                + Integer.toHexString(headerBuffer.get(1) & 0xFF) + ","
+                + Integer.toHexString(headerBuffer.get(2) & 0xFF) + ","
+                + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")");
         }
-
-        final int dataLen;
-        try (StreamInput input = buffer.streamInput()) {
+        final int messageLength;
+        try (StreamInput input = headerBuffer.streamInput()) {
             input.skip(TcpHeader.MARKER_BYTES_SIZE);
-            dataLen = input.readInt();
-            if (dataLen == PING_DATA_SIZE) {
-                // discard the messages we read and continue, this is achieved by skipping the bytes
-                // and returning null
-                return false;
-            }
+            messageLength = input.readInt();
         }
 
-        if (dataLen <= 0) {
-            throw new StreamCorruptedException("invalid data length: " + dataLen);
+        if (messageLength == TcpTransport.PING_DATA_SIZE) {
+            // This is a ping
+            return 0;
         }
-        // safety against too large frames being sent
-        if (dataLen > NINETY_PER_HEAP_SIZE) {
-            throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
+
+        if (messageLength <= 0) {
+            throw new StreamCorruptedException("invalid data length: " + messageLength);
+        }
+
+        if (messageLength > NINETY_PER_HEAP_SIZE) {
+            throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(messageLength) + "] exceeded ["
                 + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
-        if (buffer.length() < dataLen + sizeHeaderLength) {
-            throw new IllegalStateException("buffer must be >= to the message size but wasn't");
-        }
-        return true;
+        return messageLength;
     }
 
-    private static boolean bufferStartsWith(BytesReference buffer, int offset, String method) {
+    private static boolean appearsToBeHTTP(BytesReference headerBuffer) {
+        return bufferStartsWith(headerBuffer, "GET") ||
+            bufferStartsWith(headerBuffer, "POST") ||
+            bufferStartsWith(headerBuffer, "PUT") ||
+            bufferStartsWith(headerBuffer, "HEAD") ||
+            bufferStartsWith(headerBuffer, "DELETE") ||
+            // Actually 'OPTIONS'. But we are only guaranteed to have read six bytes at this point.
+            bufferStartsWith(headerBuffer, "OPTION") ||
+            bufferStartsWith(headerBuffer, "PATCH") ||
+            bufferStartsWith(headerBuffer, "TRACE");
+    }
+
+    private static boolean bufferStartsWith(BytesReference buffer, String method) {
         char[] chars = method.toCharArray();
         for (int i = 0; i < chars.length; i++) {
-            if (buffer.get(offset + i) != chars[i]) {
+            if (buffer.get(i) != chars[i]) {
                 return false;
             }
         }
-
         return true;
     }
 
@@ -1341,8 +1405,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * This method handles the message receive part for both request and responses
      */
-    public final void messageReceived(BytesReference reference, TcpChannel channel, String profileName,
-                                      InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
+    public final void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
+        String profileName = channel.getProfile();
+        InetSocketAddress remoteAddress = channel.getRemoteAddress();
+        int messageLengthBytes = reference.length();
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         readBytesMetric.inc(totalMessageSize);
         // we have additional bytes to read, outside of the header
@@ -1430,13 +1496,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
-        final TransportResponse response = handler.newInstance();
-        response.remoteAddress(new TransportAddress(remoteAddress));
+        final TransportResponse response;
         try {
-            response.readFrom(stream);
+            response = handler.read(stream);
+            response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {
             handleException(handler, new TransportSerializationException(
-                "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+                "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
             return;
         }
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
@@ -1738,15 +1804,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    /**
-     * Returns count of currently open connections
-     */
-    protected abstract long getNumOpenServerConnections();
-
     @Override
     public final TransportStats getStats() {
-        return new TransportStats(
-            getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
+        return new TransportStats(acceptedChannels.size(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
             transmittedBytesMetric.sum());
     }
 

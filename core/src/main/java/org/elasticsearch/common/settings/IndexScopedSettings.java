@@ -118,6 +118,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
@@ -169,8 +171,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     )));
 
-    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY,
-            BUILT_IN_INDEX_SETTINGS);
+    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Property.IndexScope);

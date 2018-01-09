@@ -20,7 +20,7 @@ For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": {
           "type": "integer"
@@ -34,12 +34,12 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "number_one": "10" <1>
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "number_two": "10" <2>
 }
@@ -67,7 +67,7 @@ PUT my_index
     "index.mapping.coerce": false
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": {
           "type": "integer",
@@ -81,10 +81,10 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { "number_one": "10" } <1>
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 { "number_two": "10" } <2>
 --------------------------------------------------
 // CONSOLE

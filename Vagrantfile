@@ -21,8 +21,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-GRADLE_VERSION = '3.3'
-
 define_opts = {
   autostart: false
 }.freeze
@@ -245,8 +243,6 @@ def linux_common(config,
     config.cache.scope = :box
   end
 
-  gradle_cache config, '/home/vagrant/.gradle/caches'
-
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     touch /etc/is_vagrant_vm
   SHELL
@@ -266,12 +262,6 @@ def linux_common(config,
     install_command_retries,
     extra
   )
-end
-
-def gradle_cache(config, guest_path)
-  config.vm.synced_folder "#{Dir.home}/.gradle/caches", guest_path,
-    create: true,
-    owner: 'vagrant'
 end
 
 # Sets up a consistent prompt for all users. Or tries to. The VM might
@@ -366,16 +356,6 @@ def sh_install_deps(config,
       rm -rf /tmp/bats
     }
 
-    installed gradle || {
-      echo "==> Installing Gradle"
-      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-#{GRADLE_VERSION}-bin.zip
-      unzip -q /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip
-      ln -s /opt/gradle-#{GRADLE_VERSION}/bin/gradle /usr/bin/gradle
-      # make nfs mounted gradle home dir writeable
-      chown vagrant:vagrant /home/vagrant/.gradle
-    }
-
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
@@ -385,7 +365,6 @@ export BATS=/project/build/bats
 export BATS_UTILS=/project/build/bats/utils
 export BATS_TESTS=/project/build/bats/tests
 export BATS_ARCHIVES=/project/build/bats/archives
-export GRADLE_HOME=/opt/gradle-#{GRADLE_VERSION}
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
 Defaults   env_keep += "ZIP"
@@ -402,8 +381,6 @@ SUDOERS_VARS
 end
 
 def windows_common(config, name)
-  gradle_cache config, '/Users/vagrant/.gradle/caches'
-
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
@@ -496,13 +473,8 @@ def powershell_long_path_module
   SHELL
 end
 
-# Gradle is the only dependency that needs to be installed. Setting PATH and
-# GRADLE_HOME won't take affect in any existing login sessions. This is not
-# a problem for remote powershell commands after provisioning - the changes
-# will be visible to them. The session you log into via the Virtualbox GUI
-# will not have the changes visible - you'll need to logout and log back
-# in as the vagrant user. The environment variable changes apply for all
-# users in the system.
+# Just check that java is installed - when other dependencies are needed
+# in the future, this is where they'll go
 def powershell_install_deps(config)
   config.vm.provision 'install deps', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
@@ -522,20 +494,6 @@ def powershell_install_deps(config)
 
     if (-Not (Installed java)) {
       Write-Error "java is not installed"
-    }
-
-    if (-Not (Installed gradle)) {
-      Write-Host "==> Installing gradle"
-      $Source="https://services.gradle.org/distributions/gradle-#{GRADLE_VERSION}-bin.zip"
-      $Zip="C:\\tmp\\gradle.zip"
-      $Destination="C:\\gradle"
-      New-Item (Split-Path $Zip) -ItemType Directory -ErrorAction Ignore | Out-Null
-      (New-Object Net.WebClient).DownloadFile($Source, $Zip)
-      Add-Type -assembly "System.IO.Compression.Filesystem"
-      [IO.Compression.ZipFile]::ExtractToDirectory($Zip, $Destination)
-      Remove-Item $Zip
-      [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$Destination\\gradle-#{GRADLE_VERSION}\\bin", "Machine")
-      [Environment]::SetEnvironmentVariable("GRADLE_HOME", "$Destination\\gradle-#{GRADLE_VERSION}", "Machine")
     }
   SHELL
 end

@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -554,8 +555,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         throws IOException {
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
         if (shard.routingEntry().primary()) {
-            return shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
+            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, type));
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
+                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+            return result;
         } else {
             return shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, getMappingUpdater(shard, type));
@@ -632,5 +636,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     public static Engine getEngine(IndexShard indexShard) {
         return indexShard.getEngine();
+    }
+
+    public static GlobalCheckpointTracker getGlobalCheckpointTracker(IndexShard indexShard) {
+        return indexShard.getGlobalCheckpointTracker();
     }
 }

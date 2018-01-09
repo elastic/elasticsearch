@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -400,14 +399,14 @@ public class ReplicationOperation<
     public interface ReplicaResponse {
 
         /**
-         * The local checkpoint for the shard. See {@link SequenceNumbersService#getLocalCheckpoint()}.
+         * The local checkpoint for the shard.
          *
          * @return the local checkpoint
          **/
         long localCheckpoint();
 
         /**
-         * The global checkpoint for the shard. See {@link SequenceNumbersService#getGlobalCheckpoint()}.
+         * The global checkpoint for the shard.
          *
          * @return the global checkpoint
          **/

@@ -148,6 +148,72 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testWithKeywordMissingAfter() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "foo"),
+                createDocument("keyword", "bar"),
+                createDocument("keyword", "foo"),
+                createDocument("keyword", "zoo"),
+                createDocument("keyword", "bar"),
+                createDocument("keyword", "delta")
+            )
+        );
+        final Sort sort = new Sort(new SortedSetSortField("keyword", false));
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+            }, (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=bar}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=delta}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=foo}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{keyword=zoo}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("keyword", "car"));
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=delta}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=foo}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=zoo}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        testSearchCase(new MatchAllDocsQuery(), null, dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword").order(SortOrder.DESC);
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("keyword", "mar"));
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=foo}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=delta}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=bar}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+    }
+
    public void testWithKeywordDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(

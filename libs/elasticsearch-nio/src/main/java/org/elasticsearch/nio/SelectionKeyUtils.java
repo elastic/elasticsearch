@@ -55,4 +55,8 @@ public final class SelectionKeyUtils {
         SelectionKey selectionKey = channel.getSelectionKey();
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_ACCEPT);
     }
+
+    public static boolean isWriteInterested(NioSocketChannel channel) {
+        return  (channel.getSelectionKey().interestOps() & SelectionKey.OP_WRITE) != 0;
+    }
 }

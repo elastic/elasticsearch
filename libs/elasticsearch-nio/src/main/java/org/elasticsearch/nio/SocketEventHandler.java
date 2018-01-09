@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.io.IOException;
-import java.nio.channels.SelectionKey;
 import java.util.function.BiConsumer;
 
 /**
@@ -159,8 +158,7 @@ public class SocketEventHandler extends EventHandler {
         if (channel.getContext().readyToClose()) {
             handleClose(channel);
         } else {
-            int interestOps = channel.getSelectionKey().interestOps();
-            boolean currentlyWriteInterested = (interestOps & SelectionKey.OP_WRITE) != 0;
+            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(channel);
             boolean pendingWrites = channel.getContext().hasQueuedWriteOps();
             if (currentlyWriteInterested == false && pendingWrites) {
                 SelectionKeyUtils.setWriteInterested(channel);

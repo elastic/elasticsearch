@@ -30,6 +30,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -75,7 +76,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
-import static org.elasticsearch.plugins.MetaPluginInfo.ES_META_PLUGIN_PROPERTIES;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
@@ -626,8 +626,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             if (MetaPluginInfo.isMetaPlugin(tmpRoot)) {
                 installMetaPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
             } else {
-                installPlugin(terminal, isBatch, tmpRoot, env.pluginsFile(), env.binFile(),
-                    env.configFile(), env, deleteOnFailure);
+                installPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
             }
         } catch (Exception installProblem) {
             try {
@@ -639,55 +638,65 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-
     /**
-     * Installs all plugins bundled in the meta plugin into the plugins dir (under the meta plugin directory).
+     * Installs the meta plugin and all the bundled plugins from {@code tmpRoot} into the plugins dir.
+     * If a bundled plugin has a bin dir and/or a config dir, those are copied.
      */
     private void installMetaPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                    Environment env, List<Path> deleteOnFailure) throws Exception {
         final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
         verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
-        final Path metaPath = env.pluginsFile().resolve(metaInfo.getName());
+        final Path destination = env.pluginsFile().resolve(metaInfo.getName());
+        deleteOnFailure.add(destination);
         terminal.println(VERBOSE, metaInfo.toString());
-
-        // creates the meta plugin directory where all plugins are copied
-        Files.createDirectory(metaPath);
-        deleteOnFailure.add(metaPath);
-        setFileAttributes(metaPath, PLUGIN_DIR_PERMS);
-
-        // copy the meta plugin properties file in the meta plugin directory
-        Path metaInfoDest = metaPath.resolve(ES_META_PLUGIN_PROPERTIES);
-        Files.copy(tmpRoot.resolve(ES_META_PLUGIN_PROPERTIES), metaInfoDest);
-        setFileAttributes(metaInfoDest, PLUGIN_FILES_PERMS);
-
-        // install all plugins
+        final List<PluginInfo> pluginInfos = new ArrayList<>();
         try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(tmpRoot)) {
             for (Path subPlugin : subPaths) {
                 if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
                     continue;
                 }
-                installPlugin(terminal, isBatch, subPlugin, env.pluginsFile().resolve(metaInfo.getName()),
-                    env.binFile().resolve(metaInfo.getName()), env.configFile().resolve(metaInfo.getName()), env, deleteOnFailure);
+                final PluginInfo info = verify(terminal, subPlugin, isBatch, env);
+                pluginInfos.add(info);
+                Path tmpBinDir = subPlugin.resolve("bin");
+                if (Files.exists(tmpBinDir)) {
+                    Path destBinDir = env.binFile().resolve(metaInfo.getName()).resolve(info.getName());
+                    deleteOnFailure.add(destBinDir);
+                    installBin(info, tmpBinDir, destBinDir);
+                }
+
+                Path tmpConfigDir = subPlugin.resolve("config");
+                if (Files.exists(tmpConfigDir)) {
+                    // some files may already exist, and we don't remove plugin config files on plugin removal,
+                    // so any installed config files are left on failure too
+                    Path destConfigDir = env.configFile().resolve(metaInfo.getName()).resolve(info.getName());
+                    installConfig(info, tmpConfigDir, destConfigDir);
+                }
             }
         }
-        // clean up installation
-        IOUtils.rm(tmpRoot);
-        terminal.println("-> Installed " + metaInfo.getName());
+        movePlugin(tmpRoot, destination);
+        for (PluginInfo info : pluginInfos) {
+            if (info.requiresKeystore()) {
+                createKeystoreIfNeeded(terminal, env, info);
+                break;
+            }
+        }
+        String[] plugins = pluginInfos.stream().map(PluginInfo::getName).toArray(String[]::new);
+        terminal.println("-> Installed " + metaInfo.getName() + " with: " + Strings.arrayToCommaDelimitedString(plugins));
     }
 
     /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are copied.
      */
-    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Path pluginsDir, Path binDir, Path configDir,
+    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
-        final Path destination = pluginsDir.resolve(info.getName());
+        final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
 
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
-            Path destBinDir = binDir.resolve(info.getName());
+            Path destBinDir = env.binFile().resolve(info.getName());
             deleteOnFailure.add(destBinDir);
             installBin(info, tmpBinDir, destBinDir);
         }
@@ -696,10 +705,18 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(tmpConfigDir)) {
             // some files may already exist, and we don't remove plugin config files on plugin removal,
             // so any installed config files are left on failure too
-            Path destConfigDir = configDir.resolve(info.getName());
+            Path destConfigDir = env.configFile().resolve(info.getName());
             installConfig(info, tmpConfigDir, destConfigDir);
         }
+        movePlugin(tmpRoot, destination);
+        if (info.requiresKeystore()) {
+            createKeystoreIfNeeded(terminal, env, info);
+        }
+        terminal.println("-> Installed " + info.getName());
+    }
 
+    /** Moves the plugin directory into its final destination. **/
+    private void movePlugin(Path tmpRoot, Path destination) throws IOException {
         Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
         Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
             @Override
@@ -718,15 +735,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 return FileVisitResult.CONTINUE;
             }
         });
-        if (info.requiresKeystore()) {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-            if (keystore == null) {
-                terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-                keystore = KeyStoreWrapper.create(new char[0]);
-                keystore.save(env.configFile());
-            }
-        }
-        terminal.println("-> Installed " + info.getName());
     }
 
 
@@ -791,6 +799,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
+    }
+
+    private void createKeystoreIfNeeded(Terminal terminal, Environment env, PluginInfo info) throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+        if (keystore == null) {
+            terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
+            keystore = KeyStoreWrapper.create(new char[0]);
+            keystore.save(env.configFile());
+        }
     }
 
     private static void setOwnerGroup(final Path path, final PosixFileAttributes attributes) throws IOException {

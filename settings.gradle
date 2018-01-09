@@ -145,7 +145,6 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
   if (new File(dir, 'build.gradle').exists() == false) return;
 
   final String projectName = "${path}:${dir.name}"
-  println projectName
   include projectName
 
   if (dir.name == 'bwc-snapshot-dummy-projects') {

@@ -70,11 +70,10 @@ for (Version version : wireCompatVersions) {
     finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
   }
 
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
-    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-  }
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
   configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    dependsOn mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop"
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }

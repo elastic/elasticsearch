@@ -45,7 +45,8 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
     @Override
     public void testSimpleBoundingBoxQuery() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
+            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -182,7 +183,8 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
     @Override
     public void testLimit2BoundingBox() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
+            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -247,7 +249,8 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
     @Override
     public void testCompleteLonRange() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
+            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();

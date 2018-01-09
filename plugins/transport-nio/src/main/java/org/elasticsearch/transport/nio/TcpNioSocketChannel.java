@@ -61,7 +61,7 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
 
     @Override
     public void close() {
-        getContext().initiateClose();
+        getContext().closeChannel();
     }
 
     @Override

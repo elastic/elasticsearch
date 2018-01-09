@@ -49,7 +49,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
         IOException contextCloseException = null;
         try {
-            context.close();
+            context.closeFromSelector();
         } catch (IOException e) {
             contextCloseException = e;
         }

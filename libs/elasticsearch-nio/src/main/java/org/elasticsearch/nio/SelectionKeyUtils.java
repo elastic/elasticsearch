@@ -41,6 +41,11 @@ public final class SelectionKeyUtils {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 
+    public static void setConnectReadAndWriteInterested(NioChannel channel) throws CancelledKeyException {
+        SelectionKey selectionKey = channel.getSelectionKey();
+        selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+    }
+
     public static void removeConnectInterested(NioChannel channel) throws CancelledKeyException {
         SelectionKey selectionKey = channel.getSelectionKey();
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_CONNECT);

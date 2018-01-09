@@ -190,6 +190,11 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
+        public void close() {
+            getSelector().queueChannelClose(this);
+        }
+
+        @Override
         public String getProfile() {
             return profile;
         }
@@ -223,6 +228,11 @@ public class MockNioTransport extends TcpTransport {
             throws IOException {
             super(socketChannel, selector);
             this.profile = profile;
+        }
+
+        @Override
+        public void close() {
+            getContext().closeChannel();
         }
 
         @Override

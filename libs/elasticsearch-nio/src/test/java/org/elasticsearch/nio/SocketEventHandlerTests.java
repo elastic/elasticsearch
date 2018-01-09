@@ -62,6 +62,15 @@ public class SocketEventHandlerTests extends ESTestCase {
         when(socketSelector.isOnCurrentThread()).thenReturn(true);
     }
 
+    public void testRegisterCallsContext() throws IOException {
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        ChannelContext channelContext = mock(ChannelContext.class);
+        when(channel.getContext()).thenReturn(channelContext);
+        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleRegistration(channel);
+        verify(channelContext).channelRegistered();
+    }
+
     public void testRegisterAddsOP_CONNECTAndOP_READInterest() throws IOException {
         handler.handleRegistration(channel);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, channel.getSelectionKey().interestOps());

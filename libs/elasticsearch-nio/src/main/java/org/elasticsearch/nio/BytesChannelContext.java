@@ -43,6 +43,9 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
+    public void channelRegistered() throws IOException {}
+
+    @Override
     public int read() throws IOException {
         if (channelBuffer.getRemaining() == 0) {
             // Requiring one additional byte will ensure that a new page is allocated.
@@ -116,7 +119,7 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
-    public void initiateClose() {
+    public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             channel.getSelector().queueChannelClose(channel);
         }
@@ -128,7 +131,8 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
-    public void close() throws IOException {
+    public void closeFromSelector() {
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to close";
         isClosing.set(true);
         channelBuffer.close();
         for (BytesWriteOperation op : queued) {

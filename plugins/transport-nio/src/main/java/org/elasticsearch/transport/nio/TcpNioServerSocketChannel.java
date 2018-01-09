@@ -61,6 +61,11 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
     }
 
     @Override
+    public void close() {
+        getSelector().queueChannelClose(this);
+    }
+
+    @Override
     public String getProfile() {
         return profile;
     }

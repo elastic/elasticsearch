@@ -22,7 +22,9 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-public interface ChannelContext extends AutoCloseable {
+public interface ChannelContext {
+
+    void channelRegistered() throws IOException;
 
     int read() throws IOException;
 
@@ -34,12 +36,28 @@ public interface ChannelContext extends AutoCloseable {
 
     boolean hasQueuedWriteOps();
 
-    void initiateClose();
+    /**
+     * Schedules a channel to be closed by the selector event loop with which it is registered.
+     * <p>
+     * If the channel is open and the state can be transitioned to closed, the close operation will
+     * be scheduled with the event loop.
+     * <p>
+     * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
+     * <p>
+     * Depending on the underlying protocol of the channel, a close operation might simply close the socket
+     * channel or may involve reading and writing messages.
+     */
+    void closeChannel();
 
     boolean readyToClose();
 
-    @Override
-    void close() throws IOException;
+    /**
+     * This method cleans up any context resources that need to be released when a channel is closed. It
+     * should only be called by the selector thread.
+     *
+     * @throws IOException during channel / context close
+     */
+    void closeFromSelector() throws IOException;
 
     @FunctionalInterface
     interface ReadConsumer {

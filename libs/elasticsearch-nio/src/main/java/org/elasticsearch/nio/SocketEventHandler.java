@@ -44,10 +44,13 @@ public class SocketEventHandler extends EventHandler {
      *
      * @param channel that was registered
      */
-    protected void handleRegistration(NioSocketChannel channel) {
-        SelectionKeyUtils.setConnectAndReadInterested(channel);
-        if (channel.getContext().hasQueuedWriteOps()) {
-            SelectionKeyUtils.setWriteInterested(channel);
+    protected void handleRegistration(NioSocketChannel channel) throws IOException {
+        ChannelContext context = channel.getContext();
+        context.channelRegistered();
+        if (context.hasQueuedWriteOps()) {
+            SelectionKeyUtils.setConnectReadAndWriteInterested(channel);
+        } else {
+            SelectionKeyUtils.setConnectAndReadInterested(channel);
         }
     }
 
@@ -58,7 +61,7 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void registrationException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
+        logger.warn(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 

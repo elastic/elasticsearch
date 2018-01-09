@@ -104,7 +104,7 @@ public class NioSocketChannelTests extends ESTestCase {
         IOException ioException = new IOException();
         NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
         ChannelContext context = mock(ChannelContext.class);
-        doThrow(ioException).when(context).close();
+        doThrow(ioException).when(context).closeFromSelector();
         socketChannel.setContexts(context, mock(BiConsumer.class));
         socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
             @Override

@@ -158,12 +158,12 @@ public class BytesChannelContextTests extends ESTestCase {
         InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
         buffer.ensureCapacity(1);
         BytesChannelContext context = new BytesChannelContext(channel, readConsumer, buffer);
-        context.close();
+        context.closeFromSelector();
         verify(closer).run();
     }
 
     public void testWriteFailsIfClosing() {
-        context.initiateClose();
+        context.closeChannel();
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
         context.sendMessage(buffers, listener);
@@ -218,7 +218,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         assertTrue(context.hasQueuedWriteOps());
 
-        context.close();
+        context.closeFromSelector();
 
         verify(selector).executeFailedListener(same(listener), any(ClosedChannelException.class));
 
@@ -323,7 +323,7 @@ public class BytesChannelContextTests extends ESTestCase {
     }
 
     public void initiateCloseSchedulesCloseWithSelector() {
-        context.initiateClose();
+        context.closeChannel();
         verify(selector).queueChannelClose(channel);
     }
 

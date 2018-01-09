@@ -19,18 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.LatLonBoundingBox;
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Rectangle;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
@@ -43,10 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoBoundingBoxFieldMapper;
-import org.elasticsearch.index.mapper.GeoBoundingBoxFieldMapper.GeoBoundingBoxFieldType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -344,25 +332,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return validationException;
     }
 
-    private enum GeoFieldType { POINT, BBOX }
-
-    private GeoFieldType getGeoFieldType(MappedFieldType fieldType, QueryShardContext context) {
-        if (fieldType instanceof GeoPointFieldType) {
-            if (relation != null) {
-                throw new QueryShardException(context, "field [" + fieldName +
-                    "] is a geo_point type which do not support relational queries");
-            }
-            return GeoFieldType.POINT;
-        } else if (context.indexVersionCreated().onOrAfter(GeoBoundingBoxFieldMapper.SUPPORTED_IN_VERSION)
-            && fieldType instanceof GeoBoundingBoxFieldType) {
-            if (fieldType instanceof GeoBoundingBoxFieldType) {
-                return GeoFieldType.BBOX;
-            }
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point or geo_bounding_box field");
-        }
-        throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
-    }
-
     @Override
     public Query doToQuery(QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
@@ -373,7 +342,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        GeoFieldType geoType = getGeoFieldType(fieldType, context);
+
         QueryValidationException exception = checkLatLon();
         if (exception != null) {
             throw new QueryShardException(context, "couldn't validate latitude / longitude values", exception);
@@ -395,130 +364,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 luceneBottomRight.resetLon(180);
             }
         }
-        return getQuery(context, fieldType, geoType, luceneTopLeft, luceneBottomRight);
-    }
-
-    private Query getQuery(QueryShardContext context, MappedFieldType fieldType, GeoFieldType geoType,
-                           GeoPoint topLeft, GeoPoint bottomRight) {
-        if (geoType.equals(GeoFieldType.BBOX)) {
-            return newLatLonBBoxQuery(context, topLeft, bottomRight);
-        }
-        Query query = LatLonPoint.newBoxQuery(fieldType.name(), bottomRight.getLat(), topLeft.getLat(),
-            topLeft.getLon(), bottomRight.getLon());
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldType.name(),
-                bottomRight.getLat(), topLeft.getLat(), topLeft.getLon(), bottomRight.getLon());
-            query = new IndexOrDocValuesQuery(query, dvQuery);
-        }
-        return query;
-    }
-
-    private Query newBBoxQuery(final String field, final double minLat, final double minLon,
-                               final double maxLat, final double maxLon, final ShapeRelation relation) {
-        switch(relation) {
-            case INTERSECTS:
-                return LatLonBoundingBox.newIntersectsQuery(field, minLat, minLon, maxLat, maxLon);
-            case CONTAINS:
-                return LatLonBoundingBox.newContainsQuery(field, minLat, minLon, maxLat, maxLon);
-            case WITHIN:
-                return LatLonBoundingBox.newWithinQuery(field, minLat, minLon, maxLat, maxLon);
-            case CROSSES:
-                return LatLonBoundingBox.newCrossesQuery(field, minLat, minLon, maxLat, maxLon);
-            default:
-                throw new IllegalArgumentException("[" + NAME + "] query does not support relation [" + relation + "]");
-        }
-    }
-
-    private Query eastQuery(final double minLat, final double minLon, final double maxLat, final double maxLon) {
-        ShapeRelation r = relation == null || relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
-        return newBBoxQuery(fieldName, minLat, minLon, maxLat, maxLon, r);
-    }
-
-    private Query westQuery(final double minLat, final double minLon, final double maxLat, final double maxLon) {
-        String west = fieldName + GeoBoundingBoxFieldMapper.FIELD_XDL_SUFFIX;
-        ShapeRelation r = relation == null || relation.equals(ShapeRelation.DISJOINT) ? ShapeRelation.INTERSECTS : relation;
-        return newBBoxQuery(west, minLat, minLon, maxLat, maxLon, r);
-    }
-
-    private Query newXDLQuery(BooleanClause.Occur eastOccurs, BooleanClause.Occur westOccurs) {
-        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-        bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D), eastOccurs);
-        bqb.add(eastQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon()), eastOccurs);
-        bqb.add(westQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon()), westOccurs);
-        return bqb.build();
-    }
-
-    private boolean crossesDateline() {
-        return bottomRight.lon() < topLeft.lon();
-    }
-
-    private Query newIntersectsQuery(GeoPoint topLeft, GeoPoint bottomRight, BooleanClause.Occur occur) {
-        if (crossesDateline()) {
-            return newXDLQuery(occur, occur);
-        }
-        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-        bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon()), occur);
-        bqb.add(westQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon()), occur);
-        return bqb.build();
-    }
-
-    private Query newIntersectsQuery(GeoPoint topLeft, GeoPoint bottomRight) {
-        return newIntersectsQuery(topLeft, bottomRight, BooleanClause.Occur.SHOULD);
-    }
-
-    private Query newDisjointQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
-        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-        bqb.add(ExistsQueryBuilder.newFilter(context, fieldName), BooleanClause.Occur.MUST);
-        bqb.add(LatLonBoundingBox.newIntersectsQuery(fieldName, bottomRight.lat(), topLeft.lon(), topLeft.lat(),
-            bottomRight.lon()), BooleanClause.Occur.MUST_NOT);
-        return bqb.build();
-    }
-
-    private Query newContainsQuery(GeoPoint topLeft, GeoPoint bottomRight) {
-        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-        if (crossesDateline()) {
-            bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D), BooleanClause.Occur.MUST);
-            bqb.add(westQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.MUST);
-        } else {
-            bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.SHOULD);
-            bqb.add(westQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.SHOULD);
-        }
-        return bqb.build();
-    }
-
-    private Query newWithinQuery(GeoPoint topLeft, GeoPoint bottomRight) {
-        String west = fieldName + GeoBoundingBoxFieldMapper.FIELD_XDL_SUFFIX;
-        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-        if (crossesDateline()) {
-            // build a query for matching docs that cross dateline:
-            BooleanQuery.Builder xdlBQ = new BooleanQuery.Builder();
-            xdlBQ.add(new TermQuery(new Term(FieldNamesFieldMapper.NAME, west)), BooleanClause.Occur.MUST);
-            xdlBQ.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D), BooleanClause.Occur.MUST);
-            xdlBQ.add(westQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.MUST);
-            // build a query for matching docs that do not cross dateline:
-            BooleanQuery.Builder nxdlBQ = new BooleanQuery.Builder();
-            nxdlBQ.add(new TermQuery(new Term(FieldNamesFieldMapper.NAME, west)), BooleanClause.Occur.MUST_NOT);
-            nxdlBQ.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D), BooleanClause.Occur.SHOULD);
-            nxdlBQ.add(eastQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.SHOULD);
-            bqb.add(xdlBQ.build(), BooleanClause.Occur.SHOULD);
-            bqb.add(nxdlBQ.build(), BooleanClause.Occur.SHOULD);
-        } else {
-            // build a query for matching docs that do not cross the dateline:
-            bqb.add(new TermQuery(new Term(FieldNamesFieldMapper.NAME, west)), BooleanClause.Occur.MUST_NOT);
-            bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon()), BooleanClause.Occur.MUST);
-        }
-        return bqb.build();
-    }
-
-    private Query newLatLonBBoxQuery(QueryShardContext context, GeoPoint topLeft, GeoPoint bottomRight) {
-        ShapeRelation relation = this.relation == null ? ShapeRelation.INTERSECTS : this.relation;
-        switch (relation) {
-            case INTERSECTS: return newIntersectsQuery(topLeft, bottomRight);
-            case CONTAINS: return newContainsQuery(topLeft, bottomRight);
-            case WITHIN: return newWithinQuery(topLeft, bottomRight);
-            case DISJOINT: return newDisjointQuery(context, topLeft, bottomRight);
-            default: throw new ElasticsearchException("[{}] query does not support relation [{}]", NAME, relation);
-        }
+        return fieldType.rangeQuery(luceneTopLeft, luceneBottomRight, false, false, relation(),
+            null, null, context);
     }
 
     public ShapeRelation relation() {

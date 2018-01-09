@@ -5,35 +5,33 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
-public class ConstantInput extends LeafInput<Object> {
-
-    public ConstantInput(Expression expression, Object context) {
+/**
+ * Implementation common to most subclasses of
+ * {@link NonExecutableInput} but not shared by all.
+ */
+abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
+    CommonNonExecutableInput(Expression expression, T context) {
         super(expression, context);
     }
 
     @Override
-    public Processor asProcessor() {
-        return new ConstantProcessor(context());
+    public final Processor asProcessor() {
+        throw new SqlIllegalArgumentException("Unresolved input - needs resolving first");
     }
 
     @Override
-    public final boolean supportedByAggsOnlyQuery() {
-        return true;
-    }
-
-    @Override
-    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
+    public final ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
         return this;
     }
 
     @Override
     public final void collectFields(SqlSourceBuilder sourceBuilder) {
-        // Nothing to collect
+        // Nothing to extract
     }
 
     @Override

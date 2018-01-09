@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
@@ -46,6 +48,49 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         d = new DummyBinaryProcessorDefinition(needsResolution, needsNothing);
         expected = new DummyBinaryProcessorDefinition(resolvesTo, needsNothing);
         assertEquals(expected, d.resolveAttributes(resolver));
+    }
+
+    public void testCollectFields() {
+        DummyProcessorDefinition wantsScore = new DummyProcessorDefinition(randomBoolean()) {
+            @Override
+            public void collectFields(SqlSourceBuilder sourceBuilder) {
+                sourceBuilder.trackScores();
+            }
+        };
+        DummyProcessorDefinition wantsNothing = new DummyProcessorDefinition(randomBoolean());
+        assertFalse(tracksScores(new DummyBinaryProcessorDefinition(wantsNothing, wantsNothing)));
+        assertTrue(tracksScores(new DummyBinaryProcessorDefinition(wantsScore, wantsNothing)));
+        assertTrue(tracksScores(new DummyBinaryProcessorDefinition(wantsNothing, wantsScore)));
+    }
+
+    /**
+     * Returns {@code true} if the processor defintion builds a query that
+     * tracks scores, {@code false} otherwise. Used for testing
+     * {@link ProcessorDefinition#collectFields(SqlSourceBuilder)}.
+     */
+    static boolean tracksScores(ProcessorDefinition d) {
+        SqlSourceBuilder b = new SqlSourceBuilder();
+        d.collectFields(b);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        b.build(source);
+        return source.trackScores();
+    }
+
+    public void testDepth() {
+        ProcessorDefinition first = dummyWithDepth(randomInt());
+        ProcessorDefinition second = dummyWithDepth(randomInt());
+        int maxDepth = Math.max(first.depth(), second.depth());
+        assertEquals(maxDepth, new DummyBinaryProcessorDefinition(first, second).depth());
+        assertEquals(maxDepth, new DummyBinaryProcessorDefinition(second, first).depth());
+    }
+
+    static ProcessorDefinition dummyWithDepth(int depth) {
+        return new DummyProcessorDefinition(randomBoolean()) {
+            @Override
+            public int depth() {
+                return depth;
+            }
+        };
     }
 
     public static final class DummyBinaryProcessorDefinition extends BinaryProcessorDefinition {
@@ -90,6 +135,15 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         @Override
         public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
             return this;
+        }
+
+        @Override
+        public void collectFields(SqlSourceBuilder sourceBuilder) {
+        }
+
+        @Override
+        public int depth() {
+            return 0;
         }
     }
 }

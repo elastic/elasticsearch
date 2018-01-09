@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 
@@ -21,5 +22,15 @@ public class ReferenceInput extends NonExecutableInput<ColumnReference> {
     @Override
     public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
         return this;
+    }
+
+    @Override
+    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+        context().collectFields(sourceBuilder);
+    }
+
+    @Override
+    public int depth() {
+        return context().depth();
     }
 }

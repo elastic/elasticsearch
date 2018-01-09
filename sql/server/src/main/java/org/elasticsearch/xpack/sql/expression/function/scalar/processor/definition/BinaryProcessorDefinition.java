@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 
 import java.util.Arrays;
@@ -42,6 +43,11 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
         return replaceChildren(newLeft, newRight);
     }
 
+    @Override
+    public final int depth() {
+        return Math.max(left.depth(), right.depth());
+    }
+
     /**
      * Build a copy of this object with new left and right children. Used by
      * {@link #resolveAttributes(AttributeResolver)}.
@@ -51,5 +57,11 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
     @Override
     public boolean resolved() {
         return left().resolved() && right().resolved();
+    }
+
+    @Override
+    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+        left.collectFields(sourceBuilder);
+        right.collectFields(sourceBuilder);
     }
 }

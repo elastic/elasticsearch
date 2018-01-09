@@ -30,11 +30,6 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
-        sourceBuilder.trackScores();
-    }
-
-    @Override
     public boolean supportedByAggsOnlyQuery() {
         return false;
     }
@@ -42,5 +37,15 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
     @Override
     public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
         return this;
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        sourceBuilder.trackScores();
+    }
+
+    @Override
+    public int depth() {
+        return 0;
     }
 }

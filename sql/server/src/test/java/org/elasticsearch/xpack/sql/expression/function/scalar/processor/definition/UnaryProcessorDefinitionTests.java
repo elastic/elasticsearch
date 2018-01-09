@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.DummyProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.dummyWithDepth;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.tracksScores;
 import static java.util.Collections.emptyList;
 
 public class UnaryProcessorDefinitionTests extends ESTestCase {
@@ -41,6 +44,23 @@ public class UnaryProcessorDefinitionTests extends ESTestCase {
         d = newUnaryProcessor(needsResolution);
         ProcessorDefinition expected = newUnaryProcessor(resolvesTo);
         assertEquals(expected, d.resolveAttributes(resolver));
+    }
+
+    public void testCollectFields() {
+        DummyProcessorDefinition wantsScore = new DummyProcessorDefinition(randomBoolean()) {
+            @Override
+            public void collectFields(SqlSourceBuilder sourceBuilder) {
+                sourceBuilder.trackScores();
+            }
+        };
+        DummyProcessorDefinition wantsNothing = new DummyProcessorDefinition(randomBoolean());
+        assertFalse(tracksScores(newUnaryProcessor(wantsNothing)));
+        assertTrue(tracksScores(newUnaryProcessor(wantsScore)));
+    }
+
+    public void testDepth() {
+        ProcessorDefinition child = dummyWithDepth(randomInt());
+        assertEquals(child.depth(), newUnaryProcessor(child).depth());
     }
 
     private ProcessorDefinition newUnaryProcessor(ProcessorDefinition child) {

@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.util.Objects;
 
-public class AggPathInput extends NonExecutableInput<String> {
+public class AggPathInput extends CommonNonExecutableInput<String> {
 
     private final String innerKey;
     // used in case the agg itself is not returned in a suitable format (like date aggs)
@@ -46,11 +47,6 @@ public class AggPathInput extends NonExecutableInput<String> {
     @Override
     public final boolean supportedByAggsOnlyQuery() {
         return true;
-    }
-
-    @Override
-    public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
-        return this;
     }
 
     @Override

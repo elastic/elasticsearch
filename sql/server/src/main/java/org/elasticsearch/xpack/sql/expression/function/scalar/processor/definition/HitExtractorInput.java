@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
@@ -29,5 +30,15 @@ public class HitExtractorInput extends LeafInput<HitExtractor> {
     @Override
     public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
         return this;
+    }
+
+    @Override
+    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+        // No fields to collect
+    }
+
+    @Override
+    public final int depth() {
+        return 0;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
@@ -54,6 +55,16 @@ public final class UnaryProcessorDefinition extends ProcessorDefinition {
             return this;
         }
         return new UnaryProcessorDefinition(expression(), newChild, action);
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        child.collectFields(sourceBuilder);
+    }
+
+    @Override
+    public int depth() {
+        return child.depth();
     }
 
     @Override

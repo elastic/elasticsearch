@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.MatrixFieldProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
@@ -41,6 +42,16 @@ public class AggValueInput extends LeafInput<Supplier<Object>> {
     @Override
     public ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
         return this;
+    }
+
+    @Override
+    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+        // Nothing to collect
+    }
+
+    @Override
+    public final int depth() {
+        return 0;
     }
 
     @Override

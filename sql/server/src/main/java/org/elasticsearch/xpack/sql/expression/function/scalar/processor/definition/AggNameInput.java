@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 
-public class AggNameInput extends NonExecutableInput<String> {
-
+public class AggNameInput extends CommonNonExecutableInput<String> {
     public AggNameInput(Expression expression, String context) {
         super(expression, context);
     }
@@ -19,7 +18,7 @@ public class AggNameInput extends NonExecutableInput<String> {
     }
 
     @Override
-    public final ProcessorDefinition resolveAttributes(AttributeResolver resolver) {
-        return this;
+    public final boolean resolved() {
+        return false;
     }
 }

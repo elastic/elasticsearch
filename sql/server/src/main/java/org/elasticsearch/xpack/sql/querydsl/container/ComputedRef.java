@@ -5,32 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ComputedRef implements ColumnReference {
 
     private final ProcessorDefinition processor;
-    private final int depth;
 
     public ComputedRef(ProcessorDefinition processor) {
         this.processor = processor;
-
-        // compute maximum depth
-        AtomicInteger d = new AtomicInteger(0);
-        processor.forEachDown(i -> {
-            ColumnReference ref = i.context();
-            if (ref.depth() > d.get()) {
-                d.set(ref.depth());
-            }
-        }, ReferenceInput.class);
-
-        depth = d.get();
     }
 
     public ProcessorDefinition processor() {
@@ -39,7 +22,7 @@ public class ComputedRef implements ColumnReference {
 
     @Override
     public int depth() {
-        return depth;
+        return processor.depth();
     }
 
     @Override
@@ -50,7 +33,6 @@ public class ComputedRef implements ColumnReference {
     @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         processor.collectFields(sourceBuilder);
-        processor.forEachUp(ri -> ri.context().collectFields(sourceBuilder), ReferenceInput.class);
     }
 
     @Override

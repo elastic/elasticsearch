@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 /**
  * Entity representing a 'column' backed by one or multiple results from ES. A
@@ -14,13 +13,5 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
  * set, so extends {@link FieldExtraction}.
  */
 public interface ColumnReference extends FieldExtraction {
-
-    /**
-     * Indicates the depth of the result. Used for counting the actual size of a
-     * result by knowing how many nested levels there are. Typically used by
-     * aggregations.
-     * 
-     * @return depth of the result
-     */
-    int depth();
+    // TODO remove this interface intirely in a followup
 }

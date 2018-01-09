@@ -21,10 +21,16 @@ the stack are connected to the cluster and therefore need to be secured as well,
 or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
-* {logstash-ref}/ls-security.html[Logstash]
+* {auditbeat-ref}/securing-beats.html[Auditbeat]
+* {filebeat-ref}/securing-beats.html[Filebeat]
+* {heartbeat-ref}/securing-beats.html[Heartbeat]
 * {kibana-ref}/using-kibana-with-security.html[{kib}]
+* {logstash-ref}/ls-security.html[Logstash]
+* {metricbeat-ref}/securing-beats.html[Metricbeat]
 * <<secure-monitoring, Monitoring>>
+* {packetbeat-ref}/securing-beats.html[Packetbeat]
 * {kibana-ref}/secure-reporting.html[Reporting]
+* {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
 include::tribe-clients-integrations/cross-cluster.asciidoc[]
 

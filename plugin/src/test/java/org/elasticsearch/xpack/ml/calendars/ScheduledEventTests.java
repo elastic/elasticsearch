@@ -32,7 +32,7 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
     public static ScheduledEvent createScheduledEvent(String calendarId) {
         ZonedDateTime start = ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC);
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
-                calendarId);
+                calendarId, null);
     }
 
     @Override

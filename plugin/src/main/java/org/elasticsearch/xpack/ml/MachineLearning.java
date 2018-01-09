@@ -52,6 +52,11 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -61,7 +66,6 @@ import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
@@ -76,7 +80,6 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutCalendarAction;
@@ -129,7 +132,6 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
-import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
@@ -163,6 +165,7 @@ import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
@@ -513,6 +516,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),
             new RestDeleteCalendarAction(settings, restController),
+            new RestDeleteCalendarEventAction(settings, restController),
             new RestDeleteCalendarJobAction(settings, restController),
             new RestPutCalendarJobAction(settings, restController),
             new RestGetCalendarEventsAction(settings, restController),
@@ -566,6 +570,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, TransportGetCalendarsAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, TransportPutCalendarAction.class),
                 new ActionHandler<>(DeleteCalendarAction.INSTANCE, TransportDeleteCalendarAction.class),
+                new ActionHandler<>(DeleteCalendarEventAction.INSTANCE, TransportDeleteCalendarEventAction.class),
                 new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class)

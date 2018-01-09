@@ -14,18 +14,19 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, DeleteCalendarAction.Response,
-        DeleteCalendarAction.RequestBuilder> {
+public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.Request, DeleteCalendarEventAction.Response,
+        DeleteCalendarEventAction.RequestBuilder> {
 
-    public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
-    public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
+    public static final DeleteCalendarEventAction INSTANCE = new DeleteCalendarEventAction();
+    public static final String NAME = "cluster:admin/xpack/ml/calendars/events/delete";
 
-    private DeleteCalendarAction() {
+    private DeleteCalendarEventAction() {
         super(NAME);
     }
 
@@ -40,19 +41,23 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-
-
         private String calendarId;
+        private String eventId;
 
         Request() {
         }
 
-        public Request(String calendarId) {
+        public Request(String calendarId, String eventId) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
+            this.eventId = ExceptionsHelper.requireNonNull(eventId, ScheduledEvent.EVENT_ID.getPreferredName());
         }
 
         public String getCalendarId() {
             return calendarId;
+        }
+
+        public String getEventId() {
+            return eventId;
         }
 
         @Override
@@ -64,17 +69,19 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             calendarId = in.readString();
+            eventId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
+            out.writeString(eventId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId);
+            return Objects.hash(eventId, calendarId);
         }
 
         @Override
@@ -84,14 +91,13 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
             }
 
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId);
+            return Objects.equals(eventId, other.eventId) && Objects.equals(calendarId, other.calendarId);
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response,
-                RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, DeleteCalendarAction action) {
+        public RequestBuilder(ElasticsearchClient client, DeleteCalendarEventAction action) {
             super(client, action, new Request());
         }
     }

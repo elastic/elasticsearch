@@ -24,8 +24,8 @@ import java.util.List;
 public class ScheduledEventsQueryBuilder {
     public static final int DEFAULT_SIZE = 1000;
 
-    private int from = 0;
-    private int size = DEFAULT_SIZE;
+    private Integer from = 0;
+    private Integer size = DEFAULT_SIZE;
 
     private List<String> calendarIds;
     private String after;
@@ -46,12 +46,22 @@ public class ScheduledEventsQueryBuilder {
         return this;
     }
 
-    public ScheduledEventsQueryBuilder from(int from) {
+    /**
+     * Set the query from parameter.
+     * @param from If null then no from will be set
+     * @return this
+     */
+    public ScheduledEventsQueryBuilder from(Integer from) {
         this.from = from;
         return this;
     }
 
-    public ScheduledEventsQueryBuilder size(int size) {
+    /**
+     * Set the query size parameter.
+     * @param size If null then no size will be set
+     * @return this
+     */
+    public ScheduledEventsQueryBuilder size(Integer size) {
         this.size = size;
         return this;
     }
@@ -78,8 +88,12 @@ public class ScheduledEventsQueryBuilder {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(ScheduledEvent.START_TIME.getPreferredName());
-        searchSourceBuilder.from(from);
-        searchSourceBuilder.size(size);
+        if (from != null) {
+            searchSourceBuilder.from(from);
+        }
+        if (size != null) {
+            searchSourceBuilder.size(size);
+        }
 
         if (queries.isEmpty()) {
             searchSourceBuilder.query(typeQuery);

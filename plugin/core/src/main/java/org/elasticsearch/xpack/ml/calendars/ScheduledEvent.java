@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.calendars;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
     public static final ParseField TYPE = new ParseField("type");
+    public static final ParseField EVENT_ID = new ParseField("event_id");
 
     public static final ParseField RESULTS_FIELD = new ParseField("events");
 
@@ -81,12 +83,14 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     private final ZonedDateTime startTime;
     private final ZonedDateTime endTime;
     private final String calendarId;
+    private final String eventId;
 
-    ScheduledEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId) {
+    ScheduledEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId, @Nullable String eventId) {
         this.description = Objects.requireNonNull(description);
         this.startTime = Objects.requireNonNull(startTime);
         this.endTime = Objects.requireNonNull(endTime);
         this.calendarId = Objects.requireNonNull(calendarId);
+        this.eventId = eventId;
     }
 
     public ScheduledEvent(StreamInput in) throws IOException {
@@ -94,6 +98,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
         endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
         calendarId = in.readString();
+        eventId = in.readOptionalString();
     }
 
     public String getDescription() {
@@ -110,6 +115,10 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public String getCalendarId() {
         return calendarId;
+    }
+
+    public String getEventId() {
+        return eventId;
     }
 
     /**
@@ -146,6 +155,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         out.writeVLong(startTime.toInstant().toEpochMilli());
         out.writeVLong(endTime.toInstant().toEpochMilli());
         out.writeString(calendarId);
+        out.writeOptionalString(eventId);
     }
 
     @Override
@@ -155,6 +165,9 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         builder.dateField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toInstant().toEpochMilli());
         builder.dateField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
         builder.field(Calendar.ID.getPreferredName(), calendarId);
+        if (eventId != null) {
+            builder.field(EVENT_ID.getPreferredName(), eventId);
+        }
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), SCHEDULED_EVENT_TYPE);
         }
@@ -197,7 +210,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         private ZonedDateTime startTime;
         private ZonedDateTime endTime;
         private String calendarId;
-
+        private String eventId;
 
         public Builder description(String description) {
             this.description = description;
@@ -221,6 +234,11 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
         public String getCalendarId() {
             return calendarId;
+        }
+
+        public Builder eventId(String eventId) {
+            this.eventId = eventId;
+            return this;
         }
 
         public ScheduledEvent build() {
@@ -249,7 +267,9 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
                                 "] must come before end time [" + endTime + "]");
             }
 
-            return new ScheduledEvent(description, startTime, endTime, calendarId);
+            ScheduledEvent event = new ScheduledEvent(description, startTime, endTime, calendarId, eventId);
+
+            return event;
         }
     }
 }

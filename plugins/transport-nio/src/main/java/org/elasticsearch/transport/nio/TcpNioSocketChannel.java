@@ -39,7 +39,7 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getWriteContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
     }
 
     @Override

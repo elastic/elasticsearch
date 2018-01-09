@@ -47,7 +47,7 @@ public class WriteOperationTests extends ESTestCase {
 
     public void testFlush() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
 
         when(channel.write(any(ByteBuffer[].class))).thenReturn(10);
@@ -59,7 +59,7 @@ public class WriteOperationTests extends ESTestCase {
 
     public void testPartialFlush() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
         when(channel.write(any(ByteBuffer[].class))).thenReturn(5);
 
@@ -70,7 +70,7 @@ public class WriteOperationTests extends ESTestCase {
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
         ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 

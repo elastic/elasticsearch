@@ -35,13 +35,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.AcceptorEventHandler;
-import org.elasticsearch.nio.BytesReadContext;
-import org.elasticsearch.nio.BytesWriteContext;
+import org.elasticsearch.nio.BytesChannelContext;
+import org.elasticsearch.nio.ChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadContext;
 import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -175,10 +174,10 @@ public class NioTransport extends TcpTransport {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
-            ReadContext.ReadConsumer nioReadConsumer = channelBuffer ->
+            ChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
-            BytesReadContext readContext = new BytesReadContext(nioChannel, nioReadConsumer, new InboundChannelBuffer(pageSupplier));
-            nioChannel.setContexts(readContext, new BytesWriteContext(nioChannel), NioTransport.this::exceptionCaught);
+            BytesChannelContext context = new BytesChannelContext(nioChannel, nioReadConsumer, new InboundChannelBuffer(pageSupplier));
+            nioChannel.setContexts(context, NioTransport.this::exceptionCaught);
             return nioChannel;
         }
 

@@ -86,7 +86,7 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that can be read
      */
     protected void handleRead(NioSocketChannel channel) throws IOException {
-        int bytesRead = channel.getReadContext().read();
+        int bytesRead = channel.getContext().read();
         if (bytesRead == -1) {
             handleClose(channel);
         }
@@ -107,10 +107,10 @@ public class SocketEventHandler extends EventHandler {
      * This method is called when a channel signals it is ready to receive writes. All of the write logic
      * should occur in this call.
      *
-     * @param channel that can be read
+     * @param channel that can be written to
      */
     protected void handleWrite(NioSocketChannel channel) throws IOException {
-        WriteContext channelContext = channel.getWriteContext();
+        ChannelContext channelContext = channel.getContext();
         channelContext.flushChannel();
         if (channelContext.hasQueuedWriteOps()) {
             SelectionKeyUtils.setWriteInterested(channel);
@@ -151,6 +151,15 @@ public class SocketEventHandler extends EventHandler {
      */
     protected <V> void listenerException(BiConsumer<V, Throwable> listener, Exception exception) {
         logger.warn(new ParameterizedMessage("exception while executing listener: {}", listener), exception);
+    }
+
+    /**
+     * @param channel that was handled
+     */
+    protected void postHandling(NioSocketChannel channel) {
+        if (channel.getContext().readyToClose()) {
+            handleClose(channel);
+        }
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception e) {

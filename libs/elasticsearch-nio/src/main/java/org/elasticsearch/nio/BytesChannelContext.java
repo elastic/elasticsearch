@@ -23,26 +23,65 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-public class BytesWriteContext implements WriteContext {
+public class BytesChannelContext implements ChannelContext {
 
     private final NioSocketChannel channel;
-    private final LinkedList<WriteOperation> queued = new LinkedList<>();
+    private final ReadConsumer readConsumer;
+    private final InboundChannelBuffer channelBuffer;
+    private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private boolean peerClosed = false;
+    private boolean ioException = false;
 
-    public BytesWriteContext(NioSocketChannel channel) {
+    public BytesChannelContext(NioSocketChannel channel, ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
         this.channel = channel;
+        this.readConsumer = readConsumer;
+        this.channelBuffer = channelBuffer;
+    }
+
+    @Override
+    public int read() throws IOException {
+        if (channelBuffer.getRemaining() == 0) {
+            // Requiring one additional byte will ensure that a new page is allocated.
+            channelBuffer.ensureCapacity(channelBuffer.getCapacity() + 1);
+        }
+
+        int bytesRead;
+        try {
+            bytesRead = channel.read(channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()));
+        } catch (IOException ex) {
+            ioException = true;
+            throw ex;
+        }
+
+        if (bytesRead == -1) {
+            peerClosed = true;
+            return 0;
+        }
+
+        channelBuffer.incrementIndex(bytesRead);
+
+        int bytesConsumed = Integer.MAX_VALUE;
+        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+            bytesConsumed = readConsumer.consumeReads(channelBuffer);
+            channelBuffer.release(bytesConsumed);
+        }
+
+        return bytesRead;
     }
 
     @Override
     public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
         ByteBuffer[] buffers = (ByteBuffer[]) message;
-        if (channel.isWritable() == false) {
+        if (isClosing.get()) {
             listener.accept(null, new ClosedChannelException());
             return;
         }
 
-        WriteOperation writeOperation = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOperation = new BytesWriteOperation(channel, buffers, listener);
         SocketSelector selector = channel.getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
@@ -56,7 +95,7 @@ public class BytesWriteContext implements WriteContext {
     @Override
     public void queueWriteOperations(WriteOperation writeOperation) {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
-        queued.add(writeOperation);
+        queued.add((BytesWriteOperation) writeOperation);
     }
 
     @Override
@@ -77,19 +116,33 @@ public class BytesWriteContext implements WriteContext {
     }
 
     @Override
-    public void clearQueuedWriteOps(Exception e) {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to clear queued writes";
-        for (WriteOperation op : queued) {
-            channel.getSelector().executeFailedListener(op.getListener(), e);
+    public void initiateClose() {
+        if (isClosing.compareAndSet(false, true)) {
+            channel.getSelector().queueChannelClose(channel);
+        }
+    }
+
+    @Override
+    public boolean readyToClose() {
+        return peerClosed || ioException || isClosing.get();
+    }
+
+    @Override
+    public void close() throws IOException {
+        isClosing.set(true);
+        channelBuffer.close();
+        for (BytesWriteOperation op : queued) {
+            channel.getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
         }
         queued.clear();
     }
 
-    private void singleFlush(WriteOperation headOp) throws IOException {
+    private void singleFlush(BytesWriteOperation headOp) throws IOException {
         try {
             headOp.flush();
         } catch (IOException e) {
             channel.getSelector().executeFailedListener(headOp.getListener(), e);
+            ioException = true;
             throw e;
         }
 
@@ -103,7 +156,7 @@ public class BytesWriteContext implements WriteContext {
     private void multiFlush() throws IOException {
         boolean lastOpCompleted = true;
         while (lastOpCompleted && queued.isEmpty() == false) {
-            WriteOperation op = queued.pop();
+            BytesWriteOperation op = queued.pop();
             singleFlush(op);
             lastOpCompleted = op.isFullyFlushed();
         }

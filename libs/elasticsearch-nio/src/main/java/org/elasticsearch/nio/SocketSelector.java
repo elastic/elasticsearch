@@ -64,6 +64,8 @@ public class SocketSelector extends ESSelector {
                 handleRead(nioSocketChannel);
             }
         }
+
+        eventHandler.postHandling(nioSocketChannel);
     }
 
     @Override
@@ -120,7 +122,7 @@ public class SocketSelector extends ESSelector {
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
         assert isOnCurrentThread() : "Must be on selector thread";
         NioSocketChannel channel = writeOperation.getChannel();
-        WriteContext context = channel.getWriteContext();
+        ChannelContext context = channel.getContext();
         try {
             SelectionKeyUtils.setWriteInterested(channel);
             context.queueWriteOperations(writeOperation);
@@ -180,7 +182,7 @@ public class SocketSelector extends ESSelector {
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isWritable()) {
+            if (writeOperation.getChannel().isOpen()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
                 executeFailedListener(writeOperation.getListener(), new ClosedChannelException());

@@ -22,7 +22,9 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-public interface WriteContext {
+public interface ChannelContext extends AutoCloseable {
+
+    int read() throws IOException;
 
     void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
 
@@ -32,6 +34,15 @@ public interface WriteContext {
 
     boolean hasQueuedWriteOps();
 
-    void clearQueuedWriteOps(Exception e);
+    void initiateClose();
 
+    boolean readyToClose();
+
+    @Override
+    void close() throws IOException;
+
+    @FunctionalInterface
+    interface ReadConsumer {
+        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+    }
 }

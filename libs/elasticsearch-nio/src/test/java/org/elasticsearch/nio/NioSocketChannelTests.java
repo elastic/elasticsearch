@@ -66,7 +66,7 @@ public class NioSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
+        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
         socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
             @Override
             public void onResponse(Void o) {
@@ -100,7 +100,7 @@ public class NioSocketChannelTests extends ESTestCase {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
         NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
+        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -117,7 +117,7 @@ public class NioSocketChannelTests extends ESTestCase {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
         NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
+        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();

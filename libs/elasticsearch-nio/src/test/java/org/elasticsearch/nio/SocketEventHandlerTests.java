@@ -28,8 +28,10 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +41,6 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private SocketEventHandler handler;
     private NioSocketChannel channel;
-    private ReadContext readContext;
     private SocketChannel rawChannel;
 
     @Before
@@ -50,10 +51,11 @@ public class SocketEventHandlerTests extends ESTestCase {
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
         channel = new DoNotRegisterChannel(rawChannel, socketSelector);
-        readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setContexts(readContext, new BytesWriteContext(channel), exceptionHandler);
+        Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), () -> {});
+        InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+        channel.setContexts(new BytesChannelContext(channel, mock(ChannelContext.ReadConsumer.class), buffer), exceptionHandler);
         channel.register();
         channel.finishConnect();
 
@@ -83,22 +85,14 @@ public class SocketEventHandlerTests extends ESTestCase {
         verify(exceptionHandler).accept(channel, exception);
     }
 
-    public void testHandleReadDelegatesToReadContext() throws IOException {
-        when(readContext.read()).thenReturn(1);
+    public void testHandleReadDelegatesToContext() throws IOException {
+        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        ChannelContext context = mock(ChannelContext.class);
+        channel.setContexts(context, exceptionHandler);
 
+        when(context.read()).thenReturn(1);
         handler.handleRead(channel);
-
-        verify(readContext).read();
-    }
-
-    public void testHandleReadMarksChannelForCloseIfPeerClosed() throws IOException {
-        NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
-        when(nioSocketChannel.getReadContext()).thenReturn(readContext);
-        when(readContext.read()).thenReturn(-1);
-
-        handler.handleRead(nioSocketChannel);
-
-        verify(nioSocketChannel).closeFromSelector();
+        verify(context).read();
     }
 
     public void testReadExceptionCallsExceptionHandler() throws IOException {
@@ -114,7 +108,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
-        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, buffers, mock(BiConsumer.class)));
+        channel.getContext().queueWriteOperations(new BytesWriteOperation(channel, buffers, mock(BiConsumer.class)));
 
         when(rawChannel.write(buffers[0])).thenReturn(1);
         handler.handleWrite(channel);
@@ -129,7 +123,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
-        channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, buffers, mock(BiConsumer.class)));
+        channel.getContext().queueWriteOperations(new BytesWriteOperation(channel, buffers, mock(BiConsumer.class)));
 
         when(rawChannel.write(buffers[0])).thenReturn(0);
         handler.handleWrite(channel);
@@ -147,15 +141,37 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
     }
 
+    public void testWriteExceptionCallsExceptionHandler() {
+        IOException exception = new IOException();
+        handler.writeException(channel, exception);
+        verify(exceptionHandler).accept(channel, exception);
+    }
+
+    public void testPostHandlingCallWillCloseTheChannelIfReady() throws IOException {
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        ChannelContext context = mock(ChannelContext.class);
+
+        when(channel.getContext()).thenReturn(context);
+        when(context.readyToClose()).thenReturn(true);
+        handler.postHandling(channel);
+
+        verify(channel).closeFromSelector();
+    }
+
+    public void testPostHandlingCallWillNotCloseTheChannelIfNotReady() throws IOException {
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        ChannelContext context = mock(ChannelContext.class);
+
+        when(channel.getContext()).thenReturn(context);
+        when(context.readyToClose()).thenReturn(false);
+        handler.postHandling(channel);
+
+        verify(channel, times(0)).closeFromSelector();
+    }
+
     private void setWriteAndRead(NioChannel channel) {
         SelectionKeyUtils.setConnectAndReadInterested(channel);
         SelectionKeyUtils.removeConnectInterested(channel);
         SelectionKeyUtils.setWriteInterested(channel);
-    }
-
-    public void testWriteExceptionCallsExceptionHandler() throws IOException {
-        IOException exception = new IOException();
-        handler.writeException(channel, exception);
-        verify(exceptionHandler).accept(channel, exception);
     }
 }

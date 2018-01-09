@@ -152,7 +152,6 @@ public class SocketSelectorTests extends ESTestCase {
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
         socketSelector.queueWrite(writeOperation);
 
-        when(channel.isWritable()).thenReturn(true);
         when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.preSelect();
@@ -167,7 +166,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
 
-        when(channel.isWritable()).thenReturn(true);
         socketSelector.preSelect();
 
         verify(channelContext).queueWriteOperations(writeOperation);
@@ -179,7 +177,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
 
-        when(channel.isWritable()).thenReturn(true);
         socketSelector.queueWriteInChannelBuffer(writeOperation);
 
         verify(channelContext).queueWriteOperations(writeOperation);
@@ -192,7 +189,6 @@ public class SocketSelectorTests extends ESTestCase {
         BytesWriteOperation writeOperation = new BytesWriteOperation(channel, buffers, listener);
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
 
-        when(channel.isWritable()).thenReturn(true);
         when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.queueWriteInChannelBuffer(writeOperation);

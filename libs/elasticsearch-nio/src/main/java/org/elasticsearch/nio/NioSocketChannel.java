@@ -110,10 +110,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return isConnectComplete0();
     }
 
-    public boolean isWritable() {
-        return isClosing.get() == false;
-    }
-
     /**
      * This method will attempt to complete the connection process for this channel. It should be called for
      * new channels or for a channel that has produced a OP_CONNECT event. If this method returns true then

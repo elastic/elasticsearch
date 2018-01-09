@@ -150,6 +150,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void testPostHandlingCallWillCloseTheChannelIfReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         ChannelContext context = mock(ChannelContext.class);
+        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
         when(context.readyToClose()).thenReturn(true);
@@ -161,12 +162,39 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void testPostHandlingCallWillNotCloseTheChannelIfNotReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         ChannelContext context = mock(ChannelContext.class);
+        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
         when(context.readyToClose()).thenReturn(false);
         handler.postHandling(channel);
 
         verify(channel, times(0)).closeFromSelector();
+    }
+
+    public void testPostHandlingWillAddWriteIfNecessary() throws IOException {
+        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ));
+        ChannelContext context = mock(ChannelContext.class);
+        channel.setContexts(context, null);
+
+        when(context.hasQueuedWriteOps()).thenReturn(true);
+
+        assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
+        handler.postHandling(channel);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
+    }
+
+    public void testPostHandlingWillRemoveWriteIfNecessary() throws IOException {
+        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
+        ChannelContext context = mock(ChannelContext.class);
+        channel.setContexts(context, null);
+
+        when(context.hasQueuedWriteOps()).thenReturn(false);
+
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
+        handler.postHandling(channel);
+        assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
     }
 
     private void setWriteAndRead(NioChannel channel) {

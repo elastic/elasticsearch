@@ -183,10 +183,23 @@ subprojects {
     }
 
     File bwcZip = file("${xpackCheckoutDir}/plugin/build/distributions/x-pack-${bwcVersion}.zip")
-    task buildBwcVersion(type: GradleBuild) {
+    task buildBwcVersion(type: Exec) {
       dependsOn checkoutXPackBwcBranch, checkoutElasticsearchBwcBranch, writeElasticsearchBuildMetadata, writeXPackBuildMetadata
-      dir = xpackCheckoutDir
-      tasks = [':x-pack-elasticsearch:plugin:assemble']
+      workingDir = xpackCheckoutDir
+      executable = new File(xpackCheckoutDir, 'gradlew').toString()
+      final ArrayList<String> commandLineArgs = [":x-pack-elasticsearch:plugin:assemble"]
+      final LogLevel logLevel = gradle.startParameter.logLevel
+      if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+        commandLineArgs << "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+      }
+      final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+      assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+      if (showStacktraceName.equals("ALWAYS")) {
+        commandLineArgs << "--stacktrace"
+      } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+        commandLineArgs << "--full-stacktrace"
+      }
+      args = commandLineArgs
     }
 
     artifacts {

@@ -421,17 +421,17 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(SqlBaseParser.QualifiedNameContext ctx);
   /**
-   * Visit a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
-  /**
    * Visit a parse tree produced by {@link SqlBaseParser#identifier}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitIdentifier(SqlBaseParser.IdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
   /**
    * Visit a parse tree produced by the {@code quotedIdentifier}
    * labeled alternative in {@link SqlBaseParser#quoteIdentifier}.

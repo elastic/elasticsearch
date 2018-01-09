@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.common.Strings;
-
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Correlation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
@@ -188,7 +186,7 @@ public class FunctionRegistry {
     }
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
-        Pattern p = Strings.hasText(pattern) ? StringUtils.likeRegex(normalize(pattern)) : null;
+        Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz(), e.getValue().builder()))

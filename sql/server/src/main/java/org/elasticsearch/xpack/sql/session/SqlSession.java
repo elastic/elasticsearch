@@ -115,7 +115,8 @@ public class SqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
-            indexResolver.resolveWithSameMapping(preAnalysis.indices.get(0), null,
+            String indexName = preAnalysis.indices.get(0);
+            indexResolver.resolveWithSameMapping(indexName, null,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

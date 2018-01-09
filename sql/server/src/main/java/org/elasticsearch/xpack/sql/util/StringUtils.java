@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 
@@ -245,10 +244,6 @@ public abstract class StringUtils {
             }
         }
         return wildcard.toString();
-    }
-
-    public static Pattern likeRegex(String likePattern) {
-        return Pattern.compile(likeToJavaPattern(likePattern, '\\'));
     }
 
     public static String toString(SearchSourceBuilder source) {

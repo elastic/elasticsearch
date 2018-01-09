@@ -225,13 +225,14 @@ qualifiedName
     : (identifier DOT)* identifier
     ;
 
-tableIdentifier
-    : identifier
-    ;
-
 identifier
     : quoteIdentifier
     | unquoteIdentifier
+    ;
+
+tableIdentifier
+    : TABLE_IDENTIFIER
+    | identifier
     ;
 
 quoteIdentifier
@@ -361,11 +362,15 @@ DECIMAL_VALUE
     ;
 
 IDENTIFIER
-    : (LETTER | '_') (LETTER | DIGIT | '_' | '@' | ':')*
+    : (LETTER | '_') (LETTER | DIGIT | '_' | '@' )*
     ;
 
 DIGIT_IDENTIFIER
     : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    ;
+
+TABLE_IDENTIFIER
+    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
     ;
 
 QUOTED_IDENTIFIER

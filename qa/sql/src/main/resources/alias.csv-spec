@@ -24,7 +24,7 @@ emp_no:i             | first_name:s
 ;
 
 describeAlias
-DESCRIBE "test_alias";
+DESCRIBE test_alias;
 
 column:s             | type:s
 
@@ -39,7 +39,7 @@ salary               | INTEGER
 ;
 
 describePattern
-DESCRIBE "test_alias";
+DESCRIBE test_*;
 
 column:s             | type:s
 
@@ -53,18 +53,16 @@ last_name            | VARCHAR
 salary               | INTEGER
 ;
 
-//showAlias
-//SHOW TABLES 'test_alias';
+showAlias
+SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
-//name:s               | type:s
-//
-//test_alias           | ALIAS
-//test_emp             | INDEX
-//test_employees       | INDEX
-//;
+name:s               | type:s
+
+test_alias           | ALIAS
+;
 
 showPattern
-SHOW TABLES 'test_%';
+SHOW TABLES LIKE 'test_%';
 
 name:s               | type:s
 

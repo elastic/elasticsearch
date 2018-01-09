@@ -701,16 +701,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitQualifiedName(SqlBaseParser.QualifiedNameContext ctx);
   /**
-   * Enter a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
-   * @param ctx the parse tree
-   */
-  void enterTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
-  /**
-   * Exit a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
-   * @param ctx the parse tree
-   */
-  void exitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
-  /**
    * Enter a parse tree produced by {@link SqlBaseParser#identifier}.
    * @param ctx the parse tree
    */
@@ -720,6 +710,16 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIdentifier(SqlBaseParser.IdentifierContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
+   * @param ctx the parse tree
+   */
+  void enterTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#tableIdentifier}.
+   * @param ctx the parse tree
+   */
+  void exitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx);
   /**
    * Enter a parse tree produced by the {@code quotedIdentifier}
    * labeled alternative in {@link SqlBaseParser#quoteIdentifier}.

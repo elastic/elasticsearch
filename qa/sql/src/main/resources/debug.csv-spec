@@ -3,8 +3,9 @@
 //
 
 debug
-SHOW TABLES test_emp;
-//DESCRIBE test_alias;
+//SHOW TABLES 'test_emp';
+//SELECT * FROM t*;
+SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
 table:s
 test_emp

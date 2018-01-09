@@ -68,6 +68,7 @@ public class LikePattern extends LeafExpression {
     public String asIndexNameWildcard() {
         return indexNameWildcard;
     }
+
     @Override
     public boolean nullable() {
         return false;

@@ -449,14 +449,14 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIdentifier(SqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIdentifier(SqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

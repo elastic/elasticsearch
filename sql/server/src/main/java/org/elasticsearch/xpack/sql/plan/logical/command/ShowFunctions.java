@@ -46,7 +46,7 @@ public class ShowFunctions extends Command {
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         FunctionRegistry registry = session.functionRegistry();
-        Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.pattern() : null);
+        Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
 
         listener.onResponse(Rows.of(output(), functions.stream()
                 .map(f -> asList(f.name(), f.type().name()))

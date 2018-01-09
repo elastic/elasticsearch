@@ -753,18 +753,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterIdentifier(SqlBaseParser.IdentifierContext ctx) { }
   /**
    * {@inheritDoc}
@@ -772,6 +760,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIdentifier(SqlBaseParser.IdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTableIdentifier(SqlBaseParser.TableIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *

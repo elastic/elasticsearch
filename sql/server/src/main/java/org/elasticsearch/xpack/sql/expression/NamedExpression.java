@@ -23,7 +23,7 @@ public abstract class NamedExpression extends Expression {
     public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
         super(location, children);
         this.name = name;
-        this.id = (id == null ? ExpressionIdGenerator.newId() : id);
+        this.id = id == null ? new ExpressionId() : id;
         this.synthetic = synthetic;
     }
 

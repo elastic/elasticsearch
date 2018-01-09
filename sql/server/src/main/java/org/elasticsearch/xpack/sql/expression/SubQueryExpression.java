@@ -23,7 +23,7 @@ public abstract class SubQueryExpression extends Expression {
     public SubQueryExpression(Location location, LogicalPlan query, ExpressionId id) {
         super(location, Collections.emptyList());
         this.query = query;
-        this.id = (id == null ? ExpressionIdGenerator.newId() : id);
+        this.id = id == null ? new ExpressionId() : id;
     }
 
     public LogicalPlan query() {

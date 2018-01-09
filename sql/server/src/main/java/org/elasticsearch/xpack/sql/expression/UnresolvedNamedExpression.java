@@ -15,7 +15,7 @@ import java.util.List;
 abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 
     UnresolvedNamedExpression(Location location, List<Expression> children) {
-        super(location, "<unresolved>", children, ExpressionIdGenerator.EMPTY);
+        super(location, "<unresolved>", children, new ExpressionId());
     }
 
     @Override

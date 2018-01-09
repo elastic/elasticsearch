@@ -6,40 +6,44 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Unique identifier for an expression.
+ * <p>
+ * We use an {@link AtomicLong} to guarantee that they are unique
+ * and that they produce reproduceable values when run in subsequent
+ * tests. They don't produce reproduceable values in production, but
+ * you rarely debug with them in production and commonly do so in
+ * tests.
+ */
 public class ExpressionId {
+    private static final AtomicLong COUNTER = new AtomicLong();
+    private final long id;
 
-    private final int id;
-    private final String jvmId;
-
-    ExpressionId(int id, String jvmId) {
-        this.id = id;
-        this.jvmId = jvmId;
+    public ExpressionId() {
+        this.id = COUNTER.incrementAndGet();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jvmId);
+        return Objects.hash(id);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
+        if (obj == this) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-
         ExpressionId other = (ExpressionId) obj;
-        return id == other.id
-                && Objects.equals(jvmId, other.jvmId);
+        return id == other.id;
     }
 
     @Override
     public String toString() {
-        return String.valueOf(id);
-        //#+ jvmId;
+        return Long.toString(id);
     }
 }

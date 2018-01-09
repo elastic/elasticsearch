@@ -90,15 +90,6 @@ List projects = [
   'qa:query-builder-bwc'
 ]
 
-File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
-List<String> examplePlugins = []
-for (File example : examplePluginsDir.listFiles()) {
-  if (example.isDirectory() == false) continue;
-  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  projects.add("example-plugins:${example.name}".toString())
-  examplePlugins.add(example.name)
-}
-
 projects.add("libs")
 File libsDir = new File(rootProject.projectDir, 'libs')
 for (File libDir : new File(rootProject.projectDir, 'libs').listFiles()) {
@@ -124,11 +115,6 @@ if (isEclipse) {
 include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
-
-for (String example : examplePlugins) {
-  project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
-}
 
 /* The BWC snapshot projects share the same build directory and build file,
  * but apply to different backwards compatibility branches. */
@@ -170,7 +156,7 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
     }
     // TODO do we want to assert that there's nothing else in the bwc directory?
   } else {
-    if (path.isEmpty()) {
+    if (path.isEmpty() || path.startsWith(':example-plugins')) {
       project(projectName).projectDir = dir
     }
     for (File subdir : dir.listFiles()) {
@@ -178,6 +164,15 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
     }
   }
 }
+
+// include example plugins
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  addSubProjects(':example-plugins', example, projects, [])
+}
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
 
 // look for extra plugins for elasticsearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")

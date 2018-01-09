@@ -21,14 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -72,27 +70,23 @@ final class Spawner implements Closeable {
          * For each plugin, attempt to spawn the controller daemon. Silently ignore any plugin that
          * don't include a controller for the correct platform.
          */
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
-            for (final Path plugin : stream) {
-                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
-                    continue;
-                }
-                final PluginInfo info = PluginInfo.readFromProperties(plugin);
-                final Path spawnPath = Platforms.nativeControllerPath(plugin);
-                if (!Files.isRegularFile(spawnPath)) {
-                    continue;
-                }
-                if (!info.hasNativeController()) {
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "plugin [%s] does not have permission to fork native controller",
-                            plugin.getFileName());
-                    throw new IllegalArgumentException(message);
-                }
-                final Process process =
-                        spawnNativePluginController(spawnPath, environment.tmpFile());
-                processes.add(process);
+        List<Path> paths = PluginInfo.extractAllPlugins(pluginsFile);
+        for (Path plugin : paths) {
+            final PluginInfo info = PluginInfo.readFromProperties(plugin);
+            final Path spawnPath = Platforms.nativeControllerPath(plugin);
+            if (!Files.isRegularFile(spawnPath)) {
+                continue;
             }
+            if (!info.hasNativeController()) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "plugin [%s] does not have permission to fork native controller",
+                    plugin.getFileName());
+                throw new IllegalArgumentException(message);
+            }
+            final Process process =
+                spawnNativePluginController(spawnPath, environment.tmpFile());
+            processes.add(process);
         }
     }
 

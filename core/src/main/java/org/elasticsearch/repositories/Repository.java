@@ -180,7 +180,7 @@ public interface Repository extends LifecycleComponent {
      * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      *
      * @param shard               shard to be snapshotted
      * @param snapshotId          snapshot id

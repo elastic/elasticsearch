@@ -34,7 +34,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -322,29 +321,20 @@ public class PluginsService extends AbstractComponent {
         Logger logger = Loggers.getLogger(PluginsService.class);
         Set<Bundle> bundles = new LinkedHashSet<>();
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
-            for (Path plugin : stream) {
-                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
-                    continue;
-                }
-                if (plugin.getFileName().toString().startsWith(".removing-")) {
-                    continue;
-                }
-                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-                final PluginInfo info;
-                try {
-                    info = PluginInfo.readFromProperties(plugin);
-                } catch (IOException e) {
-                    throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                        + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
-                }
-
-                if (bundles.add(new Bundle(info, plugin)) == false) {
-                    throw new IllegalStateException("duplicate plugin: " + info);
-                }
+        List<Path> infos = PluginInfo.extractAllPlugins(pluginsDirectory);
+        for (Path plugin : infos) {
+            logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+            final PluginInfo info;
+            try {
+                info = PluginInfo.readFromProperties(plugin);
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
+                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+            }
+            if (bundles.add(new Bundle(info, plugin)) == false) {
+                throw new IllegalStateException("duplicate plugin: " + info);
             }
         }
-
         return bundles;
     }
 

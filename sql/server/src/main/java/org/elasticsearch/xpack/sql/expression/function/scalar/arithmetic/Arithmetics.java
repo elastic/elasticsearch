@@ -12,6 +12,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 abstract class Arithmetics {
 
     static Number add(Number l, Number r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
         if (l instanceof Double || r instanceof Double) {
             return Double.valueOf(l.doubleValue() + r.doubleValue());
         }
@@ -26,6 +30,10 @@ abstract class Arithmetics {
     }
 
     static Number sub(Number l, Number r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
         if (l instanceof Double || r instanceof Double) {
             return Double.valueOf(l.doubleValue() - r.doubleValue());
         }
@@ -40,6 +48,10 @@ abstract class Arithmetics {
     }
 
     static Number mul(Number l, Number r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
         if (l instanceof Double || r instanceof Double) {
             return Double.valueOf(l.doubleValue() * r.doubleValue());
         }
@@ -54,6 +66,10 @@ abstract class Arithmetics {
     }
 
     static Number div(Number l, Number r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
         if (l instanceof Double || r instanceof Double) {
             return l.doubleValue() / r.doubleValue();
         }
@@ -68,6 +84,10 @@ abstract class Arithmetics {
     }
 
     static Number mod(Number l, Number r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
         if (l instanceof Long || r instanceof Long) {
             return Long.valueOf(Math.floorMod(l.longValue(), r.longValue()));
         }
@@ -82,6 +102,10 @@ abstract class Arithmetics {
     }
 
     static Number negate(Number n) {
+        if (n == null) {
+            return null;
+        }
+
         if (n instanceof Double) {
             double d = n.doubleValue();
             if (d == Double.MIN_VALUE) {

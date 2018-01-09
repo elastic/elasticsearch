@@ -20,7 +20,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
     public static BinaryArithmeticProcessor randomProcessor() {
         return new BinaryArithmeticProcessor(
                 new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()), 
+                new ConstantProcessor(randomLong()),
                 randomFrom(BinaryArithmeticProcessor.BinaryArithmeticOperation.values()));
     }
 
@@ -81,6 +81,15 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         
         Processor proc = mod.makeProcessorDefinition().asProcessor();
         assertEquals(1, proc.process(null));
+    }
+
+    public void testHandleNull() {
+        assertNull(new Add(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Sub(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Mul(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Div(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Mod(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Neg(EMPTY, l(null)).makeProcessorDefinition().asProcessor().process(null));
     }
     
     private static Literal l(Object value) {

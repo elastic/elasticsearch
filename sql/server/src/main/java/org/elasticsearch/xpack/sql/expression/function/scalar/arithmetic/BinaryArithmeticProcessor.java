@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.BinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
@@ -75,6 +76,16 @@ public class BinaryArithmeticProcessor extends BinaryProcessor {
 
     @Override
     protected Object doProcess(Object left, Object right) {
+        if (left == null || right == null) {
+            return null;
+        }
+        if (!(left instanceof Number)) {
+            throw new SqlIllegalArgumentException("A number is required; received %s", left);
+        }
+        if (!(right instanceof Number)) {
+            throw new SqlIllegalArgumentException("A number is required; received %s", right);
+        }
+
         return operation.apply((Number) left, (Number) right);
     }
 

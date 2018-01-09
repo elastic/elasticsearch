@@ -58,6 +58,10 @@ public class UnaryArithmeticProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
+        if (input == null) {
+            return null;
+        }
+
         if (input instanceof Number) {
             return operation.apply((Number) input);
         }

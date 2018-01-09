@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.logging.log4j.Logger;
 import org.relique.jdbc.csv.CsvResultSet;
+
 import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -112,20 +113,28 @@ public class JdbcAssert {
             for (int column = 1; column <= columns; column++) {
                 Object expectedObject = expected.getObject(column);
                 Object actualObject = actual.getObject(column);
+
                 int type = metaData.getColumnType(column);
 
                 String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
 
-                if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
+                // handle nulls first
+                if (expectedObject == null || actualObject == null) {
+                    assertEquals(expectedObject, actualObject);
+                }
+                // then timestamp
+                else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                     assertEquals(getTime(expected, column), getTime(actual, column));
                 }
-
+                // and floats/doubles
                 else if (type == Types.DOUBLE) {
                     // the 1d/1f difference is used due to rounding/flooring
                     assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                 } else if (type == Types.FLOAT) {
                     assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
-                } else {
+                }
+                // finally the actual comparison
+                else {
                     assertEquals(msg, expectedObject, actualObject);
                 }
             }

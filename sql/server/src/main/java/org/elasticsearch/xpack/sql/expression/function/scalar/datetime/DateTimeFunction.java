@@ -52,6 +52,11 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     }
 
     @Override
+    public Object fold() {
+        return field().fold();
+    }
+
+    @Override
     protected TypeResolution resolveType() {
         if (field().dataType().same(DataTypes.DATE)) {
             return TypeResolution.TYPE_RESOLVED;

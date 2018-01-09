@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import java.io.IOException;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class MathProcessor implements Processor {
     
@@ -35,13 +36,13 @@ public class MathProcessor implements Processor {
         COS(Math::cos),
         COSH(Math::cosh),
         DEGREES(Math::toDegrees),
-        E((Object l) -> Math.E),
+        E(() -> Math.E),
         EXP(Math::exp),
         EXPM1(Math::expm1),
         FLOOR(Math::floor),
         LOG(Math::log),
         LOG10(Math::log10),
-        PI((Object l) -> Math.PI),
+        PI(() -> Math.PI),
         RADIANS(Math::toRadians),
         ROUND((DoubleFunction<Object>) Math::round),
         SIN(Math::sin),
@@ -52,11 +53,15 @@ public class MathProcessor implements Processor {
         private final Function<Object, Object> apply;
 
         MathOperation(Function<Object, Object> apply) {
-            this.apply = apply;
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         MathOperation(DoubleFunction<Object> apply) {
-            this.apply = (Object l) -> apply.apply(((Number) l).doubleValue());
+            this.apply = (Object l) -> l == null ? null : apply.apply(((Number) l).doubleValue());
+        }
+
+        MathOperation(Supplier<Double> supplier) {
+            this.apply = l -> supplier.get();
         }
 
         public final Object apply(Object l) {

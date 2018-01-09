@@ -306,6 +306,9 @@ public abstract class DataTypeConversion {
         if (detectedType.equals(dataType)) {
             return value;
         }
+        if (value == null) {
+            return value;
+        }
         return conversionFor(detectedType, dataType).convert(value);
     }
 

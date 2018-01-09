@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.Locale;
 
@@ -34,8 +35,7 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        // left or right have to be compatible so either one works
-        return left().dataType();
+        return DataTypeConversion.commonType(left().dataType(), right().dataType());
     }
 
     @Override
@@ -72,6 +72,7 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
                 .build(), dataType());
     }
 
+    @Override
     protected final BinaryArithmeticProcessorDefinition makeProcessorDefinition() {
         return new BinaryArithmeticProcessorDefinition(this,
                 ProcessorDefinitions.toProcessorDefinition(left()),

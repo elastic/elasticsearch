@@ -47,7 +47,8 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
                 readScriptSpec("/agg.csv-spec", parser),
                 readScriptSpec("/columns.csv-spec", parser),
                 readScriptSpec("/datetime.csv-spec", parser),
-                readScriptSpec("/alias.csv-spec", parser)
+                readScriptSpec("/alias.csv-spec", parser),
+                readScriptSpec("/nulls.csv-spec", parser)
                 );
     }
 

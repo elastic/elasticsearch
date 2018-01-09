@@ -47,10 +47,6 @@ public class BytesWriteOperation implements WriteOperation {
         length = offset;
     }
 
-    public ByteBuffer[] getByteBuffers() {
-        return buffers;
-    }
-
     @Override
     public BiConsumer<Void, Throwable> getListener() {
         return listener;
@@ -65,17 +61,11 @@ public class BytesWriteOperation implements WriteOperation {
         return internalIndex == length;
     }
 
-    public int flush() throws IOException {
-        int written = channel.write(getBuffersToWrite());
-        incrementIndex(written);
-        return written;
-    }
-
     public void incrementIndex(int delta) {
         internalIndex += delta;
     }
 
-    private ByteBuffer[] getBuffersToWrite() {
+    public ByteBuffer[] getBuffersToWrite() {
         int offsetIndex = getOffsetIndex(internalIndex);
 
         ByteBuffer[] postIndexBuffers = new ByteBuffer[buffers.length - offsetIndex];

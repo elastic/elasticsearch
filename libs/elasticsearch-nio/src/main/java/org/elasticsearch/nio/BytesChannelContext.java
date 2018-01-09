@@ -139,7 +139,8 @@ public class BytesChannelContext implements ChannelContext {
 
     private void singleFlush(BytesWriteOperation headOp) throws IOException {
         try {
-            headOp.flush();
+            int written = channel.write(headOp.getBuffersToWrite());
+            headOp.incrementIndex(written);
         } catch (IOException e) {
             channel.getSelector().executeFailedListener(headOp.getListener(), e);
             ioException = true;

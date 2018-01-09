@@ -79,14 +79,28 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     void createPlugin(String name) throws Exception {
-        PluginTestUtil.writeProperties(
-            env.pluginsFile().resolve(name),
+        createPlugin(env.pluginsFile(), name);
+    }
+
+    void createPlugin(Path path, String name) throws Exception {
+        PluginTestUtil.writePluginProperties(
+            path.resolve(name),
             "description", "dummy",
             "name", name,
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "SomeClass");
+    }
+
+    void createMetaPlugin(String name, String... plugins) throws Exception {
+        PluginTestUtil.writeMetaPluginProperties(
+            env.pluginsFile().resolve(name),
+            "description", "dummy",
+            "name", name);
+        for (String plugin : plugins) {
+            createPlugin(env.pluginsFile().resolve(name), plugin);
+        }
     }
 
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
@@ -121,6 +135,19 @@ public class RemovePluginCommandTests extends ESTestCase {
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
         assertRemoveCleaned(env);
+    }
+
+    public void testBasicMeta() throws Exception {
+        createMetaPlugin("meta", "fake1");
+        createPlugin("other");
+        removePlugin("meta", home, randomBoolean());
+        assertFalse(Files.exists(env.pluginsFile().resolve("meta")));
+        assertTrue(Files.exists(env.pluginsFile().resolve("other")));
+        assertRemoveCleaned(env);
+
+        UserException exc =
+            expectThrows(UserException.class, () -> removePlugin("fake1", home, randomBoolean()));
+        assertThat(exc.getMessage(), containsString("plugin [fake1] not found"));
     }
 
     public void testBin() throws Exception {

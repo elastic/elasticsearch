@@ -19,6 +19,13 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), containsString("test_value"));
         assertEquals("", readLine());
     }
+    public void testMultiLineSelect() throws IOException {
+        index("test", body -> body.field("test_field", "test_value"));
+        assertThat(command("SELECT *\nFROM\ntest"), containsString("test_field"));
+        assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), containsString("test_value"));
+        assertEquals("", readLine());
+    }
 
     public void testSelectWithWhere() throws IOException {
         index("test", body -> body.field("test_field", "test_value1").field("i", 1));

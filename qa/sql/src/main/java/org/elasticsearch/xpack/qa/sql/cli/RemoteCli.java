@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.qa.sql.cli;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.BufferedReader;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -161,7 +163,8 @@ public class RemoteCli implements Closeable {
          * terminal in unix mode to make the tests consistent. */
         out.print(command + ";\n");
         out.flush();
-        String firstResponse = "[?1h=[33msql> [0m" + command + ";";
+        final String firstResponse = "[?1h=[33msql> [0m" +
+                Strings.collectionToDelimitedString(Strings.splitSmart(command, "\n", false), "[?1h=[33m   | [0m") + ";";
         String firstLine = readLine();
         assertThat(firstLine, startsWith(firstResponse));
         return firstLine.substring(firstResponse.length());

@@ -21,29 +21,48 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.nio.SocketSelector;
 
 import java.io.IOException;
-import java.net.StandardSocketOptions;
-import java.nio.channels.SocketChannel;
+import java.net.InetSocketAddress;
+import java.nio.channels.ServerSocketChannel;
 
-public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
+/**
+ * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
+ * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
+ */
+public class TcpNioServerSocketChannel extends NioServerSocketChannel implements TcpChannel {
 
-    public TcpNioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(socketChannel, selector);
+    private final String profile;
+
+    TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel,
+                              ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> channelFactory,
+                              AcceptingSelector selector) throws IOException {
+        super(socketChannel, channelFactory, selector);
+        this.profile = profile;
     }
 
+    @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getWriteContext().sendMessage(reference, ActionListener.toBiConsumer(listener));
+        throw new UnsupportedOperationException("Cannot send a message to a server channel.");
     }
 
     @Override
     public void setSoLinger(int value) throws IOException {
-        if (isOpen()) {
-            getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
-        }
+        throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
+    }
+
+    @Override
+    public InetSocketAddress getRemoteAddress() {
+        return null;
+    }
+
+    @Override
+    public String getProfile() {
+        return profile;
     }
 
     @Override
@@ -53,9 +72,8 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
 
     @Override
     public String toString() {
-        return "TcpNioSocketChannel{" +
+        return "TcpNioServerSocketChannel{" +
             "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
             '}';
     }
 }

@@ -17,12 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.elasticsearch.nio;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.SocketSelector;
-import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -39,11 +35,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TcpWriteContextTests extends ESTestCase {
+public class BytesWriteContextTests extends ESTestCase {
 
     private SocketSelector selector;
     private BiConsumer<Void, Throwable> listener;
-    private TcpWriteContext writeContext;
+    private BytesWriteContext writeContext;
     private NioSocketChannel channel;
 
     @Before
@@ -53,7 +49,7 @@ public class TcpWriteContextTests extends ESTestCase {
         selector = mock(SocketSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
-        writeContext = new TcpWriteContext(channel);
+        writeContext = new BytesWriteContext(channel);
 
         when(channel.getSelector()).thenReturn(selector);
         when(selector.isOnCurrentThread()).thenReturn(true);
@@ -62,44 +58,43 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWriteFailsIfChannelNotWritable() throws Exception {
         when(channel.isWritable()).thenReturn(false);
 
-        writeContext.sendMessage(new BytesArray(generateBytes(10)), listener);
+        ByteBuffer[] buffers = {ByteBuffer.wrap(generateBytes(10))};
+        writeContext.sendMessage(buffers, listener);
 
         verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
     }
 
     public void testSendMessageFromDifferentThreadIsQueuedWithSelector() throws Exception {
-        byte[] bytes = generateBytes(10);
-        BytesArray bytesArray = new BytesArray(bytes);
         ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
 
         when(selector.isOnCurrentThread()).thenReturn(false);
         when(channel.isWritable()).thenReturn(true);
 
-        writeContext.sendMessage(bytesArray, listener);
+        ByteBuffer[] buffers = {ByteBuffer.wrap(generateBytes(10))};
+        writeContext.sendMessage(buffers, listener);
 
         verify(selector).queueWrite(writeOpCaptor.capture());
         WriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteBuffers()[0]);
+        assertEquals(buffers[0], writeOp.getByteBuffers()[0]);
     }
 
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
-        byte[] bytes = generateBytes(10);
-        BytesArray bytesArray = new BytesArray(bytes);
         ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
 
         when(channel.isWritable()).thenReturn(true);
 
-        writeContext.sendMessage(bytesArray, listener);
+        ByteBuffer[] buffers = {ByteBuffer.wrap(generateBytes(10))};
+        writeContext.sendMessage(buffers, listener);
 
         verify(selector).queueWriteInChannelBuffer(writeOpCaptor.capture());
         WriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteBuffers()[0]);
+        assertEquals(buffers[0], writeOp.getByteBuffers()[0]);
     }
 
     public void testWriteIsQueuedInChannel() throws Exception {
@@ -163,7 +158,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testMultipleWritesPartialFlushes() throws IOException {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        BiConsumer listener2 = mock(BiConsumer.class);
+        BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
         WriteOperation writeOperation1 = mock(WriteOperation.class);
         WriteOperation writeOperation2 = mock(WriteOperation.class);
         when(writeOperation1.getListener()).thenReturn(listener);

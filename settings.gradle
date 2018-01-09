@@ -64,6 +64,7 @@ List projects = [
   'plugins:repository-s3',
   'plugins:jvm-example',
   'plugins:store-smb',
+  'plugins:transport-nio',
   'qa:auto-create-index',
   'qa:ccs-unavailable-clusters',
   'qa:evil-tests',

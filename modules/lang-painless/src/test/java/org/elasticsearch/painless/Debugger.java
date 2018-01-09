@@ -24,7 +24,6 @@ import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Collections;
 
 /** quick and dirty tools for debugging */
 final class Debugger {
@@ -40,8 +39,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, new Definition(
-                    Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES))))
+            new Compiler(iface, new Definition(Whitelist.BASE_WHITELISTS))
                     .compile("<debugging>", source, settings, textifier);
         } catch (Exception e) {
             textifier.print(outputWriter);

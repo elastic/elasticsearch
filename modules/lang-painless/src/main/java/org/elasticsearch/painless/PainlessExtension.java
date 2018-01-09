@@ -17,21 +17,14 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.esplugin'
+package org.elasticsearch.painless;
 
-esplugin {
-  name 'painless-whitelist'
-  description 'An example whitelisting additional classes and methods in painless'
-  classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
-  extendedPlugins = ['lang-painless']
+import java.util.List;
+import java.util.Map;
+
+import org.elasticsearch.script.ScriptContext;
+
+public interface PainlessExtension {
+
+    Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists();
 }
-
-dependencies {
-  compileOnly project(':modules:lang-painless')
-}
-
-integTestCluster {
-  distribution = 'zip'
-}
-
-test.enabled = false

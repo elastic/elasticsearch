@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.ScriptContext;
-
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,8 +34,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class BaseClassTests extends ScriptTestCase {
 
-    private final Definition definition = new Definition(
-        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
+    private final Definition definition = new Definition(Whitelist.BASE_WHITELISTS);
 
     public abstract static class Gets {
 

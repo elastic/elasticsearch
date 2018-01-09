@@ -25,6 +25,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -296,8 +298,9 @@ public final class WhitelistLoader {
                 throw new RuntimeException("error in [" + filepath + "] at line [" + number + "]", exception);
             }
         }
+        ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(resource.getClassLoader(), whitelistStructs);
+        return new Whitelist(loader, whitelistStructs);
     }
 
     private WhitelistLoader() {}

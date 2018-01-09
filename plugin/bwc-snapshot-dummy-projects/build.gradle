@@ -186,7 +186,12 @@ subprojects {
     task buildBwcVersion(type: Exec) {
       dependsOn checkoutXPackBwcBranch, checkoutElasticsearchBwcBranch, writeElasticsearchBuildMetadata, writeXPackBuildMetadata
       workingDir = xpackCheckoutDir
-      executable = new File(xpackCheckoutDir, 'gradlew').toString()
+      if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        executable 'cmd'
+        args '/C', 'call', new File(xpackCheckoutDir, 'gradlew').toString()
+      } else {
+        executable = new File(xpackCheckoutDir, 'gradlew').toString()
+      }
       final ArrayList<String> commandLineArgs = [":x-pack-elasticsearch:plugin:assemble"]
       final LogLevel logLevel = gradle.startParameter.logLevel
       if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
@@ -199,7 +204,7 @@ subprojects {
       } else if (showStacktraceName.equals("ALWAYS_FULL")) {
         commandLineArgs << "--full-stacktrace"
       }
-      args = commandLineArgs
+      args commandLineArgs
     }
 
     artifacts {

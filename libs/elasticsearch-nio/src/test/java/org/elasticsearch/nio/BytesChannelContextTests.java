@@ -112,7 +112,7 @@ public class BytesChannelContextTests extends ESTestCase {
         });
 
 
-        when(readConsumer.consumeReads(channelBuffer)).thenReturn(0, messageLength);
+        when(readConsumer.consumeReads(channelBuffer)).thenReturn(0);
 
         assertEquals(messageLength, context.read());
 
@@ -162,7 +162,7 @@ public class BytesChannelContextTests extends ESTestCase {
         verify(closer).run();
     }
 
-    public void testWriteFailsIfClosing() throws Exception {
+    public void testWriteFailsIfClosing() {
         context.initiateClose();
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
@@ -175,7 +175,6 @@ public class BytesChannelContextTests extends ESTestCase {
         ArgumentCaptor<BytesWriteOperation> writeOpCaptor = ArgumentCaptor.forClass(BytesWriteOperation.class);
 
         when(selector.isOnCurrentThread()).thenReturn(false);
-        when(channel.isWritable()).thenReturn(true);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
         context.sendMessage(buffers, listener);
@@ -188,10 +187,8 @@ public class BytesChannelContextTests extends ESTestCase {
         assertEquals(buffers[0], writeOp.getBuffersToWrite()[0]);
     }
 
-    public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
+    public void testSendMessageFromSameThreadIsQueuedInChannel() {
         ArgumentCaptor<BytesWriteOperation> writeOpCaptor = ArgumentCaptor.forClass(BytesWriteOperation.class);
-
-        when(channel.isWritable()).thenReturn(true);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
         context.sendMessage(buffers, listener);
@@ -204,7 +201,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertEquals(buffers[0], writeOp.getBuffersToWrite()[0]);
     }
 
-    public void testWriteIsQueuedInChannel() throws Exception {
+    public void testWriteIsQueuedInChannel() {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
@@ -213,7 +210,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.hasQueuedWriteOps());
     }
 
-    public void testWriteOpsCanBeCleared() throws Exception {
+    public void testWriteOpsClearedOnClose() throws Exception {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};

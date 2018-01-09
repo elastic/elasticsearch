@@ -19,7 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.BiConsumer;

@@ -43,9 +43,12 @@ import java.util.regex.Pattern;
  */
 public final class Definition {
 
+    private static final Map<String, Method> methodCache = new HashMap<>();
+    private static final Map<String, Field> fieldCache = new HashMap<>();
+
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
-    private static final String[] DEFINITION_FILES = new String[] {
+    public static final String[] DEFINITION_FILES = new String[] {
             "org.elasticsearch.txt",
             "java.lang.txt",
             "java.math.txt",
@@ -618,9 +621,31 @@ public final class Definition {
         return runtimeMap.get(clazz);
     }
 
+    public Class<?> getClassFromBinaryName(String name) {
+        Struct struct = structsMap.get(name.replace('$', '.'));
+
+        return struct == null ? null : struct.clazz;
+    }
+
     /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
     Collection<Type> allSimpleTypes() {
         return simpleTypesMap.values();
+    }
+
+    private static String buildMethodCacheKey(String structName, String methodName, List<Type> arguments) {
+        StringBuilder key = new StringBuilder();
+        key.append(structName);
+        key.append(methodName);
+
+        for (Type argument : arguments) {
+            key.append(argument.name);
+        }
+
+        return key.toString();
+    }
+
+    private static String buildFieldCacheKey(String structName, String fieldName, String typeName) {
+        return structName + fieldName + typeName;
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -631,7 +656,7 @@ public final class Definition {
 
     public AnalyzerCaster caster;
 
-    private Definition(List<Whitelist> whitelists) {
+    public Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
@@ -926,8 +951,10 @@ public final class Definition {
                         " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames);
             }
 
-            painlessConstructor = new Method("<init>", ownerStruct, null, getTypeInternal("void"), painlessParametersTypes,
-                asmConstructor, javaConstructor.getModifiers(), javaHandle);
+            painlessConstructor = methodCache.computeIfAbsent(buildMethodCacheKey(ownerStruct.name, "<init>", painlessParametersTypes),
+                    key -> new Method("<init>", ownerStruct, null, getTypeInternal("void"), painlessParametersTypes,
+                            asmConstructor, javaConstructor.getModifiers(), javaHandle));
+
             ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
         } else if (painlessConstructor.arguments.equals(painlessParametersTypes) == false){
             throw new IllegalArgumentException(
@@ -949,7 +976,7 @@ public final class Definition {
                     " [" + whitelistMethod.javaMethodName + "] for owner struct [" + ownerStructName + "].");
         }
 
-        Class<?> javaAugmentedClass = null;
+        Class<?> javaAugmentedClass;
 
         if (whitelistMethod.javaAugmentedClassName != null) {
             try {
@@ -959,6 +986,8 @@ public final class Definition {
                         "not found for method with name [" + whitelistMethod.javaMethodName + "] " +
                         "and parameters " + whitelistMethod.painlessParameterTypeNames, cnfe);
             }
+        } else {
+            javaAugmentedClass = null;
         }
 
         int augmentedOffset = javaAugmentedClass == null ? 0 : 1;
@@ -1029,8 +1058,10 @@ public final class Definition {
                         "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
                 }
 
-                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType,
-                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                painlessMethod = methodCache.computeIfAbsent(
+                        buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
+                        key -> new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType, painlessParametersTypes,
+                                asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                     painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
@@ -1053,8 +1084,10 @@ public final class Definition {
                         "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
                 }
 
-                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
-                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                painlessMethod = methodCache.computeIfAbsent(
+                        buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
+                        key -> new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
+                                painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.methods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
                 painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
@@ -1106,33 +1139,40 @@ public final class Definition {
             Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
-                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
-                    ownerStruct, painlessFieldType, javaField.getModifiers(), null, null);
+                painlessField = fieldCache.computeIfAbsent(
+                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldType.name),
+                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                                ownerStruct, painlessFieldType, javaField.getModifiers(), null, null));
                 ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.type.equals(painlessFieldType) == false) {
                 throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
             }
         } else {
-            MethodHandle javaMethodHandleGetter = null;
-            MethodHandle javaMethodHandleSetter = null;
+            MethodHandle javaMethodHandleGetter;
+            MethodHandle javaMethodHandleSetter;
 
             try {
                 if (Modifier.isStatic(javaField.getModifiers()) == false) {
                     javaMethodHandleGetter = MethodHandles.publicLookup().unreflectGetter(javaField);
                     javaMethodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
+                } else {
+                    javaMethodHandleGetter = null;
+                    javaMethodHandleSetter = null;
                 }
             } catch (IllegalAccessException exception) {
                 throw new IllegalArgumentException("getter/setter [" + whitelistField.javaFieldName + "]" +
                     " not found for class [" + ownerStruct.clazz.getName() + "].");
             }
 
-            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+            Field painlessField = ownerStruct.members.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
-                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
-                    ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter);
-                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+                painlessField = fieldCache.computeIfAbsent(
+                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldType.name),
+                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                                ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
+                ownerStruct.members.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.type.equals(painlessFieldType) == false) {
                 throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");

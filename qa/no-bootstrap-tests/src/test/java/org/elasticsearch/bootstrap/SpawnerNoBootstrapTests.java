@@ -78,7 +78,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         // This plugin will NOT have a controller daemon
         Path plugin = environment.pluginsFile().resolve("a_plugin");
         Files.createDirectories(plugin);
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 plugin,
                 "description", "a_plugin",
                 "version", Version.CURRENT.toString(),
@@ -114,7 +114,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         // this plugin will have a controller daemon
         Path plugin = environment.pluginsFile().resolve("test_plugin");
         Files.createDirectories(plugin);
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 plugin,
                 "description", "test_plugin",
                 "version", Version.CURRENT.toString(),
@@ -129,7 +129,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         // this plugin will not have a controller daemon
         Path otherPlugin = environment.pluginsFile().resolve("other_plugin");
         Files.createDirectories(otherPlugin);
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 otherPlugin,
                 "description", "other_plugin",
                 "version", Version.CURRENT.toString(),
@@ -163,6 +163,84 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         }
     }
 
+    /**
+     * Two plugins in a meta plugin - one with a controller daemon and one without.
+     */
+    public void testControllerSpawnMetaPlugin() throws IOException, InterruptedException {
+        /*
+         * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
+         * file as an argument and that's out of the remit of the controller daemon process spawner.
+         */
+        assumeFalse("This test does not work on Windows", Constants.WINDOWS);
+
+        Path esHome = createTempDir().resolve("esHome");
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = TestEnvironment.newEnvironment(settings);
+
+        Path metaPlugin = environment.pluginsFile().resolve("meta_plugin");
+        Files.createDirectories(metaPlugin);
+        PluginTestUtil.writeMetaPluginProperties(
+            metaPlugin,
+            "description", "test_plugin",
+            "name", "meta_plugin",
+            "plugins", "test_plugin,other_plugin");
+
+        // this plugin will have a controller daemon
+        Path plugin = metaPlugin.resolve("test_plugin");
+
+        Files.createDirectories(plugin);
+        PluginTestUtil.writePluginProperties(
+            plugin,
+            "description", "test_plugin",
+            "version", Version.CURRENT.toString(),
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "name", "test_plugin",
+            "java.version", "1.8",
+            "classname", "TestPlugin",
+            "has.native.controller", "true");
+        Path controllerProgram = Platforms.nativeControllerPath(plugin);
+        createControllerProgram(controllerProgram);
+
+        // this plugin will not have a controller daemon
+        Path otherPlugin = metaPlugin.resolve("other_plugin");
+        Files.createDirectories(otherPlugin);
+        PluginTestUtil.writePluginProperties(
+            otherPlugin,
+            "description", "other_plugin",
+            "version", Version.CURRENT.toString(),
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "name", "other_plugin",
+            "java.version", "1.8",
+            "classname", "OtherPlugin",
+            "has.native.controller", "false");
+
+        Spawner spawner = new Spawner();
+        spawner.spawnNativePluginControllers(environment);
+
+        List<Process> processes = spawner.getProcesses();
+        /*
+         * As there should only be a reference in the list for the plugin that had the controller
+         * daemon, we expect one here.
+         */
+        assertThat(processes, hasSize(1));
+        Process process = processes.get(0);
+        final InputStreamReader in =
+            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
+        try (BufferedReader stdoutReader = new BufferedReader(in)) {
+            String line = stdoutReader.readLine();
+            assertEquals("I am alive", line);
+            spawner.close();
+            /*
+             * Fail if the process does not die within one second; usually it will be even quicker
+             * but it depends on OS scheduling.
+             */
+            assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+        }
+    }
+
     public void testControllerSpawnWithIncorrectDescriptor() throws IOException {
         // this plugin will have a controller daemon
         Path esHome = createTempDir().resolve("esHome");
@@ -174,7 +252,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Path plugin = environment.pluginsFile().resolve("test_plugin");
         Files.createDirectories(plugin);
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 plugin,
                 "description", "test_plugin",
                 "version", Version.CURRENT.toString(),

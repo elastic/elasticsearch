@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -35,14 +34,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     @Override
     public T actionGet() {
-        try {
-            return get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Future got interrupted", e);
-        } catch (ExecutionException e) {
-            throw rethrowExecutionException(e);
-        }
+        return FutureUtils.get(this);
     }
 
     @Override
@@ -62,33 +54,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     @Override
     public T actionGet(long timeout, TimeUnit unit) {
-        try {
-            return get(timeout, unit);
-        } catch (TimeoutException e) {
-            throw new ElasticsearchTimeoutException(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Future got interrupted", e);
-        } catch (ExecutionException e) {
-            throw rethrowExecutionException(e);
-        }
-    }
-
-    static RuntimeException rethrowExecutionException(ExecutionException e) {
-        if (e.getCause() instanceof ElasticsearchException) {
-            ElasticsearchException esEx = (ElasticsearchException) e.getCause();
-            Throwable root = esEx.unwrapCause();
-            if (root instanceof ElasticsearchException) {
-                return (ElasticsearchException) root;
-            } else if (root instanceof RuntimeException) {
-                return (RuntimeException) root;
-            }
-            return new UncategorizedExecutionException("Failed execution", root);
-        } else if (e.getCause() instanceof RuntimeException) {
-            return (RuntimeException) e.getCause();
-        } else {
-            return new UncategorizedExecutionException("Failed execution", e);
-        }
+        return FutureUtils.get(this, timeout, unit);
     }
 
     @Override

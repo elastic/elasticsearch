@@ -118,6 +118,26 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_TOKEN_COUNT_SETTING =
         Setting.intSetting("index.analyze.max_token_count", 10000, 1, Property.Dynamic, Property.IndexScope);
 
+
+    /**
+     * A setting describing the maximum number of characters that will be analyzed for a highlight request.
+     * This setting is only applicable when highlighting is requested on a text that was indexed without
+     * offsets or term vectors.
+     * The default maximum of 10000 characters is defensive as for highlighting larger texts,
+     * indexing with offsets or term vectors is recommended.
+     */
+    public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
+        Setting.intSetting("index.highlight.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
+
+
+    /**
+     * Index setting describing the maximum number of terms that can be used in Terms Query.
+     * The default maximum of 65536 terms is defensive, as extra processing and memory is involved
+     * for each additional term, and a large number of terms degrade the cluster performance.
+     */
+    public static final Setting<Integer> MAX_TERMS_COUNT_SETTING =
+        Setting.intSetting("index.max_terms_count", 65536, 1, Property.Dynamic, Property.IndexScope);
+
     /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
      * the maximum difference between
@@ -275,6 +295,8 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile boolean TTLPurgeDisabled;
     private volatile TimeValue searchIdleAfter;
+    private volatile int maxAnalyzedOffset;
+    private volatile int maxTermsCount;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -384,6 +406,8 @@ public final class IndexSettings {
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
+        maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
+        maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
@@ -426,6 +450,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
@@ -712,6 +738,20 @@ public final class IndexSettings {
     public int getMaxShingleDiff() { return this.maxShingleDiff; }
 
     private void setMaxShingleDiff(int maxShingleDiff) { this.maxShingleDiff = maxShingleDiff; }
+
+    /**
+     *  Returns the maximum number of chars that will be analyzed in a highlight request
+     */
+    public int getHighlightMaxAnalyzedOffset() { return this.maxAnalyzedOffset; }
+
+    private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) { this.maxAnalyzedOffset = maxAnalyzedOffset; }
+
+    /**
+     *  Returns the maximum number of terms that can be used in a Terms Query request
+     */
+    public int getMaxTermsCount() { return this.maxTermsCount; }
+
+    private void setMaxTermsCount (int maxTermsCount) { this.maxTermsCount = maxTermsCount; }
 
     /**
      * Returns the maximum number of allowed script_fields to retrieve in a search request

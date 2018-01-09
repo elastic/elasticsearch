@@ -458,7 +458,7 @@ their name. For example:
 --------------------------------------------------
 {
   "set": {
-    "field": "my_field"
+    "field": "my_field",
     "value": 582.1
   }
 }
@@ -471,7 +471,7 @@ On top of this, fields from the source are always accessible via the `_source` p
 --------------------------------------------------
 {
   "set": {
-    "field": "_source.my_field"
+    "field": "_source.my_field",
     "value": 582.1
   }
 }
@@ -491,7 +491,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 {
   "set": {
-    "field": "_id"
+    "field": "_id",
     "value": "1"
   }
 }
@@ -517,7 +517,7 @@ The following example adds a field with the name `received`. The value is the in
 --------------------------------------------------
 {
   "set": {
-    "field": "received"
+    "field": "received",
     "value": "{{_ingest.timestamp}}"
   }
 }
@@ -542,7 +542,7 @@ the values of `field_a` and `field_b`.
 --------------------------------------------------
 {
   "set": {
-    "field": "field_c"
+    "field": "field_c",
     "value": "{{field_a}} {{field_b}}"
   }
 }
@@ -556,7 +556,7 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 {
   "set": {
-    "field": "_index"
+    "field": "_index",
     "value": "{{geoip.country_iso_code}}"
   }
 }
@@ -570,7 +570,7 @@ value of `service` to the value of the field `code`:
 --------------------------------------------------
 {
   "set": {
-    "field": "{{service}}"
+    "field": "{{service}}",
     "value": "{{code}}"
   }
 }
@@ -778,16 +778,17 @@ Accepts a single value or an array of values.
 Converts an existing field's value to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `float`, `string`, `boolean`, and `auto`.
+The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, and `auto`.
 
 Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string type.
-For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And
-a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot
-be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In
-such a case, `target_field` will still be updated with the unconverted field value.
+For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note
+that float takes precedence of double in `auto`. A value of `"242.15"` will "automatically" be converted to
+`242.15` of type `float`. If a provided field cannot be appropriately converted, the Convert Processor will
+still process successfully and leave the field value as-is. In such a case, `target_field` will
+still be updated with the unconverted field value.
 
 [[convert-options]]
 .Convert Options
@@ -1240,7 +1241,7 @@ The `SEMANTIC` is the identifier you give to the piece of text being matched. Fo
 duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify
 the `client` making a request.
 
-The `TYPE` is the type you wish to cast your named field. `int` and `float` are currently the only types supported for coercion.
+The `TYPE` is the type you wish to cast your named field. `int`, `long`, `double`, `float` and `boolean` are supported types for coercion.
 
 For example, you might want to match the following text:
 

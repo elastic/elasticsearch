@@ -45,7 +45,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     static final double EXPECTED_DCG = 13.84826362927298;
     static final double EXPECTED_IDCG = 14.595390756454922;
     static final double EXPECTED_NDCG = EXPECTED_DCG / EXPECTED_IDCG;
-    private static final double DELTA = 10E-16;
+    private static final double DELTA = 10E-14;
 
     /**
      * Assuming the docs are ranked in the following order:

@@ -42,6 +42,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -55,7 +56,7 @@ import java.util.stream.LongStream;
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
-public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
+public class GlobalCheckpointTracker extends AbstractIndexShardComponent implements LongSupplier {
 
     /**
      * The allocation ID for the shard to which this tracker is a component of.
@@ -214,7 +215,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
         final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
@@ -329,7 +330,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      */
-    GlobalCheckpointTracker(
+    public GlobalCheckpointTracker(
             final ShardId shardId,
             final String allocationId,
             final IndexSettings indexSettings,
@@ -372,6 +373,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         final CheckpointState cps = checkpoints.get(shardAllocationId);
         assert cps != null;
         return cps.globalCheckpoint;
+    }
+
+    @Override
+    public long getAsLong() {
+        return getGlobalCheckpoint();
     }
 
     /**

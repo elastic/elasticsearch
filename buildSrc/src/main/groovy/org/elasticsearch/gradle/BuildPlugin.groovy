@@ -21,6 +21,8 @@ package org.elasticsearch.gradle
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -35,7 +37,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -85,6 +86,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureTest(project)
         configurePrecommit(project)
+        configureDependenciesInfo(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -126,7 +128,7 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();
 
-            final GradleVersion minGradle = GradleVersion.version('3.3')
+            final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -408,7 +410,11 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        project.ext.compactProfile = 'compact3'
+        if (project.javaVersion < JavaVersion.VERSION_1_10) {
+            project.ext.compactProfile = 'compact3'
+        } else {
+            project.ext.compactProfile = 'full'
+        }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome
@@ -444,13 +450,6 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
-                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
-                        doFirst {
-                            sourceCompatibility = null
-                            targetCompatibility = null
-                        }
-                    }
                 }
             }
         }
@@ -461,6 +460,10 @@ class BuildPlugin implements Plugin<Project> {
             executable = new File(project.javaHome, 'bin/javadoc')
         }
         configureJavadocJar(project)
+        if (project.javaVersion == JavaVersion.VERSION_1_10) {
+            project.tasks.withType(Javadoc) { it.enabled = false }
+            project.tasks.getByName('javadocJar').each { it.enabled = false }
+        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
@@ -507,6 +510,17 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
+                } else {
+                    /*
+                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
+                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
+                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
+                     */
+                    if (System.getenv("GIT_COMMIT") != null) {
+                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
+                        final String shortHash = hash?.substring(0, 7)
+                        jarTask.manifest.attributes('Change': shortHash)
+                    }
                 }
             }
             // add license/notice files
@@ -635,5 +649,10 @@ class BuildPlugin implements Plugin<Project> {
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
         project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+    }
+
+    private static configureDependenciesInfo(Project project) {
+        Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
+        deps.dependencies = project.configurations.compile.allDependencies
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.City;
@@ -59,6 +60,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
+    private static final String ASN_DB_SUFFIX = "-ASN";
 
     private final String field;
     private final String targetField;
@@ -104,6 +106,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             try {
                 geoData = retrieveCountryGeoData(ipAddress);
+            } catch (AddressNotFoundRuntimeException e) {
+                geoData = Collections.emptyMap();
+            }
+        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+            try {
+                geoData = retrieveAsnGeoData(ipAddress);
             } catch (AddressNotFoundRuntimeException e) {
                 geoData = Collections.emptyMap();
             }
@@ -256,12 +264,53 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
+        SpecialPermission.check();
+        AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () -> {
+            try {
+                return dbReader.asn(ipAddress);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Integer asn = response.getAutonomousSystemNumber();
+        String organization_name = response.getAutonomousSystemOrganization();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP:
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
+                    break;
+                case ASN:
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                    break;
+                case ORGANIZATION_NAME:
+                    if (organization_name != null) {
+                        geoData.put("organization_name", organization_name);
+                    }
+                    break;
+            }
+        }
+        return geoData;
+    }
+
     public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
             Property.CITY_NAME, Property.LOCATION
         );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE);
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
+        );
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = EnumSet.of(
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+        );
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
@@ -302,6 +351,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     properties = DEFAULT_CITY_PROPERTIES;
                 } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
+                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                    properties = DEFAULT_ASN_PROPERTIES;
                 } else {
                     throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
                             + databaseType + "]");
@@ -331,11 +382,20 @@ public final class GeoIpProcessor extends AbstractProcessor {
         REGION_NAME,
         CITY_NAME,
         TIMEZONE,
-        LOCATION;
+        LOCATION,
+        ASN,
+        ORGANIZATION_NAME;
 
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.allOf(Property.class);
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(Property.IP, Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE);
+        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
+            Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
+            Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE, Property.LOCATION
+        );
+        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
+            Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE
+        );
+        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+        );
 
         public static Property parseProperty(String databaseType, String value) {
             Set<Property> validProperties = EnumSet.noneOf(Property.class);
@@ -343,6 +403,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 validProperties = ALL_CITY_PROPERTIES;
             } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
                 validProperties = ALL_COUNTRY_PROPERTIES;
+            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                validProperties = ALL_ASN_PROPERTIES;
             }
 
             try {

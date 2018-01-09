@@ -1,0 +1,56 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// A meta plugin packaging example that bundles multiple plugins in a single zip.
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+File plugins = new File(buildDir, 'plugins-unzip')
+subprojects {
+    // unzip the subproject plugins
+    task unzip(type:Copy, dependsOn: "${project.path}:bundlePlugin") {
+        File dest = new File(plugins, project.name)
+        from { zipTree(project(project.path).bundlePlugin.outputs.files.singleFile) }
+        eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
+        into dest
+    }
+}
+
+// Build the meta plugin zip from the subproject plugins (unzipped)
+task buildZip(type:Zip) {
+    subprojects.each { dependsOn("${it.name}:unzip") }
+    from plugins
+    from 'src/main/resources/meta-plugin-descriptor.properties'
+    into 'elasticsearch'
+    includeEmptyDirs false
+}
+
+integTestCluster {
+    dependsOn buildZip
+
+    // This is important, so that all the modules are available too.
+    // There are index templates that use token filters that are in analysis-module and
+    // processors are being used that are in ingest-common module.
+    distribution = 'zip'
+
+    // Install the meta plugin before start.
+    setupCommand 'installMetaPlugin',
+            'bin/elasticsearch-plugin', 'install', 'file:' + buildZip.archivePath
+}
+check.dependsOn integTest

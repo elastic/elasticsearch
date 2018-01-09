@@ -228,4 +228,17 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.assertAllEqual(numDocs);
         }
     }
+
+    public void testPeerRecoveryPersistGlobalCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startPrimary();
+            final long numDocs = shards.indexDocs(between(1, 100));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            final IndexShard replica = shards.addReplica();
+            shards.recoverReplica(replica);
+            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(numDocs - 1));
+        }
+    }
 }

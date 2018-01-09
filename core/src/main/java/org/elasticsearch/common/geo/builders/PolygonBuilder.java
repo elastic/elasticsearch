@@ -469,20 +469,56 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
             LOGGER.debug("Holes: {}", Arrays.toString(holes));
         }
         for (int i = 0; i < numHoles; i++) {
+            // To do the assignment we assume (and later, elsewhere, check) that each hole is within
+            // a single component, and the components do not overlap. Based on this assumption, it's
+            // enough to find a component that contains some vertex of the hole, and
+            // holes[i].coordinate is such a vertex, so we use that one.
+
+            // First, we sort all the edges according to their order of intersection with the line
+            // of longitude through holes[i].coordinate, in order from south to north. Edges that do
+            // not intersect this line are sorted to the end of the array and of no further interest
+            // here.
             final Edge current = new Edge(holes[i].coordinate, holes[i].next);
-            // the edge intersects with itself at its own coordinate.  We need intersect to be set this way so the binary search
-            // will get the correct position in the edge list and therefore the correct component to add the hole
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
-            // if no intersection is found then the hole is not within the polygon, so
-            // don't waste time calling a binary search
-            final int pos;
-            boolean sharedVertex = false;
-            if (intersections == 0 || ((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
-                            && !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0)) ) {
+
+            if (intersections == 0) {
+                // There were no edges that intersect the line of longitude through
+                // holes[i].coordinate, so there's no way this hole is within the polygon.
                 throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
             }
-            final int index = -((sharedVertex) ? 0 : pos+2);
+
+            // Next we do a binary search to find the position of holes[i].coordinate in the array.
+            // The binary search returns the index of an exact match, or (-insertionPoint - 1) if
+            // the vertex lies between the intersections of edges[insertionPoint] and
+            // edges[insertionPoint+1]. The latter case is vastly more common.
+
+            final int pos;
+            boolean sharedVertex = false;
+            if (((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
+                && !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0))) {
+                // The binary search returned an exact match, but we checked again using compareTo()
+                // and it didn't match after all.
+
+                // TODO Can this actually happen? Needs a test to exercise it, or else needs to be removed.
+                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
+            }
+
+            final int index;
+            if (sharedVertex) {
+                // holes[i].coordinate lies exactly on an edge.
+                index = 0; // TODO Should this be pos instead of 0? This assigns exact matches to the southernmost component.
+            } else if (pos == -1) {
+                // holes[i].coordinate is strictly south of all intersections. Assign it to the
+                // southernmost component, and allow later validation to spot that it is not
+                // entirely within the chosen component.
+                index = 0;
+            } else {
+                // holes[i].coordinate is strictly north of at least one intersection. Assign it to
+                // the component immediately to its south.
+                index = -(pos + 2);
+            }
+
             final int component = -edges[index].component - numHoles - 1;
 
             if(debugEnabled()) {

@@ -20,6 +20,7 @@ package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -71,7 +72,8 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final StringBuilder b = new StringBuilder("REPRODUCE WITH: gradle ");
+        final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
+        final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
         // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
         b.append(task);

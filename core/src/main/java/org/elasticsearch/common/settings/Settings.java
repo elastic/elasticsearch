@@ -1216,13 +1216,12 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
-                    List<String> ls = (List<String>) entry.getValue();
-                    ListIterator<String> li = ls.listIterator();
-                    while(li.hasNext()){
-                        String value = li.next();
-                        String value2 = propertyPlaceholder.replacePlaceholders(value, placeholderResolver);
-                        if (! value.equals(value2)){
-                            li.set(value2);
+                    final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
+                    while (li.hasNext()){
+                        final String settingValueRaw = li.next();
+                        final String settingValueResolved = propertyPlaceholder.replacePlaceholders(settingValueRaw, placeholderResolver);
+                        if (!settingValueRaw.equals(settingValueResolved)){
+                            li.set(settingValueResolved);
                         }
                     }
                     continue;

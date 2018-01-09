@@ -69,14 +69,12 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderSystemPropertyList() {
-        String value = System.getProperty("java.home");
-        assertFalse(value.isEmpty());
-        Settings settings = Settings.builder()
-            .put("property.placeholder", value)
-            .putList("setting1", "${property.placeholder}", "${property.placeholder}")
-            .replacePropertyPlaceholders()
+        final String hostname = randomAlphaOfLength(16);
+        final Settings settings = Settings.builder()
+            .putList("setting1", "${HOSTNAME}", "${HOSTNAME}")
+            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
             .build();
-        assertThat(settings.getAsList("setting1"), contains(value, value));
+        assertThat(settings.getAsList("setting1"), contains(hostname, hostname));
     }
 
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {

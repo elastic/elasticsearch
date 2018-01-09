@@ -67,6 +67,12 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, channel.getSelectionKey().interestOps());
     }
 
+    public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
+        channel.getContext().queueWriteOperations(mock(BytesWriteOperation.class));
+        handler.handleRegistration(channel);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
+    }
+
     public void testRegistrationExceptionCallsExceptionHandler() throws IOException {
         CancelledKeyException exception = new CancelledKeyException();
         handler.registrationException(channel, exception);
@@ -95,50 +101,10 @@ public class SocketEventHandlerTests extends ESTestCase {
         verify(context).read();
     }
 
-    public void testReadExceptionCallsExceptionHandler() throws IOException {
+    public void testReadExceptionCallsExceptionHandler() {
         IOException exception = new IOException();
         handler.readException(channel, exception);
         verify(exceptionHandler).accept(channel, exception);
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testHandleWriteWithCompleteFlushRemovesOP_WRITEInterest() throws IOException {
-        SelectionKey selectionKey = channel.getSelectionKey();
-        setWriteAndRead(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
-
-        ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
-        channel.getContext().queueWriteOperations(new BytesWriteOperation(channel, buffers, mock(BiConsumer.class)));
-
-        when(rawChannel.write(buffers[0])).thenReturn(1);
-        handler.handleWrite(channel);
-
-        assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testHandleWriteWithInCompleteFlushLeavesOP_WRITEInterest() throws IOException {
-        SelectionKey selectionKey = channel.getSelectionKey();
-        setWriteAndRead(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
-
-        ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
-        channel.getContext().queueWriteOperations(new BytesWriteOperation(channel, buffers, mock(BiConsumer.class)));
-
-        when(rawChannel.write(buffers[0])).thenReturn(0);
-        handler.handleWrite(channel);
-
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
-    }
-
-    public void testHandleWriteWithNoOpsRemovesOP_WRITEInterest() throws IOException {
-        SelectionKey selectionKey = channel.getSelectionKey();
-        setWriteAndRead(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
-
-        handler.handleWrite(channel);
-
-        assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
     }
 
     public void testWriteExceptionCallsExceptionHandler() {

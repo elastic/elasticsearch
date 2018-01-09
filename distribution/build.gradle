@@ -335,6 +335,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   task createEtc(type: EmptyDirTask) {
     dir "${packagingFiles}/etc/elasticsearch"
     dirMode 0750
+    outputs.dir dir
   }
 
   task fillEtc(type: Copy) {

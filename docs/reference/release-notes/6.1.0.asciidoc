@@ -12,6 +12,7 @@ Network::
 
 REST::
 * Standardize underscore requirements in parameters {pull}27414[#27414] (issues: {issue}26886[#26886], {issue}27040[#27040])
+* `/_nodes/settings?flat_settings` returns `"settings"` key/value values as `string` and `array` values {pull}26878[#26878] (issue: {issue}27805[#27805])
 
 Scroll::
 * Fail queries with scroll that explicitely set request_cache {pull}27342[#27342]

@@ -395,7 +395,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 repository.snapshotShard(indexShard, snapshot.getSnapshotId(), indexId, snapshotRef.getIndexCommit(), snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                    logger.debug("snapshot ({}) completed to {} {}", snapshot, repository, lastSnapshotStatus);
+                    logger.debug("snapshot ({}) completed to {} with {}", snapshot, repository, lastSnapshotStatus);
                 }
             }
         } catch (SnapshotFailedEngineException | IndexShardSnapshotFailedException e) {

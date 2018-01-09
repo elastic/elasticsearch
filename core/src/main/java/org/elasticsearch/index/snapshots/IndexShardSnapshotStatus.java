@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.snapshots;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -245,12 +242,17 @@ public class IndexShardSnapshotStatus {
 
         @Override
         public String toString() {
-            return new StringBuilder()
-                .append("took [").append(TimeValue.timeValueMillis(getTotalTime())).append("], ")
-                .append("index version [").append(getIndexVersion()).append("], ")
-                .append("number_of_files [").append(getNumberOfFiles()).append("], ")
-                .append("total_size [").append(new ByteSizeValue(getTotalSize())).append("]")
-                .toString();
+            return "index shard snapshot status (" +
+                "stage=" + stage +
+                ", startTime=" + startTime +
+                ", totalTime=" + totalTime +
+                ", numberOfFiles=" + numberOfFiles +
+                ", processedFiles=" + processedFiles +
+                ", totalSize=" + totalSize +
+                ", processedSize=" + processedSize +
+                ", indexVersion=" + indexVersion +
+                ", failure='" + failure + '\'' +
+                ')';
         }
     }
 }

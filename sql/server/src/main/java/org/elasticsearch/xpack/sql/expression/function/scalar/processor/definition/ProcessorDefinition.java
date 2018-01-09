@@ -37,6 +37,13 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> impl
         // No fields needed
     }
 
+    /**
+     * Resolve {@link Attribute}s which are unprocessable into
+     * {@link ColumnReference}s which are processable.
+     *
+     * @return {@code this} if the resolution doesn't change the
+     *      definition, a new {@link ProcessorDefinition} otherwise
+     */
     public abstract ProcessorDefinition resolveAttributes(AttributeResolver resolver);
     public interface AttributeResolver {
         ColumnReference resolve(Attribute attribute);

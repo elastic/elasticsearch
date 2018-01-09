@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -212,11 +213,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             if (newLicense.isProductionLicense()
                     && XPackSettings.SECURITY_ENABLED.get(settings)
-                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false) {
+                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
+                    && "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)) == false) {
                 // security is on but TLS is not configured we gonna fail the entire request and throw an exception
                 throw new IllegalStateException("Can not upgrade to a production license unless TLS is configured or " +
                         "security is disabled");
-                // TODO we should really validate that all nodes have xpack in stalled and are consistently configured but this
+                // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
             } else {
                 clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new

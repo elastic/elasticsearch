@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -86,7 +87,45 @@ public class NioSocketChannelTests extends ESTestCase {
 
         PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
         socketChannel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
-        socketChannel.close();
+        selector.queueChannelClose(socketChannel);
+        closeFuture.actionGet();
+
+        assertTrue(closedRawChannel.get());
+        assertFalse(socketChannel.isOpen());
+        latch.await();
+        assertTrue(isClosed.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCloseContextExceptionDoesNotStopClose() throws Exception {
+        AtomicBoolean isClosed = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        IOException ioException = new IOException();
+        NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
+        ChannelContext context = mock(ChannelContext.class);
+        doThrow(ioException).when(context).close();
+        socketChannel.setContexts(context, mock(BiConsumer.class));
+        socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+            @Override
+            public void onFailure(Exception e) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+        }));
+
+        assertTrue(socketChannel.isOpen());
+        assertFalse(closedRawChannel.get());
+        assertFalse(isClosed.get());
+
+        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+        socketChannel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
+        selector.queueChannelClose(socketChannel);
         closeFuture.actionGet();
 
         assertTrue(closedRawChannel.get());

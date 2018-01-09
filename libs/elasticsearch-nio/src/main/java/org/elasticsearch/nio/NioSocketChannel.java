@@ -47,13 +47,24 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     public void closeFromSelector() throws IOException {
         assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
 
+        IOException contextCloseException = null;
         try {
             context.close();
         } catch (IOException e) {
-            // TODO: properly handle
+            contextCloseException = e;
         }
 
-        super.closeFromSelector();
+        try {
+            super.closeFromSelector();
+        } catch (IOException e) {
+            if (contextCloseException !=  null) {
+                e.addSuppressed(contextCloseException);
+            }
+            throw e;
+        }
+        if (contextCloseException != null) {
+            throw contextCloseException;
+        }
     }
 
     @Override

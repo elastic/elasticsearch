@@ -17,9 +17,9 @@
  * under the License.
  */
 
-
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+
 import java.util.regex.Matcher
 
 /**
@@ -119,6 +119,13 @@ if (project.hasProperty('bwcVersion')) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
     executable = new File(checkoutDir, 'gradlew').toString()
+    if (project.rootProject.ext.runtimeJavaVersion == JavaVersion.VERSION_1_8 && ["5.6", "6.1"].contains(bwcBranch)) {
+      /*
+       * If runtime Java home is set to JDK 8 and we are building branches that are officially built with JDK 8, push this to JAVA_HOME for
+       * these builds.
+       */
+      environment('JAVA_HOME', System.getenv('RUNTIME_JAVA_HOME'))
+    }
     final ArrayList<String> commandLineArgs = [
             ":distribution:deb:assemble",
             ":distribution:rpm:assemble",

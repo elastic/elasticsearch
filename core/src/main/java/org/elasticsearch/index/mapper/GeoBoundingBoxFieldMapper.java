@@ -370,8 +370,10 @@ public class GeoBoundingBoxFieldMapper extends FieldMapper {
                 bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), 180D, relation), BooleanClause.Occur.MUST);
                 bqb.add(westQuery(bottomRight.lat(), -180D, topLeft.lat(), bottomRight.lon(), relation), BooleanClause.Occur.MUST);
             } else {
-                bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon(), relation), BooleanClause.Occur.SHOULD);
-                bqb.add(westQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon(), relation), BooleanClause.Occur.SHOULD);
+                bqb.add(eastQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon(), relation),
+                    BooleanClause.Occur.SHOULD);
+                bqb.add(westQuery(bottomRight.lat(), topLeft.lon(), topLeft.lat(), bottomRight.lon(), relation),
+                    BooleanClause.Occur.SHOULD);
             }
             return bqb.build();
         }

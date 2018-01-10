@@ -110,7 +110,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -241,7 +240,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
             assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
-        assertAcked(client().admin().indices().prepareOpen("test"));
+        assertAcked(client().admin().indices().prepareOpen("test").setTimeout(TimeValue.timeValueSeconds(1)));
 
     }
 
@@ -430,5 +429,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
+    }
+
+    public void testIsMetaDataField() {
+        IndicesService indicesService = getIndicesService();
+        assertFalse(indicesService.isMetaDataField(randomAlphaOfLengthBetween(10, 15)));
+        for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
+            assertTrue(indicesService.isMetaDataField(builtIn));
+        }
     }
 }

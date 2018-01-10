@@ -38,6 +38,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,7 +132,7 @@ final class BootstrapChecks {
         }
 
         if (enforceLimits) {
-            logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+            logger.info("bound or publishing to a non-loopback address, enforcing bootstrap checks");
         } else if (enforceBootstrapChecks) {
             logger.info("explicitly enforcing bootstrap checks");
         }
@@ -175,11 +176,10 @@ final class BootstrapChecks {
      * @return {@code true} if the checks should be enforced
      */
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
-        final Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
-                t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
+        final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
-                isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
+                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
         return bound && !"single-node".equals(discoveryType);
     }
 
@@ -210,6 +210,7 @@ final class BootstrapChecks {
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
+        checks.add(new AllPermissionCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -688,6 +689,29 @@ final class BootstrapChecks {
         boolean isJava8() {
             assert "Oracle Corporation".equals(jvmVendor());
             return JavaVersion.current().equals(JavaVersion.parse("1.8"));
+        }
+
+    }
+
+    static class AllPermissionCheck implements BootstrapCheck {
+
+        @Override
+        public final BootstrapCheckResult check(BootstrapContext context) {
+            if (isAllPermissionGranted()) {
+                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        boolean isAllPermissionGranted() {
+            final SecurityManager sm = System.getSecurityManager();
+            assert sm != null;
+            try {
+                sm.checkPermission(new AllPermission());
+            } catch (final SecurityException e) {
+                return false;
+            }
+            return true;
         }
 
     }

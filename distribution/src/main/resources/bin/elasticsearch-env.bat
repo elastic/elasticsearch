@@ -42,10 +42,14 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JavaVersionChecker" || exit /b 1
 
 set HOSTNAME=%COMPUTERNAME%
 
 if not defined ES_PATH_CONF (
   set ES_PATH_CONF=!ES_HOME!\config
+)
+
+if not defined ES_TMPDIR (
+  set ES_TMPDIR=!TMP!\elasticsearch
 )

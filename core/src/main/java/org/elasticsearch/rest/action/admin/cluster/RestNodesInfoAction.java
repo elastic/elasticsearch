@@ -76,7 +76,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         // still, /_nodes/_local (or any other node id) should work and be treated as usual
         // this means one must differentiate between allowed metrics and arbitrary node ids in the same place
         if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
-            Set<String> metricsOrNodeIds = Strings.splitStringByCommaToSet(request.param("nodeId", "_all"));
+            Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(request.param("nodeId", "_all"));
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
             if (isMetricsOnly) {
                 nodeIds = new String[]{"_all"};
@@ -87,7 +87,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             }
         } else {
             nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId", "_all"));
-            metrics = Strings.splitStringByCommaToSet(request.param("metrics", "_all"));
+            metrics = Strings.tokenizeByCommaToSet(request.param("metrics", "_all"));
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);

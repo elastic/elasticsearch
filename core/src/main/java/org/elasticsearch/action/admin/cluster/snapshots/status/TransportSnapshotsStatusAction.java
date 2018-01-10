@@ -196,7 +196,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     shardStatusBuilder.add(shardStatus);
                 }
-                builder.add(new SnapshotStatus(entry.snapshot(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
+                builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
+                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState()));
             }
         }
         // Now add snapshots on disk that are not currently running
@@ -232,7 +233,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     Map<ShardId, IndexShardSnapshotStatus> shardStatues =
                         snapshotsService.snapshotShards(request.repository(), snapshotInfo);
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
-                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
+                        IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
+                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
                     }
                     final SnapshotsInProgress.State state;
                     switch (snapshotInfo.state()) {
@@ -248,7 +250,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
-                    builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state, Collections.unmodifiableList(shardStatusBuilder)));
+                    builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
+                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState()));
                 }
             }
         }

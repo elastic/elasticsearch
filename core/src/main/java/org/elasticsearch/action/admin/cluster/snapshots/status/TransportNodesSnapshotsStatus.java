@@ -96,7 +96,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
         Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
-            String nodeId = clusterService.localNode().getId();
+            final String nodeId = clusterService.localNode().getId();
             for (Snapshot snapshot : request.snapshots) {
                 Map<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotShardsService.currentSnapshotShards(snapshot);
                 if (shardsStatus == null) {
@@ -104,15 +104,17 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                 }
                 Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>();
                 for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : shardsStatus.entrySet()) {
-                    SnapshotIndexShardStatus shardStatus;
-                    IndexShardSnapshotStatus.Stage stage = shardEntry.getValue().stage();
+                    final ShardId shardId = shardEntry.getKey();
+
+                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardEntry.getValue().asCopy();
+                    final IndexShardSnapshotStatus.Stage stage = lastSnapshotStatus.getStage();
+
+                    String shardNodeId = null;
                     if (stage != IndexShardSnapshotStatus.Stage.DONE && stage != IndexShardSnapshotStatus.Stage.FAILURE) {
                         // Store node id for the snapshots that are currently running.
-                        shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), shardEntry.getValue(), nodeId);
-                    } else {
-                        shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), shardEntry.getValue());
+                        shardNodeId = nodeId;
                     }
-                    shardMapBuilder.put(shardEntry.getKey(), shardStatus);
+                    shardMapBuilder.put(shardEntry.getKey(), new SnapshotIndexShardStatus(shardId, lastSnapshotStatus, shardNodeId));
                 }
                 snapshotMapBuilder.put(snapshot, unmodifiableMap(shardMapBuilder));
             }

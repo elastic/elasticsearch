@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -48,6 +49,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -191,6 +193,23 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 listener.onResponse(new PutResponse(true, templateBuilder.build()));
             }
         });
+    }
+
+    /**
+     * Finds index templates whose index pattern matched with the given index name.
+     * The result is sorted by {@link IndexTemplateMetaData#order} descending.
+     */
+    public static List<IndexTemplateMetaData> findTemplates(MetaData metaData, String indexName) {
+        final List<IndexTemplateMetaData> matchedTemplates = new ArrayList<>();
+        for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
+            final IndexTemplateMetaData template = cursor.value;
+            final boolean matched = template.patterns().stream().anyMatch(pattern -> Regex.simpleMatch(pattern, indexName));
+            if (matched) {
+                matchedTemplates.add(template);
+            }
+        }
+        CollectionUtil.timSort(matchedTemplates, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
+        return matchedTemplates;
     }
 
     private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,

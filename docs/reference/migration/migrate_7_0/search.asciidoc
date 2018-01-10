@@ -35,8 +35,26 @@ The Search API returns `400 - Bad request` while it would previously return
 *   number of filters in the adjacency matrix aggregation is too large
 
 
-==== Scroll queries cannot use the request_cache anymore
+==== Scroll queries cannot use the `request_cache` anymore
 
-Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
+Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
+
+==== Term Suggesters supported distance algorithms
+
+The following string distance algorithms were given additional names in 6.2 and
+their existing names were deprecated. The deprecated names have now been
+removed.
+
+* 	`levenstein` - replaced by `levenshtein`
+* 	`jarowinkler` - replaced by `jaro_winkler`
+
+
+==== Limiting the number of terms that can be used in a Terms Query request
+
+Executing a Terms Query with a lot of terms may degrade the cluster performance,
+as each additional term demands extra processing and memory.
+To safeguard against this, the maximum number of terms that can be used in a
+Terms Query request has been limited to 65536. This default maximum can be changed
+for a particular index with the index setting `index.max_terms_count`.

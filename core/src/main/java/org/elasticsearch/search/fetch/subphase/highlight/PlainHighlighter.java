@@ -31,11 +31,11 @@ import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleHTMLFormatter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -47,6 +47,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
+import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.getAnalyzer;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
@@ -100,17 +103,21 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
+        Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), mapper.fieldType());
+        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
 
             for (Object textToHighlight : textsToHighlight) {
-                String text;
-                if (textToHighlight instanceof BytesRef) {
-                    text = mapper.fieldType().valueForDisplay(textToHighlight).toString();
-                } else {
-                    text = textToHighlight.toString();
+                String text = convertFieldValue(mapper.fieldType(), textToHighlight);
+                if (text.length() > maxAnalyzedOffset) {
+                    throw new IllegalArgumentException(
+                        "The length of the text to be analyzed for highlighting has exceeded the allowed maximum of [" +
+                            maxAnalyzedOffset + "]. " + "This maximum can be set by changing the [" +
+                            IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
+                            "For large texts, indexing with offsets or term vectors, and highlighting with unified or " +
+                            "fvh highlighter is recommended!");
                 }
 
                 try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {

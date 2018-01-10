@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -307,6 +308,13 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns <code>true</code> iff the given key has a value in this settings object
+     */
+    public boolean hasValue(String key) {
+        return settings.get(key) != null;
+    }
+
+    /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
@@ -407,7 +415,7 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return ((List<String>) valueFromPrefix); // it's already unmodifiable since the builder puts it as a such
+                return Collections.unmodifiableList((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -617,7 +625,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
-     * Parsers the generated xconten from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
+     * Parsers the generated xcontent from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
      * Note this method requires the parser to either be positioned on a null token or on
      * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
      */
@@ -1035,7 +1043,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder putList(String setting, List<String> values) {
             remove(setting);
-            map.put(setting, Collections.unmodifiableList(new ArrayList<>(values)));
+            map.put(setting, new ArrayList<>(values));
             return this;
         }
 
@@ -1203,10 +1211,20 @@ public final class Settings implements ToXContentFragment {
             Iterator<Map.Entry<String, Object>> entryItr = map.entrySet().iterator();
             while (entryItr.hasNext()) {
                 Map.Entry<String, Object> entry = entryItr.next();
-                if (entry.getValue() == null || entry.getValue() instanceof List) {
+                if (entry.getValue() == null) {
                     // a null value obviously can't be replaced
                     continue;
                 }
+                if (entry.getValue() instanceof List) {
+                    final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
+                    while (li.hasNext()) {
+                        final String settingValueRaw = li.next();
+                        final String settingValueResolved = propertyPlaceholder.replacePlaceholders(settingValueRaw, placeholderResolver);
+                        li.set(settingValueResolved);
+                    }
+                    continue;
+                }
+
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
@@ -1229,8 +1247,9 @@ public final class Settings implements ToXContentFragment {
             Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
             while(iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                if (entry.getKey().startsWith(prefix) == false) {
-                    replacements.put(prefix + entry.getKey(), entry.getValue());
+                String key = entry.getKey();
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                    replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
             }

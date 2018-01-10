@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -248,6 +247,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
     public void testExpandRequestOptions() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        boolean version = randomBoolean();
+
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
@@ -256,13 +257,14 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 final QueryBuilder postFilter = QueryBuilders.existsQuery("foo");
                 assertTrue(request.requests().stream().allMatch((r) -> "foo".equals(r.preference())));
                 assertTrue(request.requests().stream().allMatch((r) -> "baz".equals(r.routing())));
+                assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
                 assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
             }
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(
                 new CollapseBuilder("someField")
-                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz"))
+                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version))
             )
             .postFilter(QueryBuilders.existsQuery("foo")))
             .preference("foobar")

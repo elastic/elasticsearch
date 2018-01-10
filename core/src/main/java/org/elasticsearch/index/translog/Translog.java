@@ -180,7 +180,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 boolean success = false;
                 current = null;
                 try {
-                    current = createWriter(checkpoint.generation + 1);
+                    current = createWriter(checkpoint.generation + 1, getMinFileGeneration(), checkpoint.globalCheckpoint);
                     success = true;
                 } finally {
                     // we have to close all the recovered ones otherwise we leak file handles here
@@ -196,11 +196,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 final long generation = deletionPolicy.getMinTranslogGenerationForRecovery();
                 logger.debug("wipe translog location - creating new translog, starting generation [{}]", generation);
                 Files.createDirectories(location);
-                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong(), generation);
+                final long initialGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
-                current = createWriter(generation, generation);
+                current = createWriter(generation, generation, initialGlobalCheckpoint);
                 readers.clear();
             }
         } catch (Exception e) {
@@ -355,7 +356,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the minimum file generation referenced by the translog
      */
-    long getMinFileGeneration() {
+    public long getMinFileGeneration() {
         try (ReleasableLock ignored = readLock.acquire()) {
             if (readers.isEmpty()) {
                 return current.getGeneration();
@@ -372,14 +373,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the number of operations in the translog files that aren't committed to lucene.
      */
     public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getMinTranslogGenerationForRecovery());
+        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
     }
 
     /**
      * Returns the size in bytes of the translog files that aren't committed to lucene.
      */
     public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getMinTranslogGenerationForRecovery());
+        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
     }
 
     /**
@@ -450,18 +451,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if creating the translog failed
      */
     TranslogWriter createWriter(long fileGeneration) throws IOException {
-        return createWriter(fileGeneration, getMinFileGeneration());
+        return createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong());
     }
 
     /**
      * creates a new writer
      *
-     * @param fileGeneration        the generation of the write to be written
-     * @param initialMinTranslogGen the minimum translog generation to be written in the first checkpoint. This is
-     *                              needed to solve and initialization problem while constructing an empty translog.
-     *                              With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
+     * @param fileGeneration          the generation of the write to be written
+     * @param initialMinTranslogGen   the minimum translog generation to be written in the first checkpoint. This is
+     *                                needed to solve and initialization problem while constructing an empty translog.
+     *                                With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
+     * @param initialGlobalCheckpoint the global checkpoint to be written in the first checkpoint.
      */
-    private TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen) throws IOException {
+    TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint) throws IOException {
         final TranslogWriter newFile;
         try {
             newFile = TranslogWriter.create(
@@ -471,9 +473,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 location.resolve(getFilename(fileGeneration)),
                 getChannelFactory(),
                 config.getBufferSize(),
-                globalCheckpointSupplier,
-                initialMinTranslogGen,
-                this::getMinFileGeneration);
+                initialMinTranslogGen, initialGlobalCheckpoint,
+                globalCheckpointSupplier, this::getMinFileGeneration);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -831,9 +832,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public interface Snapshot extends Closeable {
 
         /**
-         * The total number of operations in the translog.
+         * The total estimated number of operations in the snapshot.
          */
         int totalOperations();
+
+        /**
+         * The number of operations have been overridden (eg. superseded) in the snapshot so far.
+         * If two operations have the same sequence number, the operation with a lower term will be overridden by the operation
+         * with a higher term. Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
+         */
+        default int overriddenOperations() {
+            return 0;
+        }
 
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.

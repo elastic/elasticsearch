@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.Version.V_5_3_0;
 import static org.elasticsearch.Version.V_6_0_0_beta1;
@@ -339,8 +341,40 @@ public class VersionTests extends ESTestCase {
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_5_0_0));
         assertFalse(isCompatible(Version.fromString("6.0.0"), Version.fromString("7.0.0")));
         assertFalse(isCompatible(Version.fromString("6.0.0-alpha1"), Version.fromString("7.0.0")));
-        assertFalse("only compatible with the latest minor",
-            isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("7.0.0")));
+
+        final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
+        final Version currentOrNextMajorVersion;
+        if (Version.CURRENT.minor > 0) {
+            currentOrNextMajorVersion = Version.fromId((Version.CURRENT.major + 1) * 1000000 + 99);
+        } else {
+            currentOrNextMajorVersion = currentMajorVersion;
+        }
+        final Version lastMinorFromPreviousMajor =
+                VersionUtils
+                        .allVersions()
+                        .stream()
+                        .filter(v -> v.major == currentOrNextMajorVersion.major - 1)
+                        .max(Version::compareTo)
+                        .orElseThrow(
+                                () -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
+        final Version previousMinorVersion = VersionUtils.getPreviousMinorVersion();
+
+        assert previousMinorVersion.major == currentOrNextMajorVersion.major
+                || previousMinorVersion.major == lastMinorFromPreviousMajor.major;
+        boolean isCompatible = previousMinorVersion.major == currentOrNextMajorVersion.major
+                || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
+
+        final String message = String.format(
+                Locale.ROOT,
+                "[%s] should %s be compatible with [%s]",
+                previousMinorVersion,
+                isCompatible ? "" : " not",
+                currentOrNextMajorVersion);
+        assertThat(
+                message,
+                isCompatible(VersionUtils.getPreviousMinorVersion(), currentOrNextMajorVersion),
+                equalTo(isCompatible));
+
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("7.0.0")));
 

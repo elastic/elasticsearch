@@ -131,6 +131,7 @@ class HistogramAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         assert bucket == 0;
+        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
         List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.size(); i++) {
             double roundKey = Double.longBitsToDouble(bucketOrds.get(i));

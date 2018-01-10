@@ -38,20 +38,29 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -65,10 +74,31 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
+
+    private boolean randomizeAggregatorImpl = true;
+
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
+            IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
+        try {
+            if (randomizeAggregatorImpl) {
+                TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
+                TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
+            }
+            return super.createAggregator(aggregationBuilder, indexSearcher, fieldTypes);
+        } finally {
+            TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+            TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+        }
+    }
+
     public void testGlobalOrdinalsExecutionHint() throws Exception {
+        randomizeAggregatorImpl = false;
+
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
@@ -892,7 +922,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 dir.close();
             }
             InternalAggregation.ReduceContext ctx =
-                new InternalAggregation.ReduceContext(new MockBigArrays(Settings.EMPTY,
+                new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
                     new NoneCircuitBreakerService()), null, true);
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
@@ -908,6 +938,63 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected * 2, buckets.get(2).getDocCount());
                 assertEquals("1000.0", buckets.get(3).getKeyAsString());
                 assertEquals(expected, buckets.get(3).getDocCount());
+            }
+        }
+    }
+
+    public void testGlobalAggregationWithScore() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
+                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
+                        .subAggregation(
+                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                                .executionHint(executionHint)
+                                .collectMode(collectionMode)
+                                .field("keyword")
+                                .order(BucketOrder.key(true))
+                                .subAggregation(
+                                    new TermsAggregationBuilder("sub_terms", ValueType.STRING)
+                                        .executionHint(executionHint)
+                                        .collectMode(collectionMode)
+                                        .field("keyword").order(BucketOrder.key(true))
+                                        .subAggregation(
+                                            new TopHitsAggregationBuilder("top_hits")
+                                                .storedField("_none_")
+                                        )
+                                )
+                        );
+
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+                    fieldType.setName("keyword");
+                    fieldType.setHasDocValues(true);
+
+                    InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
+                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                    assertThat(terms.getBuckets().size(), equalTo(3));
+                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
+                        assertThat(subTerms.getBuckets().size(), equalTo(1));
+                        MultiBucketsAggregation.Bucket subBucket  = subTerms.getBuckets().get(0);
+                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
+                        assertThat(topHits.getHits().getHits().length, equalTo(1));
+                        for (SearchHit hit : topHits.getHits()) {
+                            assertThat(hit.getScore(), greaterThan(0f));
+                        }
+                    }
+                }
             }
         }
     }

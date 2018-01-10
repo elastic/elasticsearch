@@ -25,7 +25,13 @@ import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
+import org.gradle.api.tasks.wrapper.Wrapper
+import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
+
 import java.nio.file.Path
+import java.security.MessageDigest
 
 // common maven publishing configuration
 subprojects {
@@ -177,6 +183,7 @@ subprojects {
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch:elasticsearch-cli:${version}": ':core:cli',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
@@ -196,6 +203,7 @@ subprojects {
     "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
+    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
@@ -398,6 +406,27 @@ task run(type: Run) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   impliesSubProjects = true
+}
+
+task wrapper(type: Wrapper)
+
+gradle.projectsEvaluated {
+
+  allprojects {
+    tasks.withType(Wrapper) { Wrapper wrapper ->
+      wrapper.distributionType = DistributionType.ALL
+
+      wrapper.doLast {
+        final DistributionLocator locator = new DistributionLocator()
+        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
+        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+        final String sha256Sum = new String(sha256Uri.toURL().bytes)
+        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+      }
+    }
+  }
+
 }
 
 /* Remove assemble on all qa projects because we don't need to publish

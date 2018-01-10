@@ -38,10 +38,12 @@ import java.util.concurrent.CompletableFuture;
 public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
+    private final String profile;
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
 
-    NettyTcpChannel(Channel channel) {
+    NettyTcpChannel(Channel channel, String profile) {
         this.channel = channel;
+        this.profile = profile;
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
                 closeContext.complete(null);
@@ -60,6 +62,11 @@ public class NettyTcpChannel implements TcpChannel {
     @Override
     public void close() {
         channel.close();
+    }
+
+    @Override
+    public String getProfile() {
+        return profile;
     }
 
     @Override
@@ -83,6 +90,11 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
+    public InetSocketAddress getRemoteAddress() {
+        return (InetSocketAddress) channel.remoteAddress();
+    }
+
+    @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         ChannelPromise writePromise = channel.newPromise();
         writePromise.addListener(f -> {
@@ -96,7 +108,7 @@ public class NettyTcpChannel implements TcpChannel {
             }
         });
         channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
-        
+
         if (channel.eventLoop().isShutdown()) {
             listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
@@ -104,5 +116,13 @@ public class NettyTcpChannel implements TcpChannel {
 
     public Channel getLowLevelChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return "NettyTcpChannel{" +
+            "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + channel.remoteAddress() +
+            '}';
     }
 }

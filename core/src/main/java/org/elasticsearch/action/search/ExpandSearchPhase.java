@@ -165,6 +165,7 @@ final class ExpandSearchPhase extends SearchPhase {
         }
         groupSource.explain(options.isExplain());
         groupSource.trackScores(options.isTrackScores());
+        groupSource.version(options.isVersion());
         return groupSource;
     }
 }

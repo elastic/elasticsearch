@@ -194,7 +194,6 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.getIndexName());
             table.addCell(shard.id());
 
-            IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
             if (shard.primary()) {
                 table.addCell("p");
             } else {

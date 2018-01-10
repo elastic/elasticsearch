@@ -9,7 +9,7 @@ Given the following mapping definition:
 PUT my_index
 {
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "my_join_field": {
           "type": "join",
@@ -22,13 +22,13 @@ PUT my_index
   }
 }
 
-PUT my_index/doc/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "This is a parent document",
   "my_join_field": "my_parent"
 }
 
-PUT my_index/doc/2?routing=1&refresh
+PUT my_index/_doc/2?routing=1&refresh
 {
   "text": "This is a child document",
   "my_join_field": {

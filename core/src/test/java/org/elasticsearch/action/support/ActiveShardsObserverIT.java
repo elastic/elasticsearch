@@ -51,7 +51,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                        .setWaitForActiveShards(randomBoolean() ? ActiveShardCount.from(1) : ActiveShardCount.ALL)
                        .setTimeout("100ms")
                        .get()
-                       .isShardsAcked());
+                       .isShardsAcknowledged());
         waitForIndexCreationToComplete(indexName);
     }
 
@@ -86,7 +86,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                        .setWaitForActiveShards(randomIntBetween(numDataNodes + 1, numReplicas + 1))
                        .setTimeout("100ms")
                        .get()
-                       .isShardsAcked());
+                       .isShardsAcknowledged());
         waitForIndexCreationToComplete(indexName);
     }
 
@@ -116,7 +116,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                        .setWaitForActiveShards(ActiveShardCount.ALL)
                        .setTimeout("100ms")
                        .get()
-                       .isShardsAcked());
+                       .isShardsAcknowledged());
         waitForIndexCreationToComplete(indexName);
         if (client().admin().indices().prepareExists(indexName).get().isExists()) {
             client().admin().indices().prepareDelete(indexName).get();

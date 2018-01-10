@@ -41,11 +41,13 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
@@ -53,11 +55,22 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
+        private final Set<String> usedVariables = new HashSet<>();
         private int maxLoopCounter = 0;
 
         @Override
         public void markUsedVariable(String name) {
-            // Do nothing.
+            usedVariables.add(name);
+        }
+
+        @Override
+        public Set<String> getUsedVariables() {
+            return unmodifiableSet(usedVariables);
+        }
+
+        @Override
+        public void addUsedVariables(FunctionReserved reserved) {
+            usedVariables.addAll(reserved.getUsedVariables());
         }
 
         @Override

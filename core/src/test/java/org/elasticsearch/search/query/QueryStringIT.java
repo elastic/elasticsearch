@@ -71,9 +71,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar baz"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f2", "Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f3", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f2", "Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -91,8 +91,8 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testWithDate() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
@@ -114,11 +114,11 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testWithLotsOfTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo",
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo",
                         "f_date", "2015/09/02",
                         "f_float", "1.7",
                         "f_ip", "127.0.0.1"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar",
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar",
                         "f_date", "2015/09/01",
                         "f_float", "1.8",
                         "f_ip", "127.0.0.2"));
@@ -144,7 +144,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -181,9 +181,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testKeywordWithWhitespace() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f2", "Foo Bar"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar"));
-        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f1", "foo bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f2", "Foo Bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar"));
+        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -209,7 +209,7 @@ public class QueryStringIT extends ESIntegTestCase {
         ensureGreen("test_1");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test_1", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(client().prepareIndex("test_1", "_doc", "1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test_1").setQuery(
@@ -225,8 +225,8 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
+        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
+        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test")

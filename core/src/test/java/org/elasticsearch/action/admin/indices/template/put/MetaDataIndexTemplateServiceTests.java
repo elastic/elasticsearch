@@ -20,8 +20,10 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
@@ -38,16 +40,17 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -154,6 +157,18 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
     }
 
+    public void testFindTemplates() throws Exception {
+        client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
+        putTemplateDetail(new PutRequest("test", "foo-1").patterns(Arrays.asList("foo-*")).order(1));
+        putTemplateDetail(new PutRequest("test", "foo-2").patterns(Arrays.asList("foo-*")).order(2));
+        putTemplateDetail(new PutRequest("test", "bar").patterns(Arrays.asList("bar-*")).order(between(0, 100)));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234").stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz").stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz"), empty());
+    }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(

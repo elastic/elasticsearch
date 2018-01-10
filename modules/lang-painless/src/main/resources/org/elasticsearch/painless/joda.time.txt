@@ -26,7 +26,7 @@
 # convenient access via the scripting API. classes are fully qualified to avoid
 # any confusion with java.time
 
-class org.joda.time.ReadableInstant -> org.joda.time.ReadableInstant {
+class org.joda.time.ReadableInstant {
   boolean equals(Object)
   long getMillis()
   int hashCode()
@@ -36,7 +36,7 @@ class org.joda.time.ReadableInstant -> org.joda.time.ReadableInstant {
   String toString()
 }
 
-class org.joda.time.ReadableDateTime -> org.joda.time.ReadableDateTime {
+class org.joda.time.ReadableDateTime {
   int getCenturyOfEra()
   int getDayOfMonth()
   int getDayOfWeek()

@@ -158,15 +158,18 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
-            return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null, analysisRegistry, environment);
+            final int maxTokenCount = indexService == null ?
+                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
+            return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null,
+                analysisRegistry, environment, maxTokenCount);
         } catch (IOException e) {
             throw new ElasticsearchException("analysis failed", e);
         }
 
     }
 
-    public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers, AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-
+    public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
+            AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
             if (indexAnalyzers == null) {
@@ -235,9 +238,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         DetailAnalyzeResponse detail = null;
 
         if (request.explain()) {
-            detail = detailAnalyze(request, analyzer, field);
+            detail = detailAnalyze(request, analyzer, field, maxTokenCount);
         } else {
-            tokens = simpleAnalyze(request, analyzer, field);
+            tokens = simpleAnalyze(request, analyzer, field, maxTokenCount);
         }
 
         if (closeAnalyzer) {
@@ -247,7 +250,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return new AnalyzeResponse(tokens, detail);
     }
 
-    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
+    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request,
+            Analyzer analyzer, String field, int maxTokenCount) {
+        TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
@@ -267,7 +272,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     }
                     tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
                         lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
-
+                    tc.increment();
                 }
                 stream.end();
                 lastOffset += offset.endOffset();
@@ -282,7 +287,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokens;
     }
 
-    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
+    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field, int maxTokenCount) {
         DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -307,7 +312,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ? tokenFilterFactories.length : 0];
 
-            TokenListCreator tokenizerTokenListCreator = new TokenListCreator();
+            TokenListCreator tokenizerTokenListCreator = new TokenListCreator(maxTokenCount);
 
             for (int textIndex = 0; textIndex < request.text().length; textIndex++) {
                 String charFilteredSource = request.text()[textIndex];
@@ -333,7 +338,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (tokenFilterFactories != null) {
                     for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFilterFactories.length; tokenFilterIndex++) {
                         if (tokenFiltersTokenListCreator[tokenFilterIndex] == null) {
-                            tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator();
+                            tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator(maxTokenCount);
                         }
                         TokenStream stream = createStackedTokenStream(request.text()[textIndex],
                             charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
@@ -366,7 +371,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 name = analyzer.getClass().getName();
             }
 
-            TokenListCreator tokenListCreator = new TokenListCreator();
+            TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
             for (String text : request.text()) {
                 tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
                         includeAttributes);
@@ -408,13 +413,32 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return sb.toString();
     }
 
+    private static class TokenCounter{
+        private int tokenCount = 0;
+        private int maxTokenCount;
+
+        private TokenCounter(int maxTokenCount){
+            this.maxTokenCount = maxTokenCount;
+        }
+        private void increment(){
+            tokenCount++;
+            if (tokenCount > maxTokenCount) {
+                throw new IllegalStateException(
+                    "The number of tokens produced by calling _analyze has exceeded the allowed maximum of [" + maxTokenCount + "]."
+                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
+            }
+        }
+    }
+
     private static class TokenListCreator {
         int lastPosition = -1;
         int lastOffset = 0;
         List<AnalyzeResponse.AnalyzeToken> tokens;
+        private TokenCounter tc;
 
-        TokenListCreator() {
+        TokenListCreator(int maxTokenCount) {
             tokens = new ArrayList<>();
+            tc = new TokenCounter(maxTokenCount);
         }
 
         private void analyze(TokenStream stream, Analyzer analyzer, String field, Set<String> includeAttributes) {
@@ -433,7 +457,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     }
                     tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
                         lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
-
+                    tc.increment();
                 }
                 stream.end();
                 lastOffset += offset.endOffset();

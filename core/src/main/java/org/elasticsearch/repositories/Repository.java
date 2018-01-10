@@ -116,10 +116,11 @@ public interface Repository extends LifecycleComponent {
      * @param totalShards   total number of shards
      * @param shardFailures list of shard failures
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
+     * @param includeGlobalState include cluster global state
      * @return snapshot description
      */
     SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId);
+                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState);
 
     /**
      * Deletes snapshot
@@ -179,7 +180,7 @@ public interface Repository extends LifecycleComponent {
      * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      *
      * @param shard               shard to be snapshotted
      * @param snapshotId          snapshot id

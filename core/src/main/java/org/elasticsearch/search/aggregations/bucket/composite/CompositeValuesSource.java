@@ -25,7 +25,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -130,7 +129,8 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     private static class GlobalOrdinalValuesSource extends CompositeValuesSource<ValuesSource.Bytes.WithOrdinals, BytesRef> {
         private final long[] values;
         private SortedSetDocValues lookup;
-        private Long topValueLong;
+        private Long topValueGlobalOrd;
+        private boolean isTopValueInsertionPoint;
 
         GlobalOrdinalValuesSource(ValuesSource.Bytes.WithOrdinals vs, int size, int reverseMul) {
             super(vs, size, reverseMul);
@@ -154,7 +154,14 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
 
         @Override
         int compareTop(int slot) {
-            return Long.compare(values[slot], topValueLong) * reverseMul;
+            int cmp = Long.compare(values[slot], topValueGlobalOrd);
+            if (cmp == 0 && isTopValueInsertionPoint) {
+                // the top value is missing in this shard, the comparison is against
+                // the insertion point of the top value so equality means that the value
+                // is "after" the insertion point.
+                return reverseMul;
+            }
+            return cmp * reverseMul;
         }
 
         @Override
@@ -178,17 +185,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
             final SortedSetDocValues dvs = vs.globalOrdinalsValues(context);
             if (lookup == null) {
                 lookup = dvs;
-                if (topValue != null && topValueLong == null) {
-                    if (lookup instanceof GlobalOrdinalMapping) {
-                        // Find the global ordinal (or the insertion point) for the provided top value.
-                        topValueLong = lookupGlobalOrdinals((GlobalOrdinalMapping) lookup, topValue);
-                    } else {
-                        // Global ordinals are not needed, switch back to ordinals (single segment case).
-                        topValueLong = lookup.lookupTerm(topValue);
-                        if (topValueLong < 0) {
-                            // convert negative insert position
-                            topValueLong = -topValueLong - 2;
-                        }
+                if (topValue != null && topValueGlobalOrd == null) {
+                    topValueGlobalOrd = lookup.lookupTerm(topValue);
+                    if (topValueGlobalOrd < 0) {
+                        // convert negative insert position
+                        topValueGlobalOrd = -topValueGlobalOrd - 1;
+                        isTopValueInsertionPoint = true;
                     }
                 }
             }
@@ -202,25 +204,6 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
                 }
             };
         }
-
-        private static long lookupGlobalOrdinals(GlobalOrdinalMapping mapping, BytesRef key) throws IOException {
-            long low = 0;
-            long high = mapping.getValueCount();
-
-            while (low <= high) {
-                long mid = (low + high) >>> 1;
-                BytesRef midVal = mapping.lookupOrd(mid);
-                int cmp = midVal.compareTo(key);
-                if (cmp < 0) {
-                    low = mid + 1;
-                } else if (cmp > 0) {
-                    high = mid - 1;
-                } else {
-                    return mid;
-                }
-            }
-            return low-1;
-        }
     }
 
     /**
@@ -228,7 +211,6 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     private static class BinaryValuesSource extends CompositeValuesSource<ValuesSource.Bytes, BytesRef> {
         private final BytesRef[] values;
-        private BytesRef topValue;
 
         BinaryValuesSource(ValuesSource.Bytes vs, int size, int reverseMul) {
             super(vs, size, reverseMul);
@@ -291,7 +273,6 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     private static class LongValuesSource extends CompositeValuesSource<ValuesSource.Numeric, Long> {
         private final long[] values;
-        private long topValue;
 
         LongValuesSource(ValuesSource.Numeric vs, int size, int reverseMul) {
             super(vs, size, reverseMul);
@@ -352,7 +333,6 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     private static class DoubleValuesSource extends CompositeValuesSource<ValuesSource.Numeric, Double> {
         private final double[] values;
-        private double topValue;
 
         DoubleValuesSource(ValuesSource.Numeric vs, int size, int reverseMul) {
             super(vs, size, reverseMul);

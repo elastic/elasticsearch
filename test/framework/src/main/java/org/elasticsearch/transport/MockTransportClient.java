@@ -23,17 +23,17 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
 @SuppressWarnings({"unchecked","varargs"})
+@Deprecated
 public class MockTransportClient extends TransportClient {
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default",
         MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
-
 
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
@@ -59,12 +59,12 @@ public class MockTransportClient extends TransportClient {
                 plugins.add(MockTcpTransportPlugin.class);
                 return plugins;
             }
-        } else if (NioTransportPlugin.NIO_TRANSPORT_NAME.equals(transportType)) {
-            if (plugins.contains(NioTransportPlugin.class)) {
+        } else if (MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME.equals(transportType)) {
+            if (plugins.contains(MockNioTransportPlugin.class)) {
                 return plugins;
             } else {
                 plugins = new ArrayList<>(plugins);
-                plugins.add(NioTransportPlugin.class);
+                plugins.add(MockNioTransportPlugin.class);
                 return plugins;
             }
         }

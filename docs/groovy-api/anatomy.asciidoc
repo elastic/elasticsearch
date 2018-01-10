@@ -13,7 +13,7 @@ The first type is to simply provide the request as a Closure, which
 automatically gets resolved into the respective request instance (for
 the index API, its the `IndexRequest` class). The API returns a special
 future, called `GActionFuture`. This is a groovier version of
-elasticsearch Java `ActionFuture` (in turn a nicer extension to Java own
+Elasticsearch Java `ActionFuture` (in turn a nicer extension to Java own
 `Future`) which allows to register listeners (closures) on it for
 success and failures, as well as blocking for the response. For example:
 

@@ -1,6 +1,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
@@ -43,7 +44,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && \$GRADLE_HOME/bin/gradle test integTest"
+    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     @Override
     void apply(Project project) {
@@ -343,8 +344,9 @@ class VagrantTestPlugin implements Plugin<Project> {
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
+                    final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                     if (state.failure != null) {
-                        println "REPRODUCE WITH: gradle ${packaging.path} " +
+                        println "REPRODUCE WITH: ${gradlew} ${packaging.path} " +
                             "-Dtests.seed=${project.testSeed} "
                     }
                 }

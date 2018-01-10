@@ -44,6 +44,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -428,6 +429,14 @@ public class InstallPluginCommandTests extends ESTestCase {
         // has two colons, so it appears similar to maven coordinates
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin("://host:1234", env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+    }
+
+    public void testFileNotMaven() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        // has two colons, so it appears similar to maven coordinates
+        FileNotFoundException e = expectThrows(FileNotFoundException.class,
+            () -> installPlugin("file:C:\\path\\to\\plugin\\does_not_exists.zip", env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().startsWith("C:\\path\\to\\plugin\\does_not_exists.zip"));
     }
 
     public void testUnknownPlugin() throws Exception {

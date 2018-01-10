@@ -108,7 +108,7 @@ public class IndexLifecycleService extends AbstractComponent
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     logger.info("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
                     LifecyclePolicy policy = policies.get(policyName);
-                    policy.execute(new InternalIndexLifecycleContext(idxMeta, client, clusterService, nowSupplier));
+                    policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
                 }
             });
         }

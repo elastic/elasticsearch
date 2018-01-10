@@ -555,18 +555,20 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         try (RAMDirectory directory = new RAMDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                List<Document> documents = new ArrayList<>();
                 Document document = new Document();
                 document.add(new StringField("field", "value1", Field.Store.NO));
                 document.add(new StringField("field", "value2", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
                 document = new Document();
                 document.add(new StringField("field", "value5", Field.Store.NO));
                 document.add(new StringField("field", "value6", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
                 document = new Document();
                 document.add(new StringField("field", "value3", Field.Store.NO));
                 document.add(new StringField("field", "value4", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
+                iw.addDocuments(documents); // IW#addDocuments(...) ensures we end up with a single segment
             }
             try (IndexReader ir = DirectoryReader.open(directory)){
                 IndexSearcher percolateSearcher = new IndexSearcher(ir);

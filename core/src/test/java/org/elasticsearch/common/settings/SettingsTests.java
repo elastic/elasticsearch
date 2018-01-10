@@ -70,11 +70,12 @@ public class SettingsTests extends ESTestCase {
 
     public void testReplacePropertiesPlaceholderSystemPropertyList() {
         final String hostname = randomAlphaOfLength(16);
+        final String hostip = randomAlphaOfLength(16);
         final Settings settings = Settings.builder()
-            .putList("setting1", "${HOSTNAME}", "${HOSTNAME}")
-            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
+            .putList("setting1", "${HOSTNAME}", "${HOSTIP}")
+            .replacePropertyPlaceholders(name -> name.equals("HOSTNAME") ? hostname : name.equals("HOSTIP") ? hostip : null)
             .build();
-        assertThat(settings.getAsList("setting1"), contains(hostname, hostname));
+        assertThat(settings.getAsList("setting1"), contains(hostname, hostip));
     }
 
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {

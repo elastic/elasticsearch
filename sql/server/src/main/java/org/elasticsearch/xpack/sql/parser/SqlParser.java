@@ -39,6 +39,7 @@ public class SqlParser {
      * that deal with dates and times.
      */
     private final DateTimeZone timeZone;
+    private final boolean DEBUG = false;
 
     public SqlParser(DateTimeZone timeZone) {
         this.timeZone = timeZone;
@@ -74,20 +75,13 @@ public class SqlParser {
         parser.removeErrorListeners();
         parser.addErrorListener(ERROR_LISTENER);
 
-        //debug(parser);
-        ParserRuleContext tree;
-        try {
-            // first, try parsing with potentially faster SLL mode
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
-            tree = parseFunction.apply(parser);
-        } catch (Exception ex) {
-            // if we fail, parse with LL mode
-            tokenStream.reset(); // rewind input stream
-            parser.reset();
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
 
-            parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
-            tree = parseFunction.apply(parser);
+        if (DEBUG) {
+            debug(parser);
         }
+
+        ParserRuleContext tree = parseFunction.apply(parser);
 
         postProcess(lexer, parser, tree);
 
@@ -95,6 +89,9 @@ public class SqlParser {
     }
 
     private void debug(SqlBaseParser parser) {
+        // when debugging, use the exact prediction mode (needed for diagnostics as well)
+        parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+
         parser.addParseListener(parser.new TraceListener());
 
         parser.addErrorListener(new DiagnosticErrorListener() {

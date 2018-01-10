@@ -68,6 +68,7 @@ forbiddenApisMain {
 
 dependencyLicenses {
   mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+  ignoreSha 'elasticsearch-core'
 }
 
 //thirdPartyAudit.excludes = [

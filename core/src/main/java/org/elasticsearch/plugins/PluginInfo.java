@@ -22,7 +22,9 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,14 +33,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -125,7 +132,46 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
     }
 
-    /** reads (and validates) plugin metadata descriptor file */
+    /**
+     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding meta plugins if needed.
+     * @param rootPath the path where the plugins are installed
+     * @return A list of all plugin paths installed in the {@code rootPath}
+     * @throws IOException if an I/O exception occurred reading the plugin descriptors
+     */
+    public static List<Path> extractAllPlugins(final Path rootPath) throws IOException {
+        final List<Path> plugins = new LinkedList<>();  // order is already lost, but some filesystems have it
+        final Set<String> seen = new HashSet<>();
+        if (Files.exists(rootPath)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
+                for (Path plugin : stream) {
+                    if (FileSystemUtils.isDesktopServicesStore(plugin) ||
+                            plugin.getFileName().toString().startsWith(".removing-")) {
+                        continue;
+                    }
+                    if (seen.add(plugin.getFileName().toString()) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
+                    if (MetaPluginInfo.isMetaPlugin(plugin)) {
+                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
+                            for (Path subPlugin : subStream) {
+                                if (MetaPluginInfo.isPropertiesFile(subPlugin) ||
+                                        FileSystemUtils.isDesktopServicesStore(subPlugin)) {
+                                    continue;
+                                }
+                                if (seen.add(subPlugin.getFileName().toString()) == false) {
+                                    throw new IllegalStateException("duplicate plugin: " + subPlugin);
+                                }
+                                plugins.add(subPlugin);
+                            }
+                        }
+                    } else {
+                        plugins.add(plugin);
+                    }
+                }
+            }
+        }
+        return plugins;
+    }
 
     /**
      * Reads and validates the plugin descriptor file.
@@ -341,16 +387,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        final StringBuilder information = new StringBuilder()
-                .append("- Plugin information:\n")
-                .append("Name: ").append(name).append("\n")
-                .append("Description: ").append(description).append("\n")
-                .append("Version: ").append(version).append("\n")
-                .append("Native Controller: ").append(hasNativeController).append("\n")
-                .append("Requires Keystore: ").append(requiresKeystore).append("\n")
-                .append("Extended Plugins: ").append(extendedPlugins).append("\n")
-                .append(" * Classname: ").append(classname);
-        return information.toString();
+        return toString("");
     }
 
+    public String toString(String prefix) {
+        final StringBuilder information = new StringBuilder()
+            .append(prefix).append("- Plugin information:\n")
+            .append(prefix).append("Name: ").append(name).append("\n")
+            .append(prefix).append("Description: ").append(description).append("\n")
+            .append(prefix).append("Version: ").append(version).append("\n")
+            .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
+            .append(prefix).append("Requires Keystore: ").append(requiresKeystore).append("\n")
+            .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
+            .append(prefix).append(" * Classname: ").append(classname);
+        return information.toString();
+    }
 }

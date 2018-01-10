@@ -180,7 +180,7 @@ public class PluginsServiceTests extends ESTestCase {
         Files.createFile(fake.resolve("plugin.jar"));
         final Path removing = home.resolve("plugins").resolve(".removing-fake");
         Files.createFile(removing);
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
                 fake,
                 "description", "fake",
                 "name", "fake",
@@ -541,7 +541,7 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
         Path pluginsDir = homeDir.resolve("plugins");
         Path mypluginDir = pluginsDir.resolve("myplugin");
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
             mypluginDir,
             "description", "whatever",
             "name", "myplugin",
@@ -554,7 +554,7 @@ public class PluginsServiceTests extends ESTestCase {
             Files.copy(jar, mypluginDir.resolve("plugin.jar"));
         }
         Path nonextensibleDir = pluginsDir.resolve("nonextensible");
-        PluginTestUtil.writeProperties(
+        PluginTestUtil.writePluginProperties(
             nonextensibleDir,
             "description", "whatever",
             "name", "nonextensible",

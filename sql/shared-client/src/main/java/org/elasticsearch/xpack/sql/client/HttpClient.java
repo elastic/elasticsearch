@@ -21,12 +21,13 @@ import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -55,22 +56,23 @@ public class HttpClient {
         return get("/", MainResponse::fromXContent);
     }
 
-    public SqlResponse queryInit(String query, int fetchSize) throws SQLException {
+    public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        SqlRequest sqlRequest = new SqlRequest(query, null, DateTimeZone.UTC, fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()), "");
-        return post(SqlAction.REST_ENDPOINT, sqlRequest, SqlResponse::fromXContent);
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, null, DateTimeZone.UTC, fetchSize,
+                TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()), ""
+        );
+        return post(SqlQueryAction.REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
-    public SqlResponse nextPage(String cursor) throws SQLException {
-        SqlRequest sqlRequest = new SqlRequest();
+    public SqlQueryResponse nextPage(String cursor) throws SQLException {
+        SqlQueryRequest sqlRequest = new SqlQueryRequest();
         sqlRequest.cursor(cursor);
-        return post(SqlAction.REST_ENDPOINT, sqlRequest, SqlResponse::fromXContent);
+        return post(SqlQueryAction.REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor) throws SQLException {
         SqlClearCursorResponse response = post(SqlClearCursorAction.REST_ENDPOINT,
-                new SqlClearCursorRequest(cursor),
+                new SqlClearCursorRequest(AbstractSqlRequest.Mode.PLAIN, cursor),
                 SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }

@@ -5,32 +5,34 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Request to clean all SQL resources associated with the cursor
  */
-public class SqlClearCursorRequest extends ActionRequest implements ToXContentObject {
+public class SqlClearCursorRequest extends AbstractSqlRequest implements ToXContentObject {
 
-    public static final ObjectParser<SqlClearCursorRequest, Void> PARSER =
-            new ObjectParser<>(SqlClearCursorAction.NAME, SqlClearCursorRequest::new);
-
-    public static final ParseField CURSOR = new ParseField("cursor");
+    private static final ConstructingObjectParser<SqlClearCursorRequest, Mode> PARSER =
+            new ConstructingObjectParser<>(SqlClearCursorAction.NAME, true, (objects, mode) -> new SqlClearCursorRequest(
+                    mode,
+                    (String) objects[0]
+            ));
 
     static {
-        PARSER.declareString(SqlClearCursorRequest::setCursor, CURSOR);
+        PARSER.declareString(constructorArg(), new ParseField("cursor"));
     }
 
     private String cursor;
@@ -39,13 +41,14 @@ public class SqlClearCursorRequest extends ActionRequest implements ToXContentOb
 
     }
 
-    public SqlClearCursorRequest(String cursor) {
+    public SqlClearCursorRequest(Mode mode, String cursor) {
+        super(mode);
         this.cursor = cursor;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if (getCursor() == null) {
             validationException = addValidationError("cursor is required", validationException);
         }
@@ -66,9 +69,8 @@ public class SqlClearCursorRequest extends ActionRequest implements ToXContentOb
         return "SQL Clean cursor [" + getCursor() + "]";
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public SqlClearCursorRequest(StreamInput in) throws IOException {
+        super(in);
         cursor = in.readString();
     }
 
@@ -82,13 +84,14 @@ public class SqlClearCursorRequest extends ActionRequest implements ToXContentOb
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SqlClearCursorRequest request = (SqlClearCursorRequest) o;
-        return Objects.equals(cursor, request.cursor);
+        if (!super.equals(o)) return false;
+        SqlClearCursorRequest that = (SqlClearCursorRequest) o;
+        return Objects.equals(cursor, that.cursor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cursor);
+        return Objects.hash(super.hashCode(), cursor);
     }
 
     @Override
@@ -97,5 +100,9 @@ public class SqlClearCursorRequest extends ActionRequest implements ToXContentOb
         builder.field("cursor", cursor);
         builder.endObject();
         return builder;
+    }
+
+    public static SqlClearCursorRequest fromXContent(XContentParser parser, Mode mode) {
+        return PARSER.apply(parser, mode);
     }
 }

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -32,7 +32,7 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
 
     public void testSqlAction() throws Exception {
         Throwable throwable = expectThrows(Throwable.class,
-                () -> client().prepareExecute(SqlAction.INSTANCE).query("SHOW tables").get());
+                () -> client().prepareExecute(SqlQueryAction.INSTANCE).query("SHOW tables").get());
         assertThat(throwable.getMessage(),
                 either(startsWith("no proxy found for action"))   // disabled on client
                         .or(startsWith("failed to find action"))  // disabled on proxy client

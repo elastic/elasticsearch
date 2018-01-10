@@ -10,8 +10,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -37,15 +37,16 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         int fetchSize = randomIntBetween(5, 20);
         logger.info("Fetching {} records at a time", fetchSize);
-        SqlResponse sqlResponse = client().prepareExecute(SqlAction.INSTANCE).query("SELECT * FROM test").fetchSize(fetchSize).get();
-        assertEquals(fetchSize, sqlResponse.size());
+        SqlQueryResponse sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE)
+                .query("SELECT * FROM test").fetchSize(fetchSize).get();
+        assertEquals(fetchSize, sqlQueryResponse.size());
 
         assertThat(getNumberOfSearchContexts(), greaterThan(0L));
-        assertThat(sqlResponse.cursor(), notNullValue());
-        assertThat(sqlResponse.cursor(), not(equalTo(Cursor.EMPTY)));
+        assertThat(sqlQueryResponse.cursor(), notNullValue());
+        assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
 
         SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
-                .cursor(sqlResponse.cursor()).get();
+                .cursor(sqlQueryResponse.cursor()).get();
         assertTrue(cleanCursorResponse.isSucceeded());
 
         assertEquals(0, getNumberOfSearchContexts());
@@ -66,22 +67,23 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         int fetchSize = randomIntBetween(5, 20);
         logger.info("Fetching {} records at a time", fetchSize);
-        SqlResponse sqlResponse = client().prepareExecute(SqlAction.INSTANCE).query("SELECT * FROM test").fetchSize(fetchSize).get();
-        assertEquals(fetchSize, sqlResponse.size());
+        SqlQueryResponse sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE)
+                .query("SELECT * FROM test").fetchSize(fetchSize).get();
+        assertEquals(fetchSize, sqlQueryResponse.size());
 
         assertThat(getNumberOfSearchContexts(), greaterThan(0L));
-        assertThat(sqlResponse.cursor(), notNullValue());
-        assertThat(sqlResponse.cursor(), not(equalTo(Cursor.EMPTY)));
+        assertThat(sqlQueryResponse.cursor(), notNullValue());
+        assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
 
-        long fetched = sqlResponse.size();
+        long fetched = sqlQueryResponse.size();
         do {
-            sqlResponse = client().prepareExecute(SqlAction.INSTANCE).cursor(sqlResponse.cursor()).get();
-            fetched += sqlResponse.size();
-        } while (sqlResponse.cursor().equals("") == false);
+            sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
+            fetched += sqlQueryResponse.size();
+        } while (sqlQueryResponse.cursor().equals("") == false);
         assertEquals(indexSize, fetched);
 
         SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
-                .cursor(sqlResponse.cursor()).get();
+                .cursor(sqlQueryResponse.cursor()).get();
         assertFalse(cleanCursorResponse.isSucceeded());
 
         assertEquals(0, getNumberOfSearchContexts());

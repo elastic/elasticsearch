@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 import org.joda.time.DateTimeZone;
@@ -16,8 +16,8 @@ import org.joda.time.DateTimeZone;
 public class Configuration {
     public static final Configuration DEFAULT = new Configuration(DateTimeZone.UTC, 
                                 AbstractQueryInitRequest.DEFAULT_FETCH_SIZE,
-                                AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT,
-                                AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT,
+                                AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT,
+                                AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT,
                                 null);
 
     private DateTimeZone timeZone;

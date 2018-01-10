@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTimeZone;
@@ -26,27 +27,27 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to perform an sql query
  */
-public class SqlRequest extends AbstractSqlRequest implements ToXContentObject {
+public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXContentObject {
 
-    public static final ObjectParser<SqlRequest, Void> PARSER = objectParser(SqlRequest::new);
+    private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
     public static final ParseField CURSOR = new ParseField("cursor");
     public static final ParseField FILTER = new ParseField("filter");
 
     static {
-        PARSER.declareString(SqlRequest::cursor, CURSOR);
-        PARSER.declareObject(SqlRequest::filter,
+        PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
+        PARSER.declareObject(SqlQueryRequest::filter,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
     }
 
     private String cursor = "";
 
-    public SqlRequest() {
+    public SqlQueryRequest() {
     }
 
-    public SqlRequest(String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
-                      TimeValue pageTimeout, String cursor) {
-        super(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlQueryRequest(Mode mode, String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+                           TimeValue pageTimeout, String cursor) {
+        super(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;
     }
 
@@ -71,7 +72,7 @@ public class SqlRequest extends AbstractSqlRequest implements ToXContentObject {
      * The key that must be sent back to SQL to access the next page of
      * results.
      */
-    public SqlRequest cursor(String cursor) {
+    public SqlQueryRequest cursor(String cursor) {
         if (cursor == null) {
             throw new IllegalArgumentException("cursor may not be null.");
         }
@@ -79,9 +80,8 @@ public class SqlRequest extends AbstractSqlRequest implements ToXContentObject {
         return this;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public SqlQueryRequest(StreamInput in) throws IOException {
+        super(in);
         cursor = in.readString();
     }
 
@@ -98,7 +98,7 @@ public class SqlRequest extends AbstractSqlRequest implements ToXContentObject {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(cursor, ((SqlRequest) obj).cursor);
+        return super.equals(obj) && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor);
     }
 
     @Override
@@ -121,4 +121,11 @@ public class SqlRequest extends AbstractSqlRequest implements ToXContentObject {
     public boolean isFragment() {
         return false;
     }
+
+    public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode) {
+        SqlQueryRequest request =  PARSER.apply(parser, null);
+        request.mode(mode);
+        return request;
+    }
+
 }

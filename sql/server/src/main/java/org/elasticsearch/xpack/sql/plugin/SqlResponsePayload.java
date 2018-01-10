@@ -18,7 +18,7 @@ import java.util.Objects;
 
 /**
  * Implementation {@link Payload} that adapts it to data from
- * {@link SqlResponse}.
+ * {@link SqlQueryResponse}.
  */
 class SqlResponsePayload implements Payload {
     private final List<JDBCType> typeLookup;

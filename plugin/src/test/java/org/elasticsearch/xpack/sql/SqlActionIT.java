@@ -8,13 +8,15 @@ package org.elasticsearch.xpack.sql;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
 import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -40,8 +42,8 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
-        SqlResponse response = client().prepareExecute(SqlAction.INSTANCE)
-                .query("SELECT " + columns + " FROM test ORDER BY count").get();
+        SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE)
+                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
@@ -92,7 +94,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         createIncompatibleIndex("broken");
 
         SqlListColumnsResponse response = client().prepareExecute(SqlListColumnsAction.INSTANCE)
-                .indexPattern("bar").columnPattern("").get();
+                .indexPattern("bar").columnPattern("").mode(Mode.JDBC).get();
         List<ColumnInfo> columns = response.getColumns();
         assertThat(columns, hasSize(2));
         assertThat(columns, containsInAnyOrder(

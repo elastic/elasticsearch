@@ -65,7 +65,7 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
@@ -485,7 +485,7 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
                 action.equals("indices:data/write/reindex") ||
-                action.equals(SqlAction.NAME) ||
+                action.equals(SqlQueryAction.NAME) ||
                 action.equals(SqlTranslateAction.NAME) ||
                 action.equals(SqlListTablesAction.NAME) ||
                 action.equals(SqlListColumnsAction.NAME) ;

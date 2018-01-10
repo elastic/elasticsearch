@@ -8,23 +8,23 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class SqlAction extends Action<SqlRequest, SqlResponse, SqlRequestBuilder> {
+public class SqlQueryAction extends Action<SqlQueryRequest, SqlQueryResponse, SqlQueryRequestBuilder> {
 
-    public static final SqlAction INSTANCE = new SqlAction();
+    public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";
     public static final String REST_ENDPOINT = "/_xpack/sql";
 
-    private SqlAction() {
+    private SqlQueryAction() {
         super(NAME);
     }
 
     @Override
-    public SqlRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SqlRequestBuilder(client, this);
+    public SqlQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SqlQueryRequestBuilder(client, this);
     }
 
     @Override
-    public SqlResponse newResponse() {
-        return new SqlResponse();
+    public SqlQueryResponse newResponse() {
+        return new SqlQueryResponse();
     }
 }

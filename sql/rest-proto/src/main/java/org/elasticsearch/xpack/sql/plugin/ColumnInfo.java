@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,8 +27,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Information about a column.
  */
 public final class ColumnInfo implements Writeable, ToXContentObject {
-    public static final String JDBC_ENABLED_PARAM = "jdbc_enabled";
-    public static final int UNKNOWN_DISPLAY_SIZE = -1;
 
     private static final ConstructingObjectParser<ColumnInfo, Void> PARSER =
             new ConstructingObjectParser<>("column_info", true, objects ->
@@ -36,7 +35,7 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
                             (String) objects[1],
                             (String) objects[2],
                             objects[3] == null ? null : JDBCType.valueOf((int) objects[3]),
-                            objects[4] == null ? UNKNOWN_DISPLAY_SIZE : (int) objects[4]));
+                            objects[4] == null ? 0 : (int) objects[4]));
 
     private static final ParseField TABLE = new ParseField("table");
     private static final ParseField NAME = new ParseField("name");
@@ -55,6 +54,7 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
     private final String table;
     private final String name;
     private final String esType;
+    @Nullable
     private final JDBCType jdbcType;
     private final int displaySize;
 
@@ -66,12 +66,25 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
         this.displaySize = displaySize;
     }
 
+    public ColumnInfo(String table, String name, String esType) {
+        this.table = table;
+        this.name = name;
+        this.esType = esType;
+        this.jdbcType = null;
+        this.displaySize = 0;
+    }
+
     ColumnInfo(StreamInput in) throws IOException {
         table = in.readString();
         name = in.readString();
         esType = in.readString();
-        jdbcType = JDBCType.valueOf(in.readVInt());
-        displaySize = in.readVInt();
+        if (in.readBoolean()) {
+            jdbcType = JDBCType.valueOf(in.readVInt());
+            displaySize = in.readVInt();
+        } else {
+            jdbcType = null;
+            displaySize = 0;
+        }
     }
 
     @Override
@@ -79,23 +92,24 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
         out.writeString(table);
         out.writeString(name);
         out.writeString(esType);
-        out.writeVInt(jdbcType.getVendorTypeNumber());
-        out.writeVInt(displaySize);
+        if (jdbcType != null) {
+            out.writeBoolean(true);
+            out.writeVInt(jdbcType.getVendorTypeNumber());
+            out.writeVInt(displaySize);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params.paramAsBoolean(JDBC_ENABLED_PARAM, true));
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, boolean isJdbcAllowed) throws IOException {
         builder.startObject();
         if (Strings.hasText(table)) {
             builder.field("table", table);
         }
         builder.field("name", name);
         builder.field("type", esType);
-        if (isJdbcAllowed && jdbcType != null) {
+        if (jdbcType != null) {
             builder.field("jdbc_type", jdbcType.getVendorTypeNumber());
             builder.field("display_size", displaySize);
         }
@@ -143,20 +157,20 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        ColumnInfo other = (ColumnInfo) obj;
-        return table.equals(other.table)
-                && name.equals(other.name)
-                && esType.equals(other.esType)
-                && jdbcType.equals(other.jdbcType)
-                && displaySize == other.displaySize;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ColumnInfo that = (ColumnInfo) o;
+        return displaySize == that.displaySize &&
+                Objects.equals(table, that.table) &&
+                Objects.equals(name, that.name) &&
+                Objects.equals(esType, that.esType) &&
+                jdbcType == that.jdbcType;
     }
 
     @Override
     public int hashCode() {
+
         return Objects.hash(table, name, esType, jdbcType, displaySize);
     }
 

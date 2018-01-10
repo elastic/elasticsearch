@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -78,7 +79,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
      * Actual implementation of the operation
      */
     public Consumer<RestChannel> operation(Request request, Client client) {
-        sqlLicenseChecker.checkIfJdbcAllowed();
+        sqlLicenseChecker.checkIfSqlAllowed(Mode.JDBC);
         RequestType requestType = (RequestType) request.requestType();
         switch (requestType) {
         case INFO:
@@ -136,12 +137,13 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
-        SqlRequest sqlRequest = new SqlRequest(request.query, null, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
-                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
-                                                "");
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, request.query, null, DateTimeZone.forTimeZone(request.timeZone),
+                request.fetchSize,
+                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                TimeValue.timeValueMillis(request.timeout.pageTimeout),
+                "");
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
+        return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             List<JDBCType> types = new ArrayList<>(response.columns().size());
             List<ColumnInfo> columns = new ArrayList<>(response.columns().size());
             for (org.elasticsearch.xpack.sql.plugin.ColumnInfo info : response.columns()) {
@@ -162,19 +164,19 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         }
         List<JDBCType> types = ((JdbcCursor)cursor).getTypes();
         // NB: the timezone and page size are locked already by the query so pass in defaults (as they are not read anyway)
-        SqlRequest sqlRequest = new SqlRequest(EMPTY, null, SqlRequest.DEFAULT_TIME_ZONE, 0,
-                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, EMPTY, null, SqlQueryRequest.DEFAULT_TIME_ZONE, 0,
+                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                TimeValue.timeValueMillis(request.timeout.pageTimeout),
                 request.cursor);
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel,
+        return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, toActionListener(channel,
                 response -> new QueryPageResponse(System.nanoTime() - start,
                         Cursor.encodeToString(Version.CURRENT, JdbcCursor.wrap(Cursor.decodeFromString(response.cursor()), types)),
                     new SqlResponsePayload(types, response.rows()))));
     }
 
     private Consumer<RestChannel> queryClose(Client client, QueryCloseRequest request) {
-        SqlClearCursorRequest sqlRequest = new SqlClearCursorRequest(request.cursor);
+        SqlClearCursorRequest sqlRequest = new SqlClearCursorRequest(Mode.JDBC, request.cursor);
         return channel -> client.execute(SqlClearCursorAction.INSTANCE, sqlRequest, toActionListener(channel,
                 response -> new QueryCloseResponse(response.isSucceeded())));
     }

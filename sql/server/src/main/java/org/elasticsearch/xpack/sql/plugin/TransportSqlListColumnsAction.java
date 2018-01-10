@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.hasText;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode.JDBC;
 
 public class TransportSqlListColumnsAction extends HandledTransportAction<SqlListColumnsRequest, SqlListColumnsResponse> {
     private final SqlLicenseChecker sqlLicenseChecker;
@@ -42,7 +43,8 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
 
     @Override
     protected void doExecute(SqlListColumnsRequest request, ActionListener<SqlListColumnsResponse> listener) {
-        sqlLicenseChecker.checkIfSqlAllowed();
+        sqlLicenseChecker.checkIfSqlAllowed(request.mode());
+
         // TODO: This is wrong
         // See https://github.com/elastic/x-pack-elasticsearch/pull/3438/commits/61b7c26fe08db2721f0431579f215fe493744af3
         // and https://github.com/elastic/x-pack-elasticsearch/issues/3460
@@ -61,7 +63,11 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
                     if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                         DataType type = entry.getValue();
                         // the column size it's actually its precision (based on the Javadocs)
-                        columns.add(new ColumnInfo(esIndex.name(), name, type.esName(), type.sqlType(), type.displaySize()));
+                        if (request.mode() == JDBC) {
+                            columns.add(new ColumnInfo(esIndex.name(), name, type.esName(), type.sqlType(), type.displaySize()));
+                        } else {
+                            columns.add(new ColumnInfo(esIndex.name(), name, type.esName()));
+                        }
                     }
                 }
             }

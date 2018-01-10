@@ -5,38 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * Determines if different features of SQL should be enabled
  */
 public class SqlLicenseChecker {
 
-    private final Runnable checkIfSqlAllowed;
-    private final Runnable checkIfJdbcAllowed;
-    private final Supplier<Boolean> isJdbcAllowed;
+    private final Consumer<AbstractSqlRequest.Mode> checkIfSqlAllowed;
 
-    public SqlLicenseChecker(Runnable checkIfSqlAllowed, Runnable checkIfJdbcAllowed, Supplier<Boolean> isJdbcAllowed) {
+    public SqlLicenseChecker(Consumer<AbstractSqlRequest.Mode> checkIfSqlAllowed) {
         this.checkIfSqlAllowed = checkIfSqlAllowed;
-        this.checkIfJdbcAllowed = checkIfJdbcAllowed;
-        this.isJdbcAllowed = isJdbcAllowed;
     }
 
     /**
-     * Throws an ElasticsearchSecurityException if sql is not allowed
+     * Throws an ElasticsearchSecurityException if the specified mode is not allowed
      */
-    public void checkIfSqlAllowed() {
-        checkIfSqlAllowed.run();
-    }
-
-    /**
-     * Throws an ElasticsearchSecurityException if jdbc is not allowed
-     */
-    public void checkIfJdbcAllowed() {
-        checkIfJdbcAllowed.run();
-    }
-
-    public boolean isJdbcAllowed() {
-        return isJdbcAllowed.get();
+    public void checkIfSqlAllowed(AbstractSqlRequest.Mode mode) {
+        checkIfSqlAllowed.accept(mode);
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -15,11 +14,10 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlListColumnsResponseTests extends AbstractStreamableXContentTestCase<SqlListColumnsResponse> {
@@ -44,11 +42,7 @@ public class SqlListColumnsResponseTests extends AbstractStreamableXContentTestC
     public void testToXContent() throws IOException {
         SqlListColumnsResponse testInstance = createTestInstance();
 
-        boolean jdbcEnabled = randomBoolean();
-        ToXContent.Params params =
-                new ToXContent.MapParams(Collections.singletonMap(JDBC_ENABLED_PARAM, Boolean.toString(jdbcEnabled)));
-
-        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), params);
+        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), EMPTY_PARAMS);
         Map<String, Object> rootMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         logger.info(builder.string());
@@ -62,13 +56,8 @@ public class SqlListColumnsResponseTests extends AbstractStreamableXContentTestC
                 assertEquals(columnInfo.table(), columnMap.get("table"));
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
-                if (jdbcEnabled) {
-                    assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                    assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
-                } else {
-                    assertNull(columnMap.get("display_size"));
-                    assertNull(columnMap.get("jdbc_type"));
-                }
+                assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
+                assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
             }
         } else {
             assertNull(rootMap.get("columns"));

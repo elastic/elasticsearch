@@ -64,7 +64,7 @@ public class SqlPlugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new RestSqlAction(settings, restController, sqlLicenseChecker),
+        return Arrays.asList(new RestSqlQueryAction(settings, restController),
                              new SqlTranslateAction.RestAction(settings, restController),
                              new RestSqlJdbcAction(settings, restController, sqlLicenseChecker, indexResolver),
                              new RestSqlClearCursorAction(settings, restController),
@@ -78,7 +78,7 @@ public class SqlPlugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
+        return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                              new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class),
                              new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
                              new ActionHandler<>(SqlListTablesAction.INSTANCE, TransportSqlListTablesAction.class),

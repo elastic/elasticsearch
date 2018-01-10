@@ -29,15 +29,15 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
                            IndexNameExpressionResolver indexNameExpressionResolver,
                            PlanExecutor planExecutor,
                            SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, SqlClearCursorRequest::new);
+        super(settings, NAME, threadPool, transportService, actionFilters, SqlClearCursorRequest::new,
+                indexNameExpressionResolver);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }
 
     @Override
     protected void doExecute(SqlClearCursorRequest request, ActionListener<SqlClearCursorResponse> listener) {
-        sqlLicenseChecker.checkIfSqlAllowed();
+        sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         Cursor cursor = Cursor.decodeFromString(request.getCursor());
         planExecutor.cleanCursor(Configuration.DEFAULT, cursor, ActionListener.wrap(
                 success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure));

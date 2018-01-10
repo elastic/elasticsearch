@@ -11,6 +11,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,12 +47,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     /**
      * Builds that map that is returned in the header for each column.
      */
-    public static Map<String, Object> columnInfo(String name, String type, JDBCType jdbcType, int size) {
+    public static Map<String, Object> columnInfo(String mode, String name, String type, JDBCType jdbcType, int size) {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
-        column.put("jdbc_type", jdbcType.getVendorTypeNumber());
-        column.put("display_size", size);
+        if ("jdbc".equals(mode)) {
+            column.put("jdbc_type", jdbcType.getVendorTypeNumber());
+            column.put("display_size", size);
+        }
         return unmodifiableMap(column);
     }
 
@@ -60,12 +63,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             "{\"test\":\"test\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("test", "text", JDBCType.VARCHAR, 0)));
+        String mode = randomMode();
+        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
         expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
-        assertResponse(expected, runSql("SELECT * FROM test"));
+        assertResponse(expected, runSql(mode, "SELECT * FROM test"));
     }
 
     public void testNextPage() throws IOException {
+        String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
@@ -78,24 +83,26 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 + "   SELECT text, number, SIN(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
+                + "\"mode\":\"" + mode + "\", "
             + "\"fetch_size\":2}";
 
         String cursor = null;
         for (int i = 0; i < 20; i += 2) {
             Map<String, Object> response;
             if (i == 0) {
-                response = runSql(new StringEntity(request, ContentType.APPLICATION_JSON));
+                response = runSql(mode, new StringEntity(request, ContentType.APPLICATION_JSON));
             } else {
-                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+                response = runSql(mode, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
+                        ContentType.APPLICATION_JSON));
             }
 
             Map<String, Object> expected = new HashMap<>();
             if (i == 0) {
                 expected.put("columns", Arrays.asList(
-                        columnInfo("text", "text", JDBCType.VARCHAR, 0),
-                        columnInfo("number", "long", JDBCType.BIGINT, 20),
-                        columnInfo("s", "double", JDBCType.DOUBLE, 25),
-                        columnInfo("SCORE()", "float", JDBCType.REAL, 15)));
+                        columnInfo(mode, "text", "text", JDBCType.VARCHAR, 0),
+                        columnInfo(mode, "number", "long", JDBCType.BIGINT, 20),
+                        columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
+                        columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
             }
             expected.put("rows", Arrays.asList(
                     Arrays.asList("text" + i, i, Math.sin(i), 1.0),
@@ -106,11 +113,13 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(mode, new StringEntity("{ \"cursor\":\"" + cursor + "\"}",
+                ContentType.APPLICATION_JSON)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
+        String mode = randomMode();
         index("{\"test\":\"2017-07-27 00:00:00\"}",
             "{\"test\":\"2017-07-27 01:00:00\"}");
 
@@ -120,11 +129,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expected.put("size", 2);
 
         // Default TimeZone is UTC
-        assertResponse(expected, runSql(
-                new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}",
+                        ContentType.APPLICATION_JSON)));
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
+        String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
         bulk.append("{\"name\":\"test\", \"score\":10}\n");
@@ -133,25 +143,25 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-            columnInfo("name", "text", JDBCType.VARCHAR, 0),
-            columnInfo("score", "long", JDBCType.BIGINT, 20),
-            columnInfo("SCORE()", "float", JDBCType.REAL, 15)));
+            columnInfo(mode, "name", "text", JDBCType.VARCHAR, 0),
+            columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
+            columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
         expected.put("rows", singletonList(Arrays.asList(
             "test", 10, 1.0)));
 
-        assertResponse(expected, runSql("SELECT *, SCORE() FROM test ORDER BY SCORE()"));
-        assertResponse(expected, runSql("SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()"));
+        assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()"));
+        assertResponse(expected, runSql(mode, "SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()"));
     }
 
     public void testSelectWithJoinFails() throws Exception {
         // Normal join not supported
-        expectBadRequest(() -> runSql("SELECT * FROM test JOIN other"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT * FROM test JOIN other"),
             containsString("line 1:21: Queries with JOIN are not yet supported"));
         // Neither is a self join
-        expectBadRequest(() -> runSql("SELECT * FROM test JOIN test"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT * FROM test JOIN test"),
             containsString("line 1:21: Queries with JOIN are not yet supported"));
         // Nor fancy stuff like CTEs
-        expectBadRequest(() -> runSql(
+        expectBadRequest(() -> runSql(randomMode(),
             "    WITH evil"
             + "  AS (SELECT *"
             + "        FROM foo)"
@@ -163,52 +173,56 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     public void testSelectDistinctFails() throws Exception {
         index("{\"name\":\"test\"}");
-        expectBadRequest(() -> runSql("SELECT DISTINCT name FROM test"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT DISTINCT name FROM test"),
             containsString("line 1:8: SELECT DISTINCT is not yet supported"));
     }
 
     public void testSelectGroupByAllFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(() -> runSql("SELECT foo FROM test GROUP BY ALL foo"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT foo FROM test GROUP BY ALL foo"),
             containsString("line 1:32: GROUP BY ALL is not supported"));
     }
 
     public void testSelectWhereExistsFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(() -> runSql("SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)"),
             containsString("line 1:28: EXISTS is not yet supported"));
     }
 
 
     @Override
     public void testSelectInvalidSql() {
-        expectBadRequest(() -> runSql("SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
     }
 
     @Override
     public void testSelectFromMissingIndex() {
-        expectBadRequest(() -> runSql("SELECT * FROM missing"), containsString("1:15: Unknown index [missing]"));
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT * FROM missing"), containsString("1:15: Unknown index [missing]"));
     }
 
     @Override
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
         client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
-
-        expectBadRequest(() -> runSql("SELECT * FROM test"),
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT * FROM test"),
             containsString("1:15: [test] doesn't have any types so it is incompatible with sql"));
     }
 
     @Override
     public void testSelectMissingField() throws IOException {
         index("{\"test\":\"test\"}");
-        expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unknown column [foo]"));
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT foo FROM test"), containsString("1:8: Unknown column [foo]"));
     }
 
     @Override
     public void testSelectMissingFunction() throws Exception {
         index("{\"foo\":1}");
-        expectBadRequest(() -> runSql("SELECT missing(foo) FROM test"), containsString("1:8: Unknown function [missing]"));
+        expectBadRequest(() -> runSql(randomMode(), "SELECT missing(foo) FROM test"),
+                containsString("1:8: Unknown function [missing]"));
     }
 
     private void index(String... docs) throws IOException {
@@ -229,7 +243,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        expectBadRequest(() -> runSql(
+        expectBadRequest(() -> runSql(randomMode(),
             "     SELECT foo, SCORE(), COUNT(*)"
             + "     FROM test"
             + " GROUP BY foo"),
@@ -244,7 +258,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        expectBadRequest(() -> runSql(
+        expectBadRequest(() -> runSql(randomMode(),
             "     SELECT foo, COUNT(*)"
             + "     FROM test"
             + " GROUP BY foo"
@@ -260,7 +274,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        expectBadRequest(() -> runSql("SELECT COUNT(*) FROM test GROUP BY SCORE()"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT COUNT(*) FROM test GROUP BY SCORE()"),
                 containsString("Cannot use [SCORE()] for grouping"));
     }
 
@@ -272,7 +286,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        expectBadRequest(() -> runSql("SELECT SCORE().bar FROM test"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
             containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','"));
     }
 
@@ -284,7 +298,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        expectBadRequest(() -> runSql("SELECT SIN(SCORE()) FROM test"),
+        expectBadRequest(() -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
 
@@ -309,23 +323,26 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
     }
 
-    private Map<String, Object> runSql(String sql) throws IOException {
-        return runSql(sql, "");
+    private Map<String, Object> runSql(String mode, String sql) throws IOException {
+        return runSql(mode, sql, "");
     }
 
-    private Map<String, Object> runSql(String sql, String suffix) throws IOException {
-        return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+    private Map<String, Object> runSql(String mode, String sql, String suffix) throws IOException {
+        return runSql(mode, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), suffix);
     }
 
-    private Map<String, Object> runSql(HttpEntity sql) throws IOException {
-        return runSql("", sql);
+    private Map<String, Object> runSql(String mode, HttpEntity sql) throws IOException {
+        return runSql(mode, sql, "");
     }
 
-    private Map<String, Object> runSql(String suffix, HttpEntity sql) throws IOException {
+    private Map<String, Object> runSql(String mode, HttpEntity sql, String suffix) throws IOException {
         Map<String, String> params = new TreeMap<>();
         params.put("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         params.put("pretty", "true");        // Improves error reporting readability
         params.put("format", "json");        // JSON is easier to parse then a table
+        if (Strings.hasText(mode)) {
+            params.put("mode", mode);            // JDBC or PLAIN mode
+        }
         Response response = client().performRequest("POST", "/_xpack/sql" + suffix, params, sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -341,7 +358,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest("POST", "/test_translate/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        Map<String, Object> response = runSql("SELECT * FROM test_translate", "/translate/");
+        Map<String, Object> response = runSql(randomMode(), "SELECT * FROM test_translate", "/translate/");
         assertEquals(response.get("size"), 1000);
         @SuppressWarnings("unchecked")
         Map<String, Object> source = (Map<String, Object>) response.get("_source");
@@ -351,13 +368,15 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testBasicQueryWithFilter() throws IOException {
+        String mode = randomMode();
         index("{\"test\":\"foo\"}",
             "{\"test\":\"bar\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("test", "text", JDBCType.VARCHAR, 0)));
+        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
         expected.put("rows", singletonList(singletonList("foo")));
-        assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
+        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT * FROM test\", " +
+                                "\"filter\":{\"match\": {\"test\": \"foo\"}}}",
                 ContentType.APPLICATION_JSON)));
     }
 
@@ -365,9 +384,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         index("{\"test\":\"foo\"}",
             "{\"test\":\"bar\"}");
 
-        Map<String, Object> response = runSql("/translate/",
+        Map<String, Object> response = runSql("",
                 new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
-                        ContentType.APPLICATION_JSON));
+                ContentType.APPLICATION_JSON), "/translate/"
+        );
 
         assertEquals(response.get("size"), 1000);
         @SuppressWarnings("unchecked")
@@ -444,9 +464,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
 
-        Map<String, Object> response = runSql("/close", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+        Map<String, Object> response = runSql("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                "/close");
         assertEquals(true, response.get("succeeded"));
 
         assertEquals(0, getNumberOfSearchContexts("test"));
@@ -458,7 +479,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         bulk.append("{\"foo\":1}\n");
         client().performRequest("POST", "/test/doc/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-        expectBadRequest(() -> runSql("SELECT covariance(foo) FROM test"), containsString("innerkey/matrix stats not handled (yet)"));
+        expectBadRequest(() -> runSql(randomMode(),
+                "SELECT covariance(foo) FROM test"), containsString("innerkey/matrix stats not handled (yet)"));
     }
 
 
@@ -510,6 +532,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     public static int getOpenContexts(Map<String, Object> indexStats, String index) {
         return (int) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>)
                 indexStats.get("indices")).get(index)).get("total")).get("search")).get("open_contexts");
+    }
+
+    public static String randomMode() {
+        return randomFrom("", "jdbc", "plain");
     }
 
 }

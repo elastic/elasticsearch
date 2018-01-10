@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Formats {@link SqlResponse} for the CLI. {@linkplain Writeable} so
+ * Formats {@link SqlQueryResponse} for the CLI. {@linkplain Writeable} so
  * that its state can be saved between pages of results.
  */
 public class CliFormatter implements Writeable {
@@ -28,9 +28,9 @@ public class CliFormatter implements Writeable {
 
     /**
      * Create a new {@linkplain CliFormatter} for formatting responses similar
-     * to the provided {@link SqlResponse}. 
+     * to the provided {@link SqlQueryResponse}.
      */
-    public CliFormatter(SqlResponse response) {
+    public CliFormatter(SqlQueryResponse response) {
         // Figure out the column widths:
         // 1. Start with the widths of the column names
         width = new int[response.columns().size()];
@@ -59,10 +59,10 @@ public class CliFormatter implements Writeable {
     }
 
     /**
-     * Format the provided {@linkplain SqlResponse} for the CLI
+     * Format the provided {@linkplain SqlQueryResponse} for the CLI
      * including the header lines.
      */
-    public String formatWithHeader(SqlResponse response) {
+    public String formatWithHeader(SqlQueryResponse response) {
         // The header lines
         StringBuilder sb = new StringBuilder(estimateSize(response.rows().size() + 2));
         for (int i = 0; i < width.length; i++) {
@@ -102,14 +102,14 @@ public class CliFormatter implements Writeable {
     }
 
     /**
-     * Format the provided {@linkplain SqlResponse} for the CLI
+     * Format the provided {@linkplain SqlQueryResponse} for the CLI
      * without the header lines.
      */
-    public String formatWithoutHeader(SqlResponse response) {
+    public String formatWithoutHeader(SqlQueryResponse response) {
         return formatWithoutHeader(new StringBuilder(estimateSize(response.rows().size())), response);
     }
 
-    private String formatWithoutHeader(StringBuilder sb, SqlResponse response) {
+    private String formatWithoutHeader(StringBuilder sb, SqlQueryResponse response) {
         for (List<Object> row : response.rows()) {
             for (int i = 0; i < width.length; i++) {
                 if (i > 0) {

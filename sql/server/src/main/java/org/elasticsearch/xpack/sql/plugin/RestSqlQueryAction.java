@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,50 +23,44 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 
-public class RestSqlAction extends BaseRestHandler {
-    private final SqlLicenseChecker sqlLicenseChecker;
+public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlAction(Settings settings, RestController controller, SqlLicenseChecker sqlLicenseChecker) {
+    public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, SqlAction.REST_ENDPOINT, this);
-        controller.registerHandler(POST, SqlAction.REST_ENDPOINT, this);
-        this.sqlLicenseChecker = sqlLicenseChecker;
+        controller.registerHandler(GET, SqlQueryAction.REST_ENDPOINT, this);
+        controller.registerHandler(POST, SqlQueryAction.REST_ENDPOINT, this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SqlRequest sqlRequest;
+        SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlRequest.PARSER.apply(parser, null);
+            sqlRequest = SqlQueryRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
         }
 
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
         if (xContentType != null) {
             // The client expects us to send back results in a XContent format
-            return channel -> client.executeLocally(SqlAction.INSTANCE, sqlRequest, new RestToXContentListener<SqlResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(SqlResponse response, XContentBuilder builder) throws Exception {
-                    // Make sure we only display JDBC-related data if JDBC is enabled
-                    ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                            Collections.singletonMap(JDBC_ENABLED_PARAM, Boolean.toString(sqlLicenseChecker.isJdbcAllowed())),
-                            channel.request());
-                    response.toXContent(builder, params);
-                    return new BytesRestResponse(getStatus(response), builder);
-                }
-            });
-    }
+            return channel -> client.executeLocally(SqlQueryAction.INSTANCE, sqlRequest,
+                    new RestToXContentListener<SqlQueryResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(SqlQueryResponse response, XContentBuilder builder) throws Exception {
+                            // Make sure we only display JDBC-related data if JDBC is enabled
+                            response.toXContent(builder, request);
+                            return new BytesRestResponse(getStatus(response), builder);
+                        }
+                    });
+        }
         // The client accepts plain text
         long startNanos = System.nanoTime();
 
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, new RestResponseListener<SqlResponse>(channel) {
+        return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
-            public RestResponse buildResponse(SqlResponse response) throws Exception {
+            public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
                 final String data;
                 final CliFormatter formatter;
                 if (sqlRequest.cursor().equals("") == false) {
@@ -84,8 +77,7 @@ public class RestSqlAction extends BaseRestHandler {
         });
     }
 
-    private RestResponse buildTextResponse(Cursor responseCursor, long tookNanos, String data)
-            throws IOException {
+    private RestResponse buildTextResponse(Cursor responseCursor, long tookNanos, String data) {
         RestResponse restResponse = new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE,
                 data.getBytes(StandardCharsets.UTF_8));
         if (responseCursor != Cursor.EMPTY) {

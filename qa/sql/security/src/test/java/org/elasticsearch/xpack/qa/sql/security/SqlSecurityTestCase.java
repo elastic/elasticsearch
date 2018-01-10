@@ -485,7 +485,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             String request;
             switch (action) {
             case SQL_ACTION_NAME:
-                request = "SqlRequest";
+                request = "SqlQueryRequest";
                 break;
             case GetIndexAction.NAME:
                 request = GetIndexRequest.class.getSimpleName();

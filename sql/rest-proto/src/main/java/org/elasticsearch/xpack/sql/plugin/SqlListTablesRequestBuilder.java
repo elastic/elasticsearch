@@ -11,10 +11,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class SqlListTablesRequestBuilder extends
         ActionRequestBuilder<SqlListTablesRequest, SqlListTablesResponse, SqlListTablesRequestBuilder> {
 
-    public SqlListTablesRequestBuilder(ElasticsearchClient client, SqlListTablesAction action, String pattern) {
-        super(client, action, new SqlListTablesRequest(pattern));
-    }
-
     public SqlListTablesRequestBuilder(ElasticsearchClient client, SqlListTablesAction action) {
         super(client, action, new SqlListTablesRequest());
     }

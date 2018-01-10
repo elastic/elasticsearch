@@ -28,7 +28,7 @@ public class RestSqlListTablesAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlListTablesRequest listTablesRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            listTablesRequest = SqlListTablesRequest.fromXContent(parser);
+            listTablesRequest = SqlListTablesRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
         }
         return channel -> client.executeLocally(SqlListTablesAction.INSTANCE, listTablesRequest, new RestToXContentListener<>(channel));
     }

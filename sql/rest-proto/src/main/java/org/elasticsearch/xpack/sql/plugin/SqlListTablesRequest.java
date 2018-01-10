@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.ParseField;
@@ -28,15 +27,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * It needs to be CompositeIndicesRequest because we resolve wildcards a non-standard SQL
  * manner
  */
-public class SqlListTablesRequest extends ActionRequest implements ToXContentObject, CompositeIndicesRequest {
+public class SqlListTablesRequest extends AbstractSqlRequest implements ToXContentObject, CompositeIndicesRequest {
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlListTablesRequest, Void> PARSER
-            = new ConstructingObjectParser<>("sql_list_tables", true, objects -> new SqlListTablesRequest((String) objects[0]));
-
-    public static final ParseField TABLE_PATTERN = new ParseField("table_pattern");
+    private static final ConstructingObjectParser<SqlListTablesRequest, Mode> PARSER = new ConstructingObjectParser<>("sql_list_tables",
+            true,
+            (objects, mode) -> new SqlListTablesRequest(
+                    mode,
+                    (String) objects[0]));
 
     static {
-        PARSER.declareString(constructorArg(), TABLE_PATTERN);
+        PARSER.declareString(constructorArg(), new ParseField("table_pattern"));
     }
 
     private String pattern;
@@ -44,7 +44,8 @@ public class SqlListTablesRequest extends ActionRequest implements ToXContentObj
     public SqlListTablesRequest() {
     }
 
-    public SqlListTablesRequest(String pattern) {
+    public SqlListTablesRequest(Mode mode, String pattern) {
+        super(mode);
         this.pattern = pattern;
     }
 
@@ -56,7 +57,7 @@ public class SqlListTablesRequest extends ActionRequest implements ToXContentObj
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if (pattern == null) {
             validationException = addValidationError("[pattern] is required", validationException);
         }
@@ -81,25 +82,6 @@ public class SqlListTablesRequest extends ActionRequest implements ToXContentObj
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SqlListTablesRequest that = (SqlListTablesRequest) o;
-        return Objects.equals(pattern, that.pattern);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(pattern);
-    }
-
-    @Override
     public String getDescription() {
         return "SQL List Tables[" + getPattern() + "]";
     }
@@ -113,7 +95,20 @@ public class SqlListTablesRequest extends ActionRequest implements ToXContentObj
         return builder.endObject();
     }
 
-    public static SqlListTablesRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static SqlListTablesRequest fromXContent(XContentParser parser, Mode mode) {
+        return PARSER.apply(parser, mode);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!super.equals(o)) return false;
+        SqlListTablesRequest that = (SqlListTablesRequest) o;
+        return Objects.equals(pattern, that.pattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), pattern);
     }
 }

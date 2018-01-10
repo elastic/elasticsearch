@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -23,11 +24,13 @@ import java.sql.JDBCType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
+import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.randomMode;
 
 /**
  * Tests specific to multiple nodes.
@@ -101,10 +104,17 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
 
     private void assertCount(RestClient client, int count) throws IOException {
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo("COUNT(1)", "long", JDBCType.BIGINT, 20)));
+        String mode = randomMode();
+        expected.put("columns", singletonList(columnInfo(mode, "COUNT(1)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
-        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", singletonMap("format", "json"),
+        Map<String, String> params = new TreeMap<>();
+        params.put("format", "json");        // JSON is easier to parse then a table
+        if (Strings.hasText(mode)) {
+            params.put("mode", mode);        // JDBC or PLAIN mode
+        }
+
+        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", params,
                 new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
 
         if (false == expected.equals(actual)) {

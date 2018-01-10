@@ -26,33 +26,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode.JDBC;
 
-public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlResponse> {
+public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlAction(Settings settings, ThreadPool threadPool,
-                              TransportService transportService, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver,
-                              PlanExecutor planExecutor,
-                              SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SqlRequest::new);
+    public TransportSqlQueryAction(Settings settings, ThreadPool threadPool,
+                                   TransportService transportService, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver,
+                                   PlanExecutor planExecutor,
+                                   SqlLicenseChecker sqlLicenseChecker) {
+        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters, SqlQueryRequest::new,
+                indexNameExpressionResolver);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }
 
     @Override
-    protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
-        sqlLicenseChecker.checkIfSqlAllowed();
+    protected void doExecute(SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+        sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         operation(planExecutor, request, listener);
     }
 
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    public static void operation(PlanExecutor planExecutor, SqlRequest request, ActionListener<SqlResponse> listener) {
+    public static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
@@ -60,23 +62,27 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
         } else {
             planExecutor.nextPage(cfg, Cursor.decodeFromString(request.cursor()),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
         }
     }
 
-    static SqlResponse createResponse(SchemaRowSet rowSet) {
+    static SqlQueryResponse createResponse(SqlQueryRequest request, SchemaRowSet rowSet) {
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
-            columns.add(new ColumnInfo("", entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
+            if (request.mode() == JDBC) {
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
+            } else {
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esName()));
+            }
         }
         columns = unmodifiableList(columns);
         return createResponse(rowSet, columns);
     }
 
-    static SqlResponse createResponse(RowSet rowSet, List<ColumnInfo> columns) {
+    static SqlQueryResponse createResponse(RowSet rowSet, List<ColumnInfo> columns) {
         List<List<Object>> rows = new ArrayList<>();
         rowSet.forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -84,7 +90,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
             rows.add(unmodifiableList(row));
         });
 
-        return new SqlResponse(
+        return new SqlQueryResponse(
                 Cursor.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 columns,
                 rows);

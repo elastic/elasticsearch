@@ -28,7 +28,7 @@ public class RestSqlListColumnsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlListColumnsRequest listColumnsRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            listColumnsRequest = SqlListColumnsRequest.fromXContent(parser);
+            listColumnsRequest = SqlListColumnsRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
         }
         return channel -> client.executeLocally(SqlListColumnsAction.INSTANCE, listColumnsRequest, new RestToXContentListener<>(channel));
     }

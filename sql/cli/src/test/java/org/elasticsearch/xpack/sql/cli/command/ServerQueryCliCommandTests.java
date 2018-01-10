@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -104,7 +104,7 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    private SqlResponse fakeResponse(String cursor, boolean includeColumns, String val) {
+    private SqlQueryResponse fakeResponse(String cursor, boolean includeColumns, String val) {
         List<List<Object>> rows;
         List<ColumnInfo> columns;
         if (includeColumns) {
@@ -117,6 +117,6 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         } else {
             rows = Collections.singletonList(Collections.emptyList());
         }
-        return new SqlResponse(cursor, columns, rows);
+        return new SqlQueryResponse(cursor, columns, rows);
     }
 }

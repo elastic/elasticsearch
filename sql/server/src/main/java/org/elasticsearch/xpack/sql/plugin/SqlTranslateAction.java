@@ -43,10 +43,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_FETCH_SIZE;
-import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT;
-import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT;
-import static org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.DEFAULT_TIME_ZONE;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT;
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_TIME_ZONE;
 
 public class SqlTranslateAction
         extends Action<SqlTranslateAction.Request, SqlTranslateAction.Response, SqlTranslateAction.RequestBuilder> {
@@ -68,14 +68,18 @@ public class SqlTranslateAction
         return new Response();
     }
 
-    public static class Request extends AbstractSqlRequest {
-        public static final ObjectParser<Request, Void> PARSER = objectParser(Request::new);
+    public static class Request extends AbstractSqlQueryRequest {
+        private static final ObjectParser<Request, Void> PARSER = objectParser(Request::new);
 
         public Request() {}
 
-        public Request(String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+        public Request(Mode mode, String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
                        TimeValue pageTimeout) {
-            super(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+            super(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -91,16 +95,23 @@ public class SqlTranslateAction
         public String getDescription() {
             return "SQL Translate [" + query() + "][" + filter() + "]";
         }
+
+        public static Request fromXContent(XContentParser parser, Mode mode) {
+            Request request =  PARSER.apply(parser, null);
+            request.mode(mode);
+            return request;
+        }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
         public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-            this(client, action, null, null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT);
+            this(client, action, AbstractSqlRequest.Mode.PLAIN, null, null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT,
+                    DEFAULT_PAGE_TIMEOUT);
         }
 
-        public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action, String query, QueryBuilder filter,
-                              DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-            super(client, action, new Request(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
+        public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action, AbstractSqlRequest.Mode mode, String query,
+                              QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+            super(client, action, new Request(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
         }
 
         public RequestBuilder query(String query) {
@@ -174,7 +185,7 @@ public class SqlTranslateAction
                                     PlanExecutor planExecutor,
                                     SqlLicenseChecker sqlLicenseChecker) {
             super(settings, SqlTranslateAction.NAME, threadPool, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                    Request::new, indexNameExpressionResolver);
 
             this.planExecutor = planExecutor;
             this.sqlLicenseChecker = sqlLicenseChecker;
@@ -182,7 +193,7 @@ public class SqlTranslateAction
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            sqlLicenseChecker.checkIfSqlAllowed();
+            sqlLicenseChecker.checkIfSqlAllowed(request.mode());
             String query = request.query();
 
             Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
@@ -206,6 +217,7 @@ public class SqlTranslateAction
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 sqlRequest = Request.PARSER.apply(parser, null);
             }
+            sqlRequest.mode(AbstractSqlRequest.Mode.fromString(request.param("mode")));
             return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
         }
 

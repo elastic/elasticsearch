@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 
 /**
  * Response to perform an sql query
@@ -67,14 +66,12 @@ public class SqlListColumnsResponse extends ActionResponse implements ToXContent
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean isJdbcAllowed = params.paramAsBoolean(JDBC_ENABLED_PARAM, true);
-
         builder.startObject();
         {
             builder.startArray("columns");
             {
                 for (ColumnInfo column : columns) {
-                    column.toXContent(builder, isJdbcAllowed);
+                    column.toXContent(builder, params);
                 }
             }
             builder.endArray();

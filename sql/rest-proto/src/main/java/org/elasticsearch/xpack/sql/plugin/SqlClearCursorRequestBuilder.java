@@ -11,10 +11,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class SqlClearCursorRequestBuilder extends
         ActionRequestBuilder<SqlClearCursorRequest, SqlClearCursorResponse, SqlClearCursorRequestBuilder> {
 
-    public SqlClearCursorRequestBuilder(ElasticsearchClient client, SqlClearCursorAction action, String cursor) {
-        super(client, action, new SqlClearCursorRequest(cursor));
-    }
-
     public SqlClearCursorRequestBuilder(ElasticsearchClient client, SqlClearCursorAction action) {
         super(client, action, new SqlClearCursorRequest());
     }

@@ -120,8 +120,8 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.SqlRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -309,13 +309,13 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUserWithNoRolesCannotSql() {
-        TransportRequest request = new SqlRequest();
+        TransportRequest request = new SqlQueryRequest();
         User user = new User("test user");
         mockEmptyMetaData();
         assertThrowsAuthorizationException(
-                () -> authorize(createAuthentication(user), SqlAction.NAME, request),
-                SqlAction.NAME, "test user");
-        verify(auditTrail).accessDenied(user, SqlAction.NAME, request, Role.EMPTY.names());
+                () -> authorize(createAuthentication(user), SqlQueryAction.NAME, request),
+                SqlQueryAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, SqlQueryAction.NAME, request, Role.EMPTY.names());
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -340,7 +340,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Tuple<String, TransportRequest> tuple = randomFrom(
                 new Tuple<>(SearchAction.NAME, new SearchRequest()),
                 new Tuple<>(IndicesExistsAction.NAME, new IndicesExistsRequest()),
-                new Tuple<>(SqlAction.NAME, new SqlRequest()));
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()));
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
         User user = new User("test user", "non-existent-role");
@@ -371,7 +371,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Tuple<String, TransportRequest> tuple = randomFrom(
                 new Tuple<>(SearchAction.NAME, new SearchRequest()),
                 new Tuple<>(IndicesExistsAction.NAME, new IndicesExistsRequest()),
-                new Tuple<>(SqlAction.NAME, new SqlRequest()));
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()));
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
         User user = new User("test user", "no_indices");

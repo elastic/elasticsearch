@@ -11,7 +11,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -28,16 +26,15 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
-import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
 
 /**
  * Response to perform an sql query
  */
-public class SqlResponse extends ActionResponse implements ToXContentObject {
+public class SqlQueryResponse extends ActionResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
-            objects -> new SqlResponse(
+    public static final ConstructingObjectParser<SqlQueryResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
+            objects -> new SqlQueryResponse(
                     objects[0] == null ? "" : (String) objects[0],
                     (List<ColumnInfo>) objects[1],
                     (List<List<Object>>) objects[2]));
@@ -58,10 +55,10 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
 
-    public SqlResponse() {
+    public SqlQueryResponse() {
     }
 
-    public SqlResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
+    public SqlQueryResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
         this.cursor = cursor;
         this.columns = columns;
         this.rows = rows;
@@ -87,17 +84,17 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
         return rows;
     }
 
-    public SqlResponse cursor(String cursor) {
+    public SqlQueryResponse cursor(String cursor) {
         this.cursor = cursor;
         return this;
     }
 
-    public SqlResponse columns(List<ColumnInfo> columns) {
+    public SqlQueryResponse columns(List<ColumnInfo> columns) {
         this.columns = columns;
         return this;
     }
 
-    public SqlResponse rows(List<List<Object>> rows) {
+    public SqlQueryResponse rows(List<List<Object>> rows) {
         this.rows = rows;
         return this;
     }
@@ -157,14 +154,13 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean isJdbcAllowed = params.paramAsBoolean(JDBC_ENABLED_PARAM, true);
         builder.startObject();
         {
             if (columns != null) {
                 builder.startArray("columns");
                 {
                     for (ColumnInfo column : columns) {
-                        column.toXContent(builder, isJdbcAllowed);
+                        column.toXContent(builder, params);
                     }
                 }
                 builder.endArray();
@@ -180,13 +176,13 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             builder.endArray();
 
             if (cursor.equals("") == false) {
-                builder.field(SqlRequest.CURSOR.getPreferredName(), cursor);
+                builder.field(SqlQueryRequest.CURSOR.getPreferredName(), cursor);
             }
         }
         return builder.endObject();
     }
 
-    public static SqlResponse fromXContent(XContentParser parser) {
+    public static SqlQueryResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -220,7 +216,7 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SqlResponse that = (SqlResponse) o;
+        SqlQueryResponse that = (SqlQueryResponse) o;
         return Objects.equals(cursor, that.cursor) &&
                 Objects.equals(columns, that.columns) &&
                 Objects.equals(rows, that.rows);

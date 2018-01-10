@@ -187,18 +187,23 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.upgrade = new Upgrade(settings);
         // sql projects don't depend on x-pack and as a result we cannot pass XPackLicenseState object to SqlPlugin directly here
         this.sql = new SqlPlugin(XPackSettings.SQL_ENABLED.get(settings), new SqlLicenseChecker(
-                () -> {
-                    if (!licenseState.isSqlAllowed()) {
-                        throw LicenseUtils.newComplianceException(XpackField.SQL);
+                (mode) -> {
+                    switch (mode) {
+                        case JDBC:
+                            if (licenseState.isJdbcAllowed() == false) {
+                                throw LicenseUtils.newComplianceException("jdbc");
+                            }
+                            break;
+                        case PLAIN:
+                            if (licenseState.isSqlAllowed() == false) {
+                                throw LicenseUtils.newComplianceException(XpackField.SQL);
+                            }
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unknown SQL mode " + mode);
                     }
-                },
-                () -> {
-                    if (!licenseState.isJdbcAllowed()) {
-                        throw LicenseUtils.newComplianceException("jdbc");
-                    }
-                },
-                () -> licenseState.isJdbcAllowed())
-        );
+                }
+        ));
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());

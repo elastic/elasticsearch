@@ -11,11 +11,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class SqlListColumnsRequestBuilder extends
         ActionRequestBuilder<SqlListColumnsRequest, SqlListColumnsResponse, SqlListColumnsRequestBuilder> {
 
-    public SqlListColumnsRequestBuilder(ElasticsearchClient client, SqlListColumnsAction action, 
-                                        String indexPattern, String columnPattern) {
-        super(client, action, new SqlListColumnsRequest(indexPattern, columnPattern));
-    }
-
     public SqlListColumnsRequestBuilder(ElasticsearchClient client, SqlListColumnsAction action) {
         super(client, action, new SqlListColumnsRequest());
     }
@@ -29,4 +24,13 @@ public class SqlListColumnsRequestBuilder extends
         request.setColumnPattern(columnPattern);
         return this;
     }
-}
+
+    public SqlListColumnsRequestBuilder mode(String mode) {
+        request.mode(mode);
+        return this;
+    }
+
+    public SqlListColumnsRequestBuilder mode(AbstractSqlRequest.Mode mode) {
+        request.mode(mode);
+        return this;
+    }}

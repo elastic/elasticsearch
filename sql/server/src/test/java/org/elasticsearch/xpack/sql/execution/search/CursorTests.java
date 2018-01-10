@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.plugin.CliFormatter;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
 import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
-import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -58,7 +57,7 @@ public class CursorTests extends ESTestCase {
         verifyZeroInteractions(listenerMock);
     }
 
-    private static SqlResponse createRandomSqlResponse() {
+    private static SqlQueryResponse createRandomSqlResponse() {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -69,7 +68,7 @@ public class CursorTests extends ESTestCase {
                         randomFrom(JDBCType.values()), randomInt(25)));
             }
         }
-        return new SqlResponse("", columns, Collections.emptyList());
+        return new SqlQueryResponse("", columns, Collections.emptyList());
     }
 
     static Cursor randomNonEmptyCursor() {
@@ -84,7 +83,7 @@ public class CursorTests extends ESTestCase {
                 }
                 return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
             case 2:
-                SqlResponse response = createRandomSqlResponse();
+                SqlQueryResponse response = createRandomSqlResponse();
                 if (response.columns() != null && response.rows() != null) {
                     return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
                 } else {

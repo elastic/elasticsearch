@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.SqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
-import org.elasticsearch.xpack.sql.plugin.TransportSqlAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
 
 import java.util.Objects;
 
@@ -43,8 +43,8 @@ public class EmbeddedModeFilterClient extends FilterClient {
                         Request request, ActionListener<Response> listener) {
         Objects.requireNonNull(planExecutor, "plan executor not set on EmbeddedClient");
         
-        if (action == SqlAction.INSTANCE) {
-            TransportSqlAction.operation(planExecutor, (SqlRequest) request, (ActionListener<SqlResponse>) listener);
+        if (action == SqlQueryAction.INSTANCE) {
+            TransportSqlQueryAction.operation(planExecutor, (SqlQueryRequest) request, (ActionListener<SqlQueryResponse>) listener);
         } else {
             super.doExecute(action, request, listener);
         }

@@ -58,10 +58,10 @@ Which returns:
 --------------------------------------------------
 {
     "columns": [
-        {"name": "author",       "type": "text",  "jdbc_type": 12, "display_size": 0},
-        {"name": "name",         "type": "text",  "jdbc_type": 12, "display_size": 0},
-        {"name": "page_count",   "type": "short", "jdbc_type": 5,  "display_size": 6},
-        {"name": "release_date", "type": "date",  "jdbc_type": 93, "display_size": 20}
+        {"name": "author",       "type": "text"},
+        {"name": "name",         "type": "text"},
+        {"name": "page_count",   "type": "short"},
+        {"name": "release_date", "type": "date"}
     ],
     "rows": [
         ["Peter F. Hamilton",  "Pandora's Star",       768, "2004-03-02T00:00:00.000Z"],
@@ -228,11 +228,12 @@ POST /_xpack/sql/columns
 --------------------------------------------------
 {
     "columns": [
-        {"table": "library", "name": "author",       "type": "text",  "jdbc_type": 12, "display_size": 0},
-        {"table": "library", "name": "name",         "type": "text",  "jdbc_type": 12, "display_size": 0},
-        {"table": "library", "name": "page_count",   "type": "short", "jdbc_type": 5,  "display_size": 6},
-        {"table": "library", "name": "release_date", "type": "date",  "jdbc_type": 93, "display_size": 20}
+        {"table": "library", "name": "author",       "type": "text"},
+        {"table": "library", "name": "name",         "type": "text"},
+        {"table": "library", "name": "page_count",   "type": "short"},
+        {"table": "library", "name": "release_date", "type": "date"}
     ]
 }
 --------------------------------------------------
 // TESTRESPONSE
+

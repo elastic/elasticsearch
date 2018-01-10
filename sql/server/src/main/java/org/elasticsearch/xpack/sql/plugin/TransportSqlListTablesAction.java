@@ -36,7 +36,7 @@ public class TransportSqlListTablesAction extends HandledTransportAction<SqlList
 
     @Override
     protected void doExecute(SqlListTablesRequest request, ActionListener<SqlListTablesResponse> listener) {
-        sqlLicenseChecker.checkIfSqlAllowed();
+        sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         // TODO: This is wrong
         // See https://github.com/elastic/x-pack-elasticsearch/pull/3438/commits/61b7c26fe08db2721f0431579f215fe493744af3
         // and https://github.com/elastic/x-pack-elasticsearch/issues/3460

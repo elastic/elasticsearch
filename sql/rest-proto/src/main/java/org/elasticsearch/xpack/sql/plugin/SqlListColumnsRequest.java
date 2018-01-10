@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.ParseField;
@@ -28,20 +27,18 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * It needs to be CompositeIndicesRequest because we resolve wildcards a non-standard SQL
  * manner
  */
-public class SqlListColumnsRequest extends ActionRequest implements ToXContentObject, CompositeIndicesRequest {
+public class SqlListColumnsRequest extends AbstractSqlRequest implements ToXContentObject, CompositeIndicesRequest {
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlListColumnsRequest, Void> PARSER =
-            new ConstructingObjectParser<>("sql_list_tables", true, objects -> new SqlListColumnsRequest(
+    private static final ConstructingObjectParser<SqlListColumnsRequest, Mode> PARSER =
+            new ConstructingObjectParser<>("sql_list_tables", true, (objects, mode) -> new SqlListColumnsRequest(
+                    mode,
                     (String) objects[0],
                     (String) objects[1]
             ));
 
-    public static final ParseField TABLE_PATTERN = new ParseField("table_pattern");
-    public static final ParseField COLUMN_PATTERN = new ParseField("column_pattern");
-
     static {
-        PARSER.declareString(constructorArg(), TABLE_PATTERN);
-        PARSER.declareString(constructorArg(), COLUMN_PATTERN);
+        PARSER.declareString(constructorArg(), new ParseField("table_pattern"));
+        PARSER.declareString(constructorArg(), new ParseField("column_pattern"));
     }
 
     private String tablePattern;
@@ -51,7 +48,8 @@ public class SqlListColumnsRequest extends ActionRequest implements ToXContentOb
     public SqlListColumnsRequest() {
     }
 
-    public SqlListColumnsRequest(String tablePattern, String columnPattern) {
+    public SqlListColumnsRequest(Mode mode, String tablePattern, String columnPattern) {
+        super(mode);
         this.tablePattern = tablePattern;
         this.columnPattern = columnPattern;
     }
@@ -65,7 +63,7 @@ public class SqlListColumnsRequest extends ActionRequest implements ToXContentOb
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if (tablePattern == null) {
             validationException = addValidationError("[index_pattern] is required", validationException);
         }
@@ -105,25 +103,6 @@ public class SqlListColumnsRequest extends ActionRequest implements ToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SqlListColumnsRequest that = (SqlListColumnsRequest) o;
-        return Objects.equals(tablePattern, that.tablePattern) &&
-                Objects.equals(columnPattern, that.columnPattern);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(tablePattern, columnPattern);
-    }
-
-    @Override
     public String getDescription() {
         return "SQL List Columns[" + getTablePattern() + ", " + getColumnPattern() + "]";
     }
@@ -138,7 +117,22 @@ public class SqlListColumnsRequest extends ActionRequest implements ToXContentOb
         return builder.endObject();
     }
 
-    public static SqlListColumnsRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static SqlListColumnsRequest fromXContent(XContentParser parser, Mode mode) {
+        return PARSER.apply(parser, mode);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        SqlListColumnsRequest that = (SqlListColumnsRequest) o;
+        return Objects.equals(tablePattern, that.tablePattern) &&
+                Objects.equals(columnPattern, that.columnPattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), tablePattern, columnPattern);
     }
 }

@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.plugin.CliFormatter;
-import org.elasticsearch.xpack.sql.plugin.SqlResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 
 import java.sql.SQLException;
 
@@ -17,7 +17,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
-        SqlResponse response = null;
+        SqlQueryResponse response = null;
         HttpClient cliClient = cliSession.getClient();
         CliFormatter cliFormatter;
         String data;

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -22,21 +21,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.sql.plugin.ColumnInfo.JDBC_ENABLED_PARAM;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResponse> {
+public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<SqlQueryResponse> {
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
     }
 
     @Override
-    protected SqlResponse createTestInstance() {
+    protected SqlQueryResponse createTestInstance() {
         return createRandomInstance(randomStringCursor());
     }
 
-    private static SqlResponse createRandomInstance(String cursor) {
+    private static SqlQueryResponse createRandomInstance(String cursor) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -68,22 +67,18 @@ public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResp
                 rows.add(row);
             }
         }
-        return new SqlResponse(cursor, columns, rows);
+        return new SqlQueryResponse(cursor, columns, rows);
     }
 
     @Override
-    protected SqlResponse createBlankInstance() {
-        return new SqlResponse();
+    protected SqlQueryResponse createBlankInstance() {
+        return new SqlQueryResponse();
     }
 
     public void testToXContent() throws IOException {
-        SqlResponse testInstance = createTestInstance();
+        SqlQueryResponse testInstance = createTestInstance();
 
-        boolean jdbcEnabled = randomBoolean();
-        ToXContent.Params params =
-                new ToXContent.MapParams(Collections.singletonMap(JDBC_ENABLED_PARAM, Boolean.toString(jdbcEnabled)));
-
-        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), params);
+        XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), EMPTY_PARAMS);
         Map<String, Object> rootMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         logger.info(builder.string());
@@ -96,13 +91,8 @@ public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResp
                 ColumnInfo columnInfo = testInstance.columns().get(i);
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
-                if (jdbcEnabled) {
-                    assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                    assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
-                } else {
-                    assertNull(columnMap.get("display_size"));
-                    assertNull(columnMap.get("jdbc_type"));
-                }
+                assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
+                assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
             }
         } else {
             assertNull(rootMap.get("columns"));
@@ -116,12 +106,12 @@ public class SqlResponseTests extends AbstractStreamableXContentTestCase<SqlResp
         }
 
         if (testInstance.cursor().equals("") == false) {
-            assertEquals(rootMap.get(SqlRequest.CURSOR.getPreferredName()), testInstance.cursor());
+            assertEquals(rootMap.get(SqlQueryRequest.CURSOR.getPreferredName()), testInstance.cursor());
         }
     }
 
     @Override
-    protected SqlResponse doParseInstance(XContentParser parser) {
-        return SqlResponse.fromXContent(parser);
+    protected SqlQueryResponse doParseInstance(XContentParser parser) {
+        return SqlQueryResponse.fromXContent(parser);
     }
 }

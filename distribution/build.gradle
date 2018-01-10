@@ -59,14 +59,14 @@ task generateDependenciesReport(type: ConcatFilesTask) {
  *                                Notice file                                *
  *****************************************************************************/
 
-// integ test zip only uses core, so a different notice file is needed there
+// integ test zip only uses server, so a different notice file is needed there
 task buildCoreNotice(type: NoticeTask) {
-  licensesDir new File(project(':core').projectDir, 'licenses')
+  licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 // other distributions include notices from modules as well, which are added below later
 task buildFullNotice(type: NoticeTask) {
-  licensesDir new File(project(':core').projectDir, 'licenses')
+  licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 /*****************************************************************************
@@ -173,8 +173,8 @@ configure(distributions) {
      *****************************************************************************/
     libFiles = copySpec {
       into 'lib'
-      from project(':core').jar
-      from project(':core').configurations.runtime
+      from { project(':server').jar }
+      from { project(':server').configurations.runtime }
       from { project(':libs:plugin-classloader').jar }
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':distribution:tools:launchers').jar }

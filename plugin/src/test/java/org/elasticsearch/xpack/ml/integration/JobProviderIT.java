@@ -306,18 +306,18 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         indexScheduledEvents(events);
 
         ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder();
-        List<ScheduledEvent> returnedEvents = getScheduledEventsForJob(jobA.getId(), query);
+        List<ScheduledEvent> returnedEvents = getScheduledEventsForJob(jobA.getId(), Collections.emptyList(), query);
         assertEquals(4, returnedEvents.size());
         assertEquals(events.get(0), returnedEvents.get(0));
         assertEquals(events.get(1), returnedEvents.get(1));
         assertEquals(events.get(3), returnedEvents.get(2));
         assertEquals(events.get(2), returnedEvents.get(3));
 
-        returnedEvents = getScheduledEventsForJob(jobB.getId(), query);
+        returnedEvents = getScheduledEventsForJob(jobB.getId(), Collections.singletonList("unrelated-job-group"), query);
         assertEquals(1, returnedEvents.size());
         assertEquals(events.get(3), returnedEvents.get(0));
 
-        returnedEvents = getScheduledEventsForJob(jobC.getId(), query);
+        returnedEvents = getScheduledEventsForJob(jobC.getId(), Collections.emptyList(), query);
         assertEquals(0, returnedEvents.size());
 
         // Test time filters
@@ -325,10 +325,42 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         query.after(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
         // Lands halfway through the 3rd event which should be returned
         query.before(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
-        returnedEvents = getScheduledEventsForJob(jobA.getId(), query);
+        returnedEvents = getScheduledEventsForJob(jobA.getId(), Collections.emptyList(), query);
         assertEquals(2, returnedEvents.size());
         assertEquals(events.get(1), returnedEvents.get(0));
         assertEquals(events.get(3), returnedEvents.get(1));
+    }
+
+    public void testScheduledEventsForJob_withGroup() throws Exception {
+        String groupA = "group-a";
+        String groupB = "group-b";
+        createJob("job-in-group-a", Collections.emptyList(), Collections.singletonList(groupA));
+        createJob("job-in-group-a-and-b", Collections.emptyList(), Arrays.asList(groupA, groupB));
+
+        String calendarAId = "calendar_a";
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar(calendarAId, Collections.singletonList(groupA)));
+
+        ZonedDateTime now = ZonedDateTime.now();
+        List<ScheduledEvent> events = new ArrayList<>();
+        events.add(buildScheduledEvent("downtime_A", now.plusDays(1), now.plusDays(2), calendarAId));
+
+        String calendarBId = "calendar_b";
+        calendars.add(new Calendar(calendarBId, Arrays.asList(groupB)));
+        events.add(buildScheduledEvent("downtime_B", now.plusDays(12), now.plusDays(13), calendarBId));
+
+        indexCalendars(calendars);
+        indexScheduledEvents(events);
+
+        ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder();
+        List<ScheduledEvent> returnedEvents = getScheduledEventsForJob("job-in-group-a", Collections.singletonList(groupA), query);
+        assertEquals(1, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+
+        query = new ScheduledEventsQueryBuilder();
+        returnedEvents = getScheduledEventsForJob("job-in-group-a-and-b", Collections.singletonList(groupB), query);
+        assertEquals(1, returnedEvents.size());
+        assertEquals(events.get(1), returnedEvents.get(0));
     }
 
     private ScheduledEvent buildScheduledEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
@@ -432,11 +464,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         return searchResultHolder.get();
     }
 
-    private List<ScheduledEvent> getScheduledEventsForJob(String jobId, ScheduledEventsQueryBuilder query) throws Exception {
+    private List<ScheduledEvent> getScheduledEventsForJob(String jobId, List<String> jobGroups, ScheduledEventsQueryBuilder query)
+            throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<ScheduledEvent>> searchResultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.scheduledEventsForJob(jobId, query, ActionListener.wrap(
+        jobProvider.scheduledEventsForJob(jobId, jobGroups, query, ActionListener.wrap(
                 params -> {
             searchResultHolder.set(params);
             latch.countDown();
@@ -458,7 +491,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
     }
 
     private Job.Builder createJob(String jobId, List<String> filterIds) {
+        return createJob(jobId, filterIds, Collections.emptyList());
+    }
+
+    private Job.Builder createJob(String jobId, List<String> filterIds, List<String> jobGroups) {
         Job.Builder builder = new Job.Builder(jobId);
+        builder.setGroups(jobGroups);
         AnalysisConfig.Builder ac = createAnalysisConfig(filterIds);
         DataDescription.Builder dc = new DataDescription.Builder();
         builder.setAnalysisConfig(ac);

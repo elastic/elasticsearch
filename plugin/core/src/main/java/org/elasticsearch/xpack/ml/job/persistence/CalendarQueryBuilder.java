@@ -12,10 +12,15 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public class CalendarQueryBuilder {
 
     private PageParams pageParams = new PageParams(0, 10000);
     private String jobId;
+    private List<String> jobGroups = Collections.emptyList();
     private boolean sort = false;
 
     /**
@@ -38,6 +43,11 @@ public class CalendarQueryBuilder {
         return this;
     }
 
+    public CalendarQueryBuilder jobGroups(List<String> jobGroups) {
+        this.jobGroups = jobGroups;
+        return this;
+    }
+
     /**
      * Sort results by calendar_id
      * @param sort Sort if true
@@ -50,10 +60,15 @@ public class CalendarQueryBuilder {
 
     public SearchSourceBuilder build() {
         QueryBuilder qb;
+        List<String> jobIdAndGroups = new ArrayList<>(jobGroups);
         if (jobId != null) {
+            jobIdAndGroups.add(jobId);
+        }
+
+        if (jobIdAndGroups.isEmpty() == false) {
             qb = new BoolQueryBuilder()
                     .filter(new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE))
-                    .filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobId));
+                    .filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
         } else {
             qb = new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE);
         }

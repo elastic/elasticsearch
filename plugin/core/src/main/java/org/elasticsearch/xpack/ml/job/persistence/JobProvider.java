@@ -373,7 +373,7 @@ public class JobProvider {
                     if (lastestRecordTime != null) {
                         scheduledEventsQueryBuilder.after(Long.toString(lastestRecordTime.getTime()));
                     }
-                    scheduledEventsForJob(jobId, scheduledEventsQueryBuilder, ActionListener.wrap(
+                    scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
                             events -> {
                                 paramsBuilder.setScheduledEvents(events.results());
                                 consumer.accept(paramsBuilder.build());
@@ -1029,9 +1029,8 @@ public class JobProvider {
         });
     }
 
-    public void scheduledEventsForJob(String jobId, ScheduledEventsQueryBuilder queryBuilder,
+    public void scheduledEventsForJob(String jobId, List<String> jobGroups, ScheduledEventsQueryBuilder queryBuilder,
                                       ActionListener<QueryPage<ScheduledEvent>> handler) {
-
         // Find all the calendars used by the job then the events for those calendars
 
         ActionListener<QueryPage<Calendar>> calendarsListener = ActionListener.wrap(
@@ -1047,7 +1046,7 @@ public class JobProvider {
                 handler::onFailure
         );
 
-        CalendarQueryBuilder query = new CalendarQueryBuilder().jobId(jobId);
+        CalendarQueryBuilder query = new CalendarQueryBuilder().jobId(jobId).jobGroups(jobGroups);
         calendars(query, calendarsListener);
     }
 

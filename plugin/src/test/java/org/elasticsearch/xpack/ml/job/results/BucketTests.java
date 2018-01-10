@@ -14,6 +14,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
@@ -70,6 +73,12 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
                 records.add(anomalyRecord);
             }
             bucket.setRecords(records);
+        }
+        if (randomBoolean()) {
+            int size = randomInt(10);
+            List<String> scheduledEvents = new ArrayList<>(size);
+            IntStream.range(0, size).forEach(i -> scheduledEvents.add(randomAlphaOfLength(20)));
+            bucket.setScheduledEvents(scheduledEvents);
         }
         return bucket;
     }
@@ -274,5 +283,13 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     public void testId() {
         Bucket bucket = new Bucket("foo", new Date(123), 60L);
         assertEquals("foo_bucket_123_60", bucket.getId());
+    }
+
+    public void testCopyConstructor() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
+            Bucket bucket = createTestInstance();
+            Bucket copy = new Bucket(bucket);
+            assertThat(copy, equalTo(bucket));
+        }
     }
 }

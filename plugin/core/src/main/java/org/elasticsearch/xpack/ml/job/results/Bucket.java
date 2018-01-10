@@ -44,6 +44,7 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
     public static final ParseField PARTITION_SCORES = new ParseField("partition_scores");
+    public static final ParseField SCHEDULED_EVENTS = new ParseField("scheduled_events");
 
     // Only exists for backwards compatibility; no longer added to mappings
     private static final ParseField RECORD_COUNT = new ParseField("record_count");
@@ -83,6 +84,7 @@ public class Bucket implements ToXContentObject, Writeable {
         PARSER.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
         // For bwc with 5.4
         PARSER.declareInt((bucket, recordCount) -> {}, RECORD_COUNT);
+        PARSER.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
     }
 
     private final String jobId;
@@ -96,6 +98,7 @@ public class Bucket implements ToXContentObject, Writeable {
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>(); // Can't use emptyList as might be appended to
     private long processingTimeMs;
     private List<PartitionScore> partitionScores = Collections.emptyList();
+    private List<String> scheduledEvents = Collections.emptyList();
 
     public Bucket(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
@@ -115,6 +118,7 @@ public class Bucket implements ToXContentObject, Writeable {
         this.bucketInfluencers = new ArrayList<>(other.bucketInfluencers);
         this.processingTimeMs = other.processingTimeMs;
         this.partitionScores = new ArrayList<>(other.partitionScores);
+        this.scheduledEvents = new ArrayList<>(other.scheduledEvents);
     }
 
     public Bucket(StreamInput in) throws IOException {
@@ -137,6 +141,14 @@ public class Bucket implements ToXContentObject, Writeable {
             in.readGenericValue();
         }
         partitionScores = in.readList(PartitionScore::new);
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            scheduledEvents = in.readList(StreamInput::readString);
+            if (scheduledEvents.isEmpty()) {
+                scheduledEvents = Collections.emptyList();
+            }
+        } else {
+            scheduledEvents = Collections.emptyList();
+        }
     }
 
     @Override
@@ -160,6 +172,9 @@ public class Bucket implements ToXContentObject, Writeable {
             out.writeGenericValue(Collections.emptyMap());
         }
         out.writeList(partitionScores);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeStringList(scheduledEvents);
+        }
     }
 
     @Override
@@ -179,6 +194,9 @@ public class Bucket implements ToXContentObject, Writeable {
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
         if (partitionScores.isEmpty() == false) {
             builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
+        }
+        if (scheduledEvents.isEmpty() == false) {
+            builder.field(SCHEDULED_EVENTS.getPreferredName(), scheduledEvents);
         }
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.endObject();
@@ -291,6 +309,14 @@ public class Bucket implements ToXContentObject, Writeable {
         partitionScores = Objects.requireNonNull(scores);
     }
 
+    public List<String> getScheduledEvents() {
+        return scheduledEvents;
+    }
+
+    public void setScheduledEvents(List<String> scheduledEvents) {
+        this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, SCHEDULED_EVENTS.getPreferredName());
+    }
+
     public double partitionInitialAnomalyScore(String partitionValue) {
         Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
                 .findFirst();
@@ -308,7 +334,7 @@ public class Bucket implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
-                isInterim, bucketSpan, bucketInfluencers, partitionScores, processingTimeMs);
+                isInterim, bucketSpan, bucketInfluencers, partitionScores, processingTimeMs, scheduledEvents);
     }
 
     /**
@@ -332,7 +358,8 @@ public class Bucket implements ToXContentObject, Writeable {
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
                 && Objects.equals(this.partitionScores, that.partitionScores)
-                && (this.processingTimeMs == that.processingTimeMs);
+                && (this.processingTimeMs == that.processingTimeMs)
+                && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
 
     /**

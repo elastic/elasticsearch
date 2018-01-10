@@ -1651,7 +1651,8 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        return combinedDeletionPolicy.acquireIndexCommit(safeCommit);
+        final IndexCommit snapshotCommit = combinedDeletionPolicy.acquireIndexCommit(safeCommit);
+        return new Engine.IndexCommitRef(snapshotCommit, () -> combinedDeletionPolicy.releaseCommit(snapshotCommit));
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

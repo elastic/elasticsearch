@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
@@ -103,23 +102,23 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final IndexCommit c2 = mockIndexCommit(maxSeqNo2, translogUUID, translogGen2);
         globalCheckpoint.set(randomLongBetween(0, maxSeqNo2 - 1)); // Keep both c1 and c2.
         indexPolicy.onCommit(Arrays.asList(c1, c2));
-        final Engine.IndexCommitRef ref1 = indexPolicy.acquireIndexCommit(true);
-        assertThat(ref1.getIndexCommit(), equalTo(c1));
-        final Engine.IndexCommitRef ref2 = indexPolicy.acquireIndexCommit(false);
-        assertThat(ref2.getIndexCommit(), equalTo(c2));
+        final IndexCommit ref1 = indexPolicy.acquireIndexCommit(true);
+        assertThat(ref1, equalTo(c1));
+        expectThrows(UnsupportedOperationException.class, ref1::delete);
+        final IndexCommit ref2 = indexPolicy.acquireIndexCommit(false);
+        assertThat(ref2, equalTo(c2));
+        expectThrows(UnsupportedOperationException.class, ref2::delete);
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), lessThanOrEqualTo(100L));
 
         globalCheckpoint.set(randomLongBetween(maxSeqNo2, Long.MAX_VALUE));
         indexPolicy.onCommit(Arrays.asList(c1, c2)); // Policy keeps c2 only, but c1 is snapshotted.
         verify(c1, times(0)).delete();
-        final Engine.IndexCommitRef ref3 = indexPolicy.acquireIndexCommit(true);
-        assertThat(ref3.getIndexCommit(), equalTo(c2));
+        final IndexCommit ref3 = indexPolicy.acquireIndexCommit(true);
+        assertThat(ref3, equalTo(c2));
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(translogGen1));
-        ref1.close(); // closing acquired commit releases translog and commit
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(translogGen2));
+        indexPolicy.releaseCommit(ref1); // release acquired commit releases translog and commit
         indexPolicy.onCommit(Arrays.asList(c1, c2)); // Flush new commit deletes c1
         verify(c1, times(1)).delete();
-        IOUtils.close(ref2, ref3);
     }
 
     public void testLegacyIndex() throws Exception {

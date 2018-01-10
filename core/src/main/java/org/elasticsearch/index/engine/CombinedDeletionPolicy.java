@@ -23,12 +23,14 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -94,22 +96,25 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
-    synchronized Engine.IndexCommitRef acquireIndexCommit(boolean acquiringSafeCommit) {
+    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         snapshottedCommits.addTo(snapshotting, 1); // increase refCount
-        return new Engine.IndexCommitRef(snapshotting, () -> releaseCommit(snapshotting));
+        return new SnapshotIndexCommit(snapshotting);
     }
 
-    private synchronized void releaseCommit(IndexCommit releasingCommit) throws IOException {
+    /**
+     * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+     */
+    synchronized void releaseCommit(final IndexCommit snapshotCommit) {
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
             "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
         final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
         assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
-            updateTranslogDeletionPolicy();
         }
     }
 
@@ -177,5 +182,61 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
          * However, that commit may not be a safe commit if writes are in progress in the primary.
          */
         return 0;
+    }
+
+    /**
+     * A wrapper of an index commit that prevents it from being deleted.
+     */
+    private static class SnapshotIndexCommit extends IndexCommit {
+        private final IndexCommit delegate;
+
+        SnapshotIndexCommit(IndexCommit delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return delegate.getSegmentsFileName();
+        }
+
+        @Override
+        public Collection<String> getFileNames() throws IOException {
+            return delegate.getFileNames();
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return delegate.getDirectory();
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("A snapshot commit does not support deletion");
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return delegate.isDeleted();
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return delegate.getSegmentCount();
+        }
+
+        @Override
+        public long getGeneration() {
+            return delegate.getGeneration();
+        }
+
+        @Override
+        public Map<String, String> getUserData() throws IOException {
+            return delegate.getUserData();
+        }
+
+        @Override
+        public String toString() {
+            return "SnapshotIndexCommit{" + delegate + "}";
+        }
     }
 }

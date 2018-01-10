@@ -621,8 +621,10 @@ abstract class QueryTranslator {
             if (bc instanceof Equals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
+                    // equality should always be against an exact match
+                    // (which is important for strings)
                     if (fa.isInexact()) {
-                        return new MatchQuery(loc, name, value);
+                        name = fa.exactAttribute().name();
                     }
                 }
                 return new TermQuery(loc, name, value);

@@ -362,10 +362,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+    public void openFileBasedEngine(int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        // TODO: take the local checkpoint from store as global checkpoint, once we know it's safe
         indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
+    }
+
+    @Override
+    public void openSequencedBasedEngine(int totalTranslogOps) throws IOException {
+        state().getTranslog().totalOperations(totalTranslogOps);
+        indexShard().openIndexAndSkipTranslogRecovery();
     }
 
     @Override

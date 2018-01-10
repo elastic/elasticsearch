@@ -21,6 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -60,6 +63,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,7 +82,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
         public static final String CLEAN_FILES = "internal:index/shard/recovery/clean_files";
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
-        public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
+        public static final String OPEN_FILE_BASED_ENGINE = "internal:index/shard/recovery/prepare_translog";
+        public static final String OPEN_SEQUENCE_BASED_ENGINE = "internal:index/shard/recovery/open_seq_based_engine";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
         public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
@@ -108,8 +113,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new
                 CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest::new, ThreadPool
-                .Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.OPEN_FILE_BASED_ENGINE, ThreadPool.Names.GENERIC,
+                RecoveryOpenFileBasedEngineRequest::new, new OpenFileBasedEngineRequestHandler());
+        transportService.registerRequestHandler(Actions.OPEN_SEQUENCE_BASED_ENGINE, ThreadPool.Names.GENERIC,
+                RecoveryOpenSeqBasedEngineRequest::new, new OpenSequenceBasedEngineRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
@@ -353,7 +360,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
-            final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(null);
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
+            final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
+            final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
             if (seqNoStats.maxSeqNo <= globalCheckpoint) {
                 assert seqNoStats.localCheckpoint <= globalCheckpoint;
                 /*
@@ -381,13 +390,25 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
-    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
+    class OpenFileBasedEngineRequestHandler implements TransportRequestHandler<RecoveryOpenFileBasedEngineRequest> {
 
         @Override
-        public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(RecoveryOpenFileBasedEngineRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps());
+                recoveryRef.target().openFileBasedEngine(request.totalTranslogOps());
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    class OpenSequenceBasedEngineRequestHandler implements TransportRequestHandler<RecoveryOpenSeqBasedEngineRequest> {
+
+        @Override
+        public void messageReceived(RecoveryOpenSeqBasedEngineRequest request, TransportChannel channel) throws Exception {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            )) {
+                recoveryRef.target().openSequencedBasedEngine(request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

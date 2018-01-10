@@ -58,6 +58,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
         private String leaderIndex;
         private String followIndex;
         private long batchSize = ShardFollowTasksExecutor.DEFAULT_BATCH_SIZE;
+        private int concurrentProcessors = ShardFollowTasksExecutor.DEFAULT_CONCURRENT_PROCESSORS;
 
         public String getLeaderIndex() {
             return leaderIndex;
@@ -85,6 +86,17 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             }
 
             this.batchSize = batchSize;
+        }
+
+        public int getConcurrentProcessors() {
+            return concurrentProcessors;
+        }
+
+        public void setConcurrentProcessors(int concurrentProcessors) {
+            if (concurrentProcessors < 1) {
+                throw new IllegalArgumentException("concurrent_processors must be larger than 0");
+            }
+            this.concurrentProcessors = concurrentProcessors;
         }
 
         @Override
@@ -168,7 +180,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                         final int shardId = i;
                         String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                         ShardFollowTask shardFollowTask =  new ShardFollowTask(new ShardId(followIndexMetadata.getIndex(), shardId),
-                                new ShardId(leaderIndexMetadata.getIndex(), shardId), request.batchSize);
+                                new ShardId(leaderIndexMetadata.getIndex(), shardId), request.batchSize, request.concurrentProcessors);
                         persistentTasksService.startPersistentTask(taskId, ShardFollowTask.NAME, shardFollowTask,
                                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

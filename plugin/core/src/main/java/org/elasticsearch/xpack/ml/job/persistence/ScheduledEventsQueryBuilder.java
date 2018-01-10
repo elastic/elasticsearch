@@ -28,21 +28,21 @@ public class ScheduledEventsQueryBuilder {
     private Integer size = DEFAULT_SIZE;
 
     private List<String> calendarIds;
-    private String after;
-    private String before;
+    private String start;
+    private String end;
 
     public ScheduledEventsQueryBuilder calendarIds(List<String> calendarIds) {
         this.calendarIds = calendarIds;
         return this;
     }
 
-    public ScheduledEventsQueryBuilder after(String after) {
-        this.after = after;
+    public ScheduledEventsQueryBuilder start(String start) {
+        this.start = start;
         return this;
     }
 
-    public ScheduledEventsQueryBuilder before(String before) {
-        this.before = before;
+    public ScheduledEventsQueryBuilder end(String end) {
+        this.end = end;
         return this;
     }
 
@@ -69,15 +69,15 @@ public class ScheduledEventsQueryBuilder {
     public SearchSourceBuilder build() {
         List<QueryBuilder> queries = new ArrayList<>();
 
-        if (after != null) {
-            RangeQueryBuilder afterQuery = QueryBuilders.rangeQuery(ScheduledEvent.END_TIME.getPreferredName());
-            afterQuery.gt(after);
-            queries.add(afterQuery);
+        if (start != null) {
+            RangeQueryBuilder startQuery = QueryBuilders.rangeQuery(ScheduledEvent.END_TIME.getPreferredName());
+            startQuery.gt(start);
+            queries.add(startQuery);
         }
-        if (before != null) {
-            RangeQueryBuilder beforeQuery = QueryBuilders.rangeQuery(ScheduledEvent.START_TIME.getPreferredName());
-            beforeQuery.lt(before);
-            queries.add(beforeQuery);
+        if (end != null) {
+            RangeQueryBuilder endQuery = QueryBuilders.rangeQuery(ScheduledEvent.START_TIME.getPreferredName());
+            endQuery.lt(end);
+            queries.add(endQuery);
         }
 
         if (calendarIds != null && calendarIds.isEmpty() == false) {

@@ -44,8 +44,8 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
             }
         } else {
             request = new GetCalendarEventsAction.Request(calendarId);
-            request.setAfter(restRequest.param(GetCalendarEventsAction.Request.AFTER.getPreferredName(), null));
-            request.setBefore(restRequest.param(GetCalendarEventsAction.Request.BEFORE.getPreferredName(), null));
+            request.setStart(restRequest.param(GetCalendarEventsAction.Request.START.getPreferredName(), null));
+            request.setEnd(restRequest.param(GetCalendarEventsAction.Request.END.getPreferredName(), null));
             request.setJobId(restRequest.param(Job.ID.getPreferredName(), null));
 
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

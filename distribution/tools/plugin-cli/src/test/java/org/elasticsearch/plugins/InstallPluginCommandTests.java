@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -433,10 +434,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testFileNotMaven() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        // has two colons, so it appears similar to maven coordinates
-        FileNotFoundException e = expectThrows(FileNotFoundException.class,
-            () -> installPlugin("file:C:\\path\\to\\plugin\\does_not_exists.zip", env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().startsWith("C:\\path\\to\\plugin\\does_not_exists.zip"));
+        String dir = randomAlphaOfLength(10) + ":" + randomAlphaOfLength(5) + "\\" + randomAlphaOfLength(5);
+        Exception e = expectThrows(Exception.class,
+            // has two colons, so it appears similar to maven coordinates
+            () -> installPlugin("file:" + dir, env.v1()));
+        assertFalse(e.getMessage(), e.getMessage().contains("maven.org"));
+        assertTrue(e.getMessage(), e.getMessage().contains(dir));
     }
 
     public void testUnknownPlugin() throws Exception {

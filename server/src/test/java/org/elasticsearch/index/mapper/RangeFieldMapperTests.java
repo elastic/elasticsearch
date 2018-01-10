@@ -363,6 +363,15 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 + InetAddresses.toAddrString(InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
         }
         assertThat(storedField.stringValue(), containsString(strVal));
+
+        // test null range
+        doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+        assertNull(doc.rootDoc().get("field"));
     }
 
     public void testNoBounds() throws Exception {

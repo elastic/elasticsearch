@@ -34,6 +34,9 @@ publishing {
     }
 }
 
+// There are no tests for these classes currently
+test.enabled = false
+
 dependencies {
     compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
@@ -41,7 +44,7 @@ dependencies {
 
 forbiddenApisMain {
     // elasticsearch-core does not depend on server
-    // TODO: Need to explore this
+    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
@@ -161,7 +164,7 @@ thirdPartyAudit.excludes = [
         'org.zeromq.ZMQ$Socket',
         'org.zeromq.ZMQ',
 
-        // NEW:
+        // These are different than server because we do not have jackson:
         'com.fasterxml.jackson.core.JsonGenerator',
         'com.fasterxml.jackson.core.JsonParser$Feature',
         'com.fasterxml.jackson.core.JsonParser',

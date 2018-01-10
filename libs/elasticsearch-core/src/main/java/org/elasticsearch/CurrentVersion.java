@@ -17,14 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.bootstrap.JarHell;
+public final class CurrentVersion {
 
-public class Loggers2 {
+    public static final String CURRENT_VERSION = "7.0.0-alpha1";
 
-    public static Logger getLogger(Class<JarHell> clazz) {
-        return ESLoggerFactory.getLogger(clazz);
-    }
 }

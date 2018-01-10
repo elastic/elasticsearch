@@ -107,7 +107,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
      */
-    synchronized void releaseCommit(final IndexCommit releasingCommit) {
+    synchronized void releaseCommit(final IndexCommit snapshotCommit) {
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
             "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
         final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount

@@ -503,3 +503,52 @@
   - length: { events: 2 }
   - match: { events.0.description: ny }
   - match: { events.1.description: other }
+
+---
+"Test get calendar events with job groups":
+# Test job group
+  - do:
+      xpack.ml.put_job:
+        job_id: cal-crud-job-with-events-group
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            },
+            "groups" : ["ben-holidays-group"]
+          }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "ben-holidays"
+        body: >
+          {
+            "job_ids": ["ben-holidays-group"]
+          }
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "ben-holidays"
+        body: >
+          { "description": "ski", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-27T00:00:00Z" }
+          { "description": "snow", "start_time": "2018-01-30T00:00:00Z", "end_time": "2018-02-01T00:00:00Z" }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: _all
+        job_id: "cal-crud-job-with-events-group"
+  - match: { count: 2 }
+  - length: { events: 2 }
+  - match: { events.0.description: ski }
+  - match: { events.1.description: snow }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: _all
+        job_id: "ben-holidays-group"
+  - match: { count: 2 }
+  - length: { events: 2 }
+  - match: { events.0.description: ski }
+  - match: { events.1.description: snow }

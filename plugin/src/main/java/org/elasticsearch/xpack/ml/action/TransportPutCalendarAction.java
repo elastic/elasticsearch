@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
@@ -59,7 +58,9 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        checkJobsExist(calendar.getJobIds(), listener::onFailure);
+        if (checkJobsOrGroupsExist(calendar.getJobIds(), listener::onFailure) == false) {
+            return;
+        }
 
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -88,15 +89,16 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
                 });
     }
 
-    private void checkJobsExist(List<String> jobIds, Consumer<Exception> errorHandler) {
+    private boolean checkJobsOrGroupsExist(List<String> jobIds, Consumer<Exception> errorHandler) {
         ClusterState state = clusterService.state();
         MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
         for (String jobId: jobIds) {
-            Set<String> jobs = mlMetadata.expandJobIds(jobId, true);
-            if (jobs.isEmpty()) {
+            if (mlMetadata.isGroupOrJob(jobId) == false) {
                 errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
-                return;
+                return false;
             }
         }
+
+        return true;
     }
 }

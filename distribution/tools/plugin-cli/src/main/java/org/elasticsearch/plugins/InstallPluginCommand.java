@@ -232,14 +232,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3 && pluginId.contains("/") == false) {
+        if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, true);
         }
 
         // fall back to plain old URL
-        if (pluginId.contains(":/") == false) {
+        if (pluginId.contains(":") == false) {
             // definitely not a valid url, so assume it is a plugin name
             List<String> plugins = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.spi;
 
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;

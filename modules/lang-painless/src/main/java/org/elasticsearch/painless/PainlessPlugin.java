@@ -20,9 +20,10 @@
 package org.elasticsearch.painless;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -32,7 +33,6 @@ import org.elasticsearch.script.ScriptEngine;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

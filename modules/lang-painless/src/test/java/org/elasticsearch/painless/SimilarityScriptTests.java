@@ -37,15 +37,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;

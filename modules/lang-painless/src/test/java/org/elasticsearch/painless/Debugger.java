@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;

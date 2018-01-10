@@ -23,9 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.painless.PainlessExtension;
-import org.elasticsearch.painless.Whitelist;
-import org.elasticsearch.painless.WhitelistLoader;
+import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 

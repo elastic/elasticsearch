@@ -33,7 +33,7 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.Whitelist;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.utils.MlStrings;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -36,6 +37,9 @@ public class FieldConfigWriter {
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
     private static final String FILTER_PREFIX = "filter.";
+    private static final String SCHEDULED_EVENT_PREFIX = "scheduledevent.";
+    private static final String SCHEDULED_EVENT_DESCRIPTION_SUFFIX = ".description";
+
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -65,6 +69,7 @@ public class FieldConfigWriter {
 
         writeDetectors(contents);
         writeFilters(contents);
+        writeScheduledEvents(contents);
         writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
                 contents, true);
 
@@ -78,13 +83,10 @@ public class FieldConfigWriter {
 
     private void writeDetectors(StringBuilder contents) throws IOException {
         int counter = 0;
-        List<DetectionRule> events = scheduledEvents.stream().map(e -> e.toDetectionRule(config.getBucketSpan()))
-                .collect(Collectors.toList());
-
         for (Detector detector : config.getDetectors()) {
             int detectorId = counter++;
             writeDetectorClause(detectorId, detector, contents);
-            writeDetectorRules(detectorId, detector, events, contents);
+            writeDetectorRules(detectorId, detector, contents);
         }
     }
 
@@ -102,21 +104,23 @@ public class FieldConfigWriter {
         contents.append(NEW_LINE);
     }
 
-    private void writeDetectorRules(int detectorId, Detector detector, List<DetectionRule> scheduledEvents,
-                                    StringBuilder contents) throws IOException {
+    private void writeDetectorRules(int detectorId, Detector detector, StringBuilder contents) throws IOException {
 
         List<DetectionRule> rules = new ArrayList<>();
         if (detector.getRules() != null) {
             rules.addAll(detector.getRules());
         }
-        rules.addAll(scheduledEvents);
 
         if (rules.isEmpty()) {
             return;
         }
 
         contents.append(DETECTOR_PREFIX).append(detectorId).append(DETECTOR_RULES_SUFFIX).append(EQUALS);
+        writeDetectionRulesJson(rules, contents);
+        contents.append(NEW_LINE);
+    }
 
+    private void writeDetectionRulesJson(List<DetectionRule> rules, StringBuilder contents) throws IOException {
         contents.append('[');
         boolean first = true;
         for (DetectionRule rule : rules) {
@@ -130,7 +134,6 @@ public class FieldConfigWriter {
             }
         }
         contents.append(']');
-        contents.append(NEW_LINE);
     }
 
     private void writeFilters(StringBuilder buffer) throws IOException {
@@ -152,6 +155,28 @@ public class FieldConfigWriter {
             filterAsJson.append(']');
             buffer.append(FILTER_PREFIX).append(filter.getId()).append(EQUALS).append(filterAsJson)
             .append(NEW_LINE);
+        }
+    }
+
+    private void writeScheduledEvents(StringBuilder contents) throws IOException {
+        if (scheduledEvents.isEmpty()) {
+            return;
+        }
+
+        int eventIndex = 0;
+        for (ScheduledEvent event: scheduledEvents) {
+
+            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
+                    .append(SCHEDULED_EVENT_DESCRIPTION_SUFFIX).append(EQUALS)
+                    .append(quoteField(event.getDescription()))
+                    .append(NEW_LINE);
+
+            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
+                    .append(DETECTOR_RULES_SUFFIX).append(EQUALS);
+            writeDetectionRulesJson(Collections.singletonList(event.toDetectionRule(config.getBucketSpan())), contents);
+            contents.append(NEW_LINE);
+
+            ++eventIndex;
         }
     }
 

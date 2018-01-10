@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.store.Directory;
@@ -90,9 +89,21 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         updateTranslogDeletionPolicy();
     }
 
+    private void updateTranslogDeletionPolicy() throws IOException {
+        assert Thread.holdsLock(this);
+        assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
+        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
+        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+
+        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
+        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
+        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
+    }
+
     /**
      * Captures the most recent commit point {@link #lastCommit} or the most recent safe commit point {@link #safeCommit}.
-     * Index files and translog of the capturing commit point won't be released until the commit reference is closed.
+     * Index files of the capturing commit point won't be released until the commit reference is closed.
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
@@ -116,22 +127,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
         }
-    }
-
-    private void updateTranslogDeletionPolicy() throws IOException {
-        assert Thread.holdsLock(this);
-        assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
-        long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        for (ObjectIntCursor<IndexCommit> entry : snapshottedCommits) {
-            assert entry.key.isDeleted() == false : "Snapshotted commit must not be deleted";
-            minRequiredGen = Math.min(minRequiredGen, Long.parseLong(entry.key.getUserData().get(Translog.TRANSLOG_GENERATION_KEY)));
-        }
-        assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
-        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-
-        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
     }
 
     /**

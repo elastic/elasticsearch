@@ -66,7 +66,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             case 0:
                 // use mapped integer field for numeric range queries
                 query = new RangeQueryBuilder(randomBoolean() ? INT_FIELD_NAME : INT_RANGE_FIELD_NAME);
-                query.from(randomIntBetween(1, 100));
+                query.from(randomIntBetween(0, 99));
+                // we need a gap of 1 between from/to for range fields, otherwise if
+                // from=100, to=101 and both includeLower=false and includeUpper=false, ranges
+                // can be min > max (101 > 100) which throws an error
                 query.to(randomIntBetween(101, 200));
                 break;
             case 1:

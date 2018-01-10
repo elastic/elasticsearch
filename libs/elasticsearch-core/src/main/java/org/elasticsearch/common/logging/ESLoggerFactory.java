@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.spi.ExtendedLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 
 /**
  * Factory to get {@link Logger}s
@@ -34,12 +31,6 @@ public final class ESLoggerFactory {
     private ESLoggerFactory() {
 
     }
-
-    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
-        new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
-    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
-        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
-            Property.NodeScope));
 
     public static Logger getLogger(String prefix, String name) {
         return getLogger(prefix, LogManager.getLogger(name));

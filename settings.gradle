@@ -28,6 +28,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage',
+  'libs:elasticsearch-core',
   'libs:elasticsearch-nio',
   'modules:aggs-matrix-stats',
   'modules:analysis-common',

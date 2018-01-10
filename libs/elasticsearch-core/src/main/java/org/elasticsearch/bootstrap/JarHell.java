@@ -20,10 +20,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.Loggers2;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -79,7 +78,7 @@ public class JarHell {
      */
     public static void checkJarHell() throws IOException, URISyntaxException {
         ClassLoader loader = JarHell.class.getClassLoader();
-        Logger logger = Loggers.getLogger(JarHell.class);
+        Logger logger = Loggers2.getLogger(JarHell.class);
         if (logger.isDebugEnabled()) {
             logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
             logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
@@ -120,7 +119,8 @@ public class JarHell {
             //   }
             // Instead we just throw an exception, and keep it clean.
             if (element.isEmpty()) {
-                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous version?) classpath='" + classPath + "'");
+                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous " +
+                    "version?) classpath='" + classPath + "'");
             }
             // we should be able to just Paths.get() each element, but unfortunately this is not the
             // whole story on how classpath parsing works: if you want to know, start at sun.misc.Launcher,
@@ -156,7 +156,7 @@ public class JarHell {
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
     public static void checkJarHell(Set<URL> urls) throws URISyntaxException, IOException {
-        Logger logger = Loggers.getLogger(JarHell.class);
+        Logger logger = Loggers2.getLogger(JarHell.class);
         // we don't try to be sneaky and use deprecated/internal/not portable stuff
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
         // a "list" at all. So just exclude any elements underneath the java home
@@ -216,20 +216,20 @@ public class JarHell {
 
     /** inspect manifest for sure incompatibilities */
     static void checkManifest(Manifest manifest, Path jar) {
-        // give a nice error if jar requires a newer java version
-        String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
-        if (targetVersion != null) {
-            checkVersionFormat(targetVersion);
-            checkJavaVersion(jar.toString(), targetVersion);
-        }
-
-        // give a nice error if jar is compiled against different es version
-        String systemESVersion = Version.CURRENT.toString();
-        String targetESVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-        if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
-            throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
-                    + ", your system: " + systemESVersion);
-        }
+//        // give a nice error if jar requires a newer java version
+//        String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
+//        if (targetVersion != null) {
+//            checkVersionFormat(targetVersion);
+//            checkJavaVersion(jar.toString(), targetVersion);
+//        }
+//
+//        // give a nice error if jar is compiled against different es version
+//        String systemESVersion = Version.CURRENT.toString();
+//        String targetESVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+//        if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
+//            throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
+//                    + ", your system: " + systemESVersion);
+//        }
     }
 
     public static void checkVersionFormat(String targetVersion) {
@@ -237,7 +237,8 @@ public class JarHell {
             throw new IllegalStateException(
                     String.format(
                             Locale.ROOT,
-                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was %s",
+                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have " +
+                                "leading zeros but was %s",
                             targetVersion
                     )
             );

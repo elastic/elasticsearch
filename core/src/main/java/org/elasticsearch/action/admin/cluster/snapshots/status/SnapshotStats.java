@@ -25,33 +25,28 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 
 public class SnapshotStats implements Streamable, ToXContentFragment {
+
     private long startTime;
-
     private long time;
-
     private int numberOfFiles;
-
     private int processedFiles;
-
     private long totalSize;
-
     private long processedSize;
 
     SnapshotStats() {
     }
 
-    SnapshotStats(IndexShardSnapshotStatus indexShardStatus) {
-        startTime = indexShardStatus.startTime();
-        time = indexShardStatus.time();
-        numberOfFiles = indexShardStatus.numberOfFiles();
-        processedFiles = indexShardStatus.processedFiles();
-        totalSize = indexShardStatus.totalSize();
-        processedSize = indexShardStatus.processedSize();
+    SnapshotStats(long startTime, long time, int numberOfFiles, int processedFiles, long totalSize, long processedSize) {
+        this.startTime = startTime;
+        this.time = time;
+        this.numberOfFiles = numberOfFiles;
+        this.processedFiles = processedFiles;
+        this.totalSize = totalSize;
+        this.processedSize = processedSize;
     }
 
     /**

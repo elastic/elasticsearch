@@ -769,8 +769,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         // 26 was BatchOperationException
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
                 org.elasticsearch.snapshots.SnapshotCreationException::new, 27, UNKNOWN_VERSION_ADDED),
-        DELETE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteFailedEngineException.class, // deprecated in 6.0, remove in 7.0
-                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28, UNKNOWN_VERSION_ADDED),
+        // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         DOCUMENT_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentMissingException.class,
                 org.elasticsearch.index.engine.DocumentMissingException::new, 29, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_EXCEPTION(org.elasticsearch.snapshots.SnapshotException.class,
@@ -866,8 +865,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.TimestampParsingException::new, 78, UNKNOWN_VERSION_ADDED),
         ROUTING_MISSING_EXCEPTION(org.elasticsearch.action.RoutingMissingException.class,
                 org.elasticsearch.action.RoutingMissingException::new, 79, UNKNOWN_VERSION_ADDED),
-        INDEX_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.IndexFailedEngineException.class, // deprecated in 6.0, remove in 7.0
-                org.elasticsearch.index.engine.IndexFailedEngineException::new, 80, UNKNOWN_VERSION_ADDED),
+        // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81, UNKNOWN_VERSION_ADDED),
         REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,

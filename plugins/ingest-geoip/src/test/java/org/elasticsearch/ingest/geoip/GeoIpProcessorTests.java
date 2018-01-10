@@ -187,6 +187,26 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("ip"), equalTo("80.231.5.0"));
     }
 
+    public void testAsn() throws Exception {
+        String ip = "82.170.213.79";
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-ASN.mmdb.gz");
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(3));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("asn"), equalTo(5615));
+        assertThat(geoData.get("organization_name"), equalTo("KPN B.V."));
+    }
+
     public void testAddressIsNotInTheDatabase() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
@@ -208,13 +228,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "www.google.com");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        try {
-            processor.execute(ingestDocument);
-            fail("did not get expected exception");
-        } catch (IllegalArgumentException expected) {
-            assertNotNull(expected.getMessage());
-            assertThat(expected.getMessage(), containsString("not an IP string literal"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), containsString("not an IP string literal"));
     }
 
     private static InputStream getDatabaseFileInputStream(String path) throws IOException {

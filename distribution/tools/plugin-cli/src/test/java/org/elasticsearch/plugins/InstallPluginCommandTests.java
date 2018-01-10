@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -44,6 +45,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -428,6 +430,16 @@ public class InstallPluginCommandTests extends ESTestCase {
         // has two colons, so it appears similar to maven coordinates
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin("://host:1234", env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+    }
+
+    public void testFileNotMaven() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        String dir = randomAlphaOfLength(10) + ":" + randomAlphaOfLength(5) + "\\" + randomAlphaOfLength(5);
+        Exception e = expectThrows(Exception.class,
+            // has two colons, so it appears similar to maven coordinates
+            () -> installPlugin("file:" + dir, env.v1()));
+        assertFalse(e.getMessage(), e.getMessage().contains("maven.org"));
+        assertTrue(e.getMessage(), e.getMessage().contains(dir));
     }
 
     public void testUnknownPlugin() throws Exception {

@@ -47,18 +47,16 @@ PUT range_index/_doc/1
 --------------------------------------------------
 //CONSOLE
 
-The following is an example of a `date_range` query over the `date_range` field named "time_frame".
+The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
 
 [source,js]
 --------------------------------------------------
-POST range_index/_search
+GET range_index/_search
 {
   "query" : {
-    "range" : {
-      "time_frame" : { <5>
-        "gte" : "2015-10-31",
-        "lte" : "2015-11-01",
-        "relation" : "within" <6>
+    "term" : {
+      "expected_attendees" : {
+        "value": 12
       }
     }
   }
@@ -104,6 +102,27 @@ The result produced by the above query.
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
+
+The following is an example of a `date_range` query over the `date_range` field named "time_frame".
+
+[source,js]
+--------------------------------------------------
+GET range_index/_search
+{
+  "query" : {
+    "range" : {
+      "time_frame" : { <5>
+        "gte" : "2015-10-31",
+        "lte" : "2015-11-01",
+        "relation" : "within" <6>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:range_index]
+
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
 <2> Example indexing a meeting with 10 to 20 attendees.
 <3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
@@ -111,6 +130,44 @@ The result produced by the above query.
 <5> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <6> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
     `INTERSECTS` (default).
+
+This query produces a similar result:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards" : {
+    "total": 2,
+    "successful": 2,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits" : {
+    "total" : 1,
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "range_index",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "expected_attendees" : {
+            "gte" : 10, "lte" : 20
+          },
+          "time_frame" : {
+            "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13/"took" : $body.took/]
+
 
 [[range-params]]
 ==== Parameters for range fields

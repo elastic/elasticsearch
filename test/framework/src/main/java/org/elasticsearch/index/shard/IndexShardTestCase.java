@@ -619,16 +619,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected void snapshotShard(final IndexShard shard,
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = new IndexShardSnapshotStatus();
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
             repository.snapshotShard(shard, snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(), snapshotStatus);
         }
-        assertEquals(IndexShardSnapshotStatus.Stage.DONE, snapshotStatus.stage());
-        assertEquals(shard.snapshotStoreMetadata().size(), snapshotStatus.numberOfFiles());
-        assertNull(snapshotStatus.failure());
+
+        final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+        assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
+        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getNumberOfFiles());
+        assertNull(lastSnapshotStatus.getFailure());
     }
 
     /**

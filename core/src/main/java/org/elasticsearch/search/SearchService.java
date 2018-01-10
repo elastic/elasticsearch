@@ -855,7 +855,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
-     * handles this as well since the result is always size * shards for Q_A_F
+     * handles this as well since the result is always size * shards for Q_T_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;

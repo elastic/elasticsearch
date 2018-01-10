@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.AbstractMap;
@@ -132,19 +133,43 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
         try {
-            // We cannot instantiate real analysis server at this point because the node might not have
-            // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
+
+            // We cannot instantiate real analysis server or similiarity service at this point because the node
+            // might not have been started yet. However, we don't really need real analyzers or similarities at
+            // this stage - so we can fake it using constant maps accepting every key.
+            // This is ok because all used similarities and analyzers for this index were known before the upgrade.
+            // Missing analyzers and similarities plugin will still trigger the apropriate error during the
+            // actual upgrade.
+
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
-            SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+
+            final Map<String, SimilarityProvider.Factory> similarityMap = new AbstractMap<String, SimilarityProvider.Factory>() {
+                @Override
+                public boolean containsKey(Object key) {
+                    return true;
+                }
+
+                @Override
+                public SimilarityProvider.Factory get(Object key) {
+                    assert key instanceof String : "key must be a string but was: " + key.getClass();
+                    return SimilarityService.BUILT_IN.get(SimilarityService.DEFAULT_SIMILARITY);
+                }
+
+                // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
+                // over all similarities
+                @Override
+                public Set<Entry<String, SimilarityProvider.Factory>> entrySet() {
+                    return Collections.emptySet();
+                }
+            };
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, similarityMap);
             final NamedAnalyzer fakeDefault = new NamedAnalyzer("default", AnalyzerScope.INDEX, new Analyzer() {
                 @Override
                 protected TokenStreamComponents createComponents(String fieldName) {
                     throw new UnsupportedOperationException("shouldn't be here");
                 }
             });
-            // this is just a fake map that always returns the same value for any possible string key
-            // also the entrySet impl isn't fully correct but we implement it since internally
-            // IndexAnalyzers will iterate over all analyzers to close them.
+
             final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
                 @Override
                 public NamedAnalyzer get(Object key) {
@@ -152,6 +177,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
                 }
 
+                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
+                // over all analyzers to close them
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
                     return Collections.emptySet();

@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ServerLoggers;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -109,8 +108,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private void setLevel(SlowLogLevel level) {
         this.level = level;
-        Loggers.setLevel(queryLogger, level.name());
-        Loggers.setLevel(fetchLogger, level.name());
+        ServerLoggers.setLevel(queryLogger, level.name());
+        ServerLoggers.setLevel(fetchLogger, level.name());
     }
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {

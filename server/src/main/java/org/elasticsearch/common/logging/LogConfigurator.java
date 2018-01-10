@@ -179,13 +179,13 @@ public class LogConfigurator {
     private static void configureLoggerLevels(final Settings settings) {
         if (ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
             final Level level = ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings);
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
         ServerLoggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
             .filter(s -> s.getKey().equals(ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false).forEach(s -> {
             final Level level = s.get(settings);
-            Loggers.setLevel(ESLoggerFactory.getLogger(s.getKey().substring("logger.".length())), level);
+            ServerLoggers.setLevel(ESLoggerFactory.getLogger(s.getKey().substring("logger.".length())), level);
         });
     }
 

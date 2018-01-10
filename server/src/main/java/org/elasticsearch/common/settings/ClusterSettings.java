@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.ServerLoggers;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -151,12 +150,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
                     }
                 } else {
-                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    ServerLoggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }

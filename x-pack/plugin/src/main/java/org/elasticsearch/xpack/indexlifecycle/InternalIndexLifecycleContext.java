@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
 
@@ -22,69 +23,74 @@ import java.util.function.LongSupplier;
 public class InternalIndexLifecycleContext implements IndexLifecycleContext {
 
     private Client client;
-    private IndexMetaData idxMeta;
+    private Index index;
     private LongSupplier nowSupplier;
     private ClusterService clusterService;
 
     /**
-     * @param idxMeta
-     *            the {@link IndexMetaData} for the index.
+     * @param index
+     *            the {@link Index} for this context.
      * @param client
      *            the {@link Client} to use when modifying the index settings.
      * @param nowSupplier
      *            a {@link LongSupplier} to provide the current timestamp when
      *            required.
      */
-    public InternalIndexLifecycleContext(IndexMetaData idxMeta, Client client, ClusterService clusterService, LongSupplier nowSupplier) {
-        this.idxMeta = idxMeta;
+    public InternalIndexLifecycleContext(Index index, Client client, ClusterService clusterService, LongSupplier nowSupplier) {
+        this.index = index;
         this.client = client;
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
     }
 
+    private IndexMetaData getIdxMetaData() {
+        return clusterService.state().metaData().index(index.getName());
+    }
+
     @Override
     public void setPhase(String phase, Listener listener) {
-        writeSettings(idxMeta.getIndex().getName(),
-                Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase)
-                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build(), listener);
+        Settings newLifecyclePhaseSettings = Settings.builder()
+            .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase)
+            .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+        writeSettings(index.getName(), newLifecyclePhaseSettings, listener);
     }
 
     @Override
     public String getPhase() {
-        return IndexLifecycle.LIFECYCLE_PHASE_SETTING.get(idxMeta.getSettings());
+        return IndexLifecycle.LIFECYCLE_PHASE_SETTING.get(getIdxMetaData().getSettings());
     }
 
     @Override
     public void setAction(String action, Listener listener) {
-        writeSettings(idxMeta.getIndex().getName(),
-                Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build(), listener);
+        Settings newLifecycleActionSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build();
+        writeSettings(index.getName(), newLifecycleActionSettings, listener);
     }
 
     @Override
     public String getAction() {
-        return IndexLifecycle.LIFECYCLE_ACTION_SETTING.get(idxMeta.getSettings());
+        return IndexLifecycle.LIFECYCLE_ACTION_SETTING.get(getIdxMetaData().getSettings());
     }
 
     @Override
     public String getLifecycleTarget() {
-        return idxMeta.getIndex().getName();
+        return index.getName();
     }
 
     @Override
     public int getNumberOfReplicas() {
-        return idxMeta.getNumberOfReplicas();
+        return getIdxMetaData().getNumberOfReplicas();
     }
 
     @Override
     public boolean canExecute(Phase phase) {
         long now = nowSupplier.getAsLong();
-        long indexCreated = idxMeta.getCreationDate();
+        long indexCreated = getIdxMetaData().getCreationDate();
         return (indexCreated + phase.getAfter().millis()) <= now;
     }
 
     @Override
     public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {
-        action.execute(idxMeta.getIndex(), client, clusterService, listener);
+        action.execute(index, client, clusterService, listener);
     }
 
     private void writeSettings(String index, Settings settings, Listener listener) {

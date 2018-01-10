@@ -139,6 +139,7 @@ class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
 class org.elasticsearch.painless.FeatureTest only_fqn {
+  int z
   ()
   (int,int)
   int getX()

@@ -70,6 +70,18 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         }
     }
 
+    public int read(ByteBuffer buffer) throws IOException {
+        return socketChannel.read(buffer);
+    }
+
+    public int read(ByteBuffer[] buffers) throws IOException {
+        if (buffers.length == 1) {
+            return socketChannel.read(buffers[0]);
+        } else {
+            return (int) socketChannel.read(buffers);
+        }
+    }
+
     public int read(InboundChannelBuffer buffer) throws IOException {
         int bytesRead = (int) socketChannel.read(buffer.sliceBuffersFrom(buffer.getIndex()));
 

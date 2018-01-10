@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,13 +48,13 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         this.stats = new SnapshotStats();
     }
 
-    SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus indexShardStatus) {
+    SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus) {
         this(shardId, indexShardStatus, null);
     }
 
-    SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus indexShardStatus, String nodeId) {
+    SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus, String nodeId) {
         super(shardId);
-        switch (indexShardStatus.stage()) {
+        switch (indexShardStatus.getStage()) {
             case INIT:
                 stage = SnapshotIndexShardStage.INIT;
                 break;
@@ -72,10 +71,12 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 stage = SnapshotIndexShardStage.FAILURE;
                 break;
             default:
-                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.stage());
+                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         }
-        stats = new SnapshotStats(indexShardStatus);
-        failure = indexShardStatus.failure();
+        this.stats = new SnapshotStats(indexShardStatus.getStartTime(), indexShardStatus.getTotalTime(),
+                                        indexShardStatus.getNumberOfFiles(), indexShardStatus.getProcessedFiles(),
+                                        indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
+        this.failure = indexShardStatus.getFailure();
         this.nodeId = nodeId;
     }
 

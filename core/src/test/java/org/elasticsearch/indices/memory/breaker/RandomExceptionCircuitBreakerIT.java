@@ -128,7 +128,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .setSettings(settings)
                 .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
         final int numDocs;
-        if (response.isShardsAcked() == false) {
+        if (response.isShardsAcknowledged() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
              * trying one node after another etc. that is ok but we need to make sure we don't wait
              * forever when indexing documents so we set numDocs = 1 and expect all shards to fail

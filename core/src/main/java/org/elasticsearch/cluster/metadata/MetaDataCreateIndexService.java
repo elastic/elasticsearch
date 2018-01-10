@@ -191,9 +191,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * before sending the response on the listener. If the index creation was successfully applied on
      * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
      * true, otherwise it will return false and no waiting will occur for started shards
-     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will also be false).  If the index
+     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will also be false).  If the index
      * creation in the cluster state was successful and the requisite shard copies were started before
-     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will
+     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will
      * return true, otherwise if the operation timed out, then it will return false.
      *
      * @param request the index creation cluster state update request
@@ -204,12 +204,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
-                    shardsAcked -> {
-                        if (shardsAcked == false) {
+                    shardsAcknowledged -> {
+                        if (shardsAcknowledged == false) {
                             logger.debug("[{}] index created, but the operation timed out while waiting for " +
                                              "enough shards to be started.", request.index());
                         }
-                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcked));
+                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     }, listener::onFailure);
             } else {
                 listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
@@ -277,7 +277,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // we only find a template when its an API call (a new index)
                 // find templates, highest order are better matching
-                List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
                 Map<String, Custom> customs = new HashMap<>();
 
@@ -563,22 +563,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             }
             super.onFailure(source, e);
-        }
-
-        private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
-            List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
-            for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
-                IndexTemplateMetaData metadata = cursor.value;
-                for (String template: metadata.patterns()) {
-                    if (Regex.simpleMatch(template, request.index())) {
-                        templateMetadata.add(metadata);
-                        break;
-                    }
-                }
-            }
-
-            CollectionUtil.timSort(templateMetadata, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
-            return templateMetadata;
         }
     }
 

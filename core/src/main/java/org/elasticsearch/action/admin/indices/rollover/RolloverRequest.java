@@ -202,7 +202,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * non-negative integer, up to the number of copies per shard (number of replicas + 1),
      * to wait for the desired amount of shard copies to become active before returning.
      * Index creation will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link RolloverResponse#isShardsAcked()} to
+     * to be active before returning.  Check {@link RolloverResponse#isShardsAcknowledged()} to
      * determine if the requisite shard copies were all started before returning or timing out.
      *
      * @param waitForActiveShards number of active shard copies to wait on

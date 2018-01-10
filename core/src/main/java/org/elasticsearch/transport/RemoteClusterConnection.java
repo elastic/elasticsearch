@@ -23,6 +23,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -279,6 +280,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             @Override
             public void close() throws IOException {
                 assert false: "proxy connections must not be closed";
+            }
+
+            @Override
+            public Version getVersion() {
+                return connection.getVersion();
             }
         };
     }

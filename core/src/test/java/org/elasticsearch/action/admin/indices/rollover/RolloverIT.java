@@ -277,4 +277,15 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
         }
     }
+
+    public void testRejectIfAliasFoundInTemplate() throws Exception {
+        client().admin().indices().preparePutTemplate("logs")
+            .setPatterns(Collections.singletonList("logs-*")).addAlias(new Alias("logs-write")).get();
+        assertAcked(client().admin().indices().prepareCreate("logs-000001").get());
+        ensureYellow("logs-write");
+        final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
+        assertThat(error.getMessage(), equalTo(
+            "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
+    }
 }

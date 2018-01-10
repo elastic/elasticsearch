@@ -78,7 +78,7 @@ public class BootstrapChecksTests extends ESTestCase {
     public void testLogMessageInProductionMode() throws NodeValidationException {
         final Logger logger = mock(Logger.class);
         BootstrapChecks.check(defaultContext, true, Collections.emptyList(), logger);
-        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        verify(logger).info("bound or publishing to a non-loopback address, enforcing bootstrap checks");
         verifyNoMoreInteractions(logger);
     }
 

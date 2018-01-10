@@ -805,17 +805,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        SnapshotContext snapshotContext = new SnapshotContext(shard, snapshotId, indexId, snapshotStatus);
-        snapshotStatus.startTime(System.currentTimeMillis());
-
+        SnapshotContext snapshotContext = new SnapshotContext(shard, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
-            snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
         } catch (Exception e) {
-            snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
-            snapshotStatus.failure(ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.moveToFailed(System.currentTimeMillis(), ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
@@ -838,14 +832,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
         Context context = new Context(snapshotId, version, indexId, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
-        IndexShardSnapshotStatus status = new IndexShardSnapshotStatus();
-        status.updateStage(IndexShardSnapshotStatus.Stage.DONE);
-        status.startTime(snapshot.startTime());
-        status.files(snapshot.numberOfFiles(), snapshot.totalSize());
-        // The snapshot is done which means the number of processed files is the same as total
-        status.processedFiles(snapshot.numberOfFiles(), snapshot.totalSize());
-        status.time(snapshot.time());
-        return status;
+        return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(), snapshot.numberOfFiles(), snapshot.totalSize());
     }
 
     @Override
@@ -1103,8 +1090,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private class SnapshotContext extends Context {
 
         private final Store store;
-
         private final IndexShardSnapshotStatus snapshotStatus;
+        private final long startTime;
 
         /**
          * Constructs new context
@@ -1114,10 +1101,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param indexId        the id of the index being snapshotted
          * @param snapshotStatus snapshot status to report progress
          */
-        SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus) {
+        SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
             super(snapshotId, Version.CURRENT, indexId, shard.shardId());
             this.snapshotStatus = snapshotStatus;
             this.store = shard.store();
+            this.startTime = startTime;
         }
 
         /**
@@ -1125,24 +1113,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *
          * @param snapshotIndexCommit snapshot commit point
          */
-        public void snapshot(IndexCommit snapshotIndexCommit) {
+        public void snapshot(final IndexCommit snapshotIndexCommit) {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
+
+            final Map<String, BlobMetaData> blobs;
+            try {
+                blobs = blobContainer.listBlobs();
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
+            }
+
+            long generation = findLatestFileNameGeneration(blobs);
+            Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs);
+            BlobStoreIndexShardSnapshots snapshots = tuple.v1();
+            int fileListGeneration = tuple.v2();
+
+            final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
+
             store.incRef();
             try {
-                final Map<String, BlobMetaData> blobs;
-                try {
-                    blobs = blobContainer.listBlobs();
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
-                }
-
-                long generation = findLatestFileNameGeneration(blobs);
-                Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs);
-                BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-                int fileListGeneration = tuple.v2();
-
-                final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
-
                 int indexNumberOfFiles = 0;
                 long indexTotalFilesSize = 0;
                 ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
@@ -1156,10 +1145,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                 }
                 for (String fileName : fileNames) {
-                    if (snapshotStatus.aborted()) {
+                    if (snapshotStatus.isAborted()) {
                         logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                     }
+
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetaData md = metadata.get(fileName);
                     BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = null;
@@ -1195,14 +1185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
-
-                if (snapshotStatus.aborted()) {
-                    logger.debug("[{}] [{}] Aborted during initialization", shardId, snapshotId);
-                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                }
-
-                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
+                snapshotStatus.moveToStarted(startTime, indexNumberOfFiles, indexTotalFilesSize);
 
                 for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                     try {
@@ -1211,36 +1194,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
                     }
                 }
-
-                snapshotStatus.indexVersion(snapshotIndexCommit.getGeneration());
-                // now create and write the commit point
-                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
-
-                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
-                    snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
-                    // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
-                    System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
-                //TODO: The time stored in snapshot doesn't include cleanup time.
-                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                try {
-                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getUUID());
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
-                }
-
-                // delete all files that are not referenced by any commit point
-                // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
-                List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
-                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
-                for (SnapshotFiles point : snapshots) {
-                    newSnapshotsList.add(point);
-                }
-                // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
-                finalize(newSnapshotsList, fileListGeneration + 1, blobs);
-                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
             } finally {
                 store.decRef();
             }
+
+            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+
+            // now create and write the commit point
+            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
+                                                                        lastSnapshotStatus.getIndexVersion(),
+                                                                        indexCommitPointFiles,
+                                                                        lastSnapshotStatus.getStartTime(),
+                                                                        // snapshotStatus.startTime() is assigned on the same machine,
+                                                                        // so it's safe to use with VLong
+                                                                        System.currentTimeMillis() - lastSnapshotStatus.getStartTime(),
+                                                                        lastSnapshotStatus.getNumberOfFiles(),
+                                                                        lastSnapshotStatus.getTotalSize());
+
+            //TODO: The time stored in snapshot doesn't include cleanup time.
+            logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+            try {
+                indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getUUID());
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+            }
+
+            // delete all files that are not referenced by any commit point
+            // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
+            List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
+            newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
+            for (SnapshotFiles point : snapshots) {
+                newSnapshotsList.add(point);
+            }
+            // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
+            finalize(newSnapshotsList, fileListGeneration + 1, blobs);
+            snapshotStatus.moveToDone(System.currentTimeMillis());
+
         }
 
         /**
@@ -1335,7 +1324,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             private void checkAborted() {
-                if (snapshotStatus.aborted()) {
+                if (snapshotStatus.isAborted()) {
                     logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
                     throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                 }

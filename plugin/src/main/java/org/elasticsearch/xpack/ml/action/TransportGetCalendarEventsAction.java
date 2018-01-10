@@ -50,8 +50,8 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
-                            .after(request.getAfter())
-                            .before(request.getBefore())
+                            .start(request.getStart())
+                            .end(request.getEnd())
                             .from(request.getPageParams().getFrom())
                             .size(request.getPageParams().getSize());
 

@@ -275,7 +275,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         if (updateParams.isUpdateScheduledEvents()) {
             Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
-            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().after(Long.toString(new Date().getTime()));
+            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(Long.toString(new Date().getTime()));
             jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
         } else {
             eventsListener.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));

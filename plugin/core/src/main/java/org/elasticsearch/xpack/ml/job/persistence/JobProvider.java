@@ -371,7 +371,7 @@ public class JobProvider {
                     ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
                     Date lastestRecordTime = paramsBuilder.getDataCounts().getLatestRecordTimeStamp();
                     if (lastestRecordTime != null) {
-                        scheduledEventsQueryBuilder.after(Long.toString(lastestRecordTime.getTime()));
+                        scheduledEventsQueryBuilder.start(Long.toString(lastestRecordTime.getTime()));
                     }
                     scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
                             events -> {

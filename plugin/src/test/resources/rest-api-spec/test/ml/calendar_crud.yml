@@ -279,7 +279,7 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
-        before: "2017-12-12T00:00:00Z"
+        end: "2017-12-12T00:00:00Z"
   - length: { events: 2 }
   - match: { events.0.description: "event 1" }
   - match: { events.1.description: "event 2" }
@@ -287,7 +287,7 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
-        after: "2017-12-05T03:00:00Z"
+        start: "2017-12-05T03:00:00Z"
   - length: { events: 3 }
   - match: { events.0.description: "event 2" }
   - match: { events.1.description: "event 3" }
@@ -296,8 +296,8 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: "events"
-        after: "2017-12-02T00:00:00Z"
-        before: "2017-12-12T00:00:00Z"
+        start: "2017-12-02T00:00:00Z"
+        end: "2017-12-12T00:00:00Z"
   - length: { events: 1 }
   - match: { events.0.description: "event 2" }
 
@@ -497,7 +497,7 @@
   - do:
       xpack.ml.get_calendar_events:
         calendar_id: _all
-        after: "2018-01-01T00:00:00Z"
+        start: "2018-01-01T00:00:00Z"
         job_id: cal-crud-job-with-events
   - match: { count: 2 }
   - length: { events: 2 }

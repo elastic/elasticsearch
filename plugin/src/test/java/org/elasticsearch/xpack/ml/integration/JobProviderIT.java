@@ -322,9 +322,9 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         // Test time filters
         // Lands halfway through the second event which should be returned
-        query.after(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
+        query.start(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
         // Lands halfway through the 3rd event which should be returned
-        query.before(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
+        query.end(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
         returnedEvents = getScheduledEventsForJob(jobA.getId(), Collections.emptyList(), query);
         assertEquals(2, returnedEvents.size());
         assertEquals(events.get(1), returnedEvents.get(0));

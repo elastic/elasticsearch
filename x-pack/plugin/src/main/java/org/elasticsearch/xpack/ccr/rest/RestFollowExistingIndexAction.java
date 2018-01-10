@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 
@@ -41,8 +42,11 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
         request.setFollowIndex(restRequest.param("follow_index"));
-        if (restRequest.hasParam("batch_size")) {
-            request.setBatchSize(Long.valueOf(restRequest.param("batch_size")));
+        if (restRequest.hasParam(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())) {
+            request.setBatchSize(Long.valueOf(restRequest.param(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())));
+        }
+        if (restRequest.hasParam(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())) {
+            request.setConcurrentProcessors(Integer.valueOf(restRequest.param(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())));
         }
         return channel -> client.execute(INSTANCE, request, new RestBuilderListener<Response>(channel) {
             @Override

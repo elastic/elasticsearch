@@ -126,8 +126,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneFilters(),
                 new PruneOrderBy(),
                 new PruneOrderByNestedFields(),
-                new PruneCast(),
-                new PruneDuplicateFunctions()
+                new PruneCast()
+                // requires changes in the folding
+                // since the exact same function, with the same ID can appear in multiple places
+                // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
+                //new PruneDuplicateFunctions()
                 );
 
         Batch local = new Batch("Skip Elasticsearch",
@@ -914,6 +917,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         return seenFunction;
                     }
                 }
+                seen.add(f);
             }
 
             return exp;
@@ -974,7 +978,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
 
     // replace attributes of foldable expressions with the foldable trees
-    // SELECT 5 a, a + 3, ...
+    // SELECT 5 a, 3 + 2 b ... WHERE a < 10 ORDER BY b
 
     static class ReplaceFoldableAttributes extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -1054,11 +1058,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            // preserve aliases
+            // handle aliases to avoid double aliasing of functions
+            // alias points to function which gets folded and wrapped in an alias that is
+            // aliases
             if (e instanceof Alias) {
                 Alias a = (Alias) e;
                 Expression fold = fold(a.child());
-                if (fold != e) {
+                if (fold != a.child()) {
                     return new Alias(a.location(), a.name(), null, fold, a.id());
                 }
                 return a;

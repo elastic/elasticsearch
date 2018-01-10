@@ -266,18 +266,17 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     void assertMetaPlugin(String metaPlugin, String name, Path original, Environment env) throws IOException {
-        assertPluginInternal(name, original, env,
-            env.pluginsFile().resolve(metaPlugin), env.configFile().resolve(metaPlugin), env.binFile().resolve(metaPlugin));
+        assertPluginInternal(name, env.pluginsFile().resolve(metaPlugin));
+        assertConfigAndBin(metaPlugin, original, env);
     }
-
 
     void assertPlugin(String name, Path original, Environment env) throws IOException {
-        assertPluginInternal(name, original, env,
-            env.pluginsFile(), env.configFile(), env.binFile());
+        assertPluginInternal(name, env.pluginsFile());
+        assertConfigAndBin(name, original, env);
+        assertInstallCleaned(env);
     }
 
-    void assertPluginInternal(String name, Path original, Environment env,
-                              Path pluginsFile, Path configFile, Path binFile) throws IOException {
+    void assertPluginInternal(String name, Path pluginsFile) throws IOException {
         Path got = pluginsFile.resolve(name);
         assertTrue("dir " + name + " exists", Files.exists(got));
 
@@ -294,17 +293,19 @@ public class InstallPluginCommandTests extends ESTestCase {
                     PosixFilePermission.OTHERS_READ,
                     PosixFilePermission.OTHERS_EXECUTE));
         }
-
         assertTrue("jar was copied", Files.exists(got.resolve("plugin.jar")));
         assertFalse("bin was not copied", Files.exists(got.resolve("bin")));
         assertFalse("config was not copied", Files.exists(got.resolve("config")));
+    }
+
+    void assertConfigAndBin(String name, Path original, Environment env) throws IOException {
         if (Files.exists(original.resolve("bin"))) {
-            Path binDir = binFile.resolve(name);
+            Path binDir = env.binFile().resolve(name);
             assertTrue("bin dir exists", Files.exists(binDir));
             assertTrue("bin is a dir", Files.isDirectory(binDir));
             PosixFileAttributes binAttributes = null;
             if (isPosix) {
-                binAttributes = Files.readAttributes(binFile, PosixFileAttributes.class);
+                binAttributes = Files.readAttributes(env.binFile(), PosixFileAttributes.class);
             }
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(binDir)) {
                 for (Path file : stream) {
@@ -317,7 +318,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             }
         }
         if (Files.exists(original.resolve("config"))) {
-            Path configDir = configFile.resolve(name);
+            Path configDir = env.configFile().resolve(name);
             assertTrue("config dir exists", Files.exists(configDir));
             assertTrue("config is a dir", Files.isDirectory(configDir));
 
@@ -326,7 +327,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
             if (isPosix) {
                 PosixFileAttributes configAttributes =
-                        Files.getFileAttributeView(configFile, PosixFileAttributeView.class).readAttributes();
+                        Files.getFileAttributeView(env.configFile(), PosixFileAttributeView.class).readAttributes();
                 user = configAttributes.owner();
                 group = configAttributes.group();
 
@@ -351,7 +352,6 @@ public class InstallPluginCommandTests extends ESTestCase {
                 }
             }
         }
-        assertInstallCleaned(env);
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
@@ -734,7 +734,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testExistingMetaConfig() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path envConfigDir = env.v2().configFile().resolve("my_plugins").resolve("fake");
+        Path envConfigDir = env.v2().configFile().resolve("my_plugins");
         Files.createDirectories(envConfigDir);
         Files.write(envConfigDir.resolve("custom.yml"), "existing config".getBytes(StandardCharsets.UTF_8));
         Path metaDir = createPluginDir(temp);

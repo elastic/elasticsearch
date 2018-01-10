@@ -667,7 +667,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             pluginInfos.add(info);
             Path tmpBinDir = plugin.resolve("bin");
             if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(metaInfo.getName()).resolve(info.getName());
+                Path destBinDir = env.binFile().resolve(metaInfo.getName());
                 deleteOnFailure.add(destBinDir);
                 installBin(info, tmpBinDir, destBinDir);
             }
@@ -676,7 +676,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             if (Files.exists(tmpConfigDir)) {
                 // some files may already exist, and we don't remove plugin config files on plugin removal,
                 // so any installed config files are left on failure too
-                Path destConfigDir = env.configFile().resolve(metaInfo.getName()).resolve(info.getName());
+                Path destConfigDir = env.configFile().resolve(metaInfo.getName());
                 installConfig(info, tmpConfigDir, destConfigDir);
             }
         }
@@ -743,7 +743,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         });
     }
-
 
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {

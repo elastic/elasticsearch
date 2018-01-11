@@ -49,6 +49,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -336,7 +337,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
             if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
-                try (XContentParser parser = sourceXContentType.xContent().createParser(NamedXContentRegistry.EMPTY, doc.getSource());
+                // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we're just copying the structure
+                try (XContentParser parser = sourceXContentType.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, doc.getSource());
                      XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);

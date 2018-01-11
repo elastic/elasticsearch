@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -753,7 +754,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("bar", parser.currentName());
@@ -787,7 +789,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeRawValue(new BytesArray(rawData));
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("foo", parser.currentName());
@@ -803,7 +806,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -831,7 +835,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, serialized);
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, serialized);
         Map<String, Object> map = parser.map();
         assertEquals("bar", map.get("foo"));
         assertEquals(bigInteger, map.get("bigint"));
@@ -1011,7 +1016,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, b.bytes());
+        XContentParser p = xcontentType().xContent()
+            .createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
@@ -1030,7 +1036,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
         }
         {
-            XContentParser emptyRegistryParser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, new byte[] {});
+            XContentParser emptyRegistryParser = xcontentType().xContent()
+                .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, new byte[] {});
             Exception e = expectThrows(ElasticsearchException.class,
                     () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("namedObject is not supported for this parser", e.getMessage());

@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1235,8 +1236,10 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
+        // LoggingDeprecationHandler is fine here because this is always run on the server
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
+            try (XContentParser parser = XContentFactory.xContent(bytes)
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

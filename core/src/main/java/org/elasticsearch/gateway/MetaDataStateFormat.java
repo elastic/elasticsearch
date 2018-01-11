@@ -32,6 +32,7 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -197,8 +198,9 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
+                    // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we don't have deprecated fields
                     try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(namedXContentRegistry,
-                            new InputStreamIndexInput(slice, contentSize))) {
+                            ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -312,7 +314,9 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
+                    // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we don't have deprecated fields
+                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry,
+                            ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {

@@ -25,12 +25,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,12 +36,12 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexTemplateMetaDataTests extends ESTestCase {
-
     // bwc for #21009
     public void testIndexTemplateMetaData510() throws IOException {
         IndexTemplateMetaData metaData = IndexTemplateMetaData.builder("foo")
@@ -102,7 +99,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
 
         BytesReference templateBytes = new BytesArray(template);
         final IndexTemplateMetaData indexTemplateMetaData;
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, templateBytes, XContentType.JSON)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, templateBytes)) {
             indexTemplateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
         }
 
@@ -115,7 +112,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         }
 
         final IndexTemplateMetaData indexTemplateMetaDataRoundTrip;
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, templateBytesRoundTrip, XContentType.JSON)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, templateBytesRoundTrip)) {
             indexTemplateMetaDataRoundTrip = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
         }
         assertThat(indexTemplateMetaData, equalTo(indexTemplateMetaDataRoundTrip));
@@ -141,8 +138,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
             randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
             "}}}";
-        try (XContentParser parser =
-                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(templateWithEmptyPattern), XContentType.JSON)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, templateWithEmptyPattern)) {
             final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
@@ -155,8 +151,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
             randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
             "}}}";
-        try (XContentParser parser =
-                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(templateWithoutPattern), XContentType.JSON)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, templateWithoutPattern)) {
             final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got null"));

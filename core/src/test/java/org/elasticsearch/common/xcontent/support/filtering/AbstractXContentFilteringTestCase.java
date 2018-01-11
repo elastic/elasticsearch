@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,8 +75,10 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
         try {
             XContent xContent = XContentFactory.xContent(actual.contentType());
-            XContentParser jsonParser = xContent.createParser(NamedXContentRegistry.EMPTY, expected.bytes());
-            XContentParser testParser = xContent.createParser(NamedXContentRegistry.EMPTY, actual.bytes());
+            XContentParser jsonParser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, expected.bytes());
+            XContentParser testParser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, actual.bytes());
 
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

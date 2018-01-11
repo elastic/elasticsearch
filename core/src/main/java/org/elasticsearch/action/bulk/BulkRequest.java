@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -304,7 +305,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
             // now parse the action
             // EMPTY is safe here because we never call namedObject
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
+            // TODO LoggingDeprecationHandler is probably not appropriate here because this is a request
+            // because LoggingDeprecationHandler is a server side thing but this is a request
+            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -348,45 +352,45 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (INDEX.match(currentFieldName)){
+                            if (INDEX.match(currentFieldName, parser.deprecationHandler())){
                                 if (!allowExplicitIndex) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = parser.text();
-                            } else if (TYPE.match(currentFieldName)) {
+                            } else if (TYPE.match(currentFieldName, parser.deprecationHandler())) {
                                 type = parser.text();
-                            } else if (ID.match(currentFieldName)) {
+                            } else if (ID.match(currentFieldName, parser.deprecationHandler())) {
                                 id = parser.text();
-                            } else if (ROUTING.match(currentFieldName)) {
+                            } else if (ROUTING.match(currentFieldName, parser.deprecationHandler())) {
                                 routing = parser.text();
-                            } else if (PARENT.match(currentFieldName)) {
+                            } else if (PARENT.match(currentFieldName, parser.deprecationHandler())) {
                                 parent = parser.text();
-                            } else if (OP_TYPE.match(currentFieldName)) {
+                            } else if (OP_TYPE.match(currentFieldName, parser.deprecationHandler())) {
                                 opType = parser.text();
-                            } else if (VERSION.match(currentFieldName)) {
+                            } else if (VERSION.match(currentFieldName, parser.deprecationHandler())) {
                                 version = parser.longValue();
-                            } else if (VERSION_TYPE.match(currentFieldName)) {
+                            } else if (VERSION_TYPE.match(currentFieldName, parser.deprecationHandler())) {
                                 versionType = VersionType.fromString(parser.text());
-                            } else if (RETRY_ON_CONFLICT.match(currentFieldName)) {
+                            } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.deprecationHandler())) {
                                 retryOnConflict = parser.intValue();
-                            } else if (PIPELINE.match(currentFieldName)) {
+                            } else if (PIPELINE.match(currentFieldName, parser.deprecationHandler())) {
                                 pipeline = parser.text();
-                            } else if (FIELDS.match(currentFieldName)) {
+                            } else if (FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains a simple value for parameter [fields] while a list is expected");
-                            } else if (SOURCE.match(currentFieldName)) {
+                            } else if (SOURCE.match(currentFieldName, parser.deprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
-                            if (FIELDS.match(currentFieldName)) {
+                            if (FIELDS.match(currentFieldName, parser.deprecationHandler())) {
                                 DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
                                 List<Object> values = parser.list();
                                 fields = values.toArray(new String[values.size()]);
                             } else {
                                 throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                             }
-                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName)) {
+                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName, parser.deprecationHandler())) {
                             fetchSourceContext = FetchSourceContext.fromXContent(parser);
                         } else if (token != XContentParser.Token.VALUE_NULL) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
@@ -428,8 +432,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .routing(routing)
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject
+                        // TODO LoggingDeprecationHandler is probably not appropriate here because this is a request
+                        // because LoggingDeprecationHandler is a server side thing but this is a request
                         try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                                        sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
+                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {

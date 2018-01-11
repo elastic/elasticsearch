@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -128,8 +129,10 @@ final class RemoteRequestBuilders {
 
     static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // EMPTY is safe here because we're not calling namedObject
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we do not interact with deprecation
         try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
+                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, query)) {
             entity.startObject();
 
             entity.field("query"); {

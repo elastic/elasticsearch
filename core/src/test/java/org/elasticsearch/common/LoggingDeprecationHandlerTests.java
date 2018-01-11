@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common;
 
-package org.elasticsearch.common.xcontent.cbor;
+import org.elasticsearch.test.ESTestCase;
 
-import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.common.ParseField.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
-
-public class CborXContentParser extends JsonXContentParser {
-
-    public CborXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, parser);
+/**
+ * Tests that the {@link LoggingDeprecationHandler} produces deprecation warnings
+ * in the expected way. Tools are built around this way so be weary of changing
+ * the patterns in this test.
+ */
+public class LoggingDeprecationHandlerTests extends ESTestCase {
+    public void testUsedDeprecatedName() {
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName("bar_foo", "foo_bar");
+        assertWarnings("Deprecated field [bar_foo] used, expected [foo_bar] instead");
     }
 
-    @Override
-    public XContentType contentType() {
-        return XContentType.CBOR;
+    public void testUsedDeprecatedField() {
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedField("like_text", "like");
+        assertWarnings("Deprecated field [like_text] used, replaced by [like]");
     }
 }

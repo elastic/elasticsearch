@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -48,7 +49,9 @@ public class ObjectPath {
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with the deprecation logic
+        try (XContentParser parser = xContent
+                .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, input)) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }

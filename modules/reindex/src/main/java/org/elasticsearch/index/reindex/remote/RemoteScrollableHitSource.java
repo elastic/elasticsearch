@@ -36,6 +36,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -195,8 +196,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                     }
                                 }
                                 // EMPTY is safe here because we don't call namedObject
+                                /* UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here
+                                 * because we don't have deprecated fields. All fields from
+                                 * all versions of Elasticsearch are considerd supported. */
                                 try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                                    content)) {
+                                        ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, content)) {
                                     parsedResponse = parser.apply(xContentParser, xContentType);
                                 } catch (ParsingException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it

@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -311,7 +312,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(BytesReference contextBytes,
             NamedXContentRegistry xContentRegistry, ContextMappings contextMappings) throws IOException {
-        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
+        // LoggingDeprecationHandler is fine here because we are on the server side
+        try (XContentParser contextParser = XContentHelper
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;

@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -94,7 +95,9 @@ public class ClientYamlSuiteRestSpec {
 
     private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
         try (InputStream stream = Files.newInputStream(jsonFile)) {
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, stream)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't have any deprecated fields
+            try (XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, stream)) {
                 String filename = jsonFile.getFileName().toString();
                 if (filename.equals("_common.json")) {
                     String currentFieldName = null;

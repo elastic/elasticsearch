@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.ParseField.DeprecationHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -83,31 +84,47 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, String content) throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
+     * @param xContentRegistry the named x content objects supported by this parser
+     * @param deprecationHandler handler called if the parser encounters any deprecated fields
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, InputStream is) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
+     * @param xContentRegistry the named x content objects supported by this parser
+     * @param deprecationHandler handler called if the parser encounters any deprecated fields
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, byte[] data) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
+     * @param xContentRegistry the named x content objects supported by this parser
+     * @param deprecationHandler handler called if the parser encounters any deprecated fields
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
+     * @param xContentRegistry the named x content objects supported by this parser
+     * @param deprecationHandler handler called if the parser encounters any deprecated fields
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
+     * @param xContentRegistry the named x content objects supported by this parser
+     * @param deprecationHandler handler called if the parser encounters any deprecated fields
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, Reader reader) throws IOException;
 
 }

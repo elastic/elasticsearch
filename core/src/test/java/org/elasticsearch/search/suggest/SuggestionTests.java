@@ -162,7 +162,6 @@ public class SuggestionTests extends ESTestCase {
     }
 
     public void testUnknownSuggestionTypeThrows() throws IOException {
-        XContent xContent = JsonXContent.jsonXContent;
         String suggestionString =
                  "{\"unknownType#suggestionName\":"
                     + "[{\"text\":\"entryText\","
@@ -174,7 +173,7 @@ public class SuggestionTests extends ESTestCase {
                                 + "\"collate_match\":true}]"
                             + "}]"
                 + "}";
-        try (XContentParser parser = xContent.createParser(xContentRegistry(), suggestionString)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggestionString)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);

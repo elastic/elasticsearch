@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -162,7 +163,9 @@ public class DocumentMapperParser {
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, source)) {
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because mapOrdered does not interact with deprecations
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, source)) {
             root = parser.mapOrdered();
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse mapping definition", e);

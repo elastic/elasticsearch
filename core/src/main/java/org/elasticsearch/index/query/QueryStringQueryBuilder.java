@@ -768,7 +768,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FIELDS_FIELD.match(currentFieldName)) {
+                if (FIELDS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     List<String> fields = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
@@ -779,76 +779,76 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                             "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     queryString = parser.text();
-                } else if (DEFAULT_FIELD_FIELD.match(currentFieldName)) {
+                } else if (DEFAULT_FIELD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     defaultField = parser.text();
-                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName)) {
+                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     defaultOperator = Operator.fromString(parser.text());
-                } else if (ANALYZER_FIELD.match(currentFieldName)) {
+                } else if (ANALYZER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     analyzer = parser.text();
-                } else if (QUOTE_ANALYZER_FIELD.match(currentFieldName)) {
+                } else if (QUOTE_ANALYZER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     quoteAnalyzer = parser.text();
-                } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName)) {
+                } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     allowLeadingWildcard = parser.booleanValue();
-                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
+                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     maxDeterminizedStates = parser.intValue();
-                } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName)) {
+                } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     enablePositionIncrements = parser.booleanValue();
-                } else if (ESCAPE_FIELD.match(currentFieldName)) {
+                } else if (ESCAPE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     escape = parser.booleanValue();
-                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     fuzzyPrefixLength = parser.intValue();
-                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     fuzzyMaxExpansions = parser.intValue();
-                } else if (FUZZY_REWRITE_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_REWRITE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     fuzzyRewrite = parser.textOrNull();
-                } else if (PHRASE_SLOP_FIELD.match(currentFieldName)) {
+                } else if (PHRASE_SLOP_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     phraseSlop = parser.intValue();
-                } else if (Fuzziness.FIELD.match(currentFieldName)) {
+                } else if (Fuzziness.FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     fuzziness = Fuzziness.parse(parser);
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (TYPE_FIELD.match(currentFieldName)) {
+                } else if (TYPE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     type = MultiMatchQueryBuilder.Type.parse(parser.text());
-                } else if (TIE_BREAKER_FIELD.match(currentFieldName)) {
+                } else if (TIE_BREAKER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     tieBreaker = parser.floatValue();
-                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName)) {
+                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     analyzeWildcard = parser.booleanValue();
-                } else if (REWRITE_FIELD.match(currentFieldName)) {
+                } else if (REWRITE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     rewrite = parser.textOrNull();
-                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName)) {
+                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     quoteFieldSuffix = parser.textOrNull();
-                } else if (LENIENT_FIELD.match(currentFieldName)) {
+                } else if (LENIENT_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     lenient = parser.booleanValue();
-                } else if (ALL_FIELDS_FIELD.match(currentFieldName)) {
+                } else if (ALL_FIELDS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     defaultField = "*";
-                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
+                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     maxDeterminizedStates = parser.intValue();
-                } else if (TIME_ZONE_FIELD.match(currentFieldName)) {
+                } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
                                 "] time_zone [" + parser.text() + "] is unknown");
                     }
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     queryName = parser.text();
-                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.deprecationHandler())) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
-                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
-                } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
+                } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
+                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (LOCALE_FIELD.match(currentFieldName)) {
+                } else if (LOCALE_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (USE_DIS_MAX_FIELD.match(currentFieldName)) {
+                } else if (USE_DIS_MAX_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (SPLIT_ON_WHITESPACE.match(currentFieldName)) {
+                } else if (SPLIT_ON_WHITESPACE.match(currentFieldName, parser.deprecationHandler())) {
                     // ignore, deprecated setting
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +

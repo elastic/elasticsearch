@@ -18,21 +18,65 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+
+import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Holds a field that can be found in a request while parsing and its different
  * variants, which may be deprecated.
  */
 public class ParseField {
+    /**
+     * Called when parsing deprecated fields.
+     */
+    public interface DeprecationHandler {
+        /**
+         * Called when the provided field name matches a deprecated name for the field.
+         * @param usedName the provided field name
+         * @param modernName the modern name for the field
+         */
+        void usedDeprecatedName(String usedName, String modernName);
+        /**
+         * Called when the provided field name matches the current field but the entire
+         * field has been marked as deprecated.
+         * @param usedName the provided field name
+         * @param replacedWith the name of the field that replaced this field
+         */
+        void usedDeprecatedField(String usedName, String replacedWith);
+    }
+    /**
+     * Throws an exception when we hit a deprecated field. Use this when creating an
+     * {@link XContentParser} that won't interact with deprecation logic at all or that
+     * doesn't support deprecated fields.
+     */
+    public static final DeprecationHandler UNSUPPORTED_OPERATION_DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+            + usedName + "] which is a deprecated name for [" + replacedWith + "]");
+        }
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which has been replaced with [" + modernName + "]");
+        }
+    };
+    /**
+     * {@link DeprecationHandler} that does nothing when it is notified
+     * of a deprecated field. Use this when there is no user to notify
+     * but deprecated fields are possible.
+     */
+    public static final DeprecationHandler IGNORING_DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };
 
     private final String name;
     private final String[] deprecatedNames;
@@ -99,12 +143,28 @@ public class ParseField {
     }
 
     /**
+     * Does {@code fieldName} match this field? Uses {@link LoggingDeprecationHandler}
+     * to prevent us from having to touch every call to {@code match} in the change
+     * that introduced {@linkplain LoggingDeprecationHandler}. In a followup this will
+     * be removed.
      * @param fieldName
      *            the field name to match against this {@link ParseField}
      * @return true if <code>fieldName</code> matches any of the acceptable
      *         names for this {@link ParseField}.
      */
     public boolean match(String fieldName) {
+        return match(fieldName, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    /**
+     * Does {@code fieldName} match this field?
+     * @param fieldName
+     *            the field name to match against this {@link ParseField}
+     * @param deprecationHandler called if {@code fieldName} is deprecated
+     * @return true if <code>fieldName</code> matches any of the acceptable
+     *         names for this {@link ParseField}.
+     */
+    public boolean match(String fieldName, DeprecationHandler deprecationHandler) {
         Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name
@@ -114,17 +174,13 @@ public class ParseField {
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array
-        String msg;
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
-                msg = "Deprecated field [" + fieldName + "] used, expected [" + name + "] instead";
-                if (allReplacedWith != null) {
-                    // If the field is entirely deprecated then there is no
-                    // preferred name so instead use the `allReplaceWith`
-                    // message to indicate what should be used instead
-                    msg = "Deprecated field [" + fieldName + "] used, replaced by [" + allReplacedWith + "]";
+                if (allReplacedWith == null) {
+                    deprecationHandler.usedDeprecatedName(fieldName, name);
+                } else {
+                    deprecationHandler.usedDeprecatedField(fieldName, allReplacedWith);
                 }
-                DEPRECATION_LOGGER.deprecated(msg);
                 return true;
             }
         }

@@ -28,6 +28,7 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -314,7 +315,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
-            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, content)) {
+            // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is safe here because we never interact with the deprecation handler
+            try (XContentParser parser = XContentFactory.xContent(contentType)
+                    .createParser(NamedXContentRegistry.EMPTY, ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -391,8 +394,10 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
         // EMPTY is safe here because we never call namedObject
+        // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because copyCurrentStructure does not interact with deprecations
         try (StreamInput input = content.streamInput();
-             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
+             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER, input)) {
             copyCurrentStructure(parser);
         }
     }

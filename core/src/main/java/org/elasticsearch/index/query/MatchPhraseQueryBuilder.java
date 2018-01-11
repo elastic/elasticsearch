@@ -182,15 +182,15 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (MatchQueryBuilder.QUERY_FIELD.match(currentFieldName)) {
+                        if (MatchQueryBuilder.QUERY_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             value = parser.objectText();
-                        } else if (MatchQueryBuilder.ANALYZER_FIELD.match(currentFieldName)) {
+                        } else if (MatchQueryBuilder.ANALYZER_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             analyzer = parser.text();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (SLOP_FIELD.match(currentFieldName)) {
+                        } else if (SLOP_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             slop = parser.intValue();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.deprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

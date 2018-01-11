@@ -595,7 +595,13 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
+        /*
+         * We use IGNORING_DEPRECATION_HANDLER because users of the high
+         * level rest client can't do anything about deprecated fields in
+         * the responses.
+         */
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(registry, ParseField.IGNORING_DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

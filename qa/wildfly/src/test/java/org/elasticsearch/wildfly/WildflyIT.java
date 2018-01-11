@@ -30,6 +30,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -84,9 +85,11 @@ public class WildflyIT extends LuceneTestCase {
             final HttpGet get = new HttpGet(new URI(str));
             try (
                     CloseableHttpResponse response = client.execute(get);
+                    // UNSUPPORTED_OPERATION_DEPRECATION_HANDLER is fine here because we don't interact with deprecation
                     XContentParser parser =
                             JsonXContent.jsonXContent.createParser(
                                     new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+                                    ParseField.UNSUPPORTED_OPERATION_DEPRECATION_HANDLER,
                                     response.getEntity().getContent())) {
                 final Map<String, Object> map = parser.map();
                 assertThat(map.get("first_name"), equalTo("John"));

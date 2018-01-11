@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.LoggingDeprecationHandler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -242,7 +243,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @return        The parsed {@link StoredScriptSource}.
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
+        // TODO LoggingDeprecationHandler shouldn't be visible here because this is client side code
+        try (XContentParser parser = xContentType.xContent().createParser(
+                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {

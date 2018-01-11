@@ -18,31 +18,51 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.ParseField.DeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ParseFieldTests extends ESTestCase {
+    private final DeprecationHandler failOnDeprecation = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+            fail("expected no deprecation but used a deprecated name [" + usedName + "] for [" + modernName + "]");
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            fail("expected no deprecation but used a deprecated field [" + usedName + "] for [" + replacedWith + "]");
+        }
+    };
+
     public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);
         String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
         ParseField withDeprecations = field.withDeprecation(deprecated);
         assertThat(field, not(sameInstance(withDeprecations)));
-        assertThat(field.match(name), is(true));
-        assertThat(field.match("foo bar"), is(false));
+        assertThat(field.match(name, failOnDeprecation), is(true));
+        assertThat(field.match("foo bar", failOnDeprecation), is(false));
         for (String deprecatedName : deprecated) {
-            assertThat(field.match(deprecatedName), is(false));
+            assertThat(field.match(deprecatedName, failOnDeprecation), is(false));
         }
 
-        assertThat(withDeprecations.match(name), is(true));
-        assertThat(withDeprecations.match("foo bar"), is(false));
+        assertThat(withDeprecations.match(name, failOnDeprecation), is(true));
+        assertThat(withDeprecations.match("foo bar", failOnDeprecation), is(false));
         for (String deprecatedName : deprecated) {
-            assertThat(withDeprecations.match(deprecatedName), is(true));
-            assertWarnings("Deprecated field [" + deprecatedName + "] used, expected [foo_bar] instead");
+            DeprecationHandler handler = mock(DeprecationHandler.class);
+            assertTrue(withDeprecations.match(deprecatedName, handler));
+            verify(handler).usedDeprecatedName(deprecatedName, name);
+            verifyNoMoreInteractions(handler);
         }
     }
 
@@ -50,13 +70,15 @@ public class ParseFieldTests extends ESTestCase {
         String name = "like_text";
         String[] deprecated = new String[]{"text", "same_as_text"};
         ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
-        assertFalse(field.match("not a field name"));
-        assertTrue(field.match("text"));
-        assertWarnings("Deprecated field [text] used, replaced by [like]");
-        assertTrue(field.match("same_as_text"));
-        assertWarnings("Deprecated field [same_as_text] used, replaced by [like]");
-        assertTrue(field.match("like_text"));
-        assertWarnings("Deprecated field [like_text] used, replaced by [like]");
+        assertFalse(field.match("not a field name", failOnDeprecation));
+        DeprecationHandler handler = mock(DeprecationHandler.class);
+        assertTrue(field.match("text", handler));
+        verify(handler).usedDeprecatedField("text", "like");
+        assertTrue(field.match("same_as_text", handler));
+        verify(handler).usedDeprecatedField("same_as_text", "like");
+        assertTrue(field.match("like_text", handler));
+        verify(handler).usedDeprecatedField("like_text", "like");
+        verifyNoMoreInteractions(handler);
     }
 
     public void testGetAllNamesIncludedDeprecated() {

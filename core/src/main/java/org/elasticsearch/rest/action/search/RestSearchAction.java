@@ -36,6 +36,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
@@ -140,12 +141,50 @@ public class RestSearchAction extends BaseRestHandler {
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
+            
+            String[] slice = request.paramAsStringArray("slice", null);
+            if(slice != null && slice.length > 0) {
+                searchRequest.source().slice(parseSlice(slice));
+            }
+        } else {
+            if(Strings.hasLength(request.param("slice"))) {
+                throw new IllegalArgumentException("'slice' is not supported without 'scroll'");
+            }
         }
-
+        
         searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+    }
+    
+    /**
+     * Parses value of query parameter 'slice'
+     * @param params a value of query parameter 'slice'
+     * @return instance of {@link SliceBuilder}
+     */
+    protected static SliceBuilder parseSlice(String[] params) {
+        if(params == null) {
+            throw new IllegalArgumentException("slice must have the following format: <id>,<max>,<field_name> (e.g. slice=DP,0,135)");
+        }
+        
+        int id;
+        int max;
+        try {
+            id = Integer.valueOf(params[0]);
+            max = Integer.valueOf(params[1]);
+        } catch(NumberFormatException e) {
+            throw new IllegalArgumentException("slice parameters id and max must be integer values. "+e.getMessage(), e);
+        }
+        
+        String fieldName = null;
+        if(params.length > 2) fieldName = params[2];
+        
+        if(Strings.hasLength(fieldName)) {
+            return new SliceBuilder(fieldName, id, max);
+        } else {
+            return new SliceBuilder(id, max);
+        }
     }
 
     /**

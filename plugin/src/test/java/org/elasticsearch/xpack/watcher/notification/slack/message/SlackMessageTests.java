@@ -61,8 +61,12 @@ public class SlackMessageTests extends ESTestCase {
                 String imageUrl = randomBoolean() ? null : randomAlphaOfLength(10);
                 String thumbUrl = randomBoolean() ? null : randomAlphaOfLength(10);
                 String[] markdownFields = randomBoolean() ? null : new String[]{"pretext"};
+                List<Action> actions = new ArrayList<>();
+                if (randomBoolean()) {
+                    actions.add(new Action("primary", "action_name", "button", "action_text", "https://elastic.co"));
+                }
                 attachments[i] = new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
-                        attachmentText, fields, imageUrl, thumbUrl, markdownFields);
+                        attachmentText, fields, imageUrl, thumbUrl, markdownFields, actions);
             }
         }
 
@@ -99,6 +103,13 @@ public class SlackMessageTests extends ESTestCase {
                         builder.field("value", field.value);
                         builder.field("short", field.isShort);
                         builder.endObject();
+                    }
+                    builder.endArray();
+                }
+                if (attachment.actions.isEmpty() == false) {
+                    builder.startArray("actions");
+                    for (Action action : attachment.actions) {
+                        action.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     }
                     builder.endArray();
                 }
@@ -159,6 +170,7 @@ public class SlackMessageTests extends ESTestCase {
                     String imageUrl = null;
                     String thumbUrl = null;
                     String[] markdownSupportedFields = null;
+                    List<Action> actions = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -201,6 +213,36 @@ public class SlackMessageTests extends ESTestCase {
                                 fieldList.add(new Field(fieldTitle, fieldValue, isShort));
                             }
                             fields = fieldList.toArray(new Field[fieldList.size()]);
+                        } else if ("actions".equals(currentFieldName)) {
+                            MockTextTemplateEngine engine = new MockTextTemplateEngine();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                Action.Template action = new Action.Template();
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                    if (token == XContentParser.Token.FIELD_NAME) {
+                                        currentFieldName = parser.currentName();
+                                    } else if (token.isValue()) {
+                                        switch (currentFieldName) {
+                                            case "url":
+                                                action.setUrl(new TextTemplate(parser.text()));
+                                                break;
+                                            case "name":
+                                                action.setName(new TextTemplate(parser.text()));
+                                                break;
+                                            case "style":
+                                                action.setStyle(new TextTemplate(parser.text()));
+                                                break;
+                                            case "text":
+                                                action.setText(new TextTemplate(parser.text()));
+                                                break;
+                                            case "type":
+                                                action.setType(new TextTemplate(parser.text()));
+                                                break;
+                                        }
+                                    }
+
+                                }
+                                actions.add(action.render(engine, Collections.emptyMap()));
+                            }
                         } else if ("image_url".equals(currentFieldName)) {
                             imageUrl = parser.text();
                         } else if ("thumb_url".equals(currentFieldName)) {
@@ -214,7 +256,7 @@ public class SlackMessageTests extends ESTestCase {
                         }
                     }
                     list.add(new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
-                            attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields));
+                            attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields, actions));
                 }
                 attachments = list.toArray(new Attachment[list.size()]);
             }
@@ -345,9 +387,29 @@ public class SlackMessageTests extends ESTestCase {
                     jsonBuilder.endArray();
                     markdownSupportedFields = new TextTemplate[] { new TextTemplate("pretext") };
                 }
+                List<Action.Template> actions = new ArrayList<>();
+                if (randomBoolean()) {
+                    jsonBuilder.startArray("actions");
+                    jsonBuilder.startObject();
+                    jsonBuilder.field("type", "button");
+                    jsonBuilder.field("text", "My text");
+                    jsonBuilder.field("url", "https://elastic.co");
+                    String style = randomFrom("primary", "danger");
+                    jsonBuilder.field("style", style);
+                    jsonBuilder.field("name", "somebuttonparty");
+                    jsonBuilder.endObject();
+                    jsonBuilder.endArray();
+                    Action.Template action = new Action.Template();
+                    action.setName(new TextTemplate("somebuttonparty"));
+                    action.setStyle(new TextTemplate(style));
+                    action.setText(new TextTemplate("My text"));
+                    action.setType(new TextTemplate("button"));
+                    action.setUrl(new TextTemplate("https://elastic.co"));
+                    actions.add(action);
+                }
                 jsonBuilder.endObject();
                 attachments[i] = new Attachment.Template(fallback, color, pretext, authorName, authorLink, authorIcon, title,
-                        titleLink, attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields);
+                        titleLink, attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields, actions);
             }
             jsonBuilder.endArray();
         }

@@ -35,10 +35,11 @@ public class Attachment implements MessageElement {
     final String imageUrl;
     final String thumbUrl;
     final String[] markdownSupportedFields;
+    final List<Action> actions;
 
     public Attachment(String fallback, String color, String pretext, String authorName, String authorLink,
                       String authorIcon, String title, String titleLink, String text, Field[] fields,
-                      String imageUrl, String thumbUrl, String[] markdownSupportedFields) {
+                      String imageUrl, String thumbUrl, String[] markdownSupportedFields, List<Action> actions) {
 
         this.fallback = fallback;
         this.color = color;
@@ -53,6 +54,7 @@ public class Attachment implements MessageElement {
         this.imageUrl = imageUrl;
         this.thumbUrl = thumbUrl;
         this.markdownSupportedFields = markdownSupportedFields;
+        this.actions = actions;
     }
 
     @Override
@@ -66,14 +68,14 @@ public class Attachment implements MessageElement {
                 Objects.equals(authorLink, that.authorLink) && Objects.equals(authorIcon, that.authorIcon) &&
                 Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
                 Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
-                Objects.equals(thumbUrl, that.thumbUrl) &&
+                Objects.equals(thumbUrl, that.thumbUrl) &&  Objects.equals(actions, that.actions) &&
                 Arrays.equals(markdownSupportedFields, that.markdownSupportedFields) && Arrays.equals(fields, that.fields);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                thumbUrl, markdownSupportedFields);
+                            thumbUrl, markdownSupportedFields, actions);
     }
 
     /**
@@ -131,6 +133,13 @@ public class Attachment implements MessageElement {
             }
             builder.endArray();
         }
+        if (actions != null && actions.isEmpty() == false) {
+            builder.startArray("actions");
+            for (Action action : actions) {
+                action.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
 
         return builder.endObject();
     }
@@ -150,12 +159,12 @@ public class Attachment implements MessageElement {
         final TextTemplate imageUrl;
         final TextTemplate thumbUrl;
         final TextTemplate[] markdownSupportedFields;
-
+        final List<Action.Template> actions;
 
         Template(TextTemplate fallback, TextTemplate color, TextTemplate pretext, TextTemplate authorName,
                  TextTemplate authorLink, TextTemplate authorIcon, TextTemplate title, TextTemplate titleLink,
                  TextTemplate text, Field.Template[] fields, TextTemplate imageUrl, TextTemplate thumbUrl,
-                 TextTemplate[] markdownSupportedFields) {
+                 TextTemplate[] markdownSupportedFields, List<Action.Template> actions) {
 
             this.fallback = fallback;
             this.color = color;
@@ -170,6 +179,7 @@ public class Attachment implements MessageElement {
             this.imageUrl = imageUrl;
             this.thumbUrl = thumbUrl;
             this.markdownSupportedFields = markdownSupportedFields;
+            this.actions = actions;
         }
 
         public Attachment render(TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults.AttachmentDefaults defaults) {
@@ -198,8 +208,15 @@ public class Attachment implements MessageElement {
                     markdownFields[i] = engine.render(this.markdownSupportedFields[i], model);
                 }
             }
+            List<Action> actions = new ArrayList<>();
+            if (this.actions != null && this.actions.isEmpty() == false) {
+                for (Action.Template action : this.actions) {
+                    actions.add(action.render(engine, model));
+                }
+            }
+
             return new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownFields);
+                    thumbUrl, markdownFields, actions);
         }
 
         @Override
@@ -209,20 +226,20 @@ public class Attachment implements MessageElement {
 
             Template template = (Template) o;
 
-            return Objects.equals(fallback, template.fallback) && Objects.equals(color, template.color)
-                    && Objects.equals(pretext, template.pretext) && Objects.equals(authorName, template.authorName)
-                    && Objects.equals(authorLink, template.authorLink) && Objects.equals(authorIcon, template.authorIcon)
-                    && Objects.equals(title, template.title) && Objects.equals(titleLink, template.titleLink)
-                    && Objects.equals(text, template.text) && Objects.equals(imageUrl, template.imageUrl)
-                    && Objects.equals(thumbUrl, template.thumbUrl)
-                    && Arrays.equals(fields, template.fields)
-                    && Arrays.equals(markdownSupportedFields, template.markdownSupportedFields);
+            return Objects.equals(fallback, template.fallback) && Objects.equals(color, template.color) &&
+                    Objects.equals(pretext, template.pretext) && Objects.equals(authorName, template.authorName) &&
+                    Objects.equals(authorLink, template.authorLink) && Objects.equals(authorIcon, template.authorIcon) &&
+                    Objects.equals(title, template.title) && Objects.equals(titleLink, template.titleLink) &&
+                    Objects.equals(text, template.text) && Objects.equals(imageUrl, template.imageUrl) &&
+                    Objects.equals(thumbUrl, template.thumbUrl) && Objects.equals(actions, template.actions) &&
+                    Arrays.equals(fields, template.fields) &&
+                    Arrays.equals(markdownSupportedFields, template.markdownSupportedFields);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownSupportedFields);
+                    thumbUrl, markdownSupportedFields, actions);
         }
 
         @Override
@@ -275,6 +292,13 @@ public class Attachment implements MessageElement {
                 }
                 builder.endArray();
             }
+            if (actions != null && actions.isEmpty() == false) {
+                builder.startArray(XField.ACTIONS.getPreferredName());
+                for (Action.Template action : actions) {
+                    action.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
 
             return builder.endObject();
         }
@@ -294,6 +318,7 @@ public class Attachment implements MessageElement {
             TextTemplate imageUrl = null;
             TextTemplate thumbUrl = null;
             TextTemplate[] markdownFields = null;
+            List<Action.Template> actions = new ArrayList<>();
 
             XContentParser.Token token = null;
             String currentFieldName = null;
@@ -411,11 +436,15 @@ public class Attachment implements MessageElement {
                         markdownFields = list.toArray(new TextTemplate[list.size()]);
                     } else {
                         try {
-                            markdownFields = new TextTemplate[]{ new TextTemplate(parser.text())};
+                            markdownFields = new TextTemplate[]{new TextTemplate(parser.text())};
                         } catch (ElasticsearchParseException pe) {
                             throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                     XField.MARKDOWN_IN);
                         }
+                    }
+                } else if (XField.ACTIONS.match(currentFieldName)) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        actions.add(Action.ACTION_PARSER.parse(parser, null));
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]",
@@ -439,7 +468,7 @@ public class Attachment implements MessageElement {
                 }
             }
             return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownFields);
+                    thumbUrl, markdownFields, actions);
         }
 
 
@@ -462,6 +491,7 @@ public class Attachment implements MessageElement {
             private TextTemplate imageUrl;
             private TextTemplate thumbUrl;
             private List<TextTemplate> markdownFields = new ArrayList<>();
+            private List<Action.Template> actions = new ArrayList<>();
 
             private Builder() {
             }
@@ -579,12 +609,17 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
+            public Builder addAction(Action.Template action) {
+                this.actions.add(action);
+                return this;
+            }
+
             public Template build() {
                 Field.Template[] fields = this.fields.isEmpty() ? null : this.fields.toArray(new Field.Template[this.fields.size()]);
                 TextTemplate[] markdownFields =
                         this.markdownFields.isEmpty() ? null : this.markdownFields.toArray(new TextTemplate[this.markdownFields.size()]);
-                return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields,
-                        imageUrl, thumbUrl, markdownFields);
+                return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
+                        thumbUrl, markdownFields, actions);
             }
         }
     }
@@ -603,5 +638,6 @@ public class Attachment implements MessageElement {
         ParseField THUMB_URL = new ParseField("thumb_url");
 
         ParseField MARKDOWN_IN = new ParseField("mrkdwn_in");
+        ParseField ACTIONS = new ParseField("actions");
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.hppc.LongLongMap;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.IOException;
@@ -77,15 +78,30 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
+    /**
+     * Creates a new snapshot.
+     *
+     * @return a snapshot
+     */
     public TranslogSnapshot newSnapshot() {
         return new TranslogSnapshot(this, sizeInBytes());
+    }
+
+    /**
+     * Creates a new random-access snapshot using the specified index to access the underlying snapshot by sequence number.
+     *
+     * @param index the random-access index for this snapshot
+     * @return a random-access snapshot
+     */
+    public RandomAccessTranslogSnapshot newRandomAccessSnapshot(final LongLongMap index) {
+        return new RandomAccessTranslogSnapshot(this, sizeInBytes(), index);
     }
 
     /**
      * reads an operation at the given position and returns it. The buffer length is equal to the number
      * of bytes reads.
      */
-    protected final BufferedChecksumStreamInput checksummedStream(ByteBuffer reusableBuffer, long position, int opSize, BufferedChecksumStreamInput reuse) throws IOException {
+    final BufferedChecksumStreamInput checksumStream(ByteBuffer reusableBuffer, long position, int opSize, BufferedChecksumStreamInput reuse) throws IOException {
         final ByteBuffer buffer;
         if (reusableBuffer.capacity() >= opSize) {
             buffer = reusableBuffer;
@@ -106,7 +122,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     /**
      * reads bytes at position into the given buffer, filling it.
      */
-    protected abstract  void readBytes(ByteBuffer buffer, long position) throws IOException;
+    protected abstract void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
     public String toString() {

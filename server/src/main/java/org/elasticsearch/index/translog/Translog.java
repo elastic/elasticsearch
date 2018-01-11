@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+import com.carrotsearch.hppc.LongLongMap;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.UUIDs;
@@ -61,12 +64,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -122,6 +131,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
+
+    private final ConcurrentHashMap<Long, CompletableFuture<LongLongMap>> randomAccessIndexes = new ConcurrentHashMap<>();
+
+    LongLongMap getRandomAccessIndexForGeneration(final long generation) throws ExecutionException, InterruptedException {
+        final Future<LongLongMap> future = randomAccessIndexes.get(generation);
+        return future == null ? null : future.get();
+    }
+
+    private LongLongMap currentRandomAccessIndex;
+
+    LongLongMap getRandomAccessIndexForCurrentGeneration() {
+        try (Releasable ignored = readLock.acquire()) {
+            return currentRandomAccessIndex;
+        }
+    }
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -466,6 +490,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param initialGlobalCheckpoint the global checkpoint to be written in the first checkpoint.
      */
     TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint) throws IOException {
+        final LongLongMap index = new LongLongHashMap();
+        final CompletableFuture<LongLongMap> future = new CompletableFuture<>();
+        future.complete(index);
+        currentRandomAccessIndex = index;
+        randomAccessIndexes.put(fileGeneration, future);
         final TranslogWriter newFile;
         try {
             newFile = TranslogWriter.create(
@@ -504,7 +533,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                return current.add(bytes, operation.seqNo());
+                return current.add(bytes, operation.seqNo(), position -> currentRandomAccessIndex.put(operation.seqNo(), position));
             }
         } catch (final AlreadyClosedException | IOException ex) {
             try {
@@ -595,7 +624,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                     .filter(reader -> reader.getGeneration() >= minGeneration)
                     .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            return newMultiSnapshot(snapshots);
+            return newMultiSnapshot(snapshots, MultiSnapshot::new);
         }
     }
 
@@ -616,22 +645,101 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             TranslogSnapshot[] snapshots = readersBetweenMinAndMaxSeqNo(minSeqNo, maxSeqNo)
                     .map(BaseTranslogReader::newSnapshot)
                     .toArray(TranslogSnapshot[]::new);
-            return newMultiSnapshot(snapshots);
+            return newMultiSnapshot(snapshots, MultiSnapshot::new);
         }
     }
 
-    private Snapshot newMultiSnapshot(TranslogSnapshot[] snapshots) throws IOException {
+    /**
+     * Returns a random-access snapshot to operations in the translog with sequence number between the specified range (inclusive).
+     *
+     * @param minSeqNo the minimum sequence number in the snapshot
+     * @param maxSeqNo the maximum sequence number in the snapshot
+     * @return a random-access snapshot
+     * @throws IOException if an I/O exception occurs building the underlying random-access index
+     */
+    public RandomAccessSnapshot getRandomAccessSnapshot(final long minSeqNo, final long maxSeqNo) throws IOException {
+        if (minSeqNo < 0) {
+            throw new IllegalArgumentException("minSeqNo [" + minSeqNo + "] must be positive");
+        }
+        if (maxSeqNo < minSeqNo) {
+            throw new IllegalArgumentException("maxSeqNo [" + maxSeqNo + "] must be at least minSeqNo [" + minSeqNo + "]");
+        }
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            final List<BaseTranslogReader> readersBetweenMinAndMaxSeqNo =
+                    readersBetweenMinAndMaxSeqNo(minSeqNo, maxSeqNo).collect(Collectors.toList());
+            final List<RandomAccessTranslogSnapshot> snapshots = new ArrayList<>();
+            for (final BaseTranslogReader reader : readersBetweenMinAndMaxSeqNo) {
+                snapshots.add(reader.newRandomAccessSnapshot(getRandomAccessIndex(reader.getGeneration())));
+            }
+            return newMultiSnapshot(snapshots.toArray(new RandomAccessTranslogSnapshot[0]), RandomAccessMultiSnapshot::new);
+        }
+    }
+
+    /**
+     * Gets or builds a random-access index to a snapshot for the specified generation.
+     *
+     * @param generation the generation
+     * @return a random-access index from sequence number to position
+     * @throws IOException if an I/O exception occurs building the underlying random-access index
+     */
+    private LongLongMap getRandomAccessIndex(final long generation) throws IOException {
+        assert readLock.isHeldByCurrentThread();
+        // only one thread can win the race to put a future to the index in the map; all other threads will block until the index is built
+        final CompletableFuture<LongLongMap> value = new CompletableFuture<>();
+        final CompletableFuture<LongLongMap> future = randomAccessIndexes.putIfAbsent(generation, value);
+        if (future == null) {
+            final LongLongMap index = new LongLongHashMap();
+            final Optional<TranslogReader> optional = readers.stream().filter(r -> r.getGeneration() == generation).findFirst();
+            if (optional.isPresent()) {
+                final BaseTranslogReader reader = optional.get();
+                final TranslogSnapshot snapshot = reader.newSnapshot();
+                Translog.OperationWithPosition it;
+                while ((it = snapshot.next()) != null) {
+                    index.put(it.operation().seqNo(), it.position());
+                }
+                value.complete(index);
+                return index;
+            } else {
+                throw new IllegalStateException("could not find translog reader matching generation [" + generation + "]");
+            }
+        } else {
+            try {
+                return future.get();
+            } catch (final ExecutionException | InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    /**
+     * Construct a new multi-snapshot over the specified snapshots.
+     *
+     * @param snapshots the snapshots to form a multi-snapshot over
+     * @param constructor the multi-snapshot constructor
+     * @param <T> the type of the multi-snapshot
+     * @param <U> the type of the underlying snapshots
+     * @return a multi-snapshot over the specified snapshots
+     * @throws IOException if an I/O exception occurs closing any acquired resources
+     */
+    private <T, U extends BaseTranslogReader> T newMultiSnapshot(
+            final U[] snapshots,
+            final BiFunction<U[], Closeable, T> constructor) throws IOException {
         final Closeable onClose;
         if (snapshots.length == 0) {
             onClose = () -> {};
         } else {
-            assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
-                == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
+            if (Assertions.ENABLED) {
+                final long[] generations = Arrays.stream(snapshots).mapToLong(BaseTranslogReader::getGeneration).toArray();
+                assert generations.length > 0;
+                assert Arrays.stream(generations).boxed().min(Long::compareTo).get()
+                        == snapshots[0].generation : "first reader generation of " + Arrays.toString(generations) + " is not the smallest";
+            }
             onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
         }
         boolean success = false;
         try {
-            Snapshot result = new MultiSnapshot(snapshots, onClose);
+            T result = constructor.apply(snapshots, onClose);
             success = true;
             return result;
         } finally {
@@ -840,6 +948,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public interface RandomAccessSnapshot extends Closeable {
+        Translog.Operation operation(long seqNo) throws IOException;
+    }
+
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
@@ -954,6 +1066,30 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 default:
                     throw new AssertionError("no case for [" + operation.opType() + "]");
             }
+        }
+
+    }
+
+    /**
+     * Wrapper for a translog operation with its position in the translog generation to which it belongs.
+     */
+    static final class OperationWithPosition {
+
+        private final Translog.Operation operation;
+
+        public Operation operation() {
+            return operation;
+        }
+
+        private final long position;
+
+        public long position() {
+            return position;
+        }
+
+        OperationWithPosition(final Operation operation, final long position) {
+            this.operation = operation;
+            this.position = position;
         }
 
     }
@@ -1608,6 +1744,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // but crashed before we could delete the file.
                 current.sync();
                 deleteReaderFiles(reader);
+                randomAccessIndexes.remove(reader.getGeneration());
             }
             assert readers.isEmpty() == false || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +

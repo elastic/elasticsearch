@@ -16,35 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.translog;
+
+import com.carrotsearch.hppc.LongLongMap;
 
 import java.io.IOException;
 
 /**
- * A forward-only iterator over a fixed snapshot of a single translog generation.
+ * A random-access iterator over a fixed snapshot of a single translog generation.
  */
-final class TranslogSnapshot extends TranslogSnapshotReader {
+final class RandomAccessTranslogSnapshot extends TranslogSnapshotReader {
+
+    private final LongLongMap index;
 
     /**
-     * Create a snapshot of the translog file channel. This gives a forward-only iterator over the operations in the snapshot.
+     * Create a snapshot of the translog file channel. This gives a random-access iterator over the operations in the snapshot, indexed by
+     * the specified map from sequence number to position.
      *
      * @param reader the underlying reader
      * @param length the size in bytes of the underlying snapshot
+     * @param index  the random-access index from sequence number to position for this snapshot
      */
-    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+    RandomAccessTranslogSnapshot(final BaseTranslogReader reader, final long length, final LongLongMap index) {
         super(reader, length);
+        this.index = index;
     }
 
-    /**
-     * The current operation. The iterator is advanced to the next operation. If the iterator reaches the end of the snapshot, further
-     * invocations of this method will return null.
-     *
-     * @return the current operation, or null if at the end of this this snapshot
-     * @throws IOException if an I/O exception occurs reading the snapshot
-     */
-    Translog.OperationWithPosition next() throws IOException {
-        if (getReadOperations() < totalOperations()) {
-            return readOperation();
+    Translog.Operation operation(final long seqNo) throws IOException {
+        if (index.containsKey(seqNo)) {
+            return readOperation(index.get(seqNo));
         } else {
             return null;
         }

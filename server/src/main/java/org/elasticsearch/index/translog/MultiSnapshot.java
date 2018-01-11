@@ -66,8 +66,9 @@ final class MultiSnapshot implements Translog.Snapshot {
     public Translog.Operation next() throws IOException {
         for (; index >= 0; index--) {
             final TranslogSnapshot current = translogs[index];
-            Translog.Operation op;
-            while ((op = current.next()) != null) {
+            Translog.OperationWithPosition it;
+            while ((it = current.next()) != null) {
+                final Translog.Operation op = it.operation();
                 if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
                     return op;
                 } else {

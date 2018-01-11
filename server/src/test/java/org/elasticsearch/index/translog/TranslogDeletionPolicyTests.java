@@ -181,7 +181,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(new BytesArray(bytes), ops);
+                writer.add(new BytesArray(bytes), ops, position -> {});
             }
         }
         return new Tuple<>(readers, writer);

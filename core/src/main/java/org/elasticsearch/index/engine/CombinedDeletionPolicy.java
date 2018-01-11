@@ -19,14 +19,17 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -42,12 +45,16 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
+    private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
+    private IndexCommit lastCommit; // the most recent commit point
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier) {
         this.openMode = openMode;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.snapshottedCommits = new ObjectIntHashMap<>();
     }
 
     @Override
@@ -70,24 +77,56 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+        lastCommit = commits.get(commits.size() - 1);
+        safeCommit = commits.get(keptPosition);
         for (int i = 0; i < keptPosition; i++) {
-            commits.get(i).delete();
+            if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                commits.get(i).delete();
+            }
         }
-        updateTranslogDeletionPolicy(commits.get(keptPosition), commits.get(commits.size() - 1));
+        updateTranslogDeletionPolicy();
     }
 
-    private void updateTranslogDeletionPolicy(final IndexCommit minRequiredCommit, final IndexCommit lastCommit) throws IOException {
-        assert minRequiredCommit.isDeleted() == false : "The minimum required commit must not be deleted";
-        final long minRequiredGen = Long.parseLong(minRequiredCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-
+    private void updateTranslogDeletionPolicy() throws IOException {
+        assert Thread.holdsLock(this);
+        assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
+        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
         final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
 
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
+    }
+
+    /**
+     * Captures the most recent commit point {@link #lastCommit} or the most recent safe commit point {@link #safeCommit}.
+     * Index files of the capturing commit point won't be released until the commit reference is closed.
+     *
+     * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
+     */
+    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+        assert safeCommit != null : "Safe commit is not initialized yet";
+        assert lastCommit != null : "Last commit is not initialized yet";
+        final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
+        snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        return new SnapshotIndexCommit(snapshotting);
+    }
+
+    /**
+     * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+     */
+    synchronized void releaseCommit(final IndexCommit snapshotCommit) {
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
+        assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
+            "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
+        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
+        assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
+        if (refCount == 0) {
+            snapshottedCommits.remove(releasingCommit);
+        }
     }
 
     /**
@@ -138,5 +177,61 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
          * However, that commit may not be a safe commit if writes are in progress in the primary.
          */
         return 0;
+    }
+
+    /**
+     * A wrapper of an index commit that prevents it from being deleted.
+     */
+    private static class SnapshotIndexCommit extends IndexCommit {
+        private final IndexCommit delegate;
+
+        SnapshotIndexCommit(IndexCommit delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return delegate.getSegmentsFileName();
+        }
+
+        @Override
+        public Collection<String> getFileNames() throws IOException {
+            return delegate.getFileNames();
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return delegate.getDirectory();
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("A snapshot commit does not support deletion");
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return delegate.isDeleted();
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return delegate.getSegmentCount();
+        }
+
+        @Override
+        public long getGeneration() {
+            return delegate.getGeneration();
+        }
+
+        @Override
+        public Map<String, String> getUserData() throws IOException {
+            return delegate.getUserData();
+        }
+
+        @Override
+        public String toString() {
+            return "SnapshotIndexCommit{" + delegate + "}";
+        }
     }
 }

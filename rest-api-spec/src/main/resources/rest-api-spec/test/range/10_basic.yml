@@ -115,8 +115,6 @@ setup:
   - match: { hits.total: 4 }
 
 ---
-
----
 "Long range":
 
   - do:

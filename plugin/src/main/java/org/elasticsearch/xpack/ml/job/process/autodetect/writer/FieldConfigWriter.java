@@ -168,7 +168,7 @@ public class FieldConfigWriter {
 
             contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
                     .append(SCHEDULED_EVENT_DESCRIPTION_SUFFIX).append(EQUALS)
-                    .append(quoteField(event.getDescription()))
+                    .append(event.getDescription())
                     .append(NEW_LINE);
 
             contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)

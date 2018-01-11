@@ -48,7 +48,7 @@ final class LocalShardSnapshot implements Closeable {
         store.incRef();
         boolean success = false;
         try {
-            indexCommit = shard.acquireIndexCommit(true);
+            indexCommit = shard.acquireIndexCommit(false, true);
             success = true;
         } finally {
             if (success == false) {

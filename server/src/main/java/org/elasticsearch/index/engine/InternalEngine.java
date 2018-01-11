@@ -125,7 +125,7 @@ public class InternalEngine extends Engine {
 
     private final String uidField;
 
-    private final SnapshotDeletionPolicy snapshotDeletionPolicy;
+    private final CombinedDeletionPolicy combinedDeletionPolicy;
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -184,9 +184,8 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
-                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint)
-                );
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
+                    translog::getLastSyncedGlobalCheckpoint);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
@@ -1644,7 +1643,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireIndexCommit(final boolean flushFirst) throws EngineException {
+    public IndexCommitRef acquireIndexCommit(final boolean safeCommit, final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -1652,12 +1651,8 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        try (ReleasableLock lock = readLock.acquire()) {
-            logger.trace("pulling snapshot");
-            return new IndexCommitRef(snapshotDeletionPolicy);
-        } catch (IOException e) {
-            throw new SnapshotFailedEngineException(shardId, e);
-        }
+        final IndexCommit snapshotCommit = combinedDeletionPolicy.acquireIndexCommit(safeCommit);
+        return new Engine.IndexCommitRef(snapshotCommit, () -> combinedDeletionPolicy.releaseCommit(snapshotCommit));
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
@@ -1828,7 +1823,7 @@ public class InternalEngine extends Engine {
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
         iwc.setIndexCommit(startingCommit);
-        iwc.setIndexDeletionPolicy(snapshotDeletionPolicy);
+        iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
         try {

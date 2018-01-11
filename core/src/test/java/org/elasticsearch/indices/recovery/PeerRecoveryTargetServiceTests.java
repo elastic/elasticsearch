@@ -41,25 +41,37 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             {
                 for (int i = 0; i < initDocs; i++) {
                     indexDoc(replica, "doc", Integer.toString(i));
-                    replica.updateGlobalCheckpointOnReplica(i, "test");
+                    if (randomBoolean()) {
+                        flushShard(replica);
+                    }
+                }
+                flushShard(replica);
+                replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
+                replica.getTranslog().sync();
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs));
+                recoveryTarget.decRef();
+            }
+            // Global checkpoint does not advance, last commit is not good - use the previous commit
+            final int moreDocs = randomIntBetween(1, 10);
+            {
+                for (int i = 0; i < moreDocs; i++) {
+                    indexDoc(replica, "doc", Long.toString(i));
+                    if (randomBoolean()) {
+                        flushShard(replica);
+                    }
                 }
                 flushShard(replica);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
-            // Last commit is not good - use the previous commit
+            // Advances the global checkpoint, a safe commit also advances
             {
-                int moreDocs = randomIntBetween(1, 10);
-                for (int i = 0; i < moreDocs; i++) {
-                    indexDoc(replica, "doc", Long.toString(i));
-                    if (rarely()) {
-                        getEngine(replica).getLocalCheckpointTracker().generateSeqNo(); // Create a gap in seqno.
-                    }
-                }
-                flushShard(replica);
+                replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
+                replica.getTranslog().sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs + moreDocs));
                 recoveryTarget.decRef();
             }
         } finally {

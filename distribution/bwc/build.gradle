@@ -17,7 +17,7 @@
  * under the License.
  */
 
-
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import java.util.regex.Matcher
@@ -115,17 +115,39 @@ if (project.hasProperty('bwcVersion')) {
   File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
   File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
   File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
-  task buildBwcVersion(type: GradleBuild) {
+  task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
-    dir = checkoutDir
-    tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
-    startParameter.systemPropertiesArgs = ['build.snapshot': System.getProperty("build.snapshot") ?: "true"]
+    workingDir = checkoutDir
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      executable 'cmd'
+      args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+    } else {
+      executable = new File(checkoutDir, 'gradlew').toString()
+    }
+    final ArrayList<String> commandLineArgs = [
+            ":distribution:deb:assemble",
+            ":distribution:rpm:assemble",
+            ":distribution:zip:assemble",
+            "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"]
+    final LogLevel logLevel = gradle.startParameter.logLevel
+    if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+      commandLineArgs << "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+    }
+    final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+    assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+    if (showStacktraceName.equals("ALWAYS")) {
+      commandLineArgs << "--stacktrace"
+    } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+      commandLineArgs << "--full-stacktrace"
+    }
+    args commandLineArgs
     doLast {
       List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
-        false == file.exists() }
+        false == file.exists()
+      }
       if (false == missing.empty) {
         throw new InvalidUserDataException(
-          "Building bwc version didn't generate expected files ${missing}")
+                "Building bwc version didn't generate expected files ${missing}")
       }
     }
   }

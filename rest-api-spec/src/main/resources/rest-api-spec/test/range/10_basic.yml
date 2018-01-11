@@ -45,7 +45,6 @@ setup:
         id: 3
         body: { "integer_range" : { "gte": 4, "lte": 5 } }
 
-
   - do:
       indices.refresh: {}
 
@@ -72,6 +71,48 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
 
   - match: { hits.total: 0 }
+
+---
+"Add document with null value":
+  - skip:
+      version: " - 6.1.99"
+      reason: ignoring null values on range fields was introduced in 6.2.0
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 1
+        body: { "integer_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 2
+        body: { "integer_range" : { "gte": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 3
+        body: { "integer_range" : { "gte": 4, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 4
+        body: { "integer_range" : null }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "query" : { "match_all": {} } }
+
+  - match: { hits.total: 4 }
 
 ---
 "Long range":

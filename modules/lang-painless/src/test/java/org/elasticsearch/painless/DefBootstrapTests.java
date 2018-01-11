@@ -30,7 +30,8 @@ import java.util.HashMap;
 import org.elasticsearch.test.ESTestCase;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final Definition definition = Definition.DEFINITION;
+    private final Definition definition = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

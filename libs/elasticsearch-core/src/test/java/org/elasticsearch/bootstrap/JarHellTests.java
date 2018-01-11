@@ -19,10 +19,12 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.net.URL;
@@ -63,49 +65,49 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testDifferentJars() throws Exception {
-        Path dir = createTempDir();
-        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"),
+        Path dir = LuceneTestCase.createTempDir();
+        Set<URL> jars = LuceneTestCase.asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"),
                               makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("jar hell!"));
-            assertTrue(e.getMessage().contains("DuplicateClass"));
-            assertTrue(e.getMessage().contains("foo.jar"));
-            assertTrue(e.getMessage().contains("bar.jar"));
+            Assert.assertTrue(e.getMessage().contains("jar hell!"));
+            Assert.assertTrue(e.getMessage().contains("DuplicateClass"));
+            Assert.assertTrue(e.getMessage().contains("foo.jar"));
+            Assert.assertTrue(e.getMessage().contains("bar.jar"));
         }
     }
 
     public void testDirsOnClasspath() throws Exception {
-        Path dir1 = createTempDir();
-        Path dir2 = createTempDir();
-        Set<URL> dirs = asSet(makeFile(dir1, "DuplicateClass.class"),
+        Path dir1 = LuceneTestCase.createTempDir();
+        Path dir2 = LuceneTestCase.createTempDir();
+        Set<URL> dirs = LuceneTestCase.asSet(makeFile(dir1, "DuplicateClass.class"),
                               makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("jar hell!"));
-            assertTrue(e.getMessage().contains("DuplicateClass"));
-            assertTrue(e.getMessage().contains(dir1.toString()));
-            assertTrue(e.getMessage().contains(dir2.toString()));
+            Assert.assertTrue(e.getMessage().contains("jar hell!"));
+            Assert.assertTrue(e.getMessage().contains("DuplicateClass"));
+            Assert.assertTrue(e.getMessage().contains(dir1.toString()));
+            Assert.assertTrue(e.getMessage().contains(dir2.toString()));
         }
     }
 
     public void testDirAndJar() throws Exception {
-        Path dir1 = createTempDir();
-        Path dir2 = createTempDir();
-        Set<URL> dirs = asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"),
+        Path dir1 = LuceneTestCase.createTempDir();
+        Path dir2 = LuceneTestCase.createTempDir();
+        Set<URL> dirs = LuceneTestCase.asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"),
                               makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("jar hell!"));
-            assertTrue(e.getMessage().contains("DuplicateClass"));
-            assertTrue(e.getMessage().contains("foo.jar"));
-            assertTrue(e.getMessage().contains(dir2.toString()));
+            Assert.assertTrue(e.getMessage().contains("jar hell!"));
+            Assert.assertTrue(e.getMessage().contains("DuplicateClass"));
+            Assert.assertTrue(e.getMessage().contains("foo.jar"));
+            Assert.assertTrue(e.getMessage().contains(dir2.toString()));
         }
     }
 
@@ -115,12 +117,12 @@ public class JarHellTests extends ESTestCase {
         Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-classes.jar"));
         try {
             JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("jar hell!"));
-            assertTrue(e.getMessage().contains("DuplicateClass"));
-            assertTrue(e.getMessage().contains("duplicate-classes.jar"));
-            assertTrue(e.getMessage().contains("exists multiple times in jar"));
+            Assert.assertTrue(e.getMessage().contains("jar hell!"));
+            Assert.assertTrue(e.getMessage().contains("DuplicateClass"));
+            Assert.assertTrue(e.getMessage().contains("duplicate-classes.jar"));
+            Assert.assertTrue(e.getMessage().contains("exists multiple times in jar"));
         }
     }
 
@@ -130,7 +132,7 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testRequiredJDKVersionTooOld() throws Exception {
-        Path dir = createTempDir();
+        Path dir = LuceneTestCase.createTempDir();
         List<Integer> current = JavaVersion.current().getVersion();
         List<Integer> target = new ArrayList<>(current.size());
         for (int i = 0; i < current.size(); i++) {
@@ -146,15 +148,15 @@ public class JarHellTests extends ESTestCase {
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
-            assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
+            Assert.assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
+            Assert.assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
         }
     }
 
     public void testBadJDKVersionInJar() throws Exception {
-        Path dir = createTempDir();
+        Path dir = LuceneTestCase.createTempDir();
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
@@ -162,14 +164,15 @@ public class JarHellTests extends ESTestCase {
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
+            Assert.assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers " +
+                "separated by \".\"'s and may have leading zeros but was bogus"));
         }
     }
 
     public void testRequiredJDKVersionIsOK() throws Exception {
-        Path dir = createTempDir();
+        Path dir = LuceneTestCase.createTempDir();
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
@@ -180,7 +183,7 @@ public class JarHellTests extends ESTestCase {
 
     /** make sure if a plugin is compiled against the same ES version, it works */
     public void testGoodESVersionInJar() throws Exception {
-        Path dir = createTempDir();
+        Path dir = LuceneTestCase.createTempDir();
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
@@ -191,7 +194,7 @@ public class JarHellTests extends ESTestCase {
 
     /** make sure if a plugin is compiled against a different ES version, it fails */
     public void testBadESVersionInJar() throws Exception {
-        Path dir = createTempDir();
+        Path dir = LuceneTestCase.createTempDir();
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
@@ -199,9 +202,9 @@ public class JarHellTests extends ESTestCase {
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
+            Assert.fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
+            Assert.assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
         }
     }
 
@@ -211,7 +214,7 @@ public class JarHellTests extends ESTestCase {
             try {
                 JarHell.checkVersionFormat(version);
             } catch (IllegalStateException e) {
-                fail(version + " should be accepted as a valid version format");
+                Assert.fail(version + " should be accepted as a valid version format");
             }
         }
     }
@@ -221,7 +224,7 @@ public class JarHellTests extends ESTestCase {
         for (String version : versions) {
             try {
                 JarHell.checkVersionFormat(version);
-                fail("\"" + version + "\"" + " should be rejected as an invalid version format");
+                Assert.fail("\"" + version + "\"" + " should be rejected as an invalid version format");
             } catch (IllegalStateException e) {
             }
         }
@@ -233,28 +236,28 @@ public class JarHellTests extends ESTestCase {
      * Parse a simple classpath with two elements on unix
      */
     public void testParseClassPathUnix() throws Exception {
-        assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
-        assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
+        LuceneTestCase.assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
+        LuceneTestCase.assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
 
-        Path element1 = createTempDir();
-        Path element2 = createTempDir();
+        Path element1 = LuceneTestCase.createTempDir();
+        Path element2 = LuceneTestCase.createTempDir();
 
-        Set<URL> expected = asSet(element1.toUri().toURL(), element2.toUri().toURL());
-        assertEquals(expected, JarHell.parseClassPath(element1.toString() + ":" + element2.toString()));
+        Set<URL> expected = LuceneTestCase.asSet(element1.toUri().toURL(), element2.toUri().toURL());
+        Assert.assertEquals(expected, JarHell.parseClassPath(element1.toString() + ":" + element2.toString()));
     }
 
     /**
      * Make sure an old unix classpath with an empty element (implicitly CWD: i'm looking at you 1.x ES scripts) fails
      */
     public void testEmptyClassPathUnix() throws Exception {
-        assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
-        assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
+        LuceneTestCase.assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
+        LuceneTestCase.assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
 
         try {
             JarHell.parseClassPath(":/element1:/element2");
-            fail("should have hit exception");
+            Assert.fail("should have hit exception");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("should not contain empty elements"));
+            Assert.assertTrue(expected.getMessage().contains("should not contain empty elements"));
         }
     }
 
@@ -262,28 +265,28 @@ public class JarHellTests extends ESTestCase {
      * Parse a simple classpath with two elements on windows
      */
     public void testParseClassPathWindows() throws Exception {
-        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
-        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
 
-        Path element1 = createTempDir();
-        Path element2 = createTempDir();
+        Path element1 = LuceneTestCase.createTempDir();
+        Path element2 = LuceneTestCase.createTempDir();
 
-        Set<URL> expected = asSet(element1.toUri().toURL(), element2.toUri().toURL());
-        assertEquals(expected, JarHell.parseClassPath(element1.toString() + ";" + element2.toString()));
+        Set<URL> expected = LuceneTestCase.asSet(element1.toUri().toURL(), element2.toUri().toURL());
+        Assert.assertEquals(expected, JarHell.parseClassPath(element1.toString() + ";" + element2.toString()));
     }
 
     /**
      * Make sure an old windows classpath with an empty element (implicitly CWD: i'm looking at you 1.x ES scripts) fails
      */
     public void testEmptyClassPathWindows() throws Exception {
-        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
-        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
 
         try {
             JarHell.parseClassPath(";c:\\element1;c:\\element2");
-            fail("should have hit exception");
+            Assert.fail("should have hit exception");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("should not contain empty elements"));
+            Assert.assertTrue(expected.getMessage().contains("should not contain empty elements"));
         }
     }
 
@@ -292,16 +295,16 @@ public class JarHellTests extends ESTestCase {
      * therefore eclipse OSGI code does it :)
      */
     public void testCrazyEclipseClassPathWindows() throws Exception {
-        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
-        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        LuceneTestCase.assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
 
-        Set<URL> expected = asSet(
+        Set<URL> expected = LuceneTestCase.asSet(
             PathUtils.get("c:\\element1").toUri().toURL(),
             PathUtils.get("c:\\element2").toUri().toURL(),
             PathUtils.get("c:\\element3").toUri().toURL(),
             PathUtils.get("c:\\element 4").toUri().toURL()
         );
         Set<URL> actual = JarHell.parseClassPath("c:\\element1;c:\\element2;/c:/element3;/c:/element 4");
-        assertEquals(expected, actual);
+        Assert.assertEquals(expected, actual);
     }
 }

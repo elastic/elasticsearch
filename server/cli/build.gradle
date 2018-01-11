@@ -39,7 +39,7 @@ dependencies {
 }
 
 test.enabled = false
-// Since CLI does not depend on :core, it cannot run the jarHell task
+// Since CLI does not depend on :server, it cannot run the jarHell task
 jarHell.enabled = false
 
 forbiddenApisMain {

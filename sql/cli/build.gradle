@@ -9,7 +9,7 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:rest-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
-  compile project(':core:cli')
+  compile project(':server:cli')
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:${versions.jna}"

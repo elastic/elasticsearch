@@ -3,7 +3,7 @@ description = 'Request and response objects shared by the cli and ' +
 
 dependencies {
   compile project(':x-pack-elasticsearch:sql:shared-proto')
-  compile (project(':core')) {
+  compile (project(':server')) {
     transitive = false
   }
   compile "org.apache.lucene:lucene-core:${versions.lucene}"

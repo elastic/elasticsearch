@@ -176,7 +176,7 @@ public interface Repository extends LifecycleComponent {
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireIndexCommit} method.
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
      * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check

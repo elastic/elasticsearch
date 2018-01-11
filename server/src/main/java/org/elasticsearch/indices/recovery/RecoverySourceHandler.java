@@ -159,7 +159,7 @@ public class RecoverySourceHandler {
             } else {
                 final Engine.IndexCommitRef phase1Snapshot;
                 try {
-                    phase1Snapshot = shard.acquireIndexCommit(true, false);
+                    phase1Snapshot = shard.acquireSafeIndexCommit();
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }

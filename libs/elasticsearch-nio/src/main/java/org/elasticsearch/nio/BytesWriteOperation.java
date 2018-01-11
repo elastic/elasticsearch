@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 
-public class BytesWriteOperation implements WriteOperation {
+public final class BytesWriteOperation implements WriteOperation {
 
     private final NioSocketChannel channel;
     private final BiConsumer<Void, Throwable> listener;
@@ -57,6 +57,8 @@ public class BytesWriteOperation implements WriteOperation {
     }
 
     public boolean isFullyFlushed() {
+        assert length >= internalIndex : "Should never have an index that is greater than the length [length=" + length + ", index="
+            + internalIndex + "]";
         return internalIndex == length;
     }
 

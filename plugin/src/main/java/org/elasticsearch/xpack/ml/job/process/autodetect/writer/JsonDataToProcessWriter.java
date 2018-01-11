@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -38,10 +39,10 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private static final Logger LOGGER = Loggers.getLogger(JsonDataToProcessWriter.class);
     private NamedXContentRegistry xContentRegistry;
 
-    JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
-            DataDescription dataDescription, AnalysisConfig analysisConfig,
-            DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig,
+    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+                            DataDescription dataDescription, AnalysisConfig analysisConfig,
+                            DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
+        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig,
                 dataCountsReporter, LOGGER);
         this.xContentRegistry = xContentRegistry;
     }
@@ -54,14 +55,15 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JOSN inputIndex an exception is thrown
      */
     @Override
-    public void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler)
+    public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
+                      BiConsumer<DataCounts, Exception> handler)
             throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
         if (xContentType.equals(XContentType.JSON)) {
-            writeJsonXContent(inputStream);
+            writeJsonXContent(categorizationAnalyzer, inputStream);
         } else if (xContentType.equals(XContentType.SMILE)) {
-            writeSmileXContent(inputStream);
+            writeSmileXContent(categorizationAnalyzer, inputStream);
         } else {
             throw new RuntimeException("XContentType [" + xContentType
                     + "] is not supported by JsonDataToProcessWriter");
@@ -75,14 +77,14 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 ));
     }
 
-    private void writeJsonXContent(InputStream inputStream) throws IOException {
+    private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry, inputStream)) {
-            writeJson(parser);
+            writeJson(categorizationAnalyzer, parser);
         }
     }
 
-    private void writeSmileXContent(InputStream inputStream) throws IOException {
+    private void writeSmileXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
         while (true) {
             byte[] nextObject = findNextObject(XContentType.SMILE.xContent().streamSeparator(), inputStream);
             if (nextObject.length == 0) {
@@ -90,7 +92,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             }
             try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
                     .createParser(xContentRegistry, nextObject)) {
-                writeJson(parser);
+                writeJson(categorizationAnalyzer, parser);
             }
         }
     }
@@ -121,20 +123,20 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         return new byte[0];
     }
 
-    private void writeJson(XContentParser parser) throws IOException {
-        Collection<String> analysisFields = inputFields();
+    private void writeJson(CategorizationAnalyzer categorizationAnalyzer, XContentParser parser) throws IOException {
+        Collection<String> inputFields = inputFields();
 
-        buildFieldIndexMapping(analysisFields.toArray(new String[0]));
+        buildFieldIndexMapping(inputFields.toArray(new String[0]));
 
         int numFields = outputFieldCount();
         String[] input = new String[numFields];
         String[] record = new String[numFields];
 
-        // We never expect to get the control field
-        boolean[] gotFields = new boolean[analysisFields.size()];
+        // We never expect to get the control field or categorization tokens field
+        boolean[] gotFields = new boolean[inputFields.size()];
 
-        XContentRecordReader recordReader = new XContentRecordReader(parser, inFieldIndexes,
-                LOGGER);
+        XContentRecordReader recordReader = new XContentRecordReader(parser, inFieldIndexes, LOGGER);
+        Integer categorizationFieldIndex = inFieldIndexes.get(analysisConfig.getCategorizationFieldName());
         long inputFieldCount = recordReader.read(input, gotFields);
         while (inputFieldCount >= 0) {
             Arrays.fill(record, "");
@@ -151,6 +153,9 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 record[inOut.outputIndex] = (field == null) ? "" : field;
             }
 
+            if (categorizationAnalyzer != null && categorizationFieldIndex != null) {
+                tokenizeForCategorization(categorizationAnalyzer, input[categorizationFieldIndex], record);
+            }
             transformTimeAndWrite(record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);
@@ -174,8 +179,8 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private static long missingFieldCount(boolean[] gotFieldFlags) {
         long count = 0;
 
-        for (int i = 0; i < gotFieldFlags.length; i++) {
-            if (gotFieldFlags[i] == false) {
+        for (boolean gotFieldFlag : gotFieldFlags) {
+            if (gotFieldFlag == false) {
                 ++count;
             }
         }

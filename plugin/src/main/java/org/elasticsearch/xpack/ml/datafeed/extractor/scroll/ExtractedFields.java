@@ -9,7 +9,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
@@ -94,8 +93,7 @@ class ExtractedFields {
         }
         ExtractedField timeExtractedField = ExtractedField.newTimeField(timeField, scriptFields.contains(timeField) ?
                 ExtractedField.ExtractionMethod.SCRIPT_FIELD : ExtractedField.ExtractionMethod.DOC_VALUE);
-        List<String> remainingFields = job.allFields().stream().filter(
-                f -> !(f.equals(timeField) || f.equals(AnalysisConfig.ML_CATEGORY_FIELD))).collect(Collectors.toList());
+        List<String> remainingFields = job.allInputFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
         allExtractedFields.add(timeExtractedField);
         remainingFields.stream().forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));

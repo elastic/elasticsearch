@@ -20,6 +20,12 @@ public interface RecordWriter {
     String CONTROL_FIELD_NAME = ".";
 
     /**
+     * Value must match api::CBaseTokenListDataTyper::PRETOKENISED_TOKEN_FIELD in the C++
+     * code.
+     */
+    String PRETOKENISED_TOKEN_FIELD = "...";
+
+    /**
      * Write each String in the record array
      */
     void writeRecord(String[] record) throws IOException;

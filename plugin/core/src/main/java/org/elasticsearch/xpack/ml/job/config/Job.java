@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
@@ -60,7 +63,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField JOB_TYPE = new ParseField("job_type");
     public static final ParseField JOB_VERSION = new ParseField("job_version");
     public static final ParseField GROUPS = new ParseField("groups");
-    public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
+    public static final ParseField ANALYSIS_CONFIG = AnalysisConfig.ANALYSIS_CONFIG;
     public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField CUSTOM_SETTINGS = new ParseField("custom_settings");
@@ -400,12 +403,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * Get a list of all input data fields mentioned in the job configuration,
+     * Get all input data fields mentioned in the job configuration,
      * namely analysis fields and the time field.
      *
-     * @return the list of fields - never <code>null</code>
+     * @return the collection of fields - never <code>null</code>
      */
-    public List<String> allFields() {
+    public Collection<String> allInputFields() {
         Set<String> allFields = new TreeSet<>();
 
         // analysis fields
@@ -424,7 +427,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         // remove empty strings
         allFields.remove("");
 
-        return new ArrayList<>(allFields);
+        // the categorisation field isn't an input field
+        allFields.remove(AnalysisConfig.ML_CATEGORY_FIELD);
+
+        return allFields;
     }
 
     /**
@@ -1075,6 +1081,18 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
 
             analysisLimits = new AnalysisLimits(modelMemoryLimit, categorizationExampleLimit);
+        }
+
+        /**
+         * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
+         * The overall structure can be validated at parse time, but the exact names need to be checked separately,
+         * as plugins that provide the functionality can be installed/uninstalled.
+         */
+        public void validateCategorizationAnalyzer(AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+            CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
+            if (categorizationAnalyzerConfig != null) {
+                new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig).verify(analysisRegistry, environment);
+            }
         }
 
         private void validateGroups() {

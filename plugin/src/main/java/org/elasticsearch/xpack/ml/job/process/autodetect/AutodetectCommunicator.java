@@ -14,7 +14,13 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -60,6 +66,7 @@ public class AutodetectCommunicator implements Closeable {
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
+    private final Environment environment;
     private final AutodetectProcess autodetectProcess;
     private final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
@@ -67,13 +74,16 @@ public class AutodetectCommunicator implements Closeable {
     private final Consumer<Exception> onFinishHandler;
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
+    private final boolean includeTokensField;
+    private volatile CategorizationAnalyzer categorizationAnalyzer;
     private volatile boolean processKilled;
 
-    AutodetectCommunicator(Job job, AutodetectProcess process, StateStreamer stateStreamer,
+    AutodetectCommunicator(Job job, Environment environment, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
                            Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
                            ExecutorService autodetectWorkerExecutor) {
         this.job = job;
+        this.environment = environment;
         this.autodetectProcess = process;
         this.stateStreamer = stateStreamer;
         this.dataCountsReporter = dataCountsReporter;
@@ -81,6 +91,8 @@ public class AutodetectCommunicator implements Closeable {
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
+        this.includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
+                && job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
     public void init(ModelSnapshot modelSnapshot) throws IOException {
@@ -89,12 +101,12 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
-        return DataToProcessWriterFactory.create(true, autodetectProcess,
+        return DataToProcessWriterFactory.create(true, includeTokensField, autodetectProcess,
                 dataDescription.orElse(job.getDataDescription()), job.getAnalysisConfig(),
                 dataCountsReporter, xContentRegistry);
     }
 
-    public void writeToJob(InputStream inputStream, XContentType xContentType,
+    public void writeToJob(InputStream inputStream, AnalysisRegistry analysisRegistry, XContentType xContentType,
                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         submitOperation(() -> {
             if (params.isResettingBuckets()) {
@@ -104,10 +116,14 @@ public class AutodetectCommunicator implements Closeable {
             CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
             DataToProcessWriter autoDetectWriter = createProcessWriter(params.getDataDescription());
 
+            if (includeTokensField && categorizationAnalyzer == null) {
+                createCategorizationAnalyzer(analysisRegistry);
+            }
+
             CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
             AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-            autoDetectWriter.write(countingStream, xContentType, (dataCounts, e) -> {
+            autoDetectWriter.write(countingStream, categorizationAnalyzer, xContentType, (dataCounts, e) -> {
                 dataCountsAtomicReference.set(dataCounts);
                 exceptionAtomicReference.set(e);
                 latch.countDown();
@@ -165,6 +181,8 @@ public class AutodetectCommunicator implements Closeable {
             } else {
                 throw new ElasticsearchException(e);
             }
+        } finally {
+            destroyCategorizationAnalyzer();
         }
     }
 
@@ -186,6 +204,7 @@ public class AutodetectCommunicator implements Closeable {
             if (finish) {
                 onFinishHandler.accept(null);
             }
+            destroyCategorizationAnalyzer();
         }
     }
 
@@ -316,6 +335,19 @@ public class AutodetectCommunicator implements Closeable {
         return dataCountsReporter.runningTotalStats();
     }
 
+    /**
+     * Care must be taken to ensure this method is not called while data is being posted.
+     * The methods in this class that call it wait for all processing to complete first.
+     * The expectation is that external calls are only made when cleaning up after a fatal
+     * error.
+     */
+    void destroyCategorizationAnalyzer() {
+        if (categorizationAnalyzer != null) {
+            categorizationAnalyzer.close();
+            categorizationAnalyzer = null;
+        }
+    }
+
     private <T> void submitOperation(CheckedSupplier<T, Exception> operation, BiConsumer<T, Exception> handler) {
         autodetectWorkerExecutor.execute(new AbstractRunnable() {
             @Override
@@ -338,5 +370,15 @@ public class AutodetectCommunicator implements Closeable {
                 }
             }
         });
+    }
+
+    private void createCategorizationAnalyzer(AnalysisRegistry analysisRegistry) throws IOException {
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
+        if (categorizationAnalyzerConfig == null) {
+            categorizationAnalyzerConfig =
+                    CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(analysisConfig.getCategorizationFilters());
+        }
+        categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, categorizationAnalyzerConfig);
     }
 }

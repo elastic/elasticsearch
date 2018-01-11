@@ -20,6 +20,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -95,6 +97,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 
     private final Client client;
+    private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobProvider jobProvider;
@@ -112,12 +115,13 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final Auditor auditor;
 
-    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
+    public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
                                     NamedXContentRegistry xContentRegistry, Auditor auditor) {
         super(settings);
+        this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
@@ -179,19 +183,20 @@ public class AutodetectProcessManager extends AbstractComponent {
      * <li>If a high proportion of the records chronologically out of order</li>
      * </ol>
      *
-     * @param jobTask       The job task
-     * @param input         Data input stream
-     * @param xContentType  the {@link XContentType} of the input
-     * @param params        Data processing parameters
-     * @param handler       Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param jobTask          The job task
+     * @param analysisRegistry Registry of analyzer components - this is used to build a categorization analyzer if necessary
+     * @param input            Data input stream
+     * @param xContentType     the {@link XContentType} of the input
+     * @param params           Data processing parameters
+     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written)
      */
-    public void processData(JobTask jobTask, InputStream input, XContentType xContentType,
-                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
+    public void processData(JobTask jobTask, AnalysisRegistry analysisRegistry, InputStream input,
+                            XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
             throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
         }
-        communicator.writeToJob(input, xContentType, params, handler);
+        communicator.writeToJob(input, analysisRegistry, xContentType, params, handler);
     }
 
     /**
@@ -411,7 +416,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, process, new StateStreamer(client), dataCountsReporter, processor, handler,
+        return new AutodetectCommunicator(job, environment, process, new StateStreamer(client), dataCountsReporter, processor, handler,
                 xContentRegistry, autodetectWorkerExecutor);
 
     }
@@ -441,7 +446,13 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private Runnable onProcessCrash(JobTask jobTask) {
         return () -> {
-            processByAllocation.remove(jobTask.getAllocationId());
+            ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
+            if (processContext != null) {
+                AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
+                if (communicator != null) {
+                    communicator.destroyCategorizationAnalyzer();
+                }
+            }
             setJobState(jobTask, JobState.FAILED);
         };
     }

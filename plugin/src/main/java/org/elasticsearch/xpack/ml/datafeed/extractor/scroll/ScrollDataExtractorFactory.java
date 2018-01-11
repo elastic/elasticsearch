@@ -73,7 +73,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
         // We need capabilities for all fields matching the requested fields' parents so that we can work around
         // multi-fields that are not in source.
-        String[] requestFields = job.allFields().stream().map(f -> MlStrings.getParentField(f) + "*").toArray(size -> new String[size]);
+        String[] requestFields = job.allInputFields().stream().map(f -> MlStrings.getParentField(f) + "*")
+                .toArray(size -> new String[size]);
         fieldCapabilitiesRequest.fields(requestFields);
         MlClientHelper.<FieldCapabilitiesResponse>execute(datafeed, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);

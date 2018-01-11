@@ -397,7 +397,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             assertHighlight(search, i, "title", 0,
-                equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch."));
+                equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. Hopefully it works."));
             assertHighlight(search, i, "title", 1, 2,
                 equalTo("This is the second <em>bug</em> to perform highlighting on."));
         }
@@ -491,7 +491,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field-postings", 0, 1, equalTo("This is the first <xxx>test</xxx> sentence."));
+        assertHighlight(searchResponse, 0, "field-postings", 0, 1,
+            equalTo("This is the first <xxx>test</xxx> sentence. Here is the second one."));
         assertHighlight(searchResponse, 0, "field-fvh", 0, 1, equalTo("This is the <xxx>test</xxx> with term_vectors"));
         assertHighlight(searchResponse, 0, "field-plain", 0, 1, equalTo("This is the <xxx>test</xxx> for the plain highlighter"));
     }
@@ -1386,7 +1387,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
-        assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        assertHighlight(searchResponse, 0, "field0", 0, 1,
+            equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field1");
         source = searchSource()
@@ -1438,7 +1440,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().search(searchRequest("second_test_index").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        assertHighlight(searchResponse, 0, "field3", 0, 1,
+            equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
         source = searchSource().postFilter(termQuery("type", "type2")).query(matchPhrasePrefixQuery("field4", "the fast bro"))
@@ -1453,7 +1456,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             equalTo("<x>The</x> <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().postFilter(termQuery("type", "type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca"))
+        source = searchSource().postFilter(termQuery("type", "type2"))
+            .query(matchPhrasePrefixQuery("field4", "a fast quick blue ca"))
             .highlighter(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
         searchResponse = client().search(searchRequest("second_test_index").source(source)).actionGet();
 
@@ -1887,33 +1891,42 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighterType("plain")
                 .noMatchSize(20);
         SearchResponse response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first"));
+        assertHighlight(response, 0, "text", 0, 1,
+            equalTo("This is the first"));
 
         field.highlighterType("fvh");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence"));
+        assertHighlight(response, 0, "text", 0, 1,
+            equalTo("This is the first sentence"));
 
         field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence"));
+        assertHighlight(response, 0, "text", 0, 1,
+            equalTo("This is the first sentence"));
 
 
         //if there's a match we only return the values with matches (whole value as number_of_fragments == 0)
         MatchQueryBuilder queryBuilder = QueryBuilders.matchQuery("text", "third fifth");
         field.highlighterType("plain");
         response = client().prepareSearch("test").setQuery(queryBuilder).highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
-        assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
+        assertHighlight(response, 0, "text", 0, 2,
+            equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+        assertHighlight(response, 0, "text", 1, 2,
+            equalTo("This is the <em>fifth</em> sentence"));
 
         field.highlighterType("fvh");
         response = client().prepareSearch("test").setQuery(queryBuilder).highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
-        assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
+        assertHighlight(response, 0, "text", 0, 2,
+            equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+        assertHighlight(response, 0, "text", 1, 2,
+            equalTo("This is the <em>fifth</em> sentence"));
 
         field.highlighterType("unified");
         response = client().prepareSearch("test").setQuery(queryBuilder).highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
-        assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
+        assertHighlight(response, 0, "text", 0, 2,
+            equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+        assertHighlight(response, 0, "text", 1, 2,
+            equalTo("This is the <em>fifth</em> sentence"));
     }
 
     public void testPostingsHighlighter() throws Exception {
@@ -1989,7 +2002,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 new HighlightBuilder().field(new Field("field1").preTags("<1>").postTags("</1>")
                     .requireFieldMatch(true)))
             .get();
-        assertHighlight(response, 0, "field1", 0, 1, equalTo("The <b>quick<b> brown <1>fox</1>."));
+        assertHighlight(response, 0, "field1", 0, 1,
+            equalTo("The <b>quick<b> brown <1>fox</1>. Second sentence."));
     }
 
     public void testPostingsHighlighterNumberOfFragments() throws Exception {
@@ -2012,9 +2026,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field1", 0, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog."));
-        assertHighlight(searchResponse, 0, "field1", 1, equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
-        assertHighlight(searchResponse, 0, "field1", 2, 3, equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertHighlight(searchResponse, 0, "field1", 0, 2,
+            equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog." +
+                " The lazy red <field1>fox</field1> jumps over the quick dog."));
+        assertHighlight(searchResponse, 0, "field1", 1, 2,
+            equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
 
         client().prepareIndex("test", "type1", "2")
             .setSource("field1", new String[]{
@@ -2033,14 +2050,17 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (SearchHit searchHit : searchResponse.getHits()) {
             if ("1".equals(searchHit.getId())) {
-                assertHighlight(searchHit, "field1", 0, 1, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. "
+                assertHighlight(searchHit, "field1", 0, 1,
+                    equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. "
                     + "The lazy red <field1>fox</field1> jumps over the quick dog. "
                     + "The quick brown dog jumps over the lazy <field1>fox</field1>."));
             } else if ("2".equals(searchHit.getId())) {
                 assertHighlight(searchHit, "field1", 0, 3,
                     equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. Second sentence not finished"));
-                assertHighlight(searchHit, "field1", 1, 3, equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
-                assertHighlight(searchHit, "field1", 2, 3, equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
+                assertHighlight(searchHit, "field1", 1, 3,
+                    equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
+                assertHighlight(searchHit, "field1", 2, 3,
+                    equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
             } else {
                 fail("Only hits with id 1 and 2 are returned");
             }
@@ -2083,7 +2103,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             logger.info("Running multi-match type: [{}] highlight with type: [{}]", matchQueryType, highlighterType);
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
             assertHitCount(searchResponse, 1L);
-            assertHighlight(searchResponse, 0, "field1", 0, anyOf(equalTo("<field1>The quick brown fox</field1> jumps over"),
+            assertHighlight(searchResponse, 0, "field1", 0,
+                anyOf(equalTo("<field1>The quick brown fox</field1> jumps over"),
                     equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over")));
         }
     }
@@ -2112,13 +2133,15 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).getHighlightFields();
         assertThat(highlightFieldMap.size(), equalTo(1));
         HighlightField field1 = highlightFieldMap.get("field1");
-        assertThat(field1.fragments().length, equalTo(5));
+        assertThat(field1.fragments().length, equalTo(4));
         assertThat(field1.fragments()[0].string(),
             equalTo("This <em>sentence</em> contains three <em>sentence</em> occurrences (<em>sentence</em>)."));
-        assertThat(field1.fragments()[1].string(), equalTo("This <em>sentence</em> contains two <em>sentence</em> matches."));
-        assertThat(field1.fragments()[2].string(), equalTo("This is the second value's first <em>sentence</em>."));
-        assertThat(field1.fragments()[3].string(), equalTo("This <em>sentence</em> contains one match, not that short."));
-        assertThat(field1.fragments()[4].string(),
+        assertThat(field1.fragments()[1].string(),
+            equalTo("This <em>sentence</em> contains one match, not that short. " +
+                "This <em>sentence</em> contains two <em>sentence</em> matches."));
+        assertThat(field1.fragments()[2].string(),
+            equalTo("This is the second value's first <em>sentence</em>. This one contains no matches."));
+        assertThat(field1.fragments()[3].string(),
             equalTo("One <em>sentence</em> match here and scored lower since the text is quite long, not that appealing."));
     }
 
@@ -2139,7 +2162,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             assertHighlight(searchResponse, i, "title", 0, 1,
-                equalTo("This is a html escaping highlighting <em>test</em> for *&amp;?"));
+                equalTo("This is a html escaping highlighting <em>test</em> for *&amp;? elasticsearch"));
         }
     }
 
@@ -2173,7 +2196,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         SearchHit hit = searchResponse.getHits().getAt(0);
         //stopwords are not highlighted since not indexed
-        assertHighlight(hit, "title", 0, 1, equalTo("this is a <em>test</em> ."));
+        assertHighlight(hit, "title", 0, 1, equalTo("this is a <em>test</em> . Second sentence."));
 
         // search on title.key and highlight on title
         searchResponse = client().prepareSearch()
@@ -2183,7 +2206,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         //stopwords are now highlighted since we used only whitespace analyzer here
         assertHighlight(searchResponse, 0, "title.key", 0, 1,
-            equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> ."));
+            equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> . Second sentence."));
     }
 
     public void testPostingsHighlighterMultiMapperFromSource() throws Exception {
@@ -2258,7 +2281,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .highlighter(highlight().field("field2").preTags("<x>").postTags("</x>"));
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The quick <x>brown</x> fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterCommonTermsQuery() throws IOException {
@@ -2275,7 +2299,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1L);
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog! Second sentence."));
     }
 
     private static XContentBuilder type1PostingsffsetsMapping() throws IOException {
@@ -2299,7 +2324,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(prefixQuery("field2", "qui"))
             .highlighter(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterFuzzyQuery() throws Exception {
@@ -2315,7 +2341,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .highlighter(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterRegexpQuery() throws Exception {
@@ -2331,7 +2358,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterWildcardQuery() throws Exception {
@@ -2347,14 +2375,16 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .highlighter(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
 
         source = searchSource().query(wildcardQuery("field2", "qu*k"))
             .highlighter(highlight().field("field2"));
         searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHitCount(searchResponse, 1L);
 
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterTermRangeQuery() throws Exception {
@@ -2384,7 +2414,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(queryStringQuery("qui*").defaultField("field2"))
             .highlighter(highlight().field("field2"));
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        assertHighlight(searchResponse, 0, "field2", 0, 1,
+            equalTo("The <em>quick</em> brown fox jumps over the lazy dog! Second sentence."));
     }
 
     public void testPostingsHighlighterRegexpQueryWithinConstantScoreQuery() throws Exception {
@@ -2479,7 +2510,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.getHits()) {
             String prefix = prefixes.get(hit.getId());
-            assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
+            assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>. Sentence two."));
         }
     }
 

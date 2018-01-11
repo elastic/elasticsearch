@@ -84,7 +84,7 @@ class PrecommitTasks {
         Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
         if (mainForbidden != null) {
             mainForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-core-signatures.txt')
+                signaturesURLs += getClass().getResource('/forbidden/es-server-signatures.txt')
             }
         }
         Task testForbidden = project.tasks.findByName('forbiddenApisTest')

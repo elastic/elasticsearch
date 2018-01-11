@@ -257,7 +257,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             // As a replica keeps a safe commit, the file-based recovery only happens if the required translog
             // for the sequence based recovery are not fully retained and extra documents were added to the primary.
-            boolean expectSeqNoRecovery = (moreDocs == 0 || frequently());
+            boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
             int uncommittedOpsOnPrimary = 0;
             if (expectSeqNoRecovery == false) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
@@ -270,6 +270,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.syncGlobalCheckpoint();
                 newPrimary.flush(new FlushRequest());
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
+                totalDocs += uncommittedOpsOnPrimary;
             }
 
             if (randomBoolean()) {

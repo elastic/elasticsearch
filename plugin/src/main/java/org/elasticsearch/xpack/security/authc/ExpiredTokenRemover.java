@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
@@ -14,8 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -56,8 +60,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                         .filter(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE))
                         .filter(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli())));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, dbq,
-                ActionListener.wrap(r -> markComplete(),
-                    e -> {
+                ActionListener.wrap(r -> {
+                    debugDbqResponse(r);
+                    markComplete();
+                }, e -> {
                         if (isShardNotAvailableException(e) == false) {
                             logger.error("failed to delete expired tokens", e);
                         }
@@ -68,6 +74,21 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     void submit(ThreadPool threadPool) {
         if (inProgress.compareAndSet(false, true)) {
             threadPool.executor(Names.GENERIC).submit(this);
+        }
+    }
+
+    private void debugDbqResponse(BulkByScrollResponse response) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("delete by query of tokens finished with [{}] deletions, [{}] bulk failures, [{}] search failures",
+                    response.getDeleted(), response.getBulkFailures().size(), response.getSearchFailures().size());
+            for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
+                logger.debug(new ParameterizedMessage("deletion failed for index [{}], type [{}], id [{}]",
+                        failure.getIndex(), failure.getType(), failure.getId()), failure.getCause());
+            }
+            for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+                logger.debug(new ParameterizedMessage("search failed for index [{}], shard [{}] on node [{}]",
+                        failure.getIndex(), failure.getShardId(), failure.getNodeId()), failure.getReason());
+            }
         }
     }
 

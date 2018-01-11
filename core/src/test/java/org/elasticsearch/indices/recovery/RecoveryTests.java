@@ -247,9 +247,9 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
-            final int goodDocs = scaledRandomIntBetween(0, 20);
+            final int initDocs = scaledRandomIntBetween(0, 20);
             int uncommittedDocs = 0;
-            for (int i = 0; i < goodDocs; i++) {
+            for (int i = 0; i < initDocs; i++) {
                 shards.indexDocs(1);
                 uncommittedDocs++;
                 if (randomBoolean()) {
@@ -269,7 +269,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
 
             try (Translog.Snapshot snapshot = newReplica.getTranslog().newSnapshot()) {
-                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(goodDocs + moreDocs));
+                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(initDocs + moreDocs));
             }
             assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());

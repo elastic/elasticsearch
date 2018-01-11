@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 
+import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Objects;
@@ -71,8 +72,7 @@ public abstract class AbstractBindingBuilder<T> {
     /**
      * Sets the binding to a copy with the specified annotation on the bound key
      */
-    protected BindingImpl<T> annotatedWithInternal(Class<? extends Annotation> annotationType) {
-        Objects.requireNonNull(annotationType, "annotationType");
+    protected BindingImpl<T> annotatedWithInternal(@Nonnull Class<? extends Annotation> annotationType) {
         checkNotAnnotated();
         return setBinding(binding.withKey(
                 Key.get(this.binding.getKey().getTypeLiteral(), annotationType)));
@@ -81,21 +81,18 @@ public abstract class AbstractBindingBuilder<T> {
     /**
      * Sets the binding to a copy with the specified annotation on the bound key
      */
-    protected BindingImpl<T> annotatedWithInternal(Annotation annotation) {
-        Objects.requireNonNull(annotation, "annotation");
+    protected BindingImpl<T> annotatedWithInternal(@Nonnull Annotation annotation) {
         checkNotAnnotated();
         return setBinding(binding.withKey(
                 Key.get(this.binding.getKey().getTypeLiteral(), annotation)));
     }
 
-    public void in(final Class<? extends Annotation> scopeAnnotation) {
-        Objects.requireNonNull(scopeAnnotation, "scopeAnnotation");
+    public void in(@Nonnull final Class<? extends Annotation> scopeAnnotation) {
         checkNotScoped();
         setBinding(getBinding().withScoping(Scoping.forAnnotation(scopeAnnotation)));
     }
 
-    public void in(final Scope scope) {
-        Objects.requireNonNull(scope, "scope");
+    public void in(@Nonnull final Scope scope) {
         checkNotScoped();
         setBinding(getBinding().withScoping(Scoping.forInstance(scope)));
     }

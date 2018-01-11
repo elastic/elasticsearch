@@ -116,6 +116,7 @@ public class KeyedLockTests extends ESTestCase {
         String[] names;
         ConcurrentHashMap<String, Integer> counter;
         ConcurrentHashMap<String, AtomicInteger> safeCounter;
+        final int numRuns = scaledRandomIntBetween(5000, 50000);
 
         public AcquireAndReleaseThread(CountDownLatch startLatch, KeyedLock<String> connectionLock, String[] names,
                 ConcurrentHashMap<String, Integer> counter, ConcurrentHashMap<String, AtomicInteger> safeCounter) {
@@ -133,7 +134,6 @@ public class KeyedLockTests extends ESTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            int numRuns = scaledRandomIntBetween(5000, 50000);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 assert connectionLock.isHeldByCurrentThread(curName) == false;

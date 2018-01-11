@@ -68,7 +68,10 @@ public class ClusterAlertsUtilTests extends ESTestCase {
             assertThat(watch, notNullValue());
             assertThat(watch, containsString(clusterUuid));
             assertThat(watch, containsString(watchId));
-            assertThat(watch, containsString(clusterUuid + "_" + watchId));
+
+            if ("elasticsearch_nodes".equals(watchId) == false) {
+                assertThat(watch, containsString(clusterUuid + "_" + watchId));
+            }
 
             // validate that it's well formed JSON
             assertThat(XContentHelper.convertToMap(XContentType.JSON.xContent(), watch, false), notNullValue());

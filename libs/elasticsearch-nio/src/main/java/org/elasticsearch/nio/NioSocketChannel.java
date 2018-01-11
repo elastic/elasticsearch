@@ -19,10 +19,13 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.nio.utils.ExceptionsHelper;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -46,24 +49,19 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     @Override
     public void closeFromSelector() throws IOException {
         getSelector().assertOnSelectorThread();
-
-        IOException contextCloseException = null;
-        try {
-            context.closeFromSelector();
-        } catch (IOException e) {
-            contextCloseException = e;
-        }
-
-        try {
-            super.closeFromSelector();
-        } catch (IOException e) {
-            if (contextCloseException !=  null) {
-                e.addSuppressed(contextCloseException);
+        if (isOpen()) {
+            ArrayList<IOException> closingExceptions = new ArrayList<>(2);
+            try {
+                super.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
             }
-            throw e;
-        }
-        if (contextCloseException != null) {
-            throw contextCloseException;
+            try {
+                context.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }
 

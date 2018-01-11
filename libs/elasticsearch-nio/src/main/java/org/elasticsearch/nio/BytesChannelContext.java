@@ -133,6 +133,7 @@ public class BytesChannelContext implements ChannelContext {
     @Override
     public void closeFromSelector() {
         channel.getSelector().assertOnSelectorThread();
+        // Set to true in order to reject new writes before queuing with selector
         isClosing.set(true);
         channelBuffer.close();
         for (BytesWriteOperation op : queued) {

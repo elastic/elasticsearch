@@ -125,6 +125,7 @@ final class ExpandSearchPhase extends SearchPhase {
             .source(sourceBuilder)
             .indicesOptions(orig.indicesOptions())
             .requestCache(orig.requestCache())
+            .allowPartialSearchResults(orig.allowPartialSearchResults())
             .preference(orig.preference())
             .routing(orig.routing())
             .searchType(orig.searchType());

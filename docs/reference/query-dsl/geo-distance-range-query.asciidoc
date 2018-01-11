@@ -3,7 +3,8 @@
 
 deprecated[5.0.0,Elasticsearch will continue to support geo_distance_range queries on indexes created
 prior to 5.0.0. Range searches on indexes created in 5.0.0 and later will no longer be supported.
-Distance aggregations or sorting should be used instead.]
+Distance aggregations or sorting should be used instead. Alternatively a boolean query using MUST and 
+MUST_NOT geo_distange query clauses can be used to achieve the same effect.]
 
 Filters documents that exists within a range from a specific point:
 

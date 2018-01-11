@@ -48,7 +48,8 @@ forbiddenApisTest {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-//JarHell is part of es core, which we don't want to pull in
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in elasticsearch-core
 jarHell.enabled=false
 
 // TODO: should we have licenses for our test deps?

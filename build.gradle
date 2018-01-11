@@ -79,7 +79,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * backwards compatibility guarantees and only keeping the latest beta or rc
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
-VersionCollection versions = new VersionCollection(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
+VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 if (versions.currentVersion.toString() != VersionProperties.elasticsearch) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
@@ -181,8 +181,9 @@ subprojects {
   ext.projectSubstitutions = [
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
-    "org.elasticsearch:elasticsearch:${version}": ':core',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':core:cli',
+    "org.elasticsearch:elasticsearch:${version}": ':server',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
@@ -227,7 +228,7 @@ subprojects {
 
     // Handle javadoc dependencies across projects. Order matters: the linksOffline for
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
-    // other packages (e.g org.elasticsearch.client) will point to core rather than
+    // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
@@ -255,7 +256,7 @@ subprojects {
 gradle.projectsEvaluated {
   allprojects {
     if (project.path == ':test:framework') {
-      // :test:framework:test cannot run before and after :core:test
+      // :test:framework:test cannot run before and after :server:test
       return
     }
     configurations.all {

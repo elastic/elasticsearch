@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -36,12 +37,12 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        ServerLoggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        ServerLoggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
         appender.stop();
         super.tearDown();
     }

@@ -171,3 +171,24 @@ associated with the original roles.
 A way to update the roles stored within the {dfeed} without changing any other
 settings is to submit an empty JSON document (`{}`) to the
 {ref}/ml-update-datafeed.html[update {dfeed} API].
+
+[float]
+=== Forecasts cannot be created for population jobs
+
+If you use an `over_field_name` property in your job (that is to say, it's a
+_population job_), you cannot create a forecast. If you try to create a forecast
+for this type of job, an error occurs. For more information about forecasts,
+see <<ml-forecasting>>.
+
+[float]
+=== Forecasts cannot be created for jobs that use geographic, rare, or time functions
+
+If you use any of the following analytical functions in your job, you cannot
+create a forecast:
+
+* `lat_long`
+* `rare` and `freq_rare`
+* `time_of_day` and `time_of_week`
+
+If you try to create a forecast for this type of job, an error occurs. For more
+information about any of these functions, see <<ml-functions>>.

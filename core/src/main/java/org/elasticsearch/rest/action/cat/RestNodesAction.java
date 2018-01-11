@@ -47,6 +47,8 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -234,6 +236,16 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("translog.size", "alias:trs,translogSize;default:false;text-align:right;desc:translog size");
+        table.addCell("translog.uncommitted_operations",
+            "alias:truo,translogUncommittedOperations;default:false;text-align:right;desc:time spend in suggest");
+        table.addCell("translog.uncommitted_size",
+            "alias:trus,translogUncommittedSize;default:false;text-align:right;desc:number of suggest ops");
+
+        table.addCell("warmer.current", "alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
+        table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
+        table.addCell("warmer.total_time", "alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
+
         table.endHeaders();
         return table;
     }
@@ -273,7 +285,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().shortHash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
-            
+
             long diskTotal = fsInfo.getTotal().getTotal().getBytes();
             long diskUsed = diskTotal - fsInfo.getTotal().getAvailable().getBytes();
             double diskUsedRatio = diskTotal == 0 ? 1.0 : (double) diskUsed / diskTotal;
@@ -281,7 +293,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fsInfo == null ? null : new ByteSizeValue(diskUsed));
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());
             table.addCell(fsInfo == null ? null : String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio));
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
@@ -393,6 +405,16 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
+
+            TranslogStats translogStats = indicesStats == null ? null : indicesStats.getTranslog();
+            table.addCell(translogStats == null ? null : new ByteSizeValue(translogStats.getTranslogSizeInBytes()));
+            table.addCell(translogStats == null ? null : translogStats.getUncommittedOperations());
+            table.addCell(translogStats == null ? null : new ByteSizeValue(translogStats.getUncommittedSizeInBytes()));
+
+            WarmerStats warmerStats = indicesStats == null ? null : indicesStats.getWarmer();
+            table.addCell(warmerStats == null ? null : warmerStats.current());
+            table.addCell(warmerStats == null ? null : warmerStats.total());
+            table.addCell(warmerStats == null ? null : warmerStats.totalTime());
 
             table.endRow();
         }

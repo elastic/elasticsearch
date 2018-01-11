@@ -193,4 +193,10 @@ segments |1.4kb
 |`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
 |`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
 |`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0
+|`translog.size` |`trs`, `translogSize` |No |Size of the translog |2gb
+|`translog.uncommitted_operations` |`truo`, `translogUncommittedOperations` |No |Number of uncommitted operations in the translog|4
+|`translog.uncommitted_size` |`trus`, `translogUncommittedSize` |No |Size of the uncommitted operations in the translog |1gb
+|`warmer.current` |`wc`, `warmerCurrent` |No |Current warmer operations |3
+|`warmer.total` |`wto`, `warmerTotal` |No |Number of warmer operations |6
+|`warmer.total_time` |`wtt`, `warmerTotalTime` |No |Time spent in warmer operations |35ms
 |=======================================================================

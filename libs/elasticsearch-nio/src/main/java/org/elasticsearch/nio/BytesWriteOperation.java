@@ -62,10 +62,13 @@ public class BytesWriteOperation implements WriteOperation {
 
     public void incrementIndex(int delta) {
         internalIndex += delta;
+        assert length >= internalIndex : "Should never increment index past length [length=" + length + ", post-increment index="
+            + internalIndex + ", delta=" + delta + "]";
     }
 
     public ByteBuffer[] getBuffersToWrite() {
-        int offsetIndex = getOffsetIndex(internalIndex);
+        final int index = Arrays.binarySearch(offsets, internalIndex);
+        int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;
 
         ByteBuffer[] postIndexBuffers = new ByteBuffer[buffers.length - offsetIndex];
 
@@ -80,8 +83,4 @@ public class BytesWriteOperation implements WriteOperation {
         return postIndexBuffers;
     }
 
-    private int getOffsetIndex(int offset) {
-        final int i = Arrays.binarySearch(offsets, offset);
-        return i < 0 ? (-(i + 1)) - 1 : i;
-    }
 }

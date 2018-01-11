@@ -96,14 +96,14 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
-    public void queueWriteOperations(WriteOperation writeOperation) {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
+    public void queueWriteOperation(WriteOperation writeOperation) {
+        channel.getSelector().assertOnSelectorThread();
         queued.add((BytesWriteOperation) writeOperation);
     }
 
     @Override
     public void flushChannel() throws IOException {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to flush writes";
+        channel.getSelector().assertOnSelectorThread();
         int ops = queued.size();
         if (ops == 1) {
             singleFlush(queued.pop());
@@ -114,7 +114,7 @@ public class BytesChannelContext implements ChannelContext {
 
     @Override
     public boolean hasQueuedWriteOps() {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to access queued writes";
+        channel.getSelector().assertOnSelectorThread();
         return queued.isEmpty() == false;
     }
 
@@ -126,13 +126,13 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
-    public boolean readyToClose() {
+    public boolean selectorShouldClose() {
         return peerClosed || ioException || isClosing.get();
     }
 
     @Override
     public void closeFromSelector() {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to close";
+        channel.getSelector().assertOnSelectorThread();
         isClosing.set(true);
         channelBuffer.close();
         for (BytesWriteOperation op : queued) {

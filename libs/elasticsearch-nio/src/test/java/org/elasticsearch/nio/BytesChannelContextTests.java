@@ -139,9 +139,9 @@ public class BytesChannelContextTests extends ESTestCase {
     public void testReadThrowsIOExceptionMeansReadyForClose() throws IOException {
         when(channel.read(any(ByteBuffer[].class))).thenThrow(new IOException());
 
-        assertFalse(context.readyToClose());
+        assertFalse(context.selectorShouldClose());
         expectThrows(IOException.class, () -> context.read());
-        assertTrue(context.readyToClose());
+        assertTrue(context.selectorShouldClose());
     }
 
     public void testReadLessThanZeroMeansReadyForClose() throws IOException {
@@ -149,7 +149,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         assertEquals(0, context.read());
 
-        assertTrue(context.readyToClose());
+        assertTrue(context.selectorShouldClose());
     }
 
     public void testCloseClosesChannelBuffer() throws IOException {
@@ -205,7 +205,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-        context.queueWriteOperations(new BytesWriteOperation(channel, buffer, listener));
+        context.queueWriteOperation(new BytesWriteOperation(channel, buffer, listener));
 
         assertTrue(context.hasQueuedWriteOps());
     }
@@ -214,7 +214,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-        context.queueWriteOperations(new BytesWriteOperation(channel,  buffer, listener));
+        context.queueWriteOperation(new BytesWriteOperation(channel,  buffer, listener));
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -230,7 +230,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
         BytesWriteOperation writeOperation = mock(BytesWriteOperation.class);
-        context.queueWriteOperations(writeOperation);
+        context.queueWriteOperation(writeOperation);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -248,7 +248,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         BytesWriteOperation writeOperation = mock(BytesWriteOperation.class);
-        context.queueWriteOperations(writeOperation);
+        context.queueWriteOperation(writeOperation);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -268,8 +268,8 @@ public class BytesChannelContextTests extends ESTestCase {
         BytesWriteOperation writeOperation2 = mock(BytesWriteOperation.class);
         when(writeOperation1.getListener()).thenReturn(listener);
         when(writeOperation2.getListener()).thenReturn(listener2);
-        context.queueWriteOperations(writeOperation1);
-        context.queueWriteOperations(writeOperation2);
+        context.queueWriteOperation(writeOperation1);
+        context.queueWriteOperation(writeOperation2);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -294,7 +294,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
         BytesWriteOperation writeOperation = mock(BytesWriteOperation.class);
-        context.queueWriteOperations(writeOperation);
+        context.queueWriteOperation(writeOperation);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -311,15 +311,15 @@ public class BytesChannelContextTests extends ESTestCase {
     public void testWriteIOExceptionMeansChannelReadyToClose() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
         BytesWriteOperation writeOperation = mock(BytesWriteOperation.class);
-        context.queueWriteOperations(writeOperation);
+        context.queueWriteOperation(writeOperation);
 
         IOException exception = new IOException();
         when(writeOperation.getBuffersToWrite()).thenReturn(buffers);
         when(channel.write(buffers)).thenThrow(exception);
 
-        assertFalse(context.readyToClose());
+        assertFalse(context.selectorShouldClose());
         expectThrows(IOException.class, () -> context.flushChannel());
-        assertTrue(context.readyToClose());
+        assertTrue(context.selectorShouldClose());
     }
 
     public void initiateCloseSchedulesCloseWithSelector() {

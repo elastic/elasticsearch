@@ -141,7 +141,7 @@ public class SocketSelectorTests extends ESTestCase {
         when(channel.isOpen()).thenReturn(false);
         socketSelector.preSelect();
 
-        verify(channelContext, times(0)).queueWriteOperations(writeOperation);
+        verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
     }
 
@@ -156,7 +156,7 @@ public class SocketSelectorTests extends ESTestCase {
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.preSelect();
 
-        verify(channelContext, times(0)).queueWriteOperations(writeOperation);
+        verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(listener).accept(null, cancelledKeyException);
     }
 
@@ -168,7 +168,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        verify(channelContext).queueWriteOperations(writeOperation);
+        verify(channelContext).queueWriteOperation(writeOperation);
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
@@ -179,7 +179,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.queueWriteInChannelBuffer(writeOperation);
 
-        verify(channelContext).queueWriteOperations(writeOperation);
+        verify(channelContext).queueWriteOperation(writeOperation);
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
@@ -193,7 +193,7 @@ public class SocketSelectorTests extends ESTestCase {
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.queueWriteInChannelBuffer(writeOperation);
 
-        verify(channelContext, times(0)).queueWriteOperations(writeOperation);
+        verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(listener).accept(null, cancelledKeyException);
     }
 

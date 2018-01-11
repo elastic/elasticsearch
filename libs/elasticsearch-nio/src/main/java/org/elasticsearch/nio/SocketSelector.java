@@ -120,12 +120,12 @@ public class SocketSelector extends ESSelector {
      * @param writeOperation to be queued in a channel's buffer
      */
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
-        assert isOnCurrentThread() : "Must be on selector thread";
+        assertOnSelectorThread();
         NioSocketChannel channel = writeOperation.getChannel();
         ChannelContext context = channel.getContext();
         try {
             SelectionKeyUtils.setWriteInterested(channel);
-            context.queueWriteOperations(writeOperation);
+            context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
             executeFailedListener(writeOperation.getListener(), e);
         }
@@ -139,7 +139,7 @@ public class SocketSelector extends ESSelector {
      * @param value to provide to listener
      */
     public <V> void executeListener(BiConsumer<V, Throwable> listener, V value) {
-        assert isOnCurrentThread() : "Must be on selector thread";
+        assertOnSelectorThread();
         try {
             listener.accept(value, null);
         } catch (Exception e) {
@@ -155,7 +155,7 @@ public class SocketSelector extends ESSelector {
      * @param exception to provide to listener
      */
     public <V> void executeFailedListener(BiConsumer<V, Throwable> listener, Exception exception) {
-        assert isOnCurrentThread() : "Must be on selector thread";
+        assertOnSelectorThread();
         try {
             listener.accept(null, exception);
         } catch (Exception e) {

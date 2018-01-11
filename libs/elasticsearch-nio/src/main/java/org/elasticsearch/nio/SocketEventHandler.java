@@ -60,7 +60,7 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void registrationException(NioSocketChannel channel, Exception exception) {
-        logger.warn(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
+        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
         exceptionCaught(channel, exception);
     }
 
@@ -155,7 +155,7 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was handled
      */
     protected void postHandling(NioSocketChannel channel) {
-        if (channel.getContext().readyToClose()) {
+        if (channel.getContext().selectorShouldClose()) {
             handleClose(channel);
         } else {
             boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(channel);

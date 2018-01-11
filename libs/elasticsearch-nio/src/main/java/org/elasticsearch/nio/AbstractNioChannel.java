@@ -76,7 +76,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      */
     @Override
     public void closeFromSelector() throws IOException {
-        assert selector.isOnCurrentThread() : "Should only call from selector thread";
+        selector.assertOnSelectorThread();
         if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();

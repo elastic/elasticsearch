@@ -77,7 +77,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
-        channel.getContext().queueWriteOperations(mock(BytesWriteOperation.class));
+        channel.getContext().queueWriteOperation(mock(BytesWriteOperation.class));
         handler.handleRegistration(channel);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
     }
@@ -128,7 +128,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
-        when(context.readyToClose()).thenReturn(true);
+        when(context.selectorShouldClose()).thenReturn(true);
         handler.postHandling(channel);
 
         verify(channel).closeFromSelector();
@@ -140,7 +140,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
-        when(context.readyToClose()).thenReturn(false);
+        when(context.selectorShouldClose()).thenReturn(false);
         handler.postHandling(channel);
 
         verify(channel, times(0)).closeFromSelector();

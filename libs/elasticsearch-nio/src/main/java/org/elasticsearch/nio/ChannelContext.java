@@ -22,6 +22,15 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
+/**
+ * This context should implement the specific logic for a channel. When a channel receives a notification
+ * that it is ready to perform certain operations (read, write, etc) the {@link ChannelContext} will be
+ * called. This context will need to implement all protocol related logic. Additionally, if any special
+ * close behavior is required, it should be implemented in this context.
+ *
+ * The only methods of the context that should ever be called from a non-selector thread are
+ * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
+ */
 public interface ChannelContext {
 
     void channelRegistered() throws IOException;
@@ -30,7 +39,7 @@ public interface ChannelContext {
 
     void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
 
-    void queueWriteOperations(WriteOperation writeOperation);
+    void queueWriteOperation(WriteOperation writeOperation);
 
     void flushChannel() throws IOException;
 
@@ -49,7 +58,12 @@ public interface ChannelContext {
      */
     void closeChannel();
 
-    boolean readyToClose();
+    /**
+     * This method indicates if a selector should close this channel.
+     *
+     * @return a boolean indicating if the selector should close
+     */
+    boolean selectorShouldClose();
 
     /**
      * This method cleans up any context resources that need to be released when a channel is closed. It

@@ -19,15 +19,6 @@
 
 package org.elasticsearch.cloud.gce;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-
 import com.google.api.client.googleapis.compute.ComputeCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
@@ -39,14 +30,22 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.elasticsearch.discovery.gce.GceHttpRequestInitializer;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
 
 public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService, Closeable {
 
@@ -155,24 +154,16 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             }
 
 
-            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION)
-                .setRootUrl(GCE_ROOT_URL.get(settings));
+            Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
+                                                        .setApplicationName(VERSION)
+                                                        .setRootUrl(GCE_ROOT_URL.get(settings));
 
-            if (RETRY_SETTING.exists(settings)) {
-                TimeValue maxWait = MAX_WAIT_SETTING.get(settings);
-                RetryHttpInitializerWrapper retryHttpInitializerWrapper;
+            final TimeValue connectTimeout = CONNECTION_TIMEOUT_SETTING.get(settings);
+            final TimeValue readTimeout = READ_TIMEOUT_SETTING.get(settings);
+            final TimeValue maxWaitTime = MAX_WAIT_SETTING.get(settings);
+            final boolean retry = RETRY_SETTING.exists(settings) && RETRY_SETTING.get(settings);
 
-                if (maxWait.getMillis() > 0) {
-                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, maxWait);
-                } else {
-                    retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential);
-                }
-                builder.setHttpRequestInitializer(retryHttpInitializerWrapper);
-
-            } else {
-                builder.setHttpRequestInitializer(credential);
-            }
-
+            builder.setHttpRequestInitializer(new GceHttpRequestInitializer(credential, connectTimeout, readTimeout, maxWaitTime, retry));
             this.client = builder.build();
         } catch (Exception e) {
             logger.warn("unable to start GCE discovery service", e);

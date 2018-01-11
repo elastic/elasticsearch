@@ -34,6 +34,18 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
      https://developers.google.com/compute/docs/zones#available[GCE supported zones].
      See also <<discovery-gce-usage-zones>>.
 
+ `connect_timeout`::
+
+     Sets the timeout to establish a connection. A value of `0` corresponds to an infinite timeout, while
+     a value of `-1` corresponds to the default timeout provided by the Google Compute Engine Java Library (20 seconds).
+     Defaults to `-1`.
+
+ `read_timeout`::
+
+     Sets the timeout to read data from an established connection. A value of `0` corresponds to an infinite timeout, while
+     a value of `-1` corresponds to the default timeout provided by the Google Compute Engine Java Library (20 seconds).
+     Defaults to `-1`.
+
  `retry`::
 
      If set to `true`, client will use

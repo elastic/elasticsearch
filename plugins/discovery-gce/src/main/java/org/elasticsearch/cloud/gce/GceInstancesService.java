@@ -20,12 +20,10 @@
 package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -70,6 +68,22 @@ public interface GceInstancesService {
      */
     Setting<TimeValue> MAX_WAIT_SETTING =
         Setting.timeSetting("cloud.gce.max_wait", TimeValue.timeValueSeconds(-1), Property.NodeScope);
+
+    /**
+     * cloud.gce.http.connect_timeout: Sets the timeout to establish a connection.
+     * A value of {@code 0} corresponds to an infinite timeout. A value of {@code -1} corresponds to
+     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to {@code -1}.
+     */
+    Setting<TimeValue> CONNECTION_TIMEOUT_SETTING =
+        Setting.timeSetting("cloud.gce.connect_timeout", TimeValue.MINUS_ONE, Property.NodeScope);
+
+    /**
+     * cloud.gce.http.read_timeout: Sets the timeout to read data from an established connection.
+     * A value of {@code 0} corresponds to an infinite timeout. A value of {@code -1} corresponds to
+     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to {@code -1}.
+     */
+    Setting<TimeValue> READ_TIMEOUT_SETTING =
+        Setting.timeSetting("cloud.gce.read_timeout", TimeValue.MINUS_ONE, Property.NodeScope);
 
     /**
      * Return a collection of running instances within the same GCE project

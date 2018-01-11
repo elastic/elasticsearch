@@ -98,7 +98,9 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
             GceUnicastHostsProvider.TAGS_SETTING,
             GceInstancesService.REFRESH_SETTING,
             GceInstancesService.RETRY_SETTING,
-            GceInstancesService.MAX_WAIT_SETTING);
+            GceInstancesService.MAX_WAIT_SETTING,
+            GceInstancesService.READ_TIMEOUT_SETTING,
+            GceInstancesService.CONNECTION_TIMEOUT_SETTING);
     }
 
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -34,8 +35,9 @@ public class RestPostCalendarEventAction extends BaseRestHandler {
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
 
+        XContentParser parser = restRequest.contentOrSourceParamParser();
         PostCalendarEventsAction.Request request =
-                PostCalendarEventsAction.Request.parseRequest(calendarId, restRequest.requiredContent(), restRequest.getXContentType());
+                PostCalendarEventsAction.Request.parseRequest(calendarId, parser);
         return channel -> client.execute(PostCalendarEventsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

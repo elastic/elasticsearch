@@ -250,11 +250,14 @@
   - do:
       xpack.ml.post_calendar_events:
         calendar_id: "events"
-        body: >
-          { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "events" }
-          { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z", "calendar_id": "events" }
-          { "description": "event 3", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-13T00:00:00Z", "calendar_id": "events" }
-          { "description": "event 4", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-15T00:00:00Z", "calendar_id": "events" }
+        body:  >
+          {
+            "events" : [
+              { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 3", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-13T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 4", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-15T00:00:00Z", "calendar_id": "events" }]
+          }
 
   - do:
       xpack.ml.get_calendar_events:
@@ -309,15 +312,21 @@
       xpack.ml.post_calendar_events:
         calendar_id: "events-2"
         body: >
-          { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"}
-          { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"},
+              { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}]
+          }
 
   - do:
       catch: bad_request
       xpack.ml.post_calendar_events:
         calendar_id: "events-2"
         body: >
-          { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-03T00:00:00Z", "calendar_id": "events"}
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-03T00:00:00Z", "calendar_id": "events"}]
+          }
 
 # Event is not in calendar events-2
   - do:
@@ -349,9 +358,12 @@
       xpack.ml.post_calendar_events:
         calendar_id: "cal-foo"
         body: >
-          { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z" }
-          { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" }
-          { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.put_calendar:
@@ -361,8 +373,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "cal-bar"
         body: >
-          { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"}
-          { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"},
+              { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}]
+          }
 
   - do:
       xpack.ml.delete_calendar:
@@ -404,8 +419,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "dave-holidays"
         body: >
-          { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
-          { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.put_calendar:
@@ -415,8 +433,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "tom-holidays"
         body: >
-          { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
-          { "description": "other", "start_time": "2017-12-27T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "other", "start_time": "2017-12-27T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.get_calendar_events:
@@ -450,8 +471,10 @@
       xpack.ml.post_calendar_events:
         calendar_id: "dave-holidays"
         body: >
-          { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
-          { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }
+          {
+            "events" : [{ "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+                        { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.put_calendar:
@@ -465,8 +488,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "tom-holidays"
         body: >
-          { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" }
-          { "description": "other", "start_time": "2018-01-15T00:00:00Z", "end_time": "2018-01-16T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "other", "start_time": "2018-01-15T00:00:00Z", "end_time": "2018-01-16T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.put_calendar:
@@ -476,8 +502,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "not-used-by-job"
         body: >
-          { "description": "random", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-26T00:00:00Z" }
-          { "description": "random2", "start_time": "2018-02-20T00:00:00Z", "end_time": "2018-02-26T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "random", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-26T00:00:00Z" },
+              { "description": "random2", "start_time": "2018-02-20T00:00:00Z", "end_time": "2018-02-26T00:00:00Z" }]
+          }
 
 
 # Calendar Id must be _all if a job id is used
@@ -532,8 +561,11 @@
       xpack.ml.post_calendar_events:
         calendar_id: "ben-holidays"
         body: >
-          { "description": "ski", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-27T00:00:00Z" }
-          { "description": "snow", "start_time": "2018-01-30T00:00:00Z", "end_time": "2018-02-01T00:00:00Z" }
+          {
+            "events" : [
+              { "description": "ski", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-27T00:00:00Z" },
+              { "description": "snow", "start_time": "2018-01-30T00:00:00Z", "end_time": "2018-02-01T00:00:00Z" }]
+          }
 
   - do:
       xpack.ml.get_calendar_events:

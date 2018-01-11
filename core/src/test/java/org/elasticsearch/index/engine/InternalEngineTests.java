@@ -167,6 +167,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -2115,7 +2116,7 @@ public class InternalEngineTests extends EngineTestCase {
             boolean doneIndexing;
             do {
                 doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
-                commits.add(engine.acquireIndexCommit(true));
+                commits.add(engine.acquireIndexCommit(false, true));
                 if (commits.size() > commitLimit) { // don't keep on piling up too many commits
                     IOUtils.close(commits.remove(randomIntBetween(0, commits.size()-1)));
                     // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
@@ -4317,6 +4318,40 @@ public class InternalEngineTests extends EngineTestCase {
             }
             int totalNumDocs = numDocs - numDeletes.get();
             assertEquals(totalNumDocs, searcher.reader().numDocs());
+        }
+    }
+
+    public void testAcquireIndexCommit() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong();
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            int numDocs = between(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+            }
+            final boolean inSync = randomBoolean();
+            if (inSync) {
+                globalCheckpoint.set(numDocs - 1);
+            }
+            final boolean flushFirst = randomBoolean();
+            final boolean safeCommit = randomBoolean();
+            Engine.IndexCommitRef commit = engine.acquireIndexCommit(safeCommit, flushFirst);
+            int moreDocs = between(1, 20);
+            for (int i = 0; i < moreDocs; i++) {
+                index(engine, numDocs + i);
+            }
+            globalCheckpoint.set(numDocs + moreDocs - 1);
+            engine.flush();
+            // check that we can still read the commit that we captured
+            try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(flushFirst && (safeCommit == false || inSync) ? numDocs : 0));
+            }
+            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
+            commit.close();
+            // check it's clean up
+            engine.flush(true, true);
+            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
         }
     }
 }

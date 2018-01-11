@@ -119,6 +119,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         try (XContentParser parser = request.contentParser()) {
             PARSER.parse(parser, internal, null);
         }
+        if (request.hasParam("scroll")) {
+            internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
+        }
         return internal;
     }
 

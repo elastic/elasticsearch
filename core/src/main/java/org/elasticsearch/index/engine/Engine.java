@@ -32,7 +32,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -92,7 +91,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 public abstract class Engine implements Closeable {
 
@@ -568,7 +566,7 @@ public abstract class Engine implements Closeable {
      * @return the sequence number service
      */
     public abstract LocalCheckpointTracker getLocalCheckpointTracker();
-    
+
     /**
      * Global stats on segments.
      */
@@ -859,9 +857,10 @@ public abstract class Engine implements Closeable {
      * Snapshots the index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      *
+     * @param safeCommit indicates whether the engine should acquire the most recent safe commit, or the most recent commit.
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException;
+    public abstract IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.
@@ -1437,9 +1436,9 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(SnapshotDeletionPolicy deletionPolicy) throws IOException {
-            indexCommit = deletionPolicy.snapshot();
-            onClose = () -> deletionPolicy.release(indexCommit);
+        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+            this.indexCommit = indexCommit;
+            this.onClose = onClose;
         }
 
         @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,7 +43,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 
     public static final int SIZE_ALL_MATCHES = -1;
-    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
+    static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     static final int DEFAULT_SCROLL_SIZE = 1000;
 
     public static final int AUTO_SLICES = 0;
@@ -339,6 +340,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public boolean getShouldStoreResult() {
         return shouldStoreResult;
+    }
+
+    /**
+     * Set scroll timeout for {@link SearchRequest}
+     */
+    public Self setScroll(TimeValue keepAlive) {
+        searchRequest.scroll(new Scroll(keepAlive));
+        return self();
+    }
+
+    /**
+     * Get scroll timeout
+     */
+    public TimeValue getScrollTime() {
+        return searchRequest.scroll().keepAlive();
     }
 
     /**

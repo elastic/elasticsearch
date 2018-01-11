@@ -1045,41 +1045,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public void testAcquireIndexCommit() throws Exception {
-        boolean isPrimary = randomBoolean();
-        final IndexShard shard = newStartedShard(isPrimary);
-        int numDocs = randomInt(20);
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "type", "id_" + i);
-        }
-        final boolean flushFirst = randomBoolean();
-        Engine.IndexCommitRef commit = shard.acquireIndexCommit(flushFirst);
-        int moreDocs = randomInt(20);
-        for (int i = 0; i < moreDocs; i++) {
-            indexDoc(shard, "type", "id_" + numDocs + i);
-        }
-        flushShard(shard);
-        // check that we can still read the commit that we captured
-        try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
-            assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
-        }
-        commit.close();
-        // Make the global checkpoint in sync with the local checkpoint.
-        if (isPrimary) {
-            final String allocationId = shard.shardRouting.allocationId().getId();
-            shard.updateLocalCheckpointForShard(allocationId, numDocs + moreDocs - 1);
-            shard.updateGlobalCheckpointForShard(allocationId, shard.getLocalCheckpoint());
-        } else {
-            shard.updateGlobalCheckpointOnReplica(numDocs + moreDocs - 1, "test");
-        }
-        flushShard(shard, true);
-
-        // check it's clean up
-        assertThat(DirectoryReader.listCommits(shard.store().directory()), hasSize(1));
-
-        closeShards(shard);
-    }
-
     /***
      * test one can snapshot the store at various lifecycle stages
      */

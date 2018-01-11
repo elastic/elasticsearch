@@ -362,9 +362,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        if (deleteLocalTranslog) {
+        if (createNewTranslog) {
             indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
         } else {
             indexShard().openIndexAndSkipTranslogRecovery();

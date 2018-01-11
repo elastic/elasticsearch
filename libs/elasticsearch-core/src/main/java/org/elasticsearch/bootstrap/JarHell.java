@@ -216,7 +216,7 @@ public class JarHell {
     }
 
     /** inspect manifest for sure incompatibilities */
-    static void checkManifest(Manifest manifest, Path jar) {
+    private static void checkManifest(Manifest manifest, Path jar) {
         // give a nice error if jar requires a newer java version
         String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
         if (targetVersion != null) {
@@ -265,7 +265,7 @@ public class JarHell {
         }
     }
 
-    static void checkClass(Map<String,Path> clazzes, String clazz, Path jarpath) {
+    private static void checkClass(Map<String, Path> clazzes, String clazz, Path jarpath) {
         Path previous = clazzes.put(clazz, jarpath);
         if (previous != null) {
             if (previous.equals(jarpath)) {

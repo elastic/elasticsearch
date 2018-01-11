@@ -170,7 +170,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     /** ask this shard to refresh, in the background, to free up heap */
-    protected void writeIndexingBufferAsync(IndexShard shard) {
+    protected long writeIndexingBufferAsync(IndexShard shard) {
+        long writingBytes = shard.getNextWrittenBufferBytes();
         threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
             @Override
             public void doRun() {
@@ -182,6 +183,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
             }
         });
+        return writingBytes;
     }
 
     /** force checker to run now */
@@ -356,9 +358,12 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
                 while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
-                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
-                    writeIndexingBufferAsync(largest.shard);
-                    totalBytesUsed -= largest.bytesUsed;
+                    long bytesWriting = writeIndexingBufferAsync(largest.shard);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer total buffer: [{}]",
+                            largest.shard.shardId(), new ByteSizeValue(bytesWriting), new ByteSizeValue(largest.bytesUsed));
+                    }
+                    totalBytesUsed -= bytesWriting;
                     if (doThrottle && throttled.contains(largest.shard) == false) {
                         logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
                         throttled.add(largest.shard);

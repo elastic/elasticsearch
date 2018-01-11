@@ -1702,6 +1702,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public long getNextWrittenBufferBytes() {
+        Engine engine = getEngine();
+        return engine.getNextWrittenBufferBytes();
+    }
+
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
      * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for

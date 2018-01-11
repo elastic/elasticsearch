@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterHelper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -47,6 +48,7 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -58,6 +60,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
@@ -1305,16 +1308,7 @@ public class InternalEngine extends Engine {
     }
 
     final void refresh(String source, SearcherScope scope) throws EngineException {
-        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
-        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        // both refresh types will result in an internal refresh but only the external will also
-        // pass the new reader reference to the external reader manager.
-
-        // this will also cause version map ram to be freed hence we always account for it.
-        final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
-        writingBytes.addAndGet(bytes);
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        flushBuffers("refresh source: [" + source + "]", () -> {
             switch (scope) {
                 case EXTERNAL:
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
@@ -1328,20 +1322,7 @@ public class InternalEngine extends Engine {
                 default:
                     throw new IllegalArgumentException("unknown scope: " + scope);
             }
-        } catch (AlreadyClosedException e) {
-            failOnTragicEvent(e);
-            throw e;
-        } catch (Exception e) {
-            try {
-                failEngine("refresh failed source[" + source + "]", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new RefreshFailedEngineException(shardId, e);
-        }  finally {
-            writingBytes.addAndGet(-bytes);
-        }
-
+        }, () -> indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh());
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
@@ -1349,11 +1330,64 @@ public class InternalEngine extends Engine {
         mergeScheduler.refreshConfig();
     }
 
+    final void flushBuffers(String reason, CheckedRunnable<IOException> runnable, LongSupplier getWritingBytes) throws EngineException {
+        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
+        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        // both refresh types will result in an internal refresh but only the external will also
+        // pass the new reader reference to the external reader manager.
+
+        // this will also cause version map ram to be freed hence we always account for it.
+        final long bytes = getWritingBytes.getAsLong();
+        writingBytes.addAndGet(bytes);
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            runnable.run();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine(reason, e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
+        }  finally {
+            writingBytes.addAndGet(-bytes);
+        }
+    }
+
     @Override
     public void writeIndexingBuffer() throws EngineException {
-        // we obtain a read lock here, since we don't want a flush to happen while we are writing
-        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        refresh("write indexing buffer", SearcherScope.INTERNAL);
+        writeIndexingBuffer(true);
+    }
+
+    public long writeIndexingBuffer(boolean execute) throws EngineException {
+        final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+        final long indexingBufferBytes = indexWriter.ramBytesUsed();
+        final long nextPendingBytes = IndexWriterHelper.getMaxSingleBufferSize(indexWriter,
+            () -> IndexWriterHelper.getFlushBytes(indexWriter));
+        final boolean useRefresh = (indexingBufferBytes / 4 < versionMapBytes) || nextPendingBytes == 0;
+        if (execute) {
+            if (useRefresh) {
+                // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
+                logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
+                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                refresh("write indexing buffer", SearcherScope.INTERNAL);
+            } else {
+                // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
+                logger.debug("use IndexWriter.flushNextBuffer to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
+                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                flushBuffers("write indexing buffer", indexWriter::flushNextBuffer,
+                    () -> nextPendingBytes);
+            }
+        }
+        return useRefresh ? versionMapBytes + indexingBufferBytes : nextPendingBytes;
+    }
+
+    @Override
+    public long getNextWrittenBufferBytes() {
+        return writeIndexingBuffer(false);
     }
 
     @Override

@@ -1189,7 +1189,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexDoc(shard, "test", "test");
         shard.writeIndexingBuffer();
-        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+2));
+        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         closeShards(shard);
     }
 
@@ -2854,7 +2854,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "4", "{\"foo\": \"potato\"}");
         // Forces a refresh with the INTERNAL scope
-        ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
+        ((InternalEngine) primary.getEngine()).flush();
 
         ss = primary.segmentStats(randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);

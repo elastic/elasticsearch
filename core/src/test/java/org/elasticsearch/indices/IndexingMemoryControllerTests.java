@@ -104,10 +104,11 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void writeIndexingBufferAsync(IndexShard shard) {
+        public long writeIndexingBufferAsync(IndexShard shard) {
             long bytes = indexBufferRAMBytesUsed.put(shard, 0L);
             writingBytes.put(shard, writingBytes.get(shard) + bytes);
             indexBufferRAMBytesUsed.put(shard, 0L);
+            return writingBytes.get(shard);
         }
 
         @Override
@@ -386,9 +387,11 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            protected void writeIndexingBufferAsync(IndexShard shard) {
+            protected long writeIndexingBufferAsync(IndexShard shard) {
+                long nextWrittenBufferBytes = shard.getNextWrittenBufferBytes();
                 // just do it sync'd for this test
                 shard.writeIndexingBuffer();
+                return nextWrittenBufferBytes;
             }
 
             @Override
@@ -435,10 +438,12 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         AtomicInteger flushes = new AtomicInteger();
         IndexingMemoryController imc = new IndexingMemoryController(settings, client().threadPool(), iterable) {
             @Override
-            protected void writeIndexingBufferAsync(IndexShard shard) {
+            protected long writeIndexingBufferAsync(IndexShard shard) {
                 assertEquals(shard, shardRef.get());
                 flushes.incrementAndGet();
+                long nextWrittenBufferBytes = shard.getNextWrittenBufferBytes();
                 shard.writeIndexingBuffer();
+                return nextWrittenBufferBytes;
             }
         };
         final IndexShard newShard = IndexShardIT.newIndexShard(indexService, shard, wrapper, new NoneCircuitBreakerService(), imc);

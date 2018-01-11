@@ -373,7 +373,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         transportService.connectToNode(node);
                     } catch (Exception e) {
                         it.remove();
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
                     }
                 }
             }

@@ -54,6 +54,8 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
+            // consume all request parameters for 'help' to prevent an IllegalArgumentException
+            request.params().keySet().forEach(request::param);
             return channel -> {
                 Table table = getTableWithHeader(request);
                 int[] width = buildHelpWidths(table, request);

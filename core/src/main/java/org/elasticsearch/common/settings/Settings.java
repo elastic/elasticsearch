@@ -807,8 +807,8 @@ public final class Settings implements ToXContentFragment {
         }
 
         public Builder setSecureSettings(SecureSettings secureSettings) {
-            if (secureSettings.isLoaded() == false) {
-                throw new IllegalStateException("Secure settings must already be loaded");
+            if (secureSettings.isUnlocked() == false) {
+                throw new IllegalStateException("Secure settings should have been unlocked.");
             }
             if (this.secureSettings.get() != null) {
                 throw new IllegalArgumentException("Secure settings already set. Existing settings: " +
@@ -1399,11 +1399,6 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public boolean isLoaded() {
-            return delegate.isLoaded();
-        }
-
-        @Override
         public Set<String> getSettingNames() {
             synchronized (settingNames) {
                 if (settingNames.get() == null) {
@@ -1426,8 +1421,23 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() throws Exception {
             delegate.close();
+        }
+
+        @Override
+        public boolean isUnlocked() {
+            return delegate.isUnlocked();
+        }
+
+        @Override
+        public AutoCloseable unlock(char[] password) throws GeneralSecurityException, IOException {
+            return delegate.unlock(password);
+        }
+
+        @Override
+        public void lock() {
+            delegate.lock();
         }
     }
 

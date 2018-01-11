@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Optional;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -56,44 +57,46 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
+        final String settingName = arguments.value(options);
+        if (settingName == null) {
+            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
+        }
+        Optional<KeyStoreWrapper> keystore = KeyStoreWrapper.load(env.configFile());
+        if (keystore.isPresent() == false) {
             if (options.has(forceOption) == false &&
                 terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
-            keystore = KeyStoreWrapper.create(new char[0] /* always use empty passphrase for auto created keystore */);
-            keystore.save(env.configFile());
-            terminal.println("Created elasticsearch keystore in " + env.configFile());
-        } else {
-            keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-        }
-
-        String setting = arguments.value(options);
-        if (setting == null) {
-            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
-        }
-        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                terminal.println("Exiting without modifying keystore.");
-                return;
+            /* always use empty password for auto created keystore */
+            try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(new char[0])) {
+                builder.save(env.configFile());
             }
+            terminal.println("Created elasticsearch keystore in " + env.configFile());
+            // reload keystore
+            keystore = KeyStoreWrapper.load(env.configFile());
         }
-
+        assert keystore.isPresent();
         final char[] value;
         if (options.has(stdinOption)) {
             BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
             value = stdinReader.readLine().toCharArray();
         } else {
-            value = terminal.readSecret("Enter value for " + setting + ": ");
+            value = terminal.readSecret("Enter value for " + settingName + ": ");
         }
-
-        try {
-            keystore.setString(setting, value);
-        } catch (IllegalArgumentException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
+        /* TODO: prompt for password when they are supported */
+        try (AutoCloseable ignored = keystore.get().unlock(new char[0])) {
+            if (keystore.get().getSettingNames().contains(settingName) && options.has(forceOption) == false) {
+                if (terminal.promptYesNo("Setting " + settingName + " already exists. Overwrite?", false) == false) {
+                    terminal.println("Exiting without modifying keystore.");
+                    return;
+                }
+            }
+            try (KeyStoreWrapper.Builder keystoreBuilder = KeyStoreWrapper.builder(keystore.get())) {
+                keystoreBuilder.setString(settingName, value).save(env.configFile());
+            } catch (IllegalArgumentException e) {
+                throw new UserException(ExitCodes.DATA_ERROR, "Keystore exception.", e);
+            }
         }
-        keystore.save(env.configFile());
     }
 }

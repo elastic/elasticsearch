@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
+import java.security.KeyStore;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -27,6 +30,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 
 /**
@@ -43,24 +47,31 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        List<String> settings = arguments.values(options);
-        if (settings.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
+        final List<String> toRemoveSettings = arguments.values(options);
+        if (toRemoveSettings.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove.");
         }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
+        final Optional<KeyStoreWrapper> keystore = KeyStoreWrapper.load(env.configFile());
+        if (keystore.isPresent() == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
-
-        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-
-        for (String setting : arguments.values(options)) {
-            if (keystore.getSettingNames().contains(setting) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
+        /* TODO: prompt for password when they are supported */
+        assert keystore.get().hasPassword() == false;
+        try (AutoCloseable ignored = keystore.get().unlock(new char[0])) {
+            // check if all requested entries can be removed.
+            final Set<String> availableSettings = keystore.get().getSettingNames();
+            if (availableSettings.containsAll(toRemoveSettings) == false) {
+                throw new UserException(ExitCodes.CONFIG,
+                        "Some settings [" + Strings.collectionToCommaDelimitedString(toRemoveSettings) + "] do not exist in the keystore."
+                                + System.lineSeparator() + "Available settings ["
+                                + Strings.collectionToCommaDelimitedString(availableSettings) + "]. Aborted.");
             }
-            keystore.remove(setting);
+            try (KeyStoreWrapper.Builder builder = KeyStoreWrapper.builder(keystore.get())) {
+                for (String setting : toRemoveSettings) {
+                    builder.remove(setting);
+                }
+                builder.save(env.configFile());
+            }
         }
-        keystore.save(env.configFile());
     }
 }

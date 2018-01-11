@@ -159,8 +159,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         bucketSpan = new TimeValue(in);
         categorizationFieldName = in.readOptionalString();
         categorizationFilters = in.readBoolean() ? in.readList(StreamInput::readString) : null;
-        // TODO: change to 6.2.0 after backporting
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         } else {
             categorizationAnalyzerConfig = null;
@@ -186,8 +185,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        // TODO: change to 6.2.0 after backporting
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalWriteable(categorizationAnalyzerConfig);
         }
         out.writeOptionalWriteable(latency);

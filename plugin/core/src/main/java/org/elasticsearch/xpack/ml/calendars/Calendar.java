@@ -20,6 +20,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A simple calendar object for scheduled (special) events.
+ * The calendar consists of a name an a list of job Ids or job groups.
+ */
 public class Calendar implements ToXContentObject, Writeable {
 
     public static final String CALENDAR_TYPE = "calendar";
@@ -49,6 +53,11 @@ public class Calendar implements ToXContentObject, Writeable {
     private final String id;
     private final List<String> jobIds;
 
+    /**
+     * {@code jobIds} can be a mix of job groups and job Ids
+     * @param id The calendar Id
+     * @param jobIds List of job Ids or job groups.
+     */
     public Calendar(String id, List<String> jobIds) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.jobIds = Objects.requireNonNull(jobIds, JOB_IDS.getPreferredName() + " must not be null");

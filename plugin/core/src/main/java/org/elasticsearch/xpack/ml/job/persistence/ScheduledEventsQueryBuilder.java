@@ -12,46 +12,56 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Query builder for {@link SpecialEvent}s
+ * Query builder for {@link ScheduledEvent}s
  * If <code>calendarIds</code> are not set then all calendars will match.
  */
-public class SpecialEventsQueryBuilder {
+public class ScheduledEventsQueryBuilder {
     public static final int DEFAULT_SIZE = 1000;
 
-    private int from = 0;
-    private int size = DEFAULT_SIZE;
+    private Integer from = 0;
+    private Integer size = DEFAULT_SIZE;
 
     private List<String> calendarIds;
-    private String after;
-    private String before;
+    private String start;
+    private String end;
 
-    public SpecialEventsQueryBuilder calendarIds(List<String> calendarIds) {
+    public ScheduledEventsQueryBuilder calendarIds(List<String> calendarIds) {
         this.calendarIds = calendarIds;
         return this;
     }
 
-    public SpecialEventsQueryBuilder after(String after) {
-        this.after = after;
+    public ScheduledEventsQueryBuilder start(String start) {
+        this.start = start;
         return this;
     }
 
-    public SpecialEventsQueryBuilder before(String before) {
-        this.before = before;
+    public ScheduledEventsQueryBuilder end(String end) {
+        this.end = end;
         return this;
     }
 
-    public SpecialEventsQueryBuilder from(int from) {
+    /**
+     * Set the query from parameter.
+     * @param from If null then no from will be set
+     * @return this
+     */
+    public ScheduledEventsQueryBuilder from(Integer from) {
         this.from = from;
         return this;
     }
 
-    public SpecialEventsQueryBuilder size(int size) {
+    /**
+     * Set the query size parameter.
+     * @param size If null then no size will be set
+     * @return this
+     */
+    public ScheduledEventsQueryBuilder size(Integer size) {
         this.size = size;
         return this;
     }
@@ -59,27 +69,31 @@ public class SpecialEventsQueryBuilder {
     public SearchSourceBuilder build() {
         List<QueryBuilder> queries = new ArrayList<>();
 
-        if (after != null) {
-            RangeQueryBuilder afterQuery = QueryBuilders.rangeQuery(SpecialEvent.END_TIME.getPreferredName());
-            afterQuery.gt(after);
-            queries.add(afterQuery);
+        if (start != null) {
+            RangeQueryBuilder startQuery = QueryBuilders.rangeQuery(ScheduledEvent.END_TIME.getPreferredName());
+            startQuery.gt(start);
+            queries.add(startQuery);
         }
-        if (before != null) {
-            RangeQueryBuilder beforeQuery = QueryBuilders.rangeQuery(SpecialEvent.START_TIME.getPreferredName());
-            beforeQuery.lt(before);
-            queries.add(beforeQuery);
+        if (end != null) {
+            RangeQueryBuilder endQuery = QueryBuilders.rangeQuery(ScheduledEvent.START_TIME.getPreferredName());
+            endQuery.lt(end);
+            queries.add(endQuery);
         }
 
         if (calendarIds != null && calendarIds.isEmpty() == false) {
             queries.add(new TermsQueryBuilder(Calendar.ID.getPreferredName(), calendarIds));
         }
 
-        QueryBuilder typeQuery = new TermsQueryBuilder(SpecialEvent.TYPE.getPreferredName(), SpecialEvent.SPECIAL_EVENT_TYPE);
+        QueryBuilder typeQuery = new TermsQueryBuilder(ScheduledEvent.TYPE.getPreferredName(), ScheduledEvent.SCHEDULED_EVENT_TYPE);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.sort(SpecialEvent.START_TIME.getPreferredName());
-        searchSourceBuilder.from(from);
-        searchSourceBuilder.size(size);
+        searchSourceBuilder.sort(ScheduledEvent.START_TIME.getPreferredName());
+        if (from != null) {
+            searchSourceBuilder.from(from);
+        }
+        if (size != null) {
+            searchSourceBuilder.size(size);
+        }
 
         if (queries.isEmpty()) {
             searchSourceBuilder.query(typeQuery);

@@ -179,7 +179,7 @@ public class MockWebServer implements Closeable {
     private MockRequest createRequest(HttpExchange exchange) throws IOException {
         MockRequest request = new MockRequest(exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRequestHeaders());
         if (exchange.getRequestBody() != null) {
-            String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody()));
+            String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
             if (Strings.isEmpty(body) == false) {
                 request.setBody(body);
             }

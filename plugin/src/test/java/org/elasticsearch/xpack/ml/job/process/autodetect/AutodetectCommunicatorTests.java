@@ -7,11 +7,16 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
-import org.elasticsearch.xpack.ml.calendars.SpecialEventTests;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEventTests;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -61,10 +66,15 @@ import static org.mockito.Mockito.when;
 
 public class AutodetectCommunicatorTests extends ESTestCase {
 
+    private Environment environment;
+    private AnalysisRegistry analysisRegistry;
     private StateStreamer stateStreamer;
 
     @Before
-    public void initMocks() {
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         stateStreamer = mock(StateStreamer.class);
     }
 
@@ -72,7 +82,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), Optional.empty());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            communicator.writeToJob(new ByteArrayInputStream(new byte[0]),
+            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), analysisRegistry,
                     randomFrom(XContentType.values()), params, (dataCounts, e) -> {});
             verify(process).writeResetBucketsControlMessage(params);
         }
@@ -91,11 +101,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                         Collections.singletonList(new DetectionRule.Builder(conditions).build())));
 
         UpdateParams updateParams = new UpdateParams(null, detectorUpdates, true);
-        List<SpecialEvent> events = Collections.singletonList(SpecialEventTests.createSpecialEvent(randomAlphaOfLength(10)));
+        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
 
         communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
 
-        // There are 2 detectors both will be updated with the rule for the special event.
+        // There are 2 detectors both will be updated with the rule for the scheduled event.
         // The first has an additional update rule
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = Mockito.inOrder(process);
@@ -107,7 +117,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         verifyNoMoreInteractions(process);
 
 
-        // This time there is a single detector update and no special events
+        // This time there is a single detector update and no scheduled events
         detectorUpdates = Collections.singletonList(
                 new JobUpdate.DetectorUpdate(1, "updated description",
                         Collections.singletonList(new DetectionRule.Builder(conditions).build())));
@@ -250,8 +260,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
             return null;
         }).when(dataCountsReporter).finishReporting(any());
-        return new AutodetectCommunicator(createJobDetails(), autodetectProcess, stateStreamer,
-                dataCountsReporter, autoDetectResultProcessor, finishHandler,
+        return new AutodetectCommunicator(createJobDetails(), environment, autodetectProcess,
+                stateStreamer, dataCountsReporter, autoDetectResultProcessor, finishHandler,
                 new NamedXContentRegistry(Collections.emptyList()), executorService);
     }
 

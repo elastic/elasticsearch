@@ -82,6 +82,7 @@ public final class ReservedFieldNames {
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
             Bucket.PROCESSING_TIME_MS.getPreferredName(),
             Bucket.PARTITION_SCORES.getPreferredName(),
+            Bucket.SCHEDULED_EVENTS.getPreferredName(),
 
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),
             BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.PROBABILITY.getPreferredName(),

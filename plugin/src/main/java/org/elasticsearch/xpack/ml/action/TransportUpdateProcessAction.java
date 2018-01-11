@@ -44,7 +44,7 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
         try {
             processManager.writeUpdateProcessMessage(task,
                     new UpdateParams(request.getModelPlotConfig(),
-                            request.getDetectorUpdates(), request.isUpdateSpecialEvents()),
+                            request.getDetectorUpdates(), request.isUpdateScheduledEvents()),
                     e -> {
                         if (e == null) {
                             listener.onResponse(new UpdateProcessAction.Response());

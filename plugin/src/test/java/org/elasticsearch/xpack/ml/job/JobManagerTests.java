@@ -17,12 +17,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -33,6 +36,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 
@@ -47,13 +51,18 @@ import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
 
+    private Environment environment;
+    private AnalysisRegistry analysisRegistry;
     private Client client;
     private ClusterService clusterService;
     private JobProvider jobProvider;
     private Auditor auditor;
 
     @Before
-    public void setupMocks() {
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         client = mock(Client.class);
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
@@ -92,7 +101,7 @@ public class JobManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutJob_AddsCreateTime() {
+    public void testPutJob_AddsCreateTime() throws IOException {
         JobManager jobManager = createJobManager();
         PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
 
@@ -111,7 +120,7 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = createClusterState();
 
-        jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
                 Job job = requestCaptor.getValue();
@@ -129,7 +138,7 @@ public class JobManagerTests extends ESTestCase {
         });
     }
 
-    public void testPutJob_ThrowsIfJobExists() {
+    public void testPutJob_ThrowsIfJobExists() throws IOException {
         JobManager jobManager = createJobManager();
         PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
 
@@ -138,7 +147,7 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, mlMetadata.build())).build();
 
-        jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
                 fail("should have got an error");
@@ -164,12 +173,11 @@ public class JobManagerTests extends ESTestCase {
     }
 
     private JobManager createJobManager() {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings,
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
                 Collections.singleton(MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         UpdateJobProcessNotifier notifier = mock(UpdateJobProcessNotifier.class);
-        return new JobManager(settings, jobProvider, clusterService, auditor, client, notifier);
+        return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, notifier);
     }
 
     private ClusterState createClusterState() {

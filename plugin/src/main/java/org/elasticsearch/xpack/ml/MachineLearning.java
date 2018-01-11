@@ -36,10 +36,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +55,11 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -61,7 +69,6 @@ import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
@@ -76,7 +83,6 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutCalendarAction;
@@ -129,7 +135,6 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
-import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
@@ -141,6 +146,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
+import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
+import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
@@ -163,6 +170,7 @@ import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
@@ -222,12 +230,16 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XpackField.MACHINE_LEARNING;
 
-public class MachineLearning implements MachineLearningClientActionPlugin, ActionPlugin {
+public class MachineLearning implements MachineLearningClientActionPlugin, ActionPlugin, AnalysisPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
+
+    // This is for performance testing.  It's not exposed to the end user.
+    // Recompile if you want to compare performance with C++ tokenization.
+    public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
     public static final Setting<Boolean> AUTODETECT_PROCESS =
             Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
@@ -387,7 +399,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
         Auditor auditor = new Auditor(client, clusterService);
         JobProvider jobProvider = new JobProvider(client, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(settings, jobProvider, clusterService, auditor, client, notifier);
+        JobManager jobManager = new JobManager(env, settings, jobProvider, clusterService, auditor, client, notifier);
 
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
@@ -417,7 +429,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
-        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
         this.autodetectProcessManager.set(autodetectProcessManager);
@@ -513,6 +525,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),
             new RestDeleteCalendarAction(settings, restController),
+            new RestDeleteCalendarEventAction(settings, restController),
             new RestDeleteCalendarJobAction(settings, restController),
             new RestPutCalendarJobAction(settings, restController),
             new RestGetCalendarEventsAction(settings, restController),
@@ -566,6 +579,7 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, TransportGetCalendarsAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, TransportPutCalendarAction.class),
                 new ActionHandler<>(DeleteCalendarAction.INSTANCE, TransportDeleteCalendarAction.class),
+                new ActionHandler<>(DeleteCalendarEventAction.INSTANCE, TransportDeleteCalendarEventAction.class),
                 new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class)
@@ -594,6 +608,11 @@ public class MachineLearning implements MachineLearningClientActionPlugin, Actio
         FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_THREAD_POOL_NAME,
                 maxNumberOfJobs, 200, "xpack.ml.datafeed_thread_pool");
         return Arrays.asList(autoDetect, renormalizer, datafeed);
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        return Collections.singletonMap(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
     }
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {

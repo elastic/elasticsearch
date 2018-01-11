@@ -10,7 +10,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.ml.utils.MlStrings;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -36,7 +38,9 @@ public class FieldConfigWriter {
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
     private static final String FILTER_PREFIX = "filter.";
-    private static final String SPECIAL_EVENT_PREFIX = "specialevent.";
+    private static final String SCHEDULED_EVENT_PREFIX = "scheduledevent.";
+    private static final String SCHEDULED_EVENT_DESCRIPTION_SUFFIX = ".description";
+
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -45,15 +49,15 @@ public class FieldConfigWriter {
 
     private final AnalysisConfig config;
     private final Set<MlFilter> filters;
-    private final List<SpecialEvent> specialEvents;
+    private final List<ScheduledEvent> scheduledEvents;
     private final OutputStreamWriter writer;
     private final Logger logger;
 
-    public FieldConfigWriter(AnalysisConfig config, Set<MlFilter> filters, List<SpecialEvent> specialEvents,
+    public FieldConfigWriter(AnalysisConfig config, Set<MlFilter> filters, List<ScheduledEvent> scheduledEvents,
             OutputStreamWriter writer, Logger logger) {
         this.config = Objects.requireNonNull(config);
         this.filters = Objects.requireNonNull(filters);
-        this.specialEvents = Objects.requireNonNull(specialEvents);
+        this.scheduledEvents = Objects.requireNonNull(scheduledEvents);
         this.writer = Objects.requireNonNull(writer);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -66,8 +70,12 @@ public class FieldConfigWriter {
 
         writeDetectors(contents);
         writeFilters(contents);
-        writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
-                contents, true);
+        writeScheduledEvents(contents);
+
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
+            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
+                    contents, true);
+        }
 
         // As values are written as entire settings rather than part of a
         // clause no quoting is needed
@@ -79,13 +87,10 @@ public class FieldConfigWriter {
 
     private void writeDetectors(StringBuilder contents) throws IOException {
         int counter = 0;
-        List<DetectionRule> events = specialEvents.stream().map(e -> e.toDetectionRule(config.getBucketSpan()))
-                .collect(Collectors.toList());
-
         for (Detector detector : config.getDetectors()) {
             int detectorId = counter++;
             writeDetectorClause(detectorId, detector, contents);
-            writeDetectorRules(detectorId, detector, events, contents);
+            writeDetectorRules(detectorId, detector, contents);
         }
     }
 
@@ -103,21 +108,23 @@ public class FieldConfigWriter {
         contents.append(NEW_LINE);
     }
 
-    private void writeDetectorRules(int detectorId, Detector detector, List<DetectionRule> specialEvents,
-                                    StringBuilder contents) throws IOException {
+    private void writeDetectorRules(int detectorId, Detector detector, StringBuilder contents) throws IOException {
 
         List<DetectionRule> rules = new ArrayList<>();
         if (detector.getRules() != null) {
             rules.addAll(detector.getRules());
         }
-        rules.addAll(specialEvents);
 
         if (rules.isEmpty()) {
             return;
         }
 
         contents.append(DETECTOR_PREFIX).append(detectorId).append(DETECTOR_RULES_SUFFIX).append(EQUALS);
+        writeDetectionRulesJson(rules, contents);
+        contents.append(NEW_LINE);
+    }
 
+    private void writeDetectionRulesJson(List<DetectionRule> rules, StringBuilder contents) throws IOException {
         contents.append('[');
         boolean first = true;
         for (DetectionRule rule : rules) {
@@ -131,7 +138,6 @@ public class FieldConfigWriter {
             }
         }
         contents.append(']');
-        contents.append(NEW_LINE);
     }
 
     private void writeFilters(StringBuilder buffer) throws IOException {
@@ -153,6 +159,28 @@ public class FieldConfigWriter {
             filterAsJson.append(']');
             buffer.append(FILTER_PREFIX).append(filter.getId()).append(EQUALS).append(filterAsJson)
             .append(NEW_LINE);
+        }
+    }
+
+    private void writeScheduledEvents(StringBuilder contents) throws IOException {
+        if (scheduledEvents.isEmpty()) {
+            return;
+        }
+
+        int eventIndex = 0;
+        for (ScheduledEvent event: scheduledEvents) {
+
+            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
+                    .append(SCHEDULED_EVENT_DESCRIPTION_SUFFIX).append(EQUALS)
+                    .append(event.getDescription())
+                    .append(NEW_LINE);
+
+            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
+                    .append(DETECTOR_RULES_SUFFIX).append(EQUALS);
+            writeDetectionRulesJson(Collections.singletonList(event.toDetectionRule(config.getBucketSpan())), contents);
+            contents.append(NEW_LINE);
+
+            ++eventIndex;
         }
     }
 

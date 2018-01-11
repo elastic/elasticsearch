@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -54,20 +54,20 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
     @Override
     protected void doExecute(PostCalendarEventsAction.Request request,
                              ActionListener<PostCalendarEventsAction.Response> listener) {
-        List<SpecialEvent> events = request.getSpecialEvents();
+        List<ScheduledEvent> events = request.getScheduledEvents();
 
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
-                    for (SpecialEvent event: events) {
+                    for (ScheduledEvent event: events) {
                         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             indexRequest.source(event.toXContent(builder,
                                     new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY,
                                             "true"))));
                         } catch (IOException e) {
-                            throw new IllegalStateException("Failed to serialise special event", e);
+                            throw new IllegalStateException("Failed to serialise event", e);
                         }
                         bulkRequestBuilder.add(indexRequest);
                     }
@@ -84,7 +84,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                                 @Override
                                 public void onFailure(Exception e) {
                                     listener.onFailure(
-                                            ExceptionsHelper.serverError("Error indexing special event", e));
+                                            ExceptionsHelper.serverError("Error indexing event", e));
                                 }
                             });
                 },

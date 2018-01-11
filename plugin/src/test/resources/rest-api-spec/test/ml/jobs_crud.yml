@@ -1050,7 +1050,7 @@
 
   - do:
       warnings:
-          - Creating jobs with delimited data format is deprecated. Please use JSON instead.
+          - Creating jobs with delimited data format is deprecated. Please use xcontent instead.
       xpack.ml.put_job:
         job_id: delimited-format-job
         body:  >
@@ -1067,3 +1067,71 @@
             }
           }
   - match: { job_id: "delimited-format-job" }
+
+---
+"Test job with named categorization_analyzer":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-categorization-analyzer-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"},
+                    {"function":"count","by_field_name":"mlcategory"}],
+                "categorization_field_name": "some_category",
+                "categorization_analyzer" : "standard"
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { analysis_config.categorization_analyzer: "standard" }
+
+---
+"Test job with custom categorization_analyzer":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-categorization-analyzer-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"},
+                    {"function":"count","by_field_name":"mlcategory"}],
+                "categorization_field_name": "some_category",
+                "categorization_analyzer" : {
+                    "char_filter" : ["html_strip"],
+                    "tokenizer" : "classic",
+                    "filter" : ["stop"]
+                }
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { analysis_config.categorization_analyzer.char_filter.0: "html_strip" }
+  - match: { analysis_config.categorization_analyzer.tokenizer: "classic" }
+  - match: { analysis_config.categorization_analyzer.filter.0: "stop" }
+
+---
+"Test job with categorization_analyzer and categorization_filters":
+  - do:
+      catch: /categorization_filters cannot be used with categorization_analyzer - instead specify them as pattern_replace char_filters in the analyzer/
+      xpack.ml.put_job:
+        job_id: jobs-crud-categorization-analyzer-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"},
+                    {"function":"count","by_field_name":"mlcategory"}],
+                "categorization_field_name": "some_category",
+                "categorization_analyzer" : {
+                    "char_filter" : ["html_strip"],
+                    "tokenizer" : "classic",
+                    "filter" : ["stop"]
+                },
+                "categorization_filters" : ["cat1.*", "cat2.*"]
+            },
+            "data_description" : {
+            }
+          }
+

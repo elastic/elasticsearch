@@ -6,38 +6,27 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response,
@@ -61,15 +50,15 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
-        public static final ParseField AFTER = new ParseField("after");
-        public static final ParseField BEFORE = new ParseField("before");
+        public static final ParseField START = new ParseField("start");
+        public static final ParseField END = new ParseField("end");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString(Request::setCalendarId, Calendar.ID);
-            PARSER.declareString(Request::setAfter, AFTER);
-            PARSER.declareString(Request::setBefore, BEFORE);
+            PARSER.declareString(Request::setStart, START);
+            PARSER.declareString(Request::setEnd, END);
             PARSER.declareString(Request::setJobId, Job.ID);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
         }
@@ -83,8 +72,8 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         }
 
         private String calendarId;
-        private String after;
-        private String before;
+        private String start;
+        private String end;
         private String jobId;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -103,19 +92,19 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
         }
 
-        public String getAfter() {
-            return after;
+        public String getStart() {
+            return start;
         }
-        public void setAfter(String after) {
-            this.after = after;
-        }
-
-        public String getBefore() {
-            return before;
+        public void setStart(String start) {
+            this.start = start;
         }
 
-        public void setBefore(String before) {
-            this.before = before;
+        public String getEnd() {
+            return end;
+        }
+
+        public void setEnd(String end) {
+            this.end = end;
         }
 
         public String getJobId() {
@@ -150,8 +139,8 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             calendarId = in.readString();
-            after = in.readOptionalString();
-            before = in.readOptionalString();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
             jobId = in.readOptionalString();
             pageParams = new PageParams(in);
         }
@@ -160,15 +149,15 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeOptionalString(after);
-            out.writeOptionalString(before);
+            out.writeOptionalString(start);
+            out.writeOptionalString(end);
             out.writeOptionalString(jobId);
             pageParams.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, after, before, pageParams, jobId);
+            return Objects.hash(calendarId, start, end, pageParams, jobId);
         }
 
         @Override
@@ -180,8 +169,8 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(after, other.after)
-                    && Objects.equals(before, other.before) && Objects.equals(pageParams, other.pageParams)
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(start, other.start)
+                    && Objects.equals(end, other.end) && Objects.equals(pageParams, other.pageParams)
                     && Objects.equals(jobId, other.jobId);
         }
 
@@ -189,11 +178,11 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Calendar.ID.getPreferredName(), calendarId);
-            if (after != null) {
-                builder.field(AFTER.getPreferredName(), after);
+            if (start != null) {
+                builder.field(START.getPreferredName(), start);
             }
-            if (before != null) {
-                builder.field(BEFORE.getPreferredName(), before);
+            if (end != null) {
+                builder.field(END.getPreferredName(), end);
             }
             if (jobId != null) {
                 builder.field(Job.ID.getPreferredName(), jobId);
@@ -213,36 +202,36 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private QueryPage<SpecialEvent> specialEvents;
+        private QueryPage<ScheduledEvent> scheduledEvents;
 
         Response() {
         }
 
-        public Response(QueryPage<SpecialEvent> specialEvents) {
-            this.specialEvents = specialEvents;
+        public Response(QueryPage<ScheduledEvent> scheduledEvents) {
+            this.scheduledEvents = scheduledEvents;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            specialEvents = new QueryPage<>(in, SpecialEvent::new);
+            scheduledEvents = new QueryPage<>(in, ScheduledEvent::new);
 
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            specialEvents.writeTo(out);
+            scheduledEvents.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return specialEvents.toXContent(builder, params);
+            return scheduledEvents.toXContent(builder, params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(specialEvents);
+            return Objects.hash(scheduledEvents);
         }
 
         @Override
@@ -254,7 +243,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(specialEvents, other.specialEvents);
+            return Objects.equals(scheduledEvents, other.scheduledEvents);
         }
     }
 

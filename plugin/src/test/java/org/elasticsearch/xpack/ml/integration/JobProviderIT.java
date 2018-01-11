@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
@@ -282,7 +282,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         return  calendarHolder.get();
     }
 
-    public void testSpecialEvents() throws Exception {
+    public void testScheduledEvents() throws Exception {
         Job.Builder jobA = createJob("job_a");
         Job.Builder jobB = createJob("job_b");
         Job.Builder jobC = createJob("job_c");
@@ -292,47 +292,79 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         calendars.add(new Calendar(calendarAId, Collections.singletonList("job_a")));
 
         ZonedDateTime now = ZonedDateTime.now();
-        List<SpecialEvent> events = new ArrayList<>();
-        events.add(buildSpecialEvent("downtime", now.plusDays(1), now.plusDays(2), calendarAId));
-        events.add(buildSpecialEvent("downtime_AA", now.plusDays(8), now.plusDays(9), calendarAId));
-        events.add(buildSpecialEvent("downtime_AAA", now.plusDays(15), now.plusDays(16), calendarAId));
+        List<ScheduledEvent> events = new ArrayList<>();
+        events.add(buildScheduledEvent("downtime", now.plusDays(1), now.plusDays(2), calendarAId));
+        events.add(buildScheduledEvent("downtime_AA", now.plusDays(8), now.plusDays(9), calendarAId));
+        events.add(buildScheduledEvent("downtime_AAA", now.plusDays(15), now.plusDays(16), calendarAId));
 
         String calendarABId = "maintenance_a_and_b";
         calendars.add(new Calendar(calendarABId, Arrays.asList("job_a", "job_b")));
 
-        events.add(buildSpecialEvent("downtime_AB", now.plusDays(12), now.plusDays(13), calendarABId));
+        events.add(buildScheduledEvent("downtime_AB", now.plusDays(12), now.plusDays(13), calendarABId));
 
         indexCalendars(calendars);
-        indexSpecialEvents(events);
+        indexScheduledEvents(events);
 
-        SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder();
-        List<SpecialEvent> returnedEvents = getSpecialEventsForJob(jobA.getId(), query);
+        ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder();
+        List<ScheduledEvent> returnedEvents = getScheduledEventsForJob(jobA.getId(), Collections.emptyList(), query);
         assertEquals(4, returnedEvents.size());
         assertEquals(events.get(0), returnedEvents.get(0));
         assertEquals(events.get(1), returnedEvents.get(1));
         assertEquals(events.get(3), returnedEvents.get(2));
         assertEquals(events.get(2), returnedEvents.get(3));
 
-        returnedEvents = getSpecialEventsForJob(jobB.getId(), query);
+        returnedEvents = getScheduledEventsForJob(jobB.getId(), Collections.singletonList("unrelated-job-group"), query);
         assertEquals(1, returnedEvents.size());
         assertEquals(events.get(3), returnedEvents.get(0));
 
-        returnedEvents = getSpecialEventsForJob(jobC.getId(), query);
+        returnedEvents = getScheduledEventsForJob(jobC.getId(), Collections.emptyList(), query);
         assertEquals(0, returnedEvents.size());
 
         // Test time filters
         // Lands halfway through the second event which should be returned
-        query.after(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
+        query.start(Long.toString(now.plusDays(8).plusHours(1).toInstant().toEpochMilli()));
         // Lands halfway through the 3rd event which should be returned
-        query.before(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
-        returnedEvents = getSpecialEventsForJob(jobA.getId(), query);
+        query.end(Long.toString(now.plusDays(12).plusHours(1).toInstant().toEpochMilli()));
+        returnedEvents = getScheduledEventsForJob(jobA.getId(), Collections.emptyList(), query);
         assertEquals(2, returnedEvents.size());
         assertEquals(events.get(1), returnedEvents.get(0));
         assertEquals(events.get(3), returnedEvents.get(1));
     }
 
-    private SpecialEvent buildSpecialEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
-        return new SpecialEvent.Builder().description(description).startTime(start).endTime(end).calendarId(calendarId).build();
+    public void testScheduledEventsForJob_withGroup() throws Exception {
+        String groupA = "group-a";
+        String groupB = "group-b";
+        createJob("job-in-group-a", Collections.emptyList(), Collections.singletonList(groupA));
+        createJob("job-in-group-a-and-b", Collections.emptyList(), Arrays.asList(groupA, groupB));
+
+        String calendarAId = "calendar_a";
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar(calendarAId, Collections.singletonList(groupA)));
+
+        ZonedDateTime now = ZonedDateTime.now();
+        List<ScheduledEvent> events = new ArrayList<>();
+        events.add(buildScheduledEvent("downtime_A", now.plusDays(1), now.plusDays(2), calendarAId));
+
+        String calendarBId = "calendar_b";
+        calendars.add(new Calendar(calendarBId, Arrays.asList(groupB)));
+        events.add(buildScheduledEvent("downtime_B", now.plusDays(12), now.plusDays(13), calendarBId));
+
+        indexCalendars(calendars);
+        indexScheduledEvents(events);
+
+        ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder();
+        List<ScheduledEvent> returnedEvents = getScheduledEventsForJob("job-in-group-a", Collections.singletonList(groupA), query);
+        assertEquals(1, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+
+        query = new ScheduledEventsQueryBuilder();
+        returnedEvents = getScheduledEventsForJob("job-in-group-a-and-b", Collections.singletonList(groupB), query);
+        assertEquals(1, returnedEvents.size());
+        assertEquals(events.get(1), returnedEvents.get(0));
+    }
+
+    private ScheduledEvent buildScheduledEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
+        return new ScheduledEvent.Builder().description(description).startTime(start).endTime(end).calendarId(calendarId).build();
     }
 
     public void testGetAutodetectParams() throws Exception {
@@ -345,12 +377,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         // index the param docs
         ZonedDateTime now = ZonedDateTime.now();
-        List<SpecialEvent> events = new ArrayList<>();
+        List<ScheduledEvent> events = new ArrayList<>();
         // events in the past should be filtered out
-        events.add(buildSpecialEvent("In the past", now.minusDays(7), now.minusDays(6), calendarId));
-        events.add(buildSpecialEvent("A_downtime", now.plusDays(1), now.plusDays(2), calendarId));
-        events.add(buildSpecialEvent("A_downtime2", now.plusDays(8), now.plusDays(9), calendarId));
-        indexSpecialEvents(events);
+        events.add(buildScheduledEvent("In the past", now.minusDays(7), now.minusDays(6), calendarId));
+        events.add(buildScheduledEvent("A_downtime", now.plusDays(1), now.plusDays(2), calendarId));
+        events.add(buildScheduledEvent("A_downtime2", now.plusDays(8), now.plusDays(9), calendarId));
+        indexScheduledEvents(events);
 
         List<MlFilter> filters = new ArrayList<>();
         filters.add(new MlFilter("fruit", Arrays.asList("apple", "pear")));
@@ -382,12 +414,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         AutodetectParams params = getAutodetectParams(job.build(new Date()));
 
-        // special events
-        assertNotNull(params.specialEvents());
-        assertEquals(3, params.specialEvents().size());
-        assertEquals(events.get(0), params.specialEvents().get(0));
-        assertEquals(events.get(1), params.specialEvents().get(1));
-        assertEquals(events.get(2), params.specialEvents().get(2));
+        // events
+        assertNotNull(params.scheduledEvents());
+        assertEquals(3, params.scheduledEvents().size());
+        assertEquals(events.get(0), params.scheduledEvents().get(0));
+        assertEquals(events.get(1), params.scheduledEvents().get(1));
+        assertEquals(events.get(2), params.scheduledEvents().get(2));
 
         // filters
         assertNotNull(params.filters());
@@ -432,11 +464,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         return searchResultHolder.get();
     }
 
-    private List<SpecialEvent> getSpecialEventsForJob(String jobId, SpecialEventsQueryBuilder query) throws Exception {
+    private List<ScheduledEvent> getScheduledEventsForJob(String jobId, List<String> jobGroups, ScheduledEventsQueryBuilder query)
+            throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        AtomicReference<QueryPage<SpecialEvent>> searchResultHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<ScheduledEvent>> searchResultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.specialEventsForJob(jobId, query, ActionListener.wrap(
+        jobProvider.scheduledEventsForJob(jobId, jobGroups, query, ActionListener.wrap(
                 params -> {
             searchResultHolder.set(params);
             latch.countDown();
@@ -458,7 +491,12 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
     }
 
     private Job.Builder createJob(String jobId, List<String> filterIds) {
+        return createJob(jobId, filterIds, Collections.emptyList());
+    }
+
+    private Job.Builder createJob(String jobId, List<String> filterIds, List<String> jobGroups) {
         Job.Builder builder = new Job.Builder(jobId);
+        builder.setGroups(jobGroups);
         AnalysisConfig.Builder ac = createAnalysisConfig(filterIds);
         DataDescription.Builder dc = new DataDescription.Builder();
         builder.setAnalysisConfig(ac);
@@ -491,11 +529,11 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         return new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
     }
 
-    private void indexSpecialEvents(List<SpecialEvent> events) throws IOException {
+    private void indexScheduledEvents(List<ScheduledEvent> events) throws IOException {
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (SpecialEvent event : events) {
+        for (ScheduledEvent event : events) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));

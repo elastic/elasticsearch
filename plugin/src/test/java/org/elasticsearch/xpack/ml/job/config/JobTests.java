@@ -102,8 +102,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getBackgroundPersistInterval());
         assertThat(job.getModelSnapshotRetentionDays(), equalTo(1L));
         assertNull(job.getResultsRetentionDays());
-        assertNotNull(job.allFields());
-        assertFalse(job.allFields().isEmpty());
+        assertNotNull(job.allInputFields());
+        assertFalse(job.allInputFields().isEmpty());
     }
 
     public void testNoId() {

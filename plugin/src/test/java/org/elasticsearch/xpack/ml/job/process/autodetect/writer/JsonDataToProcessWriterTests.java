@@ -8,13 +8,21 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -26,7 +34,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -43,6 +50,9 @@ import static org.mockito.Mockito.verify;
 
 public class JsonDataToProcessWriterTests extends ESTestCase {
 
+    private AnalysisRegistry analysisRegistry;
+    private Environment environment;
+
     private AutodetectProcess autodetectProcess;
     private DataCountsReporter dataCountsReporter;
 
@@ -52,7 +62,11 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     private List<String[]> writtenRecords;
 
     @Before
-    public void setUpMocks() throws IOException {
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
         dataCountsReporter = Mockito.mock(DataCountsReporter.class);
 
@@ -67,13 +81,12 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
             }
         }).when(autodetectProcess).writeRecord(any(String[].class));
 
-
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();
-        analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector)).build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws Exception {
@@ -83,7 +96,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -96,8 +109,43 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
-    public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder()
-            throws Exception {
+    public void testWrite_GivenTimeFormatIsEpochAndCategorization() throws Exception {
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("mlcategory");
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        builder.setCategorizationFieldName("message");
+        builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null));
+        analysisConfig = builder.build();
+
+        StringBuilder input = new StringBuilder();
+        input.append("{\"time\":\"1\", \"message\":\"Node 1 started\"}");
+        input.append("{\"time\":\"2\", \"message\":\"Node 2 started\"}");
+        InputStream inputStream = createInputStream(input.toString());
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        try (CategorizationAnalyzer categorizationAnalyzer =
+                     new CategorizationAnalyzer(analysisRegistry, environment, analysisConfig.getCategorizationAnalyzerConfig())) {
+            writer.write(inputStream, categorizationAnalyzer, XContentType.JSON, (r, e) -> {});
+        }
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The "." field is the control field; "..." is the pre-tokenized tokens field
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
+            expectedRecords.add(new String[]{"time", "message", "...", "."});
+            expectedRecords.add(new String[]{"1", "Node 1 started", "Node,started", ""});
+            expectedRecords.add(new String[]{"2", "Node 2 started", "Node,started", ""});
+        } else {
+            expectedRecords.add(new String[]{"time", "message", "."});
+            expectedRecords.add(new String[]{"1", "Node 1 started", ""});
+            expectedRecords.add(new String[]{"2", "Node 2 started", ""});
+        }
+        assertWrittenRecordsEqualTo(expectedRecords);
+
+        verify(dataCountsReporter).finishReporting(any());
+    }
+
+    public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder() throws Exception {
         StringBuilder input = new StringBuilder();
         input.append("{\"time\":\"3\", \"metric\":\"foo\", \"value\":\"3.0\"}");
         input.append("{\"time\":\"1\", \"metric\":\"bar\", \"value\":\"1.0\"}");
@@ -105,7 +153,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -119,9 +167,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
-    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder()
-            throws Exception {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws Exception {
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -134,7 +182,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field
@@ -150,9 +198,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
-    public void testWrite_GivenMalformedJsonWithoutNestedLevels()
-            throws Exception {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+    public void testWrite_GivenMalformedJsonWithoutNestedLevels() throws Exception {
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -163,7 +211,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -181,7 +229,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     public void testWrite_GivenMalformedJsonWithNestedLevels()
             throws Exception {
         Detector detector = new Detector.Builder("metric", "nested.value").build();
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -192,7 +240,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -208,7 +256,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
 
     public void testWrite_GivenMalformedJsonThatNeverRecovers()
             throws Exception {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("count", null).build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -220,12 +268,12 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         writer.writeHeader();
 
         ESTestCase.expectThrows(ElasticsearchParseException.class,
-                () -> writer.write(inputStream, XContentType.JSON, (r, e) -> {}));
+                () -> writer.write(inputStream, null, XContentType.JSON, (r, e) -> {}));
     }
 
-    public void testWrite_GivenJsonWithArrayField()
-            throws Exception {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+    public void testWrite_GivenJsonWithArrayField() throws Exception {
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -235,7 +283,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -248,9 +296,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
-    public void testWrite_GivenJsonWithMissingFields()
-            throws Exception {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+    public void testWrite_GivenJsonWithMissingFields() throws Exception {
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -264,7 +312,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.JSON, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -309,7 +357,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(xsonOs.bytes()));
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, XContentType.SMILE, (r, e) -> {});
+        writer.write(inputStream, null, XContentType.SMILE, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -327,7 +375,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     private JsonDataToProcessWriter createWriter() {
-        return new JsonDataToProcessWriter(true, autodetectProcess, dataDescription.build(), analysisConfig,
+        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA &&
+                analysisConfig.getCategorizationFieldName() != null;
+        return new JsonDataToProcessWriter(true, includeTokensField, autodetectProcess, dataDescription.build(), analysisConfig,
                 dataCountsReporter, new NamedXContentRegistry(Collections.emptyList()));
     }
 

@@ -70,7 +70,7 @@ configurations {
 
 dependencies {
   // CLI deps
-  compile project(path: ':core:cli', configuration: 'runtime')
+  compile project(path: ':server:cli', configuration: 'runtime')
 
   // Core project deps (this is temporary)
   compile project(':x-pack-elasticsearch:plugin:core')

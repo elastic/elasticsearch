@@ -24,6 +24,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -69,6 +71,7 @@ public class JobManager extends AbstractComponent {
     private static final DeprecationLogger DEPRECATION_LOGGER =
             new DeprecationLogger(Loggers.getLogger(JobManager.class));
 
+    private final Environment environment;
     private final JobProvider jobProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
@@ -80,9 +83,10 @@ public class JobManager extends AbstractComponent {
     /**
      * Create a JobManager
      */
-    public JobManager(Settings settings, JobProvider jobProvider, ClusterService clusterService, Auditor auditor, Client client,
-                      UpdateJobProcessNotifier updateJobProcessNotifier) {
+    public JobManager(Environment environment, Settings settings, JobProvider jobProvider, ClusterService clusterService, Auditor auditor,
+                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
         super(settings);
+        this.environment = environment;
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
@@ -157,17 +161,19 @@ public class JobManager extends AbstractComponent {
     /**
      * Stores a job in the cluster state
      */
-    public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
+    public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
+                       ActionListener<PutJobAction.Response> actionListener) throws IOException {
         // In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
         // 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
         // breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
         // submitted
         request.getJobBuilder().validateModelMemoryLimit(maxModelMemoryLimit);
 
+        request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use JSON instead.");
+            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);

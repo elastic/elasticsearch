@@ -20,12 +20,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -34,7 +36,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.SpecialEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -95,6 +97,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 
     private final Client client;
+    private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobProvider jobProvider;
@@ -112,12 +115,13 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final Auditor auditor;
 
-    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
+    public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
                                     NamedXContentRegistry xContentRegistry, Auditor auditor) {
         super(settings);
+        this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
@@ -179,19 +183,20 @@ public class AutodetectProcessManager extends AbstractComponent {
      * <li>If a high proportion of the records chronologically out of order</li>
      * </ol>
      *
-     * @param jobTask       The job task
-     * @param input         Data input stream
-     * @param xContentType  the {@link XContentType} of the input
-     * @param params        Data processing parameters
-     * @param handler       Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param jobTask          The job task
+     * @param analysisRegistry Registry of analyzer components - this is used to build a categorization analyzer if necessary
+     * @param input            Data input stream
+     * @param xContentType     the {@link XContentType} of the input
+     * @param params           Data processing parameters
+     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written)
      */
-    public void processData(JobTask jobTask, InputStream input, XContentType xContentType,
-                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
+    public void processData(JobTask jobTask, AnalysisRegistry analysisRegistry, InputStream input,
+                            XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
             throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
         }
-        communicator.writeToJob(input, xContentType, params, handler);
+        communicator.writeToJob(input, analysisRegistry, xContentType, params, handler);
     }
 
     /**
@@ -261,9 +266,9 @@ public class AutodetectProcessManager extends AbstractComponent {
             return;
         }
 
-        ActionListener<QueryPage<SpecialEvent>> eventsListener = ActionListener.wrap(
-                specialEvents -> {
-                    communicator.writeUpdateProcessMessage(updateParams, specialEvents.results(), (aVoid, e) -> {
+        ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
+                events -> {
+                    communicator.writeUpdateProcessMessage(updateParams, events.results(), (aVoid, e) -> {
                         if (e == null) {
                             handler.accept(null);
                         } else {
@@ -273,11 +278,12 @@ public class AutodetectProcessManager extends AbstractComponent {
                 },
                 handler::accept);
 
-        if (updateParams.isUpdateSpecialEvents()) {
-            SpecialEventsQueryBuilder query = new SpecialEventsQueryBuilder().after(Long.toString(new Date().getTime()));
-            jobProvider.specialEventsForJob(jobTask.getJobId(), query, eventsListener);
+        if (updateParams.isUpdateScheduledEvents()) {
+            Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
+            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(Long.toString(new Date().getTime()));
+            jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
         } else {
-            eventsListener.onResponse(new QueryPage<SpecialEvent>(Collections.emptyList(), 0, SpecialEvent.RESULTS_FIELD));
+            eventsListener.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
         }
     }
 
@@ -410,7 +416,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, process, new StateStreamer(client), dataCountsReporter, processor, handler,
+        return new AutodetectCommunicator(job, environment, process, new StateStreamer(client), dataCountsReporter, processor, handler,
                 xContentRegistry, autodetectWorkerExecutor);
 
     }
@@ -440,7 +446,13 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private Runnable onProcessCrash(JobTask jobTask) {
         return () -> {
-            processByAllocation.remove(jobTask.getAllocationId());
+            ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
+            if (processContext != null) {
+                AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
+                if (communicator != null) {
+                    communicator.destroyCategorizationAnalyzer();
+                }
+            }
             setJobState(jobTask, JobState.FAILED);
         };
     }

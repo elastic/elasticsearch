@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.xpack.watcher.trigger.TriggerBuilders;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.MINUTES;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.client:TRACE")
+@TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
@@ -51,7 +52,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         adminClient().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON));
 
-        assertTotalWatchCount(5);
+        assertTotalWatchCount(ClusterAlertsUtil.WATCH_IDS.length);
 
         assertMonitoringWatchHasBeenOverWritten(watchId);
     }
@@ -69,7 +70,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         adminClient().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON));
 
-        assertTotalWatchCount(5);
+        assertTotalWatchCount(ClusterAlertsUtil.WATCH_IDS.length);
 
         assertMonitoringWatchHasBeenOverWritten(watchId);
     }

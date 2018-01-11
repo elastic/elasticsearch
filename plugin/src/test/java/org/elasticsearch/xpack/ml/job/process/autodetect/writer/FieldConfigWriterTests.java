@@ -9,7 +9,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -47,14 +48,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class FieldConfigWriterTests extends ESTestCase {
     private AnalysisConfig analysisConfig;
     private Set<MlFilter> filters;
-    private List<SpecialEvent> specialEvents;
+    private List<ScheduledEvent> scheduledEvents;
     private OutputStreamWriter writer;
 
     @Before
     public void setUpDeps() {
         analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())).build();
         filters = new LinkedHashSet<>();
-        specialEvents = new ArrayList<>();
+        scheduledEvents = new ArrayList<>();
     }
 
     public void testMultipleDetectorsToConfFile()
@@ -133,7 +134,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
         d.setByFieldName("mlcategory");
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d.build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
         builder.setCategorizationFieldName("foo");
         analysisConfig = builder.build();
         writer = mock(OutputStreamWriter.class);
@@ -148,7 +149,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
         d.setByFieldName("ts_hash");
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d.build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
         builder.setInfluencers(Arrays.asList("sun", "moon", "earth"));
         analysisConfig = builder.build();
 
@@ -167,8 +168,8 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
         d.setByFieldName("mlcategory");
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d.build()));
-        builder.setInfluencers(Arrays.asList("sun"));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        builder.setInfluencers(Collections.singletonList("sun"));
         builder.setCategorizationFieldName("myCategory");
         builder.setCategorizationFilters(Arrays.asList("foo", " ", "abc,def"));
         analysisConfig = builder.build();
@@ -179,9 +180,10 @@ public class FieldConfigWriterTests extends ESTestCase {
 
         verify(writer).write(
                 "detector.0.clause = metric(Integer_Value) by mlcategory categorizationfield=myCategory\n" +
+                (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "" :
                         "categorizationfilter.0 = foo\n" +
                         "categorizationfilter.1 = \" \"\n" +
-                        "categorizationfilter.2 = \"abc,def\"\n" +
+                        "categorizationfilter.2 = \"abc,def\"\n") +
                 "influencer.0 = sun\n");
         verifyNoMoreInteractions(writer);
     }
@@ -192,10 +194,10 @@ public class FieldConfigWriterTests extends ESTestCase {
         detector.setPartitionFieldName("instance");
         RuleCondition ruleCondition = RuleCondition.createNumerical
                 (RuleConditionType.NUMERICAL_ACTUAL, "metricName", "metricValue", new Condition(Operator.LT, "5"));
-        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(ruleCondition)).setTargetFieldName("instance").build();
-        detector.setRules(Arrays.asList(rule));
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(ruleCondition)).setTargetFieldName("instance").build();
+        detector.setRules(Collections.singletonList(rule));
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig = builder.build();
 
         writer = mock(OutputStreamWriter.class);
@@ -217,7 +219,7 @@ public class FieldConfigWriterTests extends ESTestCase {
     public void testWrite_GivenFilters() throws IOException {
         Detector d = new Detector.Builder("count", null).build();
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d));
         analysisConfig = builder.build();
 
         filters.add(new MlFilter("filter_1", Arrays.asList("a", "b")));
@@ -232,17 +234,17 @@ public class FieldConfigWriterTests extends ESTestCase {
         verifyNoMoreInteractions(writer);
     }
 
-    public void testWrite_GivenSpecialEvents() throws IOException {
+    public void testWrite_GivenScheduledEvents() throws IOException {
         Detector d = new Detector.Builder("count", null).build();
 
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d));
         analysisConfig = builder.build();
 
-        specialEvents.add(new SpecialEvent.Builder().description("The Ashes")
+        scheduledEvents.add(new ScheduledEvent.Builder().description("The Ashes")
                 .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
                 .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
                 .calendarId("calendar_id").build());
-        specialEvents.add(new SpecialEvent.Builder().description("elasticon")
+        scheduledEvents.add(new ScheduledEvent.Builder().description("elasticon")
                 .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
                 .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
                 .calendarId("calendar_id").build());
@@ -251,10 +253,12 @@ public class FieldConfigWriterTests extends ESTestCase {
         createFieldConfigWriter().write();
 
         verify(writer).write("detector.0.clause = count\n" +
-                "detector.0.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
+                "scheduledevent.0.description = The Ashes\n" +
+                "scheduledevent.0.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
                 "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1511395200\"}}," +
-                "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515369600\"}}]}," +
-                "{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
+                "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515369600\"}}]}]\n" +
+                "scheduledevent.1.description = elasticon\n" +
+                "scheduledevent.1.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\"," +
                 "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1519603200\"}}," +
                 "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1519862400\"}}]}]" +
                 "\n");
@@ -263,6 +267,6 @@ public class FieldConfigWriterTests extends ESTestCase {
     }
 
     private FieldConfigWriter createFieldConfigWriter() {
-        return new FieldConfigWriter(analysisConfig, filters, specialEvents, writer, mock(Logger.class));
+        return new FieldConfigWriter(analysisConfig, filters, scheduledEvents, writer, mock(Logger.class));
     }
 }

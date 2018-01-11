@@ -27,32 +27,32 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent> {
+public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
-    public static SpecialEvent createSpecialEvent(String calendarId) {
+    public static ScheduledEvent createScheduledEvent(String calendarId) {
         ZonedDateTime start = ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC);
-        return new SpecialEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
-                calendarId);
+        return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
+                calendarId, null);
     }
 
     @Override
-    protected SpecialEvent createTestInstance() {
-        return createSpecialEvent(randomAlphaOfLengthBetween(1, 20));
+    protected ScheduledEvent createTestInstance() {
+        return createScheduledEvent(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
-    protected Writeable.Reader<SpecialEvent> instanceReader() {
-        return SpecialEvent::new;
+    protected Writeable.Reader<ScheduledEvent> instanceReader() {
+        return ScheduledEvent::new;
     }
 
     @Override
-    protected SpecialEvent doParseInstance(XContentParser parser) throws IOException {
-        return SpecialEvent.PARSER.apply(parser, null).build();
+    protected ScheduledEvent doParseInstance(XContentParser parser) throws IOException {
+        return ScheduledEvent.PARSER.apply(parser, null).build();
     }
 
     public void testToDetectionRule() {
         long bucketSpanSecs = 300;
-        SpecialEvent event = createTestInstance();
+        ScheduledEvent event = createTestInstance();
         DetectionRule rule = event.toDetectionRule(TimeValue.timeValueSeconds(bucketSpanSecs));
 
         assertEquals(Connective.AND, rule.getConditionsConnective());
@@ -82,7 +82,7 @@ public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent>
     }
 
     public void testBuild() {
-        SpecialEvent.Builder builder = new SpecialEvent.Builder();
+        ScheduledEvent.Builder builder = new ScheduledEvent.Builder();
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [description] cannot be null", e.getMessage());
@@ -100,7 +100,7 @@ public class SpecialEventTests extends AbstractSerializingTestCase<SpecialEvent>
         builder.build();
 
 
-        builder = new SpecialEvent.Builder().description("f").calendarId("c");
+        builder = new ScheduledEvent.Builder().description("f").calendarId("c");
         builder.startTime(now);
         builder.endTime(now.minusHours(2));
 

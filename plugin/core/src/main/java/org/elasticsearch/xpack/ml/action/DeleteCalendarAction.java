@@ -45,7 +45,6 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
         private String calendarId;
 
         Request() {
-
         }
 
         public Request(String calendarId) {
@@ -117,5 +116,4 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
             writeAcknowledged(out);
         }
     }
-
 }

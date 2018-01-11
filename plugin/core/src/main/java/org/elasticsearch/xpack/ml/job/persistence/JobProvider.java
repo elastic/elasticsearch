@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.calendars.SpecialEvent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
@@ -366,16 +366,16 @@ public class JobProvider {
 
         String jobId = job.getId();
 
-        ActionListener<AutodetectParams.Builder> getSpecialEventsListener = ActionListener.wrap(
+        ActionListener<AutodetectParams.Builder> getScheduledEventsListener = ActionListener.wrap(
                 paramsBuilder -> {
-                    SpecialEventsQueryBuilder specialEventsQuery = new SpecialEventsQueryBuilder();
+                    ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
                     Date lastestRecordTime = paramsBuilder.getDataCounts().getLatestRecordTimeStamp();
                     if (lastestRecordTime != null) {
-                        specialEventsQuery.after(Long.toString(lastestRecordTime.getTime()));
+                        scheduledEventsQueryBuilder.start(Long.toString(lastestRecordTime.getTime()));
                     }
-                    specialEventsForJob(jobId, specialEventsQuery, ActionListener.wrap(
+                    scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
                             events -> {
-                                paramsBuilder.setSpecialEvents(events.results());
+                                paramsBuilder.setScheduledEvents(events.results());
                                 consumer.accept(paramsBuilder.build());
                             },
                             errorHandler
@@ -434,7 +434,7 @@ public class JobProvider {
                                 }
                             }
 
-                            getSpecialEventsListener.onResponse(paramsBuilder);
+                            getScheduledEventsListener.onResponse(paramsBuilder);
                         },
                         errorHandler
                 ), client::multiSearch);
@@ -1029,28 +1029,28 @@ public class JobProvider {
         });
     }
 
-    public void specialEventsForJob(String jobId, SpecialEventsQueryBuilder queryBuilder, ActionListener<QueryPage<SpecialEvent>> handler) {
-
+    public void scheduledEventsForJob(String jobId, List<String> jobGroups, ScheduledEventsQueryBuilder queryBuilder,
+                                      ActionListener<QueryPage<ScheduledEvent>> handler) {
         // Find all the calendars used by the job then the events for those calendars
 
         ActionListener<QueryPage<Calendar>> calendarsListener = ActionListener.wrap(
                 calendars -> {
                     if (calendars.results().isEmpty()) {
-                        handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, SpecialEvent.RESULTS_FIELD));
+                        handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
                         return;
                     }
                     List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
                     queryBuilder.calendarIds(calendarIds);
-                    specialEvents(queryBuilder, handler);
+                    scheduledEvents(queryBuilder, handler);
                 },
                 handler::onFailure
         );
 
-        CalendarQueryBuilder query = new CalendarQueryBuilder().jobId(jobId);
+        CalendarQueryBuilder query = new CalendarQueryBuilder().jobId(jobId).jobGroups(jobGroups);
         calendars(query, calendarsListener);
     }
 
-    public void specialEvents(SpecialEventsQueryBuilder query, ActionListener<QueryPage<SpecialEvent>> handler) {
+    public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
         SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(query.build());
@@ -1058,17 +1058,19 @@ public class JobProvider {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request.request(),
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            List<SpecialEvent> specialEvents = new ArrayList<>();
+                            List<ScheduledEvent> events = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                specialEvents.add(parseSearchHit(hit, SpecialEvent.PARSER, handler::onFailure).build());
+                                ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.PARSER, handler::onFailure);
+                                event.eventId(hit.getId());
+                                events.add(event.build());
                             }
 
-                            handler.onResponse(new QueryPage<>(specialEvents, response.getHits().getTotalHits(),
-                                    SpecialEvent.RESULTS_FIELD));
+                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits(),
+                                    ScheduledEvent.RESULTS_FIELD));
                         },
-                        handler::onFailure)
-                , client::search);
+                        handler::onFailure),
+                client::search);
     }
 
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,

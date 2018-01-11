@@ -6,9 +6,17 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -27,6 +35,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -40,6 +49,9 @@ import static org.mockito.Mockito.when;
 
 public class CsvDataToProcessWriterTests extends ESTestCase {
 
+    private AnalysisRegistry analysisRegistry;
+    private Environment environment;
+
     private AutodetectProcess autodetectProcess;
     private DataDescription.Builder dataDescription;
     private AnalysisConfig analysisConfig;
@@ -48,7 +60,11 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     private List<String[]> writtenRecords;
 
     @Before
-    public void setUpMocks() throws IOException {
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
         dataCountsReporter = Mockito.mock(DataCountsReporter.class);
 
@@ -69,7 +85,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();
-        analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector)).build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws IOException {
@@ -80,7 +96,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, null, (r, e) -> {});
+        writer.write(inputStream, null, null, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -88,6 +104,43 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[] { "time", "value", "." });
         expectedRecords.add(new String[] { "1", "1.0", "" });
         expectedRecords.add(new String[] { "2", "2.0", "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+
+        verify(dataCountsReporter).finishReporting(any());
+    }
+
+    public void testWrite_GivenTimeFormatIsEpochAndCategorization() throws IOException {
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("mlcategory");
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        builder.setCategorizationFieldName("message");
+        builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null));
+        analysisConfig = builder.build();
+
+        StringBuilder input = new StringBuilder();
+        input.append("time,message\n");
+        input.append("1,Node 1 started\n");
+        input.append("2,Node 2 started\n");
+        InputStream inputStream = createInputStream(input.toString());
+        CsvDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        try (CategorizationAnalyzer categorizationAnalyzer =
+                     new CategorizationAnalyzer(analysisRegistry, environment, analysisConfig.getCategorizationAnalyzerConfig())) {
+            writer.write(inputStream, categorizationAnalyzer, null, (r, e) -> {});
+        }
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The "." field is the control field; "..." is the pre-tokenized tokens field
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
+            expectedRecords.add(new String[]{"time", "message", "...", "."});
+            expectedRecords.add(new String[]{"1", "Node 1 started", "Node,started", ""});
+            expectedRecords.add(new String[]{"2", "Node 2 started", "Node,started", ""});
+        } else {
+            expectedRecords.add(new String[]{"time", "message", "."});
+            expectedRecords.add(new String[]{"1", "Node 1 started", ""});
+            expectedRecords.add(new String[]{"2", "Node 2 started", ""});
+        }
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter).finishReporting(any());
@@ -102,7 +155,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, null, (r, e) -> {});
+        writer.write(inputStream, null, null, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -126,7 +179,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         when(dataCountsReporter.getLatestRecordTime()).thenReturn(new Date(5000L));
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, null, (r, e) -> {});
+        writer.write(inputStream, null, null, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -141,7 +194,8 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
@@ -156,7 +210,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, null, (r, e) -> {});
+        writer.write(inputStream, null, null, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -174,7 +228,8 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_NullByte() throws IOException {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
@@ -189,7 +244,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream, null, (r, e) -> {});
+        writer.write(inputStream, null, null, (r, e) -> {});
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -211,7 +266,8 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_EmptyInput() throws IOException {
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
+        AnalysisConfig.Builder builder =
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
@@ -227,7 +283,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
 
-        writer.write(inputStream, null, (counts, e) -> {
+        writer.write(inputStream, null, null, (counts, e) -> {
             if (e != null) {
                 fail(e.getMessage());
             } else {
@@ -251,7 +307,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         writer.writeHeader();
 
         SuperCsvException e = ESTestCase.expectThrows(SuperCsvException.class,
-                () -> writer.write(inputStream, null, (response, error) -> {}));
+                () -> writer.write(inputStream, null, null, (response, error) -> {}));
         // Expected line numbers are 2 and 10001, but SuperCSV may print the
         // numbers using a different locale's digit characters
         assertTrue(e.getMessage(), e.getMessage().matches(
@@ -263,7 +319,9 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     private CsvDataToProcessWriter createWriter() {
-        return new CsvDataToProcessWriter(true, autodetectProcess, dataDescription.build(), analysisConfig,
+        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA &&
+                analysisConfig.getCategorizationFieldName() != null;
+        return new CsvDataToProcessWriter(true, includeTokensField, autodetectProcess, dataDescription.build(), analysisConfig,
                 dataCountsReporter);
     }
 

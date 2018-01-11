@@ -17,10 +17,10 @@ public class GetCalendarEventsActionRequestTests extends AbstractStreamableXCont
         String id = randomAlphaOfLengthBetween(1, 20);
         GetCalendarEventsAction.Request request = new GetCalendarEventsAction.Request(id);
         if (randomBoolean()) {
-            request.setAfter(randomAlphaOfLengthBetween(1, 20));
+            request.setStart(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setBefore(randomAlphaOfLengthBetween(1, 20));
+            request.setEnd(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             request.setJobId(randomAlphaOfLength(8));

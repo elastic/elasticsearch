@@ -13,7 +13,7 @@
       }
     },
     "body": {
-      "description" : "A list of special events",
+      "description" : "A list of events",
       "required" : true
     }
   }

@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -27,15 +29,18 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
 
     private final JobManager jobManager;
     private final XPackLicenseState licenseState;
+    private final AnalysisRegistry analysisRegistry;
 
     @Inject
     public TransportPutJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
+                                 AnalysisRegistry analysisRegistry) {
         super(settings, PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PutJobAction.Request::new);
         this.licenseState = licenseState;
         this.jobManager = jobManager;
+        this.analysisRegistry = analysisRegistry;
     }
 
     @Override
@@ -51,7 +56,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     @Override
     protected void masterOperation(PutJobAction.Request request, ClusterState state,
                                    ActionListener<PutJobAction.Response> listener) throws Exception {
-        jobManager.putJob(request, state, listener);
+        jobManager.putJob(request, analysisRegistry, state, listener);
     }
 
     @Override

@@ -14,12 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -50,7 +51,38 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         }
         if (isCategorization) {
             builder.setCategorizationFieldName(randomAlphaOfLength(10));
-            builder.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
+            if (randomBoolean()) {
+                builder.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
+            } else {
+                CategorizationAnalyzerConfig.Builder analyzerBuilder = new CategorizationAnalyzerConfig.Builder();
+                if (rarely()) {
+                    analyzerBuilder.setAnalyzer(randomAlphaOfLength(10));
+                } else {
+                    if (randomBoolean()) {
+                        for (String pattern : generateRandomStringArray(3, 40, false)) {
+                            Map<String, Object> charFilter = new HashMap<>();
+                            charFilter.put("type", "pattern_replace");
+                            charFilter.put("pattern", pattern);
+                            analyzerBuilder.addCharFilter(charFilter);
+                        }
+                    }
+
+                    Map<String, Object> tokenizer = new HashMap<>();
+                    tokenizer.put("type", "pattern");
+                    tokenizer.put("pattern", randomAlphaOfLength(10));
+                    analyzerBuilder.setTokenizer(tokenizer);
+
+                    if (randomBoolean()) {
+                        for (String pattern : generateRandomStringArray(4, 40, false)) {
+                            Map<String, Object> tokenFilter = new HashMap<>();
+                            tokenFilter.put("type", "pattern_replace");
+                            tokenFilter.put("pattern", pattern);
+                            analyzerBuilder.addTokenFilter(tokenFilter);
+                        }
+                    }
+                }
+                builder.setCategorizationAnalyzerConfig(analyzerBuilder.build());
+            }
         }
         if (randomBoolean()) {
             builder.setLatency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
@@ -334,21 +366,21 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testEquals_GivenSameReference() {
-        AnalysisConfig config = createFullyPopulatedConfig();
+        AnalysisConfig config = createFullyPopulatedNonRandomConfig();
         assertTrue(config.equals(config));
     }
 
     public void testEquals_GivenDifferentClass() {
-        assertFalse(createFullyPopulatedConfig().equals("a string"));
+        assertFalse(createFullyPopulatedNonRandomConfig().equals("a string"));
     }
 
     public void testEquals_GivenNull() {
-        assertFalse(createFullyPopulatedConfig().equals(null));
+        assertFalse(createFullyPopulatedNonRandomConfig().equals(null));
     }
 
     public void testEquals_GivenEqualConfig() {
-        AnalysisConfig config1 = createFullyPopulatedConfig();
-        AnalysisConfig config2 = createFullyPopulatedConfig();
+        AnalysisConfig config1 = createFullyPopulatedNonRandomConfig();
+        AnalysisConfig config2 = createFullyPopulatedNonRandomConfig();
 
         assertTrue(config1.equals(config2));
         assertTrue(config2.equals(config1));
@@ -471,14 +503,15 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), config.extractReferencedFilters());
     }
 
-    private static AnalysisConfig createFullyPopulatedConfig() {
+    private static AnalysisConfig createFullyPopulatedNonRandomConfig() {
         Detector.Builder detector = new Detector.Builder("min", "count");
         detector.setOverFieldName("mlcategory");
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(
                 Collections.singletonList(detector.build()));
         builder.setBucketSpan(TimeValue.timeValueHours(1));
         builder.setCategorizationFieldName("cat");
-        builder.setCategorizationFilters(Collections.singletonList("foo"));
+        builder.setCategorizationAnalyzerConfig(
+                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.singletonList("foo")));
         builder.setInfluencers(Collections.singletonList("myInfluencer"));
         builder.setLatency(TimeValue.timeValueSeconds(3600));
         builder.setSummaryCountFieldName("sumCount");
@@ -566,6 +599,26 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         analysisConfig.setCategorizationFilters(Arrays.asList("foo", "bar"));
 
         analysisConfig.build();
+    }
+
+    public void testVerify_GivenValidConfigWithCategorizationFieldNameAndCategorizationAnalyzerConfig() {
+        AnalysisConfig.Builder analysisConfig = createValidCategorizationConfig();
+        analysisConfig.setCategorizationAnalyzerConfig(
+                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Arrays.asList("foo", "bar")));
+
+        analysisConfig.build();
+    }
+
+    public void testVerify_GivenBothCategorizationFiltersAndCategorizationAnalyzerConfig() {
+        AnalysisConfig.Builder analysisConfig = createValidCategorizationConfig();
+        analysisConfig.setCategorizationFilters(Arrays.asList("foo", "bar"));
+        analysisConfig.setCategorizationAnalyzerConfig(
+                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.singletonList("baz")));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
+
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_INCOMPATIBLE_WITH_CATEGORIZATION_ANALYZER),
+                e.getMessage());
     }
 
     public void testVerify_GivenFieldIsControlField() {
@@ -821,9 +874,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     @Override
-    protected AnalysisConfig mutateInstance(AnalysisConfig instance) throws IOException {
+    protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -867,6 +920,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             }
             filters.add(randomAlphaOfLengthBetween(1, 20));
             builder.setCategorizationFilters(filters);
+            builder.setCategorizationAnalyzerConfig(null);
             if (instance.getCategorizationFieldName() == null) {
                 builder.setCategorizationFieldName(randomAlphaOfLengthBetween(1, 10));
                 List<Detector> newDetectors = new ArrayList<>(instance.getDetectors());
@@ -879,36 +933,50 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             }
             break;
         case 5:
-            builder.setSummaryCountFieldName(instance.getSummaryCountFieldName() + randomAlphaOfLengthBetween(1, 5));
+            builder.setCategorizationFilters(null);
+            builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(
+                    Collections.singletonList(randomAlphaOfLengthBetween(1, 20))));
+            if (instance.getCategorizationFieldName() == null) {
+                builder.setCategorizationFieldName(randomAlphaOfLengthBetween(1, 10));
+                List<Detector> newDetectors = new ArrayList<>(instance.getDetectors());
+                Detector.Builder catDetector = new Detector.Builder();
+                catDetector.setFunction("count");
+                catDetector.setByFieldName("mlcategory");
+                newDetectors.add(catDetector.build());
+                builder.setDetectors(newDetectors);
+            }
             break;
         case 6:
+            builder.setSummaryCountFieldName(instance.getSummaryCountFieldName() + randomAlphaOfLengthBetween(1, 5));
+            break;
+        case 7:
             List<String> influencers = new ArrayList<>(instance.getInfluencers());
             influencers.add(randomAlphaOfLengthBetween(5, 10));
             builder.setInfluencers(influencers);
             builder.setUsePerPartitionNormalization(false);
             break;
-        case 7:
+        case 8:
             if (instance.getOverlappingBuckets() == null) {
                 builder.setOverlappingBuckets(randomBoolean());
             } else {
                 builder.setOverlappingBuckets(instance.getOverlappingBuckets() == false);
             }
             break;
-        case 8:
+        case 9:
             if (instance.getResultFinalizationWindow() == null) {
                 builder.setResultFinalizationWindow(between(1, 100) * 1000L);
             } else {
                 builder.setResultFinalizationWindow(instance.getResultFinalizationWindow() + (between(1, 100) * 1000));
             }
             break;
-        case 9:
+        case 10:
             if (instance.getMultivariateByFields() == null) {
                 builder.setMultivariateByFields(randomBoolean());
             } else {
                 builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
             }
             break;
-        case 10:
+        case 11:
             List<TimeValue> multipleBucketSpans;
             if (instance.getMultipleBucketSpans() == null) {
                 multipleBucketSpans = new ArrayList<>();
@@ -918,7 +986,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             multipleBucketSpans.add(new TimeValue(between(2, 10) * instance.getBucketSpan().millis()));
             builder.setMultipleBucketSpans(multipleBucketSpans);
             break;
-        case 11:
+        case 12:
             boolean usePerPartitionNormalization = instance.getUsePerPartitionNormalization() == false;
             builder.setUsePerPartitionNormalization(usePerPartitionNormalization);
             if (usePerPartitionNormalization) {

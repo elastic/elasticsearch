@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
+import org.elasticsearch.xpack.watcher.notification.slack.message.Action;
 import org.elasticsearch.xpack.watcher.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -54,9 +57,14 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
 
     public void testSendMessage() throws Exception {
         SlackService service = getInstanceFromMaster(SlackService.class);
+
+        // String style, String name, String type, String text, String url
+        Action action = new Action(randomFrom("primary", "danger"), "action name", "button", "Click here to visit Elastic Homepage",
+                "https://elastic.co");
+        List<Action> actions = randomBoolean() ? null : Collections.singletonList(action);
         Attachment[] attachments = new Attachment[] {
                 new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext `code` *bold*", "author_name", null, null,
-                        "title", null, "_text `code` *bold*", null, null, null, new String[] { "text", "pretext" })
+                        "title あいうえお", null, "_text `code` *bold*", null, null, null, new String[] { "text", "pretext" }, actions)
         };
         SlackMessage message = new SlackMessage(
                 "SlackServiceTests",

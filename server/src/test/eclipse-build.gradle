@@ -3,5 +3,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':core')
+  testCompile project(':server')
 }

@@ -135,6 +135,13 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 commitData = commits.get(commits.size() - 1).getUserData();
                 String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
                 String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
+                final long globalCheckpoint;
+                // In order to have a safe commit invariant, we have to assign max_seqno of the last commit to the global checkpoint.
+                if (commitData.containsKey(SequenceNumbers.MAX_SEQ_NO)) {
+                    globalCheckpoint = Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO));
+                } else {
+                    globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                }
                 if (translogGeneration == null || translogUUID == null) {
                     throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
                         translogGeneration, translogUUID);
@@ -153,7 +160,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 // Write empty checkpoint and translog to empty files
                 long gen = Long.parseLong(translogGeneration);
                 int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
-                writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen);
+                writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, globalCheckpoint);
 
                 terminal.println("Removing existing translog files");
                 IOUtils.rm(translogFiles.toArray(new Path[]{}));
@@ -190,9 +197,9 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
     }
 
     /** Write a checkpoint file to the given location with the given generation */
-    public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
+    static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint) throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, translogGeneration);
+            globalCheckpoint, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

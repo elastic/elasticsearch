@@ -31,6 +31,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -73,7 +75,9 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
@@ -146,6 +150,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             replica.flush(new FlushRequest());
             logger.info("--> performed extra flushing on replica");
         }
+        final SeqNoStats oldSeqNoStats = getSeqNoStats("test", 0);
 
         // shut down the replica node to be tested later
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
@@ -214,6 +219,9 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
+        // Ensure that the global checkpoint is restored from the max seqno of the last commit.
+        final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
+        assertThat(seqNoStats.getGlobalCheckpoint(), allOf(equalTo(seqNoStats.getMaxSeqNo()), equalTo(oldSeqNoStats.getMaxSeqNo())));
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
@@ -261,6 +269,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
         Set<Path> translogDirs = getTranslogDirs(replicaNode, shardId);
 
+        final SeqNoStats oldSeqNoStats = getSeqNoStats("test", 0);
         // stop the cluster nodes. we don't use full restart so the node start up order will be the same
         // and shard roles will be maintained
         internalCluster().stopRandomDataNode();
@@ -316,6 +325,9 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
         // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
+        // Ensure that the global checkpoint is restored from the max seqno of the last commit.
+        final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
+        assertThat(seqNoStats.getGlobalCheckpoint(), allOf(equalTo(seqNoStats.getMaxSeqNo()), equalTo(oldSeqNoStats.getMaxSeqNo())));
     }
 
     private Set<Path> getTranslogDirs(String indexName) throws IOException {
@@ -360,4 +372,10 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
+    private SeqNoStats getSeqNoStats(String index, int shardId) {
+        final ShardStats[] shardStats = client().admin().indices()
+            .prepareStats(index).get()
+            .getIndices().get(index).getShards();
+        return shardStats[shardId].getSeqNoStats();
+    }
 }

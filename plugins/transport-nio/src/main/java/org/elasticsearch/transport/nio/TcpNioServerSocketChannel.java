@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
 
@@ -37,7 +38,8 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
 
     private final String profile;
 
-    TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel, TcpChannelFactory channelFactory,
+    TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel,
+                              ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> channelFactory,
                               AcceptingSelector selector) throws IOException {
         super(socketChannel, channelFactory, selector);
         this.profile = profile;

@@ -388,6 +388,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     .endObject();
             });
 
+            ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
+
             String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
             Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
                 new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
@@ -453,6 +455,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     .endObject();
             });
         } else {
+            ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
+
             String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
             Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
                 new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));

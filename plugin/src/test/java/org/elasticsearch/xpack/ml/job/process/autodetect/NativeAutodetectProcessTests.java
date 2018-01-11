@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 public class NativeAutodetectProcessTests extends ESTestCase {
 
-    private static final int NUMBER_ANALYSIS_FIELDS = 3;
+    private static final int NUMBER_FIELDS = 5;
 
     private ExecutorService executorService;
 
@@ -54,7 +54,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         when(logStream.read(new byte[1024])).thenReturn(-1);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
                 mock(OutputStream.class), mock(InputStream.class), mock(OutputStream.class),
-                NUMBER_ANALYSIS_FIELDS, null,
+                NUMBER_FIELDS, null,
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
@@ -74,7 +74,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         String[] record = {"r1", "r2", "r3", "r4", "r5"};
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_ANALYSIS_FIELDS, Collections.emptyList(),
+                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
@@ -106,7 +106,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         when(logStream.read(new byte[1024])).thenReturn(-1);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH + 1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_ANALYSIS_FIELDS, Collections.emptyList(),
+                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
@@ -123,7 +123,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         when(logStream.read(new byte[1024])).thenReturn(-1);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_ANALYSIS_FIELDS, Collections.emptyList(),
+                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
@@ -141,7 +141,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         when(logStream.read(new byte[1024])).thenReturn(-1);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_ANALYSIS_FIELDS, Collections.emptyList(),
+                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 

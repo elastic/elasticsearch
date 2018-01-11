@@ -33,7 +33,7 @@ public class DataToProcessWriterFactoryTests extends ESTestCase {
     }
 
     private static DataToProcessWriter createWriter(DataDescription dataDescription) {
-        return DataToProcessWriterFactory.create(true, mock(AutodetectProcess.class),
+        return DataToProcessWriterFactory.create(true, false, mock(AutodetectProcess.class),
                 dataDescription, AnalysisConfigTests.createRandomized().build(),
                 mock(DataCountsReporter.class), new NamedXContentRegistry(Collections.emptyList()));
     }

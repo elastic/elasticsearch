@@ -7,10 +7,15 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.supercsv.encoder.CsvEncoder;
+import org.supercsv.encoder.DefaultCsvEncoder;
+import org.supercsv.prefs.CsvPreference;
+import org.supercsv.util.CsvContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +37,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private static final long MS_IN_SECOND = 1000;
 
     private final boolean includeControlField;
+    private final boolean includeTokensField;
 
     protected final AutodetectProcess autodetectProcess;
     protected final DataDescription dataDescription;
@@ -49,10 +55,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private long latestEpochMs;
     private long latestEpochMsThisUpload;
 
-    protected AbstractDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
+    protected AbstractDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
                                           DataDescription dataDescription, AnalysisConfig analysisConfig,
                                           DataCountsReporter dataCountsReporter, Logger logger) {
         this.includeControlField = includeControlField;
+        this.includeTokensField = includeTokensField;
         this.autodetectProcess = Objects.requireNonNull(autodetectProcess);
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
@@ -77,18 +84,19 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Set up the field index mappings. This must be called before
-     * {@linkplain DataToProcessWriter#write(InputStream, XContentType, BiConsumer)}
+     * {@linkplain DataToProcessWriter#write(InputStream, CategorizationAnalyzer, XContentType, BiConsumer)}
      * <p>
      * Finds the required input indexes in the <code>header</code> and sets the
      * mappings to the corresponding output indexes.
      */
-    void buildFieldIndexMapping(String[] header) throws IOException {
+    void buildFieldIndexMapping(String[] header) {
         Collection<String> inputFields = inputFields();
         inFieldIndexes = inputFieldIndexes(header, inputFields);
         checkForMissingFields(inputFields, inFieldIndexes, header);
 
         inputOutputMap = createInputOutputMap(inFieldIndexes);
-        dataCountsReporter.setAnalysedFieldsPerRecord(analysisConfig.analysisFields().size());
+        // The time field doesn't count
+        dataCountsReporter.setAnalysedFieldsPerRecord(inputFields().size() - 1);
     }
 
     /**
@@ -112,13 +120,45 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     }
 
     /**
-     * Transform the input data and write to length encoded writer.<br>
+     * Tokenize the field that has been configured for categorization, and store the resulting list of tokens in CSV
+     * format in the appropriate field of the record to be sent to the analytics.
+     * @param categorizationAnalyzer   The analyzer to use to convert the categorization field to a list of tokens
+     * @param categorizationFieldValue The value of the categorization field to be tokenized
+     * @param record                   The record to be sent to the analytics
+     */
+    protected void tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldValue,
+                                             String[] record) {
+        assert includeTokensField;
+        // -2 because last field is the control field, and last but one is the pre-tokenized tokens field
+        record[record.length - 2] = tokenizeForCategorization(categorizationAnalyzer, analysisConfig.getCategorizationFieldName(),
+                categorizationFieldValue);
+    }
+
+    /**
+     * Accessible for testing only.
+     */
+    static String tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldName,
+                                            String categorizationFieldValue) {
+        StringBuilder builder = new StringBuilder();
+        CsvContext context = new CsvContext(0, 0, 0);
+        // Using the CsvEncoder directly is faster than using a CsvLineWriter with end-of-line set to the empty string
+        CsvEncoder encoder = new DefaultCsvEncoder();
+        boolean first = true;
+        for (String token : categorizationAnalyzer.tokenizeField(categorizationFieldName, categorizationFieldValue)) {
+            if (first) {
+                first = false;
+            } else {
+                builder.appendCodePoint(CsvPreference.STANDARD_PREFERENCE.getDelimiterChar());
+            }
+            builder.append(encoder.encode(token, context, CsvPreference.STANDARD_PREFERENCE));
+        }
+        return builder.toString();
+    }
+
+    /**
+     * Transform the date in the input data and write all fields to the length encoded writer.
      * <p>
-     * Fields that aren't transformed i.e. those in inputOutputMap must be
-     * copied from input to output before this function is called.
-     * <p>
-     * First all the transforms whose outputs the Date transform relies
-     * on are executed then the date transform then the remaining transforms.
+     * Fields  must be copied from input to output before this function is called.
      *
      * @param record             The record that will be written to the length encoded writer after the time has been transformed.
      *                           This should be the same size as the number of output (analysis fields) i.e.
@@ -171,7 +211,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     final Collection<String> inputFields() {
         Set<String> requiredFields = analysisConfig.analysisFields();
         requiredFields.add(dataDescription.getTimeField());
-
+        requiredFields.remove(AnalysisConfig.ML_CATEGORY_FIELD);
         return requiredFields;
     }
 
@@ -181,7 +221,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     protected final Map<String, Integer> inputFieldIndexes(String[] header, Collection<String> inputFields) {
         List<String> headerList = Arrays.asList(header);  // TODO header could be empty
 
-        Map<String, Integer> fieldIndexes = new HashMap<String, Integer>();
+        Map<String, Integer> fieldIndexes = new HashMap<>();
 
         for (String field : inputFields) {
             int index = headerList.indexOf(field);
@@ -211,12 +251,19 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
         int index = TIME_FIELD_OUT_INDEX + 1;
         for (String field : analysisConfig.analysisFields()) {
-            fieldIndexes.put(field, index++);
+            if (AnalysisConfig.ML_CATEGORY_FIELD.equals(field) == false) {
+                fieldIndexes.put(field, index++);
+            }
+        }
+
+        // field for categorization tokens
+        if (includeTokensField) {
+            fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
         }
 
         // control field
         if (includeControlField) {
-            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index);
+            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index++);
         }
 
         return fieldIndexes;
@@ -227,11 +274,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * the time field and (sometimes) the control field
      */
     protected int outputFieldCount() {
-        return analysisConfig.analysisFields().size() + (includeControlField ? 2 : 1);
-    }
-
-    protected Map<String, Integer> getOutputFieldIndexes() {
-        return outputFieldIndexes();
+        return inputFields().size() + (includeControlField ? 1 : 0) + (includeTokensField ? 1 : 0);
     }
 
     /**
@@ -251,10 +294,12 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
 
         for (String field : analysisConfig.analysisFields()) {
-            ++outIndex;
-            inIndex = inFieldIndexes.get(field);
-            if (inIndex != null) {
-                inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
+            if (AnalysisConfig.ML_CATEGORY_FIELD.equals(field) == false) {
+                ++outIndex;
+                inIndex = inFieldIndexes.get(field);
+                if (inIndex != null) {
+                    inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
+                }
             }
         }
 

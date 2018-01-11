@@ -75,8 +75,13 @@ public final class Messages {
             "categorization_filters are not allowed to contain empty strings";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX =
             "categorization_filters contains invalid regular expression ''{0}''";
+    public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_INCOMPATIBLE_WITH_CATEGORIZATION_ANALYZER =
+            "categorization_filters cannot be used with categorization_analyzer - " +
+                    "instead specify them as pattern_replace char_filters in the analyzer";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_REQUIRE_CATEGORIZATION_FIELD_NAME =
             "categorization_filters require setting categorization_field_name";
+    public static final String JOB_CONFIG_CATEGORIZATION_ANALYZER_REQUIRES_CATEGORIZATION_FIELD_NAME =
+            "categorization_analyzer requires setting categorization_field_name";
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NULL = "Invalid condition: the value field cannot be null";
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER =
             "Invalid condition value: cannot parse a double from string ''{0}''";

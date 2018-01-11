@@ -38,12 +38,15 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -104,6 +107,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -113,7 +117,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
-        DiscoveryPlugin, MapperPlugin {
+        DiscoveryPlugin, MapperPlugin, AnalysisPlugin {
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -425,6 +429,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
             templates = machineLearning.getIndexTemplateMetaDataUpgrader().apply(templates);
             return templates;
         };
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
+        tokenizers.putAll(machineLearning.getTokenizers());
+        return tokenizers;
     }
 
     public void onIndexModule(IndexModule module) {

@@ -57,7 +57,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final OutputStream processRestoreStream;
     private final LengthEncodedWriter recordWriter;
     private final ZonedDateTime startTime;
-    private final int numberOfAnalysisFields;
+    private final int numberOfFields;
     private final List<Path> filesToDelete;
     private final Runnable onProcessCrash;
     private volatile Future<?> logTailFuture;
@@ -67,8 +67,8 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private volatile boolean isReady;
     private final AutodetectResultsParser resultsParser;
 
-    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,  InputStream processOutStream,
-                            OutputStream processRestoreStream, int numberOfAnalysisFields, List<Path> filesToDelete,
+    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
+                            OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
                             AutodetectResultsParser resultsParser, Runnable onProcessCrash) {
         this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
@@ -77,7 +77,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
         this.processRestoreStream = processRestoreStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
         startTime = ZonedDateTime.now();
-        this.numberOfAnalysisFields = numberOfAnalysisFields;
+        this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
         this.resultsParser = resultsParser;
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
@@ -143,32 +143,32 @@ class NativeAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void writeResetBucketsControlMessage(DataLoadParams params) throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeResetBucketsMessage(params);
     }
 
     @Override
     public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeUpdateModelPlotMessage(modelPlotConfig);
     }
 
     @Override
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeUpdateDetectorRulesMessage(detectorIndex, rules);
     }
 
     @Override
     public String flushJob(FlushJobParams params) throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeFlushControlMessage(params);
         return writer.writeFlushMessage();
     }
 
     @Override
     public void forecastJob(ForecastParams params) throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeForecastMessage(params);
     }
 

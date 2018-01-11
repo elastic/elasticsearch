@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 public final class DataToProcessWriterFactory {
 
     private DataToProcessWriterFactory() {
-
     }
 
     /**
@@ -28,16 +27,16 @@ public final class DataToProcessWriterFactory {
      * @return A {@link JsonDataToProcessWriter} if the data format is JSON or
      *         otherwise a {@link CsvDataToProcessWriter}
      */
-    public static DataToProcessWriter create(boolean includeControlField,
+    public static DataToProcessWriter create(boolean includeControlField, boolean includeTokensField,
             AutodetectProcess autodetectProcess, DataDescription dataDescription,
             AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter,
             NamedXContentRegistry xContentRegistry) {
         switch (dataDescription.getFormat()) {
         case XCONTENT:
-            return new JsonDataToProcessWriter(includeControlField, autodetectProcess,
+            return new JsonDataToProcessWriter(includeControlField, includeTokensField, autodetectProcess,
                     dataDescription, analysisConfig, dataCountsReporter, xContentRegistry);
         case DELIMITED:
-            return new CsvDataToProcessWriter(includeControlField, autodetectProcess,
+            return new CsvDataToProcessWriter(includeControlField, includeTokensField, autodetectProcess,
                     dataDescription, analysisConfig, dataCountsReporter);
         default:
             throw new IllegalArgumentException();

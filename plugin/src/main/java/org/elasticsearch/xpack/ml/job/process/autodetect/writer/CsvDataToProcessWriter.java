@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -55,10 +56,10 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      */
     private static final int MAX_LINES_PER_RECORD = 10000;
 
-    CsvDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
-                                  DataDescription dataDescription, AnalysisConfig analysisConfig,
-                                  DataCountsReporter dataCountsReporter) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
+    CsvDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+                           DataDescription dataDescription, AnalysisConfig analysisConfig,
+                           DataCountsReporter dataCountsReporter) {
+        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }
 
     /**
@@ -68,7 +69,8 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      * header a exception is thrown
      */
     @Override
-    public void write(InputStream inputStream, XContentType xContentType, BiConsumer<DataCounts, Exception> handler) throws IOException {
+    public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
+                      BiConsumer<DataCounts, Exception> handler) throws IOException {
         CsvPreference csvPref = new CsvPreference.Builder(
                 dataDescription.getQuoteCharacter(),
                 dataDescription.getFieldDelimiter(),
@@ -88,13 +90,11 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
 
             buildFieldIndexMapping(header);
 
-            // backing array for the inputIndex
-            String[] inputRecord = new String[header.length];
-
             int maxIndex = 0;
             for (Integer index : inFieldIndexes.values()) {
                 maxIndex = Math.max(index, maxIndex);
             }
+            Integer categorizationFieldIndex = inFieldIndexes.get(analysisConfig.getCategorizationFieldName());
 
             int numFields = outputFieldCount();
             String[] record = new String[numFields];
@@ -122,7 +122,9 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                     }
                 }
 
-                fillRecordFromLine(line, inputRecord);
+                if (categorizationAnalyzer != null && categorizationFieldIndex != null && categorizationFieldIndex < line.size()) {
+                    tokenizeForCategorization(categorizationAnalyzer, line.get(categorizationFieldIndex), record);
+                }
                 transformTimeAndWrite(record, inputFieldCount);
             }
 
@@ -131,16 +133,6 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                     response -> handler.accept(dataCountsReporter.incrementalStats(), null),
                     e -> handler.accept(null, e)
             ));
-        }
-    }
-
-    private static void fillRecordFromLine(List<String> line, String[] record) {
-        Arrays.fill(record, "");
-        for (int i = 0; i < Math.min(line.size(), record.length); i++) {
-            String value = line.get(i);
-            if (value != null) {
-                record[i] = value;
-            }
         }
     }
 

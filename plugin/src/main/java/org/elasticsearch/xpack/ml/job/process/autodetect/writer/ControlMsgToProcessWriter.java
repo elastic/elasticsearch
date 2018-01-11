@@ -76,34 +76,28 @@ public class ControlMsgToProcessWriter {
     private static AtomicLong ms_FlushNumber = new AtomicLong(1);
 
     private final LengthEncodedWriter lengthEncodedWriter;
-    private final int numberOfAnalysisFields;
+    private final int numberOfFields;
 
     /**
      * Construct the control message writer with a LengthEncodedWriter
      *
-     * @param lengthEncodedWriter
-     *            the writer
-     * @param numberOfAnalysisFields
-     *            The number of fields configured for analysis not including the
-     *            time field
+     * @param lengthEncodedWriter The writer
+     * @param numberOfFields      The number of fields the process expects in each record
      */
-    public ControlMsgToProcessWriter(LengthEncodedWriter lengthEncodedWriter, int numberOfAnalysisFields) {
+    public ControlMsgToProcessWriter(LengthEncodedWriter lengthEncodedWriter, int numberOfFields) {
         this.lengthEncodedWriter = Objects.requireNonNull(lengthEncodedWriter);
-        this.numberOfAnalysisFields= numberOfAnalysisFields;
+        this.numberOfFields = numberOfFields;
     }
 
     /**
      * Create the control message writer with a OutputStream. A
      * LengthEncodedWriter is created on the OutputStream parameter
      *
-     * @param os
-     *            the output stream
-     * @param numberOfAnalysisFields
-     *            The number of fields configured for analysis not including the
-     *            time field
+     * @param os             The output stream
+     * @param numberOfFields The number of fields the process expects in each record
      */
-    public static ControlMsgToProcessWriter create(OutputStream os, int numberOfAnalysisFields) {
-        return new ControlMsgToProcessWriter(new LengthEncodedWriter(os), numberOfAnalysisFields);
+    public static ControlMsgToProcessWriter create(OutputStream os, int numberOfFields) {
+        return new ControlMsgToProcessWriter(new LengthEncodedWriter(os), numberOfFields);
     }
 
     /**
@@ -227,12 +221,10 @@ public class ControlMsgToProcessWriter {
      */
     private void writeMessage(String message) throws IOException {
 
-        // The fields consist of all the analysis fields plus the time and the
-        // control field, hence + 2
-        lengthEncodedWriter.writeNumFields(numberOfAnalysisFields + 2);
+        lengthEncodedWriter.writeNumFields(numberOfFields);
 
-        // Write blank values for all analysis fields and the time
-        for (int i = -1; i < numberOfAnalysisFields; ++i) {
+        // Write blank values for all fields other than the control field
+        for (int i = 1; i < numberOfFields; ++i) {
             lengthEncodedWriter.writeField("");
         }
 

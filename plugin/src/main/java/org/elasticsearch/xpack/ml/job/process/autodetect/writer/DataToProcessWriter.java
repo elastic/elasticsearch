@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public interface DataToProcessWriter {
      * <code>DataDescription</code>s timeField is missing from the CSV header
      * a <code>MissingFieldException</code> is thrown
      */
-    void write(InputStream inputStream, XContentType xContentType,
+    void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
                BiConsumer<DataCounts, Exception> handler) throws IOException;
 
     /**

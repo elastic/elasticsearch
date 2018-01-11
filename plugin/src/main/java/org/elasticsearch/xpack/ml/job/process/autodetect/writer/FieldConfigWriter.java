@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
@@ -70,8 +71,11 @@ public class FieldConfigWriter {
         writeDetectors(contents);
         writeFilters(contents);
         writeScheduledEvents(contents);
-        writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
-                contents, true);
+
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
+            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
+                    contents, true);
+        }
 
         // As values are written as entire settings rather than part of a
         // clause no quoting is needed

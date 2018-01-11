@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
@@ -58,13 +59,16 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
                 true, false, true, true, params.modelSnapshot() != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, params, processPipes, filesToDelete);
-        int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
+        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
+                && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        // The extra 1 is the control field
+        int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
         StateProcessor stateProcessor = new StateProcessor(settings, client);
         AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfAnalysisFields,
+                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
                 filesToDelete, resultsParser, onProcessCrash);
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());

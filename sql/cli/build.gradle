@@ -12,7 +12,7 @@ dependencies {
   compile project(':core:cli')
 
   runtime "org.fusesource.jansi:jansi:1.16"
-  runtime "org.elasticsearch:jna:4.4.0-1"
+  runtime "org.elasticsearch:jna:${versions.jna}"
 }
 
 dependencyLicenses {

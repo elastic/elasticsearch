@@ -585,7 +585,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 PeerRecoveryTargetService.Actions.FILE_CHUNK,
                 PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
-                PeerRecoveryTargetService.Actions.OPEN_SEQUENCE_BASED_ENGINE,
+                PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
                 PeerRecoveryTargetService.Actions.FINALIZE
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);

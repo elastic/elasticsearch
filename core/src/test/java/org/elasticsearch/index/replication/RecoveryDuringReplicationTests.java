@@ -242,6 +242,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     oldPrimary.flush(new FlushRequest(index.getName()));
                 }
             }
+
             shards.promoteReplicaToPrimary(newPrimary);
 
             // check that local checkpoint of new primary is properly tracked after primary promotion

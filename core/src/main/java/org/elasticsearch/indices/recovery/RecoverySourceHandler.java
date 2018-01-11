@@ -188,7 +188,9 @@ public class RecoverySourceHandler {
             runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()));
 
             try {
-                openEngineOnTarget(isSequenceNumberBasedRecoveryPossible, translog.estimateTotalOperationsFromMinSeq(startingSeqNo));
+                // For a sequence based recovery, the target can keep its local translog
+                prepareTargetForTranslog(isSequenceNumberBasedRecoveryPossible == false,
+                    translog.estimateTotalOperationsFromMinSeq(startingSeqNo));
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
@@ -421,17 +423,13 @@ public class RecoverySourceHandler {
         }
     }
 
-    void openEngineOnTarget(final boolean sequencedBasedRecovery, final int totalTranslogOps) throws IOException {
+    void prepareTargetForTranslog(final boolean deleteLocalTranslog, final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
-        if (sequencedBasedRecovery) {
-            cancellableThreads.executeIO(() -> recoveryTarget.openSequencedBasedEngine(totalTranslogOps));
-        } else {
-            cancellableThreads.executeIO(() -> recoveryTarget.openFileBasedEngine(totalTranslogOps));
-        }
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(deleteLocalTranslog, totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;

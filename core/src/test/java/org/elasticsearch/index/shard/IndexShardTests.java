@@ -2172,18 +2172,11 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void openFileBasedEngine(int totalTranslogOps) throws IOException {
-                    super.openFileBasedEngine(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(deleteLocalTranslog, totalTranslogOps);
                     // Shard is still inactive since we haven't started recovering yet
                     assertFalse(replica.isActive());
 
-                }
-
-                @Override
-                public void openSequencedBasedEngine(int totalTranslogOps) throws IOException {
-                    super.openSequencedBasedEngine(totalTranslogOps);
-                    // Shard is still inactive since we haven't started recovering yet
-                    assertFalse(replica.isActive());
                 }
 
                 @Override
@@ -2228,14 +2221,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void openFileBasedEngine(int totalTranslogOps) throws IOException {
-                    super.openFileBasedEngine(totalTranslogOps);
-                    assertListenerCalled.accept(replica);
-                }
-
-                @Override
-                public void openSequencedBasedEngine(int totalTranslogOps) throws IOException {
-                    super.openSequencedBasedEngine(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(deleteLocalTranslog, totalTranslogOps);
                     assertListenerCalled.accept(replica);
                 }
 

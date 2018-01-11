@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
@@ -77,23 +76,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void openFileBasedEngine(int totalTranslogOps) throws IOException {
-        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.OPEN_FILE_BASED_ENGINE,
-                new RecoveryOpenFileBasedEngineRequest(recoveryId, shardId, totalTranslogOps),
+    public void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException {
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
+                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, deleteLocalTranslog),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-    }
-
-    @Override
-    public void openSequencedBasedEngine(int totalTranslogOps) throws IOException {
-        if (targetNode.getVersion().before(Version.V_7_0_0_alpha1)) {
-            openFileBasedEngine(totalTranslogOps);
-        } else {
-            transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.OPEN_SEQUENCE_BASED_ENGINE,
-                new RecoveryOpenSeqBasedEngineRequest(recoveryId, shardId, totalTranslogOps),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-        }
     }
 
     @Override

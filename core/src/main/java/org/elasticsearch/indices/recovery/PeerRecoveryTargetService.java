@@ -82,8 +82,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
         public static final String CLEAN_FILES = "internal:index/shard/recovery/clean_files";
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
-        public static final String OPEN_FILE_BASED_ENGINE = "internal:index/shard/recovery/prepare_translog";
-        public static final String OPEN_SEQUENCE_BASED_ENGINE = "internal:index/shard/recovery/open_seq_based_engine";
+        public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
         public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
@@ -113,10 +112,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new
                 CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.OPEN_FILE_BASED_ENGINE, ThreadPool.Names.GENERIC,
-                RecoveryOpenFileBasedEngineRequest::new, new OpenFileBasedEngineRequestHandler());
-        transportService.registerRequestHandler(Actions.OPEN_SEQUENCE_BASED_ENGINE, ThreadPool.Names.GENERIC,
-                RecoveryOpenSeqBasedEngineRequest::new, new OpenSequenceBasedEngineRequestHandler());
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
+                RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
@@ -390,25 +387,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
-    class OpenFileBasedEngineRequestHandler implements TransportRequestHandler<RecoveryOpenFileBasedEngineRequest> {
+    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
 
         @Override
-        public void messageReceived(RecoveryOpenFileBasedEngineRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().openFileBasedEngine(request.totalTranslogOps());
-            }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-    }
-
-    class OpenSequenceBasedEngineRequestHandler implements TransportRequestHandler<RecoveryOpenSeqBasedEngineRequest> {
-
-        @Override
-        public void messageReceived(RecoveryOpenSeqBasedEngineRequest request, TransportChannel channel) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
-                recoveryRef.target().openSequencedBasedEngine(request.totalTranslogOps());
+                recoveryRef.target().prepareForTranslogOperations(request.deleteLocalTranslog(), request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

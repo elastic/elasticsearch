@@ -29,21 +29,14 @@ import java.util.List;
 
 
 public interface RecoveryTargetHandler {
-    /**
-     * Opens an engine and truncates the existing translog on the target.
-     * After this method, the target should be ready to receive translog operations.
-     *
-     * @param totalTranslogOps total translog operations expected to be sent
-     */
-    void openFileBasedEngine(int totalTranslogOps) throws IOException;
 
     /**
-     * Opens an engine on the target with its own local commit point and keeps the existing translog on the target.
-     * After this method, the target should be ready to receive translog operations.
+     * Prepares the target to receive translog operations, after all file have been copied
      *
-     * @param totalTranslogOps total translog operations expected to be sent
+     * @param deleteLocalTranslog whether or not to delete the local translog on the target
+     * @param totalTranslogOps    total translog operations expected to be sent
      */
-    void openSequencedBasedEngine(int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and

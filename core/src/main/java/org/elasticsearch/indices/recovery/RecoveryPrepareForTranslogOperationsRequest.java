@@ -28,25 +28,33 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-final class RecoveryOpenFileBasedEngineRequest extends TransportRequest {
-    final long recoveryId;
-    final ShardId shardId;
-    final int totalTranslogOps;
+class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
-    RecoveryOpenFileBasedEngineRequest(StreamInput in) throws IOException {
-        super(in);
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final int totalTranslogOps;
+    private final boolean deleteLocalTranslog;
+
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean deleteLocalTranslog) {
+        this.recoveryId = recoveryId;
+        this.shardId = shardId;
+        this.totalTranslogOps = totalTranslogOps;
+        this.deleteLocalTranslog = deleteLocalTranslog;
+    }
+
+    RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         totalTranslogOps = in.readVInt();
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
-    }
-
-    RecoveryOpenFileBasedEngineRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
-        this.totalTranslogOps = totalTranslogOps;
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            deleteLocalTranslog = in.readBoolean();
+        } else {
+            deleteLocalTranslog = true;
+        }
     }
 
     public long recoveryId() {
@@ -61,6 +69,13 @@ final class RecoveryOpenFileBasedEngineRequest extends TransportRequest {
         return totalTranslogOps;
     }
 
+    /**
+     * Whether or not the recover target should delete its local translog
+     */
+    boolean deleteLocalTranslog() {
+        return deleteLocalTranslog;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -69,6 +84,9 @@ final class RecoveryOpenFileBasedEngineRequest extends TransportRequest {
         out.writeVInt(totalTranslogOps);
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(deleteLocalTranslog);
         }
     }
 }

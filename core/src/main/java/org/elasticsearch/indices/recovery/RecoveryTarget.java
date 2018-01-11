@@ -362,15 +362,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void openFileBasedEngine(int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean deleteLocalTranslog, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
-    }
-
-    @Override
-    public void openSequencedBasedEngine(int totalTranslogOps) throws IOException {
-        state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().openIndexAndSkipTranslogRecovery();
+        if (deleteLocalTranslog) {
+            indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        } else {
+            indexShard().openIndexAndSkipTranslogRecovery();
+        }
     }
 
     @Override

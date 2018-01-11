@@ -423,7 +423,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void openEngineOnTarget(boolean sequencedBasedRecovery, int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(final boolean deleteLocalTranslog, final int totalTranslogOps) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 

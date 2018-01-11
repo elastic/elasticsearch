@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.After;
@@ -69,7 +71,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        return Sets.newHashSet(SecurityLifecycleService.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Before
@@ -123,11 +125,11 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                 .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop()));
         // first stop both audit trails otherwise we keep on indexing
         if (remoteCluster != null) {
-            toStop.add(() ->  StreamSupport.stream(remoteCluster.getInstances(AuditTrailService.class).spliterator(), false)
+            toStop.add(() -> StreamSupport.stream(remoteCluster.getInstances(AuditTrailService.class).spliterator(), false)
                     .map(s -> s.getAuditTrails()).flatMap(List::stream)
                     .filter(t -> t.name().equals(IndexAuditTrail.NAME))
                     .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop()));
-            toStop.add(() -> remoteCluster.wipe(Collections.<String>emptySet()));
+            toStop.add(() -> remoteCluster.wipe(excludeTemplates()));
             toStop.add(remoteCluster::afterTest);
             toStop.add(remoteCluster);
         }

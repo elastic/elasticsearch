@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEventTests;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,13 +46,16 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
         PostCalendarEventsAction.Request sourceRequest = createTestInstance();
 
         StringBuilder requestString = new StringBuilder();
+        requestString.append("{\"events\": [");
         for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
-            requestString.append(Strings.toString(event)).append("\r\n");
+            requestString.append(Strings.toString(event)).append(',');
         }
+        requestString.replace(requestString.length() -1, requestString.length(), "]");
+        requestString.append('}');
 
-        BytesArray data = new BytesArray(requestString.toString().getBytes(StandardCharsets.UTF_8), 0, requestString.length());
+        XContentParser parser = createParser(XContentType.JSON.xContent(), requestString.toString());
         PostCalendarEventsAction.Request parsedRequest = PostCalendarEventsAction.Request.parseRequest(
-                sourceRequest.getCalendarId(), data, XContentType.JSON);
+                sourceRequest.getCalendarId(), parser);
 
         assertEquals(sourceRequest, parsedRequest);
     }
@@ -62,15 +64,17 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
         PostCalendarEventsAction.Request sourceRequest = createTestInstance("foo");
         PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getScheduledEvents());
 
-
         StringBuilder requestString = new StringBuilder();
+        requestString.append("{\"events\": [");
         for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
-            requestString.append(Strings.toString(event)).append("\r\n");
+            requestString.append(Strings.toString(event)).append(',');
         }
+        requestString.replace(requestString.length() -1, requestString.length(), "]");
+        requestString.append('}');
 
-        BytesArray data = new BytesArray(requestString.toString().getBytes(StandardCharsets.UTF_8), 0, requestString.length());
+        XContentParser parser = createParser(XContentType.JSON.xContent(), requestString.toString());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> PostCalendarEventsAction.Request.parseRequest(request.getCalendarId(), data, XContentType.JSON));
+                () -> PostCalendarEventsAction.Request.parseRequest("bar", parser));
         assertEquals("Inconsistent calendar_id; 'foo' specified in the body differs from 'bar' specified as a URL argument",
                 e.getMessage());
     }

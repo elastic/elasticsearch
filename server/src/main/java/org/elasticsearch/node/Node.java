@@ -157,6 +157,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -429,8 +430,12 @@ public class Node implements Closeable {
                 metaDataIndexUpgradeService, metaDataUpgrader);
             new TemplateUpgradeService(settings, client, clusterService, threadPool, indexTemplateMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
+            Set<String> taskHeaders = Stream.concat(
+                pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
+                Stream.of("X-Opaque-Id")
+            ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
+                networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(settings, transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -548,8 +553,8 @@ public class Node implements Closeable {
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                                    TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                                   ClusterSettings clusterSettings) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
+                                                   ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {

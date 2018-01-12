@@ -1,5 +1,8 @@
 {
   "task" : {
+    "_meta": {
+      "version": 2
+    },
     "dynamic" : "strict",
     "properties" : {
       "completed": {
@@ -37,6 +40,10 @@
           },
           "description": {
             "type": "text"
+          },
+          "headers": {
+            "type" : "object",
+            "enabled" : false
           }
         }
       },

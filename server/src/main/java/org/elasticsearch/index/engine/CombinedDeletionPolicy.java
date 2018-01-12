@@ -160,9 +160,9 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
             if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
                 return i + 1;
             }
-            // 5.x commits do not contain MAX_SEQ_NO.
+            // 5.x commits do not contain MAX_SEQ_NO, we should not keep it and the older commits.
             if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
-                return i;
+                return Math.min(commits.size() - 1, i + 1);
             }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
             if (maxSeqNoFromCommit <= globalCheckpoint) {

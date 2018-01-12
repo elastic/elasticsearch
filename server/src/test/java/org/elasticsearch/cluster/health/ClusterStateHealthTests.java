@@ -60,6 +60,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -94,7 +95,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
     }

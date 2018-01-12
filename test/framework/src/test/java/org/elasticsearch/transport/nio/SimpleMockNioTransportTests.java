@@ -78,7 +78,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
 
         };
         MockTransportService mockTransportService =
-            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings, Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
     }

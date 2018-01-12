@@ -22,11 +22,9 @@ import org.elasticsearch.xpack.ml.utils.MlStrings;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
 
@@ -37,10 +35,6 @@ public class FieldConfigWriter {
     private static final String INFLUENCER_PREFIX = "influencer.";
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
-    private static final String FILTER_PREFIX = "filter.";
-    private static final String SCHEDULED_EVENT_PREFIX = "scheduledevent.";
-    private static final String SCHEDULED_EVENT_DESCRIPTION_SUFFIX = ".description";
-
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -68,8 +62,9 @@ public class FieldConfigWriter {
     public void write() throws IOException {
         StringBuilder contents = new StringBuilder();
 
-        writeDetectors(contents);
+        // Filters have to be written before the detectors
         writeFilters(contents);
+        writeDetectors(contents);
         writeScheduledEvents(contents);
 
         if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
@@ -141,46 +136,12 @@ public class FieldConfigWriter {
     }
 
     private void writeFilters(StringBuilder buffer) throws IOException {
-        for (MlFilter filter : filters) {
-
-            StringBuilder filterAsJson = new StringBuilder();
-            filterAsJson.append('[');
-            boolean first = true;
-            for (String item : filter.getItems()) {
-                if (first) {
-                    first = false;
-                } else {
-                    filterAsJson.append(',');
-                }
-                filterAsJson.append('"');
-                filterAsJson.append(item);
-                filterAsJson.append('"');
-            }
-            filterAsJson.append(']');
-            buffer.append(FILTER_PREFIX).append(filter.getId()).append(EQUALS).append(filterAsJson)
-            .append(NEW_LINE);
-        }
+        new MlFilterWriter(filters, buffer).write();
     }
 
-    private void writeScheduledEvents(StringBuilder contents) throws IOException {
-        if (scheduledEvents.isEmpty()) {
-            return;
-        }
-
-        int eventIndex = 0;
-        for (ScheduledEvent event: scheduledEvents) {
-
-            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
-                    .append(SCHEDULED_EVENT_DESCRIPTION_SUFFIX).append(EQUALS)
-                    .append(event.getDescription())
-                    .append(NEW_LINE);
-
-            contents.append(SCHEDULED_EVENT_PREFIX).append(eventIndex)
-                    .append(DETECTOR_RULES_SUFFIX).append(EQUALS);
-            writeDetectionRulesJson(Collections.singletonList(event.toDetectionRule(config.getBucketSpan())), contents);
-            contents.append(NEW_LINE);
-
-            ++eventIndex;
+    private void writeScheduledEvents(StringBuilder buffer) throws IOException {
+        if (scheduledEvents.isEmpty() == false) {
+            new ScheduledEventsWriter(scheduledEvents, config.getBucketSpan(), buffer).write();
         }
     }
 

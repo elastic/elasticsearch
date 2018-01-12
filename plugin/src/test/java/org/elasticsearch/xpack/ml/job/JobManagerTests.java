@@ -28,25 +28,37 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
@@ -57,6 +69,7 @@ public class JobManagerTests extends ESTestCase {
     private ClusterService clusterService;
     private JobProvider jobProvider;
     private Auditor auditor;
+    private UpdateJobProcessNotifier updateJobProcessNotifier;
 
     @Before
     public void setup() throws Exception {
@@ -67,6 +80,7 @@ public class JobManagerTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
         auditor = mock(Auditor.class);
+        updateJobProcessNotifier = mock(UpdateJobProcessNotifier.class);
     }
 
     public void testGetJobOrThrowIfUnknown_GivenUnknownJob() {
@@ -160,6 +174,98 @@ public class JobManagerTests extends ESTestCase {
         });
     }
 
+    public void testUpdateProcessOnFilterChanged() {
+        Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
+        detectorReferencingFilter.setByFieldName("foo");
+        RuleCondition.createCategorical("foo", "foo_filter");
+        DetectionRule filterRule = new DetectionRule.Builder(Collections.singletonList(
+                RuleCondition.createCategorical("foo", "foo_filter"))).build();
+        detectorReferencingFilter.setRules(Collections.singletonList(filterRule));
+        AnalysisConfig.Builder filterAnalysisConfig = new AnalysisConfig.Builder(Collections.singletonList(
+                detectorReferencingFilter.build()));
+
+        Job.Builder jobReferencingFilter1 = buildJobBuilder("job-referencing-filter-1");
+        jobReferencingFilter1.setAnalysisConfig(filterAnalysisConfig);
+        Job.Builder jobReferencingFilter2 = buildJobBuilder("job-referencing-filter-2");
+        jobReferencingFilter2.setAnalysisConfig(filterAnalysisConfig);
+        Job.Builder jobReferencingFilter3 = buildJobBuilder("job-referencing-filter-3");
+        jobReferencingFilter3.setAnalysisConfig(filterAnalysisConfig);
+        Job.Builder jobWithoutFilter = buildJobBuilder("job-without-filter");
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(jobReferencingFilter1.build(), false);
+        mlMetadata.putJob(jobReferencingFilter2.build(), false);
+        mlMetadata.putJob(jobReferencingFilter3.build(), false);
+        mlMetadata.putJob(jobWithoutFilter.build(), false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(jobReferencingFilter1.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(jobReferencingFilter2.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(jobWithoutFilter.getId(), "node_id", JobState.OPENED, tasksBuilder);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager();
+
+        MlFilter filter = new MlFilter("foo_filter", Arrays.asList("a", "b"));
+
+        jobManager.updateProcessOnFilterChanged(filter);
+
+        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+
+        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
+        assertThat(capturedUpdateParams.size(), equalTo(2));
+        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo(jobReferencingFilter1.getId()));
+        assertThat(capturedUpdateParams.get(0).getFilter(), equalTo(filter));
+        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(jobReferencingFilter2.getId()));
+        assertThat(capturedUpdateParams.get(1).getFilter(), equalTo(filter));
+    }
+
+    public void testUpdateProcessOnCalendarChanged() {
+        Job.Builder job1 = buildJobBuilder("job-1");
+        Job.Builder job2 = buildJobBuilder("job-2");
+        Job.Builder job3 = buildJobBuilder("job-3");
+        Job.Builder job4 = buildJobBuilder("job-4");
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(job1.build(), false);
+        mlMetadata.putJob(job2.build(), false);
+        mlMetadata.putJob(job3.build(), false);
+        mlMetadata.putJob(job4.build(), false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job1.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(job2.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(job3.getId(), "node_id", JobState.OPENED, tasksBuilder);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager();
+
+        jobManager.updateProcessOnCalendarChanged(Arrays.asList("job-1", "job-3", "job-4"));
+
+        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+
+        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
+        assertThat(capturedUpdateParams.size(), equalTo(2));
+        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo(job1.getId()));
+        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(job3.getId()));
+        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+    }
+
     private Job.Builder createJob() {
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("client");
@@ -176,8 +282,7 @@ public class JobManagerTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
                 Collections.singleton(MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        UpdateJobProcessNotifier notifier = mock(UpdateJobProcessNotifier.class);
-        return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, notifier);
+        return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, updateJobProcessNotifier);
     }
 
     private ClusterState createClusterState() {

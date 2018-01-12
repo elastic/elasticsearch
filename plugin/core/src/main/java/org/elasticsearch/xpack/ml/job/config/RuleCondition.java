@@ -177,8 +177,8 @@ public class RuleCondition implements ToXContentObject, Writeable {
         return Objects.hash(type, fieldName, fieldValue, condition, filterId);
     }
 
-    public static RuleCondition createCategorical(String fieldName, String valueFilter) {
-        return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, valueFilter);
+    public static RuleCondition createCategorical(String fieldName, String filterId) {
+        return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, filterId);
     }
 
     public static RuleCondition createNumerical(RuleConditionType conditionType, String fieldName, String fieldValue,

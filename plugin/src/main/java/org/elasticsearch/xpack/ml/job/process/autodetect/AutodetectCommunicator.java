@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
@@ -45,7 +44,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +56,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class AutodetectCommunicator implements Closeable {
 
@@ -215,35 +212,23 @@ public class AutodetectCommunicator implements Closeable {
                 autodetectProcess.writeUpdateModelPlotMessage(updateParams.getModelPlotConfig());
             }
 
-            List<DetectionRule> eventsAsRules = Collections.emptyList();
-            if (scheduledEvents.isEmpty() == false) {
-                eventsAsRules = scheduledEvents.stream()
-                        .map(e -> e.toDetectionRule(job.getAnalysisConfig().getBucketSpan()))
-                        .collect(Collectors.toList());
-            }
-
-            // All detection rules for a detector must be updated together as the update
-            // wipes any previously set rules.
-            // Build a single list of rules for events and detection rules.
-            List<List<DetectionRule>> rules = new ArrayList<>(job.getAnalysisConfig().getDetectors().size());
-            for (int i = 0; i < job.getAnalysisConfig().getDetectors().size(); i++) {
-                List<DetectionRule> detectorRules = new ArrayList<>(eventsAsRules);
-                rules.add(detectorRules);
+            // Filters have to be written before detectors
+            if (updateParams.getFilter() != null) {
+                autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(updateParams.getFilter()));
             }
 
             // Add detector rules
             if (updateParams.getDetectorUpdates() != null) {
                 for (JobUpdate.DetectorUpdate update : updateParams.getDetectorUpdates()) {
                     if (update.getRules() != null) {
-                        rules.get(update.getDetectorIndex()).addAll(update.getRules());
+                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getDetectorIndex(), update.getRules());
                     }
                 }
             }
 
-            for (int i = 0; i < job.getAnalysisConfig().getDetectors().size(); i++) {
-                if (!rules.get(i).isEmpty()) {
-                    autodetectProcess.writeUpdateDetectorRulesMessage(i, rules.get(i));
-                }
+            // Add scheduled events; null means there's no update but an empty list means we should clear any events in the process
+            if (scheduledEvents != null) {
+                autodetectProcess.writeUpdateScheduledEventsMessage(scheduledEvents, job.getAnalysisConfig().getBucketSpan());
             }
 
             return null;

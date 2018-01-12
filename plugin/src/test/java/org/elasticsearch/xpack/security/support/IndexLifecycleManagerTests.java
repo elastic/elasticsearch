@@ -86,7 +86,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        manager = new IndexLifecycleManager(Settings.EMPTY, client, INDEX_NAME, TEMPLATE_NAME);
+        manager = new IndexLifecycleManager(Settings.EMPTY, client, INDEX_NAME);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {
@@ -98,7 +98,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(true));
-        assertThat(manager.isWritable(), Matchers.equalTo(true));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
 
     public void testIndexWithoutPrimaryShards() throws IOException {
@@ -245,13 +245,13 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-        assertThat(manager.isWritable(), Matchers.equalTo(false));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-        assertThat(manager.isWritable(), Matchers.equalTo(true));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {

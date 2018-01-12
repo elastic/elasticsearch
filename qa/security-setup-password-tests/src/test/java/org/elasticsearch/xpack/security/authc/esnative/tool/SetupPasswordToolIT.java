@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Response;
-import org.apache.http.HttpHost;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,8 +47,6 @@ public class SetupPasswordToolIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSetupPasswordToolAutoSetup() throws Exception {
-        SecurityClusterClientYamlTestCase.waitForSecurity();
-
         final String testConfigDir = System.getProperty("tests.config.dir");
         logger.info("--> CONF: {}", testConfigDir);
         final Path configPath = PathUtils.get(testConfigDir);

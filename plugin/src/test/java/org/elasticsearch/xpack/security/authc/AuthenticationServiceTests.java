@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -865,7 +866,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
         GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
         when(client.prepareGet(eq(SecurityLifecycleService.SECURITY_INDEX_NAME), eq("doc"), any(String.class)))
                 .thenReturn(getRequestBuilder);
@@ -876,6 +877,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);

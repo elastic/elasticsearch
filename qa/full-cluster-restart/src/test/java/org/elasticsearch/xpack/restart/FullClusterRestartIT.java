@@ -21,7 +21,6 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -61,11 +60,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-
-    @Before
-    public void waitForSecuritySetup() throws Exception {
-        SecurityClusterClientYamlTestCase.waitForSecurity();
-    }
 
     @Before
     public void waitForMlTemplates() throws Exception {
@@ -156,8 +150,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     createUser("postupgrade_user");
                     fail("should not be able to add a user when upgrade hasn't taken place");
                 } catch (ResponseException e) {
-                    assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
-                            "the native realm will not be operational until the upgrade API is run on the security index"));
+                    assertThat(e.getMessage(), containsString("Security index is not on the current version. Security features relying " +
+                            "on the index will not be available until the upgrade API is run on the security index"));
                 }
                 // run upgrade API
                 Response upgradeResponse = client().performRequest("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex);

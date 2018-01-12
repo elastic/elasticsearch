@@ -116,7 +116,7 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
     }
 
     public void testOldIndexes() throws Exception {
-        assertSecurityIndexWriteable();
+        assertSecurityIndexActive();
         Collections.shuffle(dataFiles, random());
         for (String dataFile : dataFiles) {
             Version version = Version.fromString(dataFile.replace("x-pack-", "").replace(".zip", ""));

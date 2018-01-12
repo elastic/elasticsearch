@@ -1,0 +1,54 @@
+[role="xpack"]
+[[enable-ssl]]
+==== Enabling TLS on {es} Nodes
+
+Once you have the signed certificate, private key, and CA certificate you need to
+modify the node configuration to enable SSL.
+
+[[configure-ssl]]
+To enable SSL, make the following changes in `elasticsearch.yml`:
+
+. Specify the location of the node's keystore and the passwords needed to
+access the node's certificate. For example:
++
+--
+[source, yaml]
+--------------------------------------------------
+xpack.ssl.key:                     /home/es/config/x-pack/node01.key <1>
+xpack.ssl.certificate:             /home/es/config/x-pack/node01.crt <2>
+xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ] <3>
+--------------------------------------------------
+<1> The full path to the node key file. This must be a location within the {es}
+configuration directory.
+<2> The full path to the node certificate. This must be a location within the
+{es} configuration directory.
+<3> An array of paths to the CA certificates that should be trusted. These paths
+must be a location within the {es} configuration directory.
+--
+
+. Enable SSL on the transport networking layer to ensure that communication
+between nodes is encrypted:
++
+[source, yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true
+--------------------------------------------------
++
+. Enable SSL on the HTTP layer to ensure that communication between HTTP clients
+and the cluster is encrypted:
++
+[source, yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true
+--------------------------------------------------
++
+
+. Restart {es}.
++
+You must perform a full cluster restart. Nodes which are configured to use
+SSL/TLS cannot communicate with nodes that are using unencrypted networking
+(and vice-versa). After enabling SSL/TLS you must restart all nodes in order
+to maintain communication across the cluster.
+
+NOTE: All SSL related node settings that are considered to be highly sensitive
+      and therefore are not exposed via the <<cluster-nodes-info,nodes info API>>.

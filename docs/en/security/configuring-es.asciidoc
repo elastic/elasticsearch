@@ -11,4 +11,8 @@ such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
 {xpack-ref}/xpack-security.html[Securing the Elastic Stack].
 
+include::securing-communications/securing-elasticsearch.asciidoc[]
 include::securing-communications/configuring-tls-docker.asciidoc[]
+include::securing-communications/enabling-cipher-suites.asciidoc[]
+include::securing-communications/separating-node-client-traffic.asciidoc[]
+include::{xes-repo-dir}/settings/security-settings.asciidoc[]

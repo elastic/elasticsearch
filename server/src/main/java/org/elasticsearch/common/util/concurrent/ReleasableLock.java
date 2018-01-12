@@ -32,7 +32,7 @@ public class ReleasableLock implements Releasable {
     private final Lock lock;
 
 
-    // a per-thread counter indicating how many times the thread has entered the lock; only works if assertions are enabled
+    // a per-thread count indicating how many times the thread has entered the lock; only works if assertions are enabled
     private final ThreadLocal<Integer> holdingThreads;
 
     public ReleasableLock(Lock lock) {

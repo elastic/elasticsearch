@@ -7,6 +7,7 @@
 This section summarizes the changes in each release for all of the {xpack}
 components in {es}.
 
+* <<xes-6.1.2>>
 * <<xes-6.1.1>>
 * <<xes-6.1.0>>
 * <<xes-6.0.1>>
@@ -26,6 +27,7 @@ See also:
 
 --
 
+include::6.1.2.asciidoc[]
 include::6.1.1.asciidoc[]
 include::6.1.0.asciidoc[]
 include::6.0.1.asciidoc[]

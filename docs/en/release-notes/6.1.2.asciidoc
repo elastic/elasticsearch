@@ -1,0 +1,55 @@
+[role="xpack"]
+[[xes-6.1.2]]
+== {es} {xpack} 6.1.2 Release Notes
+++++
+<titleabbrev>6.1.2 Release Notes</titleabbrev>
+++++
+
+[[xes-bug-6.1.2]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Fixed the removal of tokens during categorization, where the tokens were
+incorrectly deemed to be hexadecimal numbers. For more information, see
+{xpack-ref}/ml-configuring-categories.html[Categorizing log messages].
+//Repo: machine-learning-cpp
+//Pull: 512
+* Reduced the sensitivity of the analysis to small perturbations in the input
+data. 
+//Repo: machine-learning-cpp
+//Pull: 478
+* Disabled the ability to create forecasts for jobs that were created before
+6.1.0.
+//Repo: x-pack-elasticsearch
+//Pull: 3362
+////
+Monitoring::
+* [Monitoring] Add Cluster Alert Blacklist
+//Repo: x-pack-elasticsearch
+//Pull: 3326
+////
+////
+Security::
+* AD authn: never clear passwords on Bind connections
+//Repo: x-pack-elasticsearch
+//Pull: 3351
+* Set processors on audit remote client
+//Repo: x-pack-elasticsearch
+//Pull: 3469
+* Allow license installation with TLS disabled and single-node discovery
+//Repo: x-pack-elasticsearch/
+//Pull: 3427
+* [Security] has_privileges.has_all_requested should respect cluster privileges
+//Repo: x-pack-elasticsearch
+//Pull: 3379
+* Cleanup the handling for bootstrap passwords
+//Repo: x-pack-elasticsearch
+//Pull: 3470
+////
+////
+Watcher::
+* Watcher: Fix encoding of UTF8 data in HttpClient
+//Repo: x-pack-elasticsearch
+//Pull: 3398
+////

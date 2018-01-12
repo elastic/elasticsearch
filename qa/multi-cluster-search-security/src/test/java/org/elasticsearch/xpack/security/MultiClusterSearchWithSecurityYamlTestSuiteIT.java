@@ -16,7 +16,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
+public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";

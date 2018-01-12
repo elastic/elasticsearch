@@ -141,34 +141,13 @@ public class SecuritySettingsTests extends ESTestCase {
     public void testValidAutoCreateIndex() {
         Security.validateAutoCreateIndex(Settings.EMPTY);
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build());
-
-        try {
-            Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
-            assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
-        }
-
+        Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security,.security-6").build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security*").build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*s*").build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".s*").build());
-
-        try {
-            Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "foo").build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
-            assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
-        }
-
-        try {
-            Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security_audit_log*").build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
-        }
+        Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "foo").build());
+        Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security_audit_log*").build());
 
         Security.validateAutoCreateIndex(Settings.builder()
                         .put("action.auto_create_index", ".security,.security-6")
@@ -183,7 +162,6 @@ public class SecuritySettingsTests extends ESTestCase {
                     .build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
             assertThat(e.getMessage(), containsString(IndexAuditTrail.INDEX_NAME_PREFIX));
         }
 

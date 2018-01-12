@@ -271,14 +271,7 @@ public final class TokenService extends AbstractComponent {
      */
     public void invalidateToken(String tokenString, ActionListener<Boolean> listener) {
         ensureEnabled();
-        if (lifecycleService.isSecurityIndexOutOfDate()) {
-            listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - the native realm will not be operational until " +
-                "the upgrade API is run on the security index"));
-            return;
-        } else if (lifecycleService.isSecurityIndexWriteable() == false) {
-            listener.onFailure(new IllegalStateException("cannot write to the tokens index"));
-        } else if (Strings.isNullOrEmpty(tokenString)) {
+        if (Strings.isNullOrEmpty(tokenString)) {
             listener.onFailure(new IllegalArgumentException("token must be provided"));
         } else {
             maybeStartTokenRemover();
@@ -291,7 +284,7 @@ public final class TokenService extends AbstractComponent {
                         listener.onResponse(false);
                     } else {
                         final String id = getDocumentId(userToken);
-                        lifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+                        lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                                     client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, id)
                                         .setOpType(OpType.CREATE)
@@ -338,47 +331,38 @@ public final class TokenService extends AbstractComponent {
      * have been explicitly cleared.
      */
     private void checkIfTokenIsRevoked(UserToken userToken, ActionListener<UserToken> listener) {
-        if (lifecycleService.isSecurityIndexAvailable()) {
-            if (lifecycleService.isSecurityIndexOutOfDate()) {
-                listener.onFailure(new IllegalStateException(
-                    "Security index is not on the current version - the native realm will not be operational until " +
-                    "the upgrade API is run on the security index"));
-                return;
-            }
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken)).request(),
-                    new ActionListener<GetResponse>() {
-
-                        @Override
-                        public void onResponse(GetResponse response) {
-                            if (response.isExists()) {
-                                // this token is explicitly expired!
-                                listener.onFailure(expiredTokenException());
-                            } else {
-                                listener.onResponse(userToken);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // if the index or the shard is not there / available we assume that
-                            // the token is not valid
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn("failed to get token [{}] since index is not available", userToken.getId());
-                                listener.onResponse(null);
-                            } else {
-                                logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
-                                listener.onFailure(e);
-                            }
-                        }
-                    }, client::get);
-        } else if (lifecycleService.isSecurityIndexExisting()) {
-            // index exists but the index isn't available, do not trust the token
-            logger.warn("could not validate token as the security index is not available");
-            listener.onResponse(null);
-        } else {
+        if (lifecycleService.isSecurityIndexExisting() == false) {
             // index doesn't exist so the token is considered valid.
             listener.onResponse(userToken);
+        } else {
+            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken)).request(),
+                        new ActionListener<GetResponse>() {
+
+                            @Override
+                            public void onResponse(GetResponse response) {
+                                if (response.isExists()) {
+                                    // this token is explicitly expired!
+                                    listener.onFailure(expiredTokenException());
+                                } else {
+                                    listener.onResponse(userToken);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // if the index or the shard is not there / available we assume that
+                                // the token is not valid
+                                if (TransportActions.isShardNotAvailableException(e)) {
+                                    logger.warn("failed to get token [{}] since index is not available", userToken.getId());
+                                    listener.onResponse(null);
+                                } else {
+                                    logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                                    listener.onFailure(e);
+                                }
+                            }
+                        }, client::get));
         }
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
+import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -102,8 +103,8 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * Creates a AllocatedPersistentTask for communicating with task manager
      */
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTask<Params> taskInProgress) {
-        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId);
+                                                 PersistentTask<Params> taskInProgress, Map<String, String> headers) {
+        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 
     /**

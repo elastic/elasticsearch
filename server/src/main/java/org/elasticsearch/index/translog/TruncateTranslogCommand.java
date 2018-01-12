@@ -132,13 +132,16 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 }
 
                 // Retrieve the generation and UUID from the existing data
-                commitData = commits.get(commits.size() - 1).getUserData();
+                commitData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
                 String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
                 String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
                 final long globalCheckpoint;
-                // In order to have a safe commit invariant, we have to assign max_seqno of the last commit to the global checkpoint.
+                // In order to have a safe commit invariant, we have to assign the global checkpoint to the max_seqno of the last commit.
+                // We can only safely do it because we will generate a new history uuid this shard.
                 if (commitData.containsKey(SequenceNumbers.MAX_SEQ_NO)) {
                     globalCheckpoint = Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO));
+                    // Also advances the local checkpoint of the last commit to its max_seqno.
+                    commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(globalCheckpoint));
                 } else {
                     globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 }

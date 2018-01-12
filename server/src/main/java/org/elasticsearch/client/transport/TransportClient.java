@@ -180,7 +180,7 @@ public abstract class TransportClient extends AbstractClient {
             final TransportService transportService = new TransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(),
                 boundTransportAddress -> DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 0),
-                    UUIDs.randomBase64UUID()), null);
+                    UUIDs.randomBase64UUID()), null, Collections.emptySet());
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);

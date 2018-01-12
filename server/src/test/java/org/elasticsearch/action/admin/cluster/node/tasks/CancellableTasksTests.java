@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -91,8 +92,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return false;
@@ -131,8 +132,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return true;

@@ -130,7 +130,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         TaskManager taskManager = mock(TaskManager.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null) {
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
+            Collections.emptySet()) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;

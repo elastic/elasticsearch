@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
@@ -115,8 +116,8 @@ public class ShardFetchRequest extends TransportRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override

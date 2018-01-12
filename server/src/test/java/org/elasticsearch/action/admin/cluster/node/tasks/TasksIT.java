@@ -84,6 +84,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -355,19 +356,26 @@ public class TasksIT extends ESIntegTestCase {
         client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        assertSearchResponse(client().prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Opaque-Id", "my_id");
+        headers.put("Foo-Header", "bar");
+        headers.put("Custom-Task-Header", "my_value");
+        assertSearchResponse(
+            client().filterWithHeader(headers).prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
 
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
         assertEquals(1, mainTask.size());
         assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
         assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
+        assertTaskHeaders(mainTask.get(0));
 
         // check that if we have any shard-level requests they all have non-zero length description
         List<TaskInfo> shardTasks = findEvents(SearchAction.NAME + "[*]", Tuple::v1);
         for (TaskInfo taskInfo : shardTasks) {
             assertThat(taskInfo.getParentTaskId(), notNullValue());
             assertEquals(mainTask.get(0).getTaskId(), taskInfo.getParentTaskId());
+            assertTaskHeaders(taskInfo);
             switch (taskInfo.getAction()) {
                 case SearchTransportService.QUERY_ACTION_NAME:
                 case SearchTransportService.DFS_ACTION_NAME:
@@ -390,6 +398,25 @@ public class TasksIT extends ESIntegTestCase {
             assertThat(taskInfo.getDescription().length(), greaterThan(0));
         }
 
+    }
+
+    public void testSearchTaskHeaderLimit() {
+        int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Opaque-Id", "my_id");
+        headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().filterWithHeader(headers).admin().cluster().prepareListTasks().get()
+        );
+        assertThat(ex.getMessage(), startsWith("Request exceeded the maximum size of task headers "));
+    }
+
+    private void assertTaskHeaders(TaskInfo taskInfo) {
+        assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
+        assertEquals("my_id", taskInfo.getHeaders().get("X-Opaque-Id"));
+        assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 
     /**
@@ -802,24 +829,24 @@ public class TasksIT extends ESIntegTestCase {
         // Save a fake task that looks like it is from a node that isn't part of the cluster
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
-        resultsService.storeResult(
-                new TaskResult(new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID),
-                        new RuntimeException("test")),
-                new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void response) {
-                        try {
-                            b.await();
-                        } catch (InterruptedException | BrokenBarrierException e) {
-                            onFailure(e);
-                        }
+        resultsService.storeResult(new TaskResult(
+                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
+                new RuntimeException("test")),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void response) {
+                    try {
+                        b.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        onFailure(e);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
         b.await();
 
         // Now we can find it!

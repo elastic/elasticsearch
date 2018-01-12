@@ -401,7 +401,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null);
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
+            Collections.emptySet());
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null);

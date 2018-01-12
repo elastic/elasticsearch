@@ -42,9 +42,9 @@ See <<java-clients>>.
 [[installing-node-certificates]]
 ==== Node Certificates
 
-See {ref}/node-certificates.html[Generating Node Certificates].
+See {ref}/configuring-tls.html#node-certificates[Generating Node Certificates].
 
 [[enable-ssl]]
 ==== Enabling TLS in the Node Configuration
 
-See {ref}/enable-ssl.html[Enabling TLS on {es} Nodes].
+See {ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].

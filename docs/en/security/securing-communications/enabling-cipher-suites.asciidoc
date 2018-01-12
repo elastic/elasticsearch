@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ciphers]]
 === Enabling Cipher Suites for Stronger Encryption
 

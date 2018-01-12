@@ -22,6 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
+
+import java.util.List;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -51,13 +54,15 @@ public abstract class AliasAction {
 
     /**
      * Apply the action.
-     * 
+     *
      * @param aliasValidator call to validate a new alias before adding it to the builder
      * @param metadata metadata builder for the changes made by all actions as part of this request
      * @param index metadata for the index being changed
      * @return did this action make any changes?
      */
     abstract boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index);
+
+    abstract String getAlias();
 
     /**
      * Validate a new alias.
@@ -99,6 +104,7 @@ public abstract class AliasAction {
         /**
          * Alias to add to the index.
          */
+        @Override
         public String getAlias() {
             return alias;
         }
@@ -144,6 +150,7 @@ public abstract class AliasAction {
         /**
          * Alias to remove from the index.
          */
+        @Override
         public String getAlias() {
             return alias;
         }
@@ -155,11 +162,19 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
-            if (false == index.getAliases().containsKey(alias)) {
-                return false;
+            // As in the remove action an alias may contain wildcards, we first need to expand alias wildcards
+            List<String> concreteAliases = metadata.findAliases(alias, getIndex());
+            if (concreteAliases.isEmpty()) {
+                throw new AliasesNotFoundException(alias);
             }
-            metadata.put(IndexMetaData.builder(index).removeAlias(alias));
-            return true;
+            Boolean changed = false;
+            for (String concreteAlias : concreteAliases){
+                if (index.getAliases().containsKey(concreteAlias)) {
+                    metadata.put(IndexMetaData.builder(index).removeAlias(concreteAlias));
+                    changed = true;
+                }
+            }
+            return changed;
         }
     }
 
@@ -180,6 +195,11 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getAlias() {
+            return null;
         }
     }
 }

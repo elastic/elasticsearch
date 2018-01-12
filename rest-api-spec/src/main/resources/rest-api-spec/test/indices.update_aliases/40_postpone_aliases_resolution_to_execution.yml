@@ -1,0 +1,41 @@
+---
+"Remove operation should be able to consistently see an alias created in the same request":
+  - skip:
+      version: " - 6.99.99"
+      reason: since 7.0 aliases are resolved against the cluster state we are modifying, and not in advance
+
+  - do:
+      indices.create:
+          index: test_index
+
+  - do:
+      indices.update_aliases:
+          body:
+              actions:
+                  - add:
+                      index: test_index
+                      alias: test_alias
+                  - remove:
+                      index: test_index
+                      alias: test_alias
+
+  - do:
+       indices.exists_alias:
+            name: test_alias
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+          body:
+              actions:
+                  - add:
+                      index: test_index
+                      alias: test_alias
+                  - remove:
+                      index: test_index
+                      alias: test_alias
+
+  - do:
+       indices.exists_alias:
+            name: test_alias
+  - is_false: ''

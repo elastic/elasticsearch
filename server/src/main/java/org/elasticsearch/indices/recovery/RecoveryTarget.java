@@ -365,7 +365,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         if (createNewTranslog) {
-            // TODO: take the local checkpoint from store as global checkpoint, once we know it's safe
+            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
         } else {
             indexShard().openIndexAndSkipTranslogRecovery();

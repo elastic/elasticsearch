@@ -138,10 +138,10 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
         searchResponse = client().prepareSearch() // test eastern bbox
             .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, 178, 39.1, 180))
             .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("4")));
+            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("4")));
         }
 
         // ... crosses dateline

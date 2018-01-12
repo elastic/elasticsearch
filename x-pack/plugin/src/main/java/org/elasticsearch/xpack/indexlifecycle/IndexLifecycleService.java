@@ -115,8 +115,8 @@ public class IndexLifecycleService extends AbstractComponent
                         try {
                             policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
                         } catch (ElasticsearchException e) {
-                            logger.error("Failed to execute lifecycle policy [{}] for index [{}]", policyName, idxMeta.getIndex().getName(),
-                                    policyName);
+                            logger.error("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
+                                    idxMeta.getIndex().getName());
                         }
                     }
                 }

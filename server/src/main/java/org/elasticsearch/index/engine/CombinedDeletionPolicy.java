@@ -48,7 +48,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private IndexCommit lastCommit; // the most recent commit point
-    private final AtomicLong maxSeqNoOfSafeCommit = new AtomicLong();
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier) {
@@ -181,6 +180,17 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
+     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
+     */
+    synchronized boolean hasUnreferencedCommits() throws IOException {
+        if (safeCommit.getUserData().containsKey(SequenceNumbers.MAX_SEQ_NO)) {
+            final long maxSeqNo = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            return globalCheckpointSupplier.getAsLong() > maxSeqNo;
+        }
+        return false;
+    }
+
+    /**
      * A wrapper of an index commit that prevents it from being deleted.
      */
     private static class SnapshotIndexCommit extends IndexCommit {
@@ -234,12 +244,5 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         public String toString() {
             return "SnapshotIndexCommit{" + delegate + "}";
         }
-    }
-
-    /**
-     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
-     */
-    boolean hasUnreferencedCommits() {
-        return globalCheckpointSupplier.getAsLong() > maxSeqNoOfSafeCommit.get();
     }
 }

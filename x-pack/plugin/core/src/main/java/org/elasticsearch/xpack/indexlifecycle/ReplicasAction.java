@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,6 +48,9 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     public ReplicasAction(int numberOfReplicas) {
+        if (numberOfReplicas < 0) {
+            throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
+        }
         this.numberOfReplicas = numberOfReplicas;
     }
 
@@ -69,8 +78,27 @@ public class ReplicasAction implements LifecycleAction {
 
     @Override
     public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        // NORELEASE: stub
-        listener.onSuccess(true);
+        IndexMetaData idxMeta = clusterService.state().metaData().getIndexSafe(index);
+        int currentNumberReplicas = idxMeta.getNumberOfReplicas();
+        if (currentNumberReplicas == numberOfReplicas) {
+            boolean isAllocationCompleted = ActiveShardCount.ALL.enoughShardsActive(clusterService.state(), index.getName());
+            listener.onSuccess(isAllocationCompleted);
+        } else {
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index.getName())
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas));
+            client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<UpdateSettingsResponse>() {
+
+                @Override
+                public void onResponse(UpdateSettingsResponse response) {
+                    listener.onSuccess(false);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
     }
 
     public int getNumberOfReplicas() {

@@ -269,7 +269,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         if (retryCounter.incrementAndGet() <= PROCESSOR_RETRY_LIMIT) {
                             start(from, to);
                         } else {
-                            handler.accept(new ElasticsearchException("retrying failed [" + PROCESSOR_RETRY_LIMIT +
+                            handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +
                                     "] times, aborting...", e));
                         }
                     } else {

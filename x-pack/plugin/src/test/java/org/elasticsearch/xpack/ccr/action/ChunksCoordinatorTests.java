@@ -210,7 +210,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
     public void testChunkProcessorRetry() {
         Client client = mock(Client.class);
         mockBulkShardOperationsApiCall(client);
-        int testRetryLimit = randomIntBetween(1, ShardFollowTasksExecutor.PROCESSOR_RETRY_LIMIT);
+        int testRetryLimit = randomIntBetween(1, ShardFollowTasksExecutor.PROCESSOR_RETRY_LIMIT - 1);
         mockShardCangesApiCallWithRetry(client, testRetryLimit, new ConnectException("connection exception"));
 
         Executor ccrExecutor = Runnable::run;
@@ -244,7 +244,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         chunkProcessor.start(0, 10);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], notNullValue());
-        assertThat(exception[0].getMessage(), equalTo("retrying failed [16] times, aborting..."));
+        assertThat(exception[0].getMessage(), equalTo("retrying failed [17] times, aborting..."));
         assertThat(exception[0].getCause().getMessage(), equalTo("connection exception"));
         assertThat(chunkProcessor.retryCounter.get(), equalTo(testRetryLimit));
     }

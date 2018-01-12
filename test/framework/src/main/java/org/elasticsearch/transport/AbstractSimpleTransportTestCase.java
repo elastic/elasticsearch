@@ -1931,7 +1931,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version version = Version.fromString("2.0.0");
         try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null)) {
+             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null,
+                 Collections.emptySet())) {
             service.start();
             service.acceptIncomingRequests();
             DiscoveryNode node =
@@ -1953,7 +1954,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null)) {
+             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null,
+                 Collections.emptySet())) {
             service.start();
             service.acceptIncomingRequests();
             DiscoveryNode node =
@@ -1989,7 +1991,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
 
         try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, Version.CURRENT, threadPool,
-            null)) {
+            null, Collections.emptySet())) {
             service.start();
             service.acceptIncomingRequests();
             // this acts like a node that doesn't have support for handshakes

@@ -96,7 +96,7 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'de.thetaphi:forbiddenapis:2.4.1'
   compile 'org.apache.rat:apache-rat:0.11'
-  compile "org.elasticsearch:jna:4.4.0-1"
+  compile "org.elasticsearch:jna:4.5.1"
 }
 
 // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs

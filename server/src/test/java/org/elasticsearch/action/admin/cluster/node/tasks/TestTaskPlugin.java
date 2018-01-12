@@ -59,9 +59,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 
@@ -76,12 +78,17 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }
 
+    @Override
+    public Collection<String> getTaskHeaders() {
+        return Collections.singleton("Custom-Task-Header");
+    }
+
     static class TestTask extends CancellableTask {
 
         private volatile boolean blocked = true;
 
-        TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
-            super(id, type, action, description, parentTaskId);
+        TestTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+            super(id, type, action, description, parentTaskId, headers);
         }
 
         @Override
@@ -178,8 +185,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new TestTask(id, type, action, this.getDescription(), parentTaskId);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new TestTask(id, type, action, this.getDescription(), parentTaskId, headers);
         }
     }
 
@@ -247,8 +254,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return true;

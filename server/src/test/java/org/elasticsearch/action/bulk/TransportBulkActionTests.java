@@ -82,7 +82,7 @@ public class TransportBulkActionTests extends ESTestCase {
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null);
+            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         bulkAction = new TestTransportBulkAction();

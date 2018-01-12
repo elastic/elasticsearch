@@ -134,7 +134,9 @@ public class TaskResultTests extends ESTestCase {
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId);
+        Map<String, String> headers =
+            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
     }
 
     private static TaskId randomTaskId() {

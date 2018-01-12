@@ -32,6 +32,10 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      */
     void execute(Index index, Client client, ClusterService clusterService, Listener listener);
 
+    default boolean indexSurvives() {
+        return true;
+    }
+
     /**
      * A callback for when a {@link LifecycleAction} finishes executing
      */

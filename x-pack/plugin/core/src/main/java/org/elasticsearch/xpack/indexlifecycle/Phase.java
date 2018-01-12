@@ -192,9 +192,14 @@ public class Phase implements ToXContentObject, Writeable {
             @Override
             public void onSuccess(boolean completed) {
                 if (completed) {
-                    logger.info("Action [" + actionName + "] for index [" + indexName + "] complete, moving to next action");
-                    // Since we completed the current action move to the next action
-                    moveToAction(context, indexName, action, nextActionProvider);
+                    // Since we completed the current action move to the next
+                    // action if the index survives this action
+                    if (action.indexSurvives()) {
+                        logger.info("Action [" + actionName + "] for index [" + indexName + "] complete, moving to next action");
+                        moveToNextAction(context, indexName, action, nextActionProvider);
+                    } else {
+                        logger.info("Action [" + actionName + "] for index [" + indexName + "] complete");
+                    }
                 } else {
                     logger.info("Action [" + actionName + "] for index [" + indexName + "] executed sucessfully but is not yet complete");
                 }
@@ -207,7 +212,7 @@ public class Phase implements ToXContentObject, Writeable {
         });
     }
 
-    private void moveToAction(IndexLifecycleContext context, String indexName, LifecycleAction currentAction,
+    private void moveToNextAction(IndexLifecycleContext context, String indexName, LifecycleAction currentAction,
                               LifecyclePolicy.NextActionProvider nextActionProvider) {
         LifecycleAction nextAction = nextActionProvider.next(currentAction);
         if (nextAction != null) {

@@ -217,9 +217,10 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get("test").stream()
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
-        // Ensure that the global checkpoint is restored from the max seqno of the last commit.
+        // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
         assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+        assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
@@ -322,9 +323,10 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
         // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
-        // Ensure that the global checkpoint is restored from the max seqno of the last commit.
+        // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
         assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+        assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
     private Set<Path> getTranslogDirs(String indexName) throws IOException {

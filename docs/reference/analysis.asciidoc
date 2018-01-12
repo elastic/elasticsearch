@@ -5,7 +5,7 @@
 --
 
 _Analysis_ is the process of converting text, like the body of any email, into
-_tokens_ or _terms_ which are added to the inverted index for searching.
+_tokens_ or _terms_ that are added to the inverted index for searching.
 Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
 either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
 defined per index.

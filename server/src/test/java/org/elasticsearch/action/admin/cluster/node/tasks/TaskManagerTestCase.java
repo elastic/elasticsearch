@@ -56,9 +56,11 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -175,15 +177,16 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 };
             transportService = new TransportService(settings,
                 new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
-                        new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                        new NetworkService(Collections.emptyList())),
-                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
+                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                    new NetworkService(Collections.emptyList())),
+                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,
+                Collections.emptySet()) {
                 @Override
-                protected TaskManager createTaskManager() {
+                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                        return new MockTaskManager(settings);
+                        return new MockTaskManager(settings, threadPool, taskHeaders);
                     } else {
-                        return super.createTaskManager();
+                        return super.createTaskManager(settings, threadPool, taskHeaders);
                     }
                 }
             };

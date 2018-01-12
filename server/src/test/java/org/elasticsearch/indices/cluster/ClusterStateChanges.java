@@ -159,7 +159,8 @@ public class ClusterStateChanges extends AbstractComponent {
         // services
         TransportService transportService = new TransportService(settings, transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings);
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings,
+            Collections.emptySet());
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, xContentRegistry, null, null,
             null) {
             // metaData upgrader should do nothing

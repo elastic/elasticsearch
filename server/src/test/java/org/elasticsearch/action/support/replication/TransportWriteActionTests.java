@@ -62,6 +62,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
@@ -254,7 +255,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
         CapturingTransport transport = new CapturingTransport();
         TransportService transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         ShardStateAction shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
@@ -355,7 +356,8 @@ public class TransportWriteActionTests extends ESTestCase {
 
         protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "test",
-                    new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null), null,
+                    new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
+                        Collections.emptySet()), null,
                     null, null, null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
                     TestRequest::new, ThreadPool.Names.SAME);
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;

@@ -25,12 +25,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -48,10 +52,17 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public class TransportActionFilterChainTests extends ESTestCase {
 
     private AtomicInteger counter;
+    private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
          counter = new AtomicInteger();
+        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionFilterChainTests").build());
+    }
+
+    @After
+    public void shutdown() throws Exception {
+        terminate(threadPool);
     }
 
     public void testActionFiltersRequest() throws ExecutionException, InterruptedException {
@@ -68,7 +79,9 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction =
+            new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null,
+                new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -144,7 +157,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY,
+            actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());

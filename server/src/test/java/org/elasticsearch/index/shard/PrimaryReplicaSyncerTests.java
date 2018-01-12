@@ -50,7 +50,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY);
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
@@ -112,7 +112,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 syncCalledLatch.countDown();
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, new TaskManager(Settings.EMPTY), syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY,
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
         int numDocs = 10;
@@ -158,7 +159,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusEquals() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null);
+        PrimaryReplicaSyncer.ResyncTask task =
+            new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null, Collections.emptyMap());
         task.setPhase(randomAlphaOfLength(10));
         task.setResyncedOperations(randomIntBetween(0, 1000));
         task.setTotalOperations(randomIntBetween(0, 1000));
@@ -181,7 +183,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusReportsCorrectNumbers() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null);
+        PrimaryReplicaSyncer.ResyncTask task =
+            new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null, Collections.emptyMap());
         task.setPhase(randomAlphaOfLength(10));
         task.setResyncedOperations(randomIntBetween(0, 1000));
         task.setTotalOperations(randomIntBetween(0, 1000));

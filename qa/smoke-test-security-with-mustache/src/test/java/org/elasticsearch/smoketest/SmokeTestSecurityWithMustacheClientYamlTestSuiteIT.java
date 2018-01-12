@@ -13,11 +13,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
+public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_admin",
             new SecureString("x-pack-test-password".toCharArray()));

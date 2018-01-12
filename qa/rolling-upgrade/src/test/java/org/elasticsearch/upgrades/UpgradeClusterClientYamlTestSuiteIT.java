@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
@@ -29,7 +29,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
+public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
      * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}

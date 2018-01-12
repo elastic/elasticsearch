@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class IndexLifecycleManagerIntegTests extends SecurityIntegTestCase {
 
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
-        assertSecurityIndexWriteable();
+        assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = scaledRandomIntBetween((processors + 1) / 2, 4 * processors);
         final int maxNumRequests = 100 / numThreads; // bound to a maximum of 100 requests

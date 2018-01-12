@@ -57,6 +57,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -370,8 +371,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTask<TestParams> task) {
-            return new TestTask(id, type, action, getDescription(task), parentTaskId);
+                                                     PersistentTask<TestParams> task, Map<String, String> headers) {
+            return new TestTask(id, type, action, getDescription(task), parentTaskId, headers);
         }
     }
 
@@ -399,8 +400,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
 
-        public TestTask(long id, String type, String action, String description, TaskId parentTask) {
-            super(id, type, action, description, parentTask);
+        public TestTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+            super(id, type, action, description, parentTask, headers);
         }
 
         public String getOperation() {

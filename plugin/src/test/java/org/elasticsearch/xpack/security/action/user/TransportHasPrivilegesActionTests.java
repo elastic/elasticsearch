@@ -58,7 +58,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService
                 .NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
 
         final Authentication authentication = mock(Authentication.class);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);

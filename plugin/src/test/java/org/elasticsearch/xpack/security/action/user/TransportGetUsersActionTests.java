@@ -80,7 +80,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, securityLifecycleService, new ThreadContext(Settings.EMPTY));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
 
@@ -115,7 +115,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testInternalUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
 
@@ -158,7 +158,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<User> reservedUsers = randomSubsetOf(size, allReservedUsers);
         final List<String> names = reservedUsers.stream().map(User::principal).collect(Collectors.toList());
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
 
@@ -198,7 +198,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
                 securityLifecycleService, new ThreadContext(Settings.EMPTY));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
 
@@ -245,7 +245,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
 
@@ -293,7 +293,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
 

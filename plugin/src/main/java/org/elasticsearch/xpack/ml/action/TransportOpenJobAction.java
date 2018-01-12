@@ -591,8 +591,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
-             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId);
+                                                     PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
+                                                     Map<String, String> headers) {
+             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
         }
 
         void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
@@ -613,8 +614,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;
 
-        JobTask(String jobId, long id, String type, String action, TaskId parentTask) {
-            super(id, type, action, "job-" + jobId, parentTask);
+        JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
+            super(id, type, action, "job-" + jobId, parentTask, headers);
             this.jobId = jobId;
         }
 

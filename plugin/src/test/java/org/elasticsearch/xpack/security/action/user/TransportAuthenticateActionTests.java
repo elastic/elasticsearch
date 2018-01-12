@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -36,7 +37,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 
@@ -62,7 +63,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
     public void testNullUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 
@@ -90,7 +91,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(user);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +49,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(settings, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
@@ -79,7 +80,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     public void testInternalUsers() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
@@ -121,7 +122,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             return null;
         }).when(usersStore).changePassword(eq(request), any(ActionListener.class));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
@@ -162,7 +163,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             }
         }).when(usersStore).changePassword(eq(request), any(ActionListener.class));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 

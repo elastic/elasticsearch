@@ -48,7 +48,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class WatcherTransportActionTests extends ESTestCase {
+public class
+WatcherTransportActionTests extends ESTestCase {
 
     private MyTransportAction transportAction;
     private ClusterService clusterService;
@@ -85,7 +86,7 @@ public class WatcherTransportActionTests extends ESTestCase {
         MyActionRequest request = new MyActionRequest();
         PlainActionFuture<MyActionResponse> future = PlainActionFuture.newFuture();
 
-        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0));
+        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0), Collections.emptyMap());
         transportAction.doExecute(task, request, future);
         MyActionResponse response = future.actionGet(1000);
         assertThat(response.request, is(request));
@@ -103,7 +104,7 @@ public class WatcherTransportActionTests extends ESTestCase {
         MyActionRequest request = new MyActionRequest();
         PlainActionFuture<MyActionResponse> future = PlainActionFuture.newFuture();
 
-        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0));
+        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0), Collections.emptyMap());
         transportAction.doExecute(task, request, future);
         MyActionResponse response = future.actionGet(1000);
         assertThat(response.request, is(request));
@@ -121,7 +122,7 @@ public class WatcherTransportActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.localNode()).thenReturn(state.nodes().getLocalNode());
         MyActionRequest request = new MyActionRequest();
-        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0));
+        Task task = request.createTask(1, "type", "action", new TaskId("parent", 0), Collections.emptyMap());
         transportAction.doExecute(task, request, PlainActionFuture.newFuture());
         // dont wait for the future here, we would need to stub the action listener of the sendRequest call
 

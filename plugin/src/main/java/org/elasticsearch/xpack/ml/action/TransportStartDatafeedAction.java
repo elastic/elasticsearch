@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
+import java.util.Map;
 import java.util.function.Predicate;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -222,8 +223,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         @Override
         protected AllocatedPersistentTask createTask(
                 long id, String type, String action, TaskId parentTaskId,
-                PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-            return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams());
+                PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+                Map<String, String> headers) {
+            return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), headers);
         }
     }
 
@@ -235,8 +237,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         /* only pck protected for testing */
         volatile DatafeedManager datafeedManager;
 
-        DatafeedTask(long id, String type, String action, TaskId parentTaskId, StartDatafeedAction.DatafeedParams params) {
-            super(id, type, action, "datafeed-" + params.getDatafeedId(), parentTaskId);
+        DatafeedTask(long id, String type, String action, TaskId parentTaskId, StartDatafeedAction.DatafeedParams params,
+                     Map<String, String> headers) {
+            super(id, type, action, "datafeed-" + params.getDatafeedId(), parentTaskId, headers);
             this.datafeedId = params.getDatafeedId();
             this.startTime = params.getStartTime();
             this.endTime = params.getEndTime();

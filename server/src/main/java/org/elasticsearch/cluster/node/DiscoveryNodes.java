@@ -400,10 +400,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         DiscoveryNode previousMasterNode = null;
         DiscoveryNode newMasterNode = null;
         if (masterNodeId != null) {
-            if (other.masterNodeId == null || !other.masterNodeId.equals(masterNodeId)) {
+            if (other.masterNodeId == null) {
+                newMasterNode = getMasterNode();
+            } else if (other.masterNodeId.equals(masterNodeId) == false) {
                 previousMasterNode = other.getMasterNode();
                 newMasterNode = getMasterNode();
             }
+        } else if (other.masterNodeId != null) {
+            previousMasterNode = other.getMasterNode();
         }
         return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed),
             Collections.unmodifiableList(added));
@@ -448,7 +452,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            return newMasterNode != null;
+            return newMasterNode != previousMasterNode;
         }
 
         public DiscoveryNode previousMasterNode() {
@@ -478,16 +482,25 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             StringBuilder sb = new StringBuilder();
             if (!removed() && masterNodeChanged()) {
-                if (newMasterNode.getId().equals(localNodeId)) {
-                    // we are the master, no nodes we removed, we are actually the first master
-                    sb.append("new_master ").append(newMasterNode());
+                if (newMasterNode() != null) {
+                    if (newMasterNode().getId().equals(localNodeId)) {
+                        // we are the master, no nodes we removed, we are actually the first master
+                        sb.append("new_master ").append(newMasterNode());
+                    } else {
+                        // we are not the master, so we just got this event. No nodes were removed, so its not a *new* master
+                        sb.append("detected_master ").append(newMasterNode());
+                    }
                 } else {
-                    // we are not the master, so we just got this event. No nodes were removed, so its not a *new* master
-                    sb.append("detected_master ").append(newMasterNode());
+                    sb.append("master_left ").append(previousMasterNode());
                 }
             } else {
                 if (masterNodeChanged()) {
                     sb.append("master {new ").append(newMasterNode());
+                    if (newMasterNode() != null) {
+                        sb.append("new ").append(newMasterNode());
+                    } else {
+                        sb.append("left");
+                    }
                     if (previousMasterNode() != null) {
                         sb.append(", previous ").append(previousMasterNode());
                     }

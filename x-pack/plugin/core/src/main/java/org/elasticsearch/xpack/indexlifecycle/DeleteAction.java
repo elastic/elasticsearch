@@ -58,6 +58,11 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
+    public boolean indexSurvives() {
+        return false;
+    }
+
+    @Override
     public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
         client.admin().indices().delete(new DeleteIndexRequest(index.getName()), new ActionListener<DeleteIndexResponse>() {
             @Override

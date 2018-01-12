@@ -436,6 +436,97 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(0L, thirdAction.getExecutedCount());
     }
 
+    public void testExecuteFirstActionIndexDoesNotSurvive() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String phaseName = randomAlphaOfLengthBetween(1, 20);
+        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+
+            @Override
+            public boolean indexSurvives() {
+                return false;
+            }
+        };
+        firstAction.setCompleteOnExecute(false);
+        actions.put(firstAction.getWriteableName(), firstAction);
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
+        secondAction.setCompleteOnExecute(false);
+        actions.put(secondAction.getWriteableName(), secondAction);
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
+        thirdAction.setCompleteOnExecute(false);
+        actions.put(thirdAction.getWriteableName(), thirdAction);
+        Phase phase = new Phase(phaseName, after, actions);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(), 0) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
+
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(firstAction.getWriteableName(), context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+
+        firstAction.setCompleteOnExecute(true);
+
+        phase.execute(context, current -> {
+            if (current == null) {
+                return firstAction;
+            } else if ("first_action".equals(current.getWriteableName())) {
+                return secondAction;
+            } else if ("second_action".equals(current.getWriteableName())) {
+                return thirdAction;
+            }
+            return null;
+        });
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(firstAction.getWriteableName(), context.getAction());
+
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(2L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+    }
+
     public void testExecuteSecondAction() throws Exception {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);

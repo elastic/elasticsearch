@@ -9,6 +9,7 @@ import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -108,7 +109,16 @@ public class IndexLifecycleService extends AbstractComponent
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     logger.info("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
                     LifecyclePolicy policy = policies.get(policyName);
-                    policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
+                    if (policy == null) {
+                        logger.error("Unknown lifecycle policy [{}] for index [{}]", policyName, idxMeta.getIndex().getName());
+                    } else {
+                        try {
+                            policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
+                        } catch (ElasticsearchException e) {
+                            logger.error("Failed to execute lifecycle policy [{}] for index [{}]", policyName, idxMeta.getIndex().getName(),
+                                    policyName);
+                        }
+                    }
                 }
             });
         }

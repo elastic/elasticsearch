@@ -62,8 +62,8 @@ public class GceHttpRequestInitializer implements HttpRequestInitializer {
                               final boolean retry,
                               final Sleeper sleeper) {
         this.credential = Objects.requireNonNull(credential, "credential must be not null");
-        this.connectTimeout = Objects.requireNonNull(connectTimeout, "connectTimeout must be not null");
-        this.readTimeout = Objects.requireNonNull(readTimeout, "readTimeout must be not null");
+        this.connectTimeout = connectTimeout;
+        this.readTimeout = readTimeout;
         this.maxElapsedTime = Objects.requireNonNull(maxElapsedTime, "maxElapsedTime must be not null");
         this.retry = retry;
         this.sleeper = sleeper;
@@ -90,16 +90,23 @@ public class GceHttpRequestInitializer implements HttpRequestInitializer {
             httpRequest.setUnsuccessfulResponseHandler(credential);
         }
 
-        final long noTimeout = TimeValue.MINUS_ONE.getMillis();
-
-        final long connectTimeoutMillis = connectTimeout.getMillis();
-        if (connectTimeoutMillis > noTimeout) {
-            httpRequest.setConnectTimeout((int) connectTimeoutMillis);
+        final long infiniteTimeout = TimeValue.MINUS_ONE.getMillis();
+        if (connectTimeout != null) {
+            final long connectTimeoutMillis = connectTimeout.getMillis();
+            if (connectTimeoutMillis > 0) {
+                httpRequest.setConnectTimeout((int) connectTimeoutMillis);
+            } else if (connectTimeoutMillis == infiniteTimeout) {
+                httpRequest.setConnectTimeout(0);
+            }
         }
 
-        final long readTimeoutMillis = readTimeout.getMillis();
-        if (readTimeoutMillis > noTimeout) {
-            httpRequest.setReadTimeout((int) readTimeoutMillis);
+        if (readTimeout != null) {
+            final long readTimeoutMillis = readTimeout.getMillis();
+            if (readTimeoutMillis > 0) {
+                httpRequest.setReadTimeout((int) readTimeoutMillis);
+            } else if (readTimeoutMillis == infiniteTimeout) {
+                httpRequest.setReadTimeout(0);
+            }
         }
 
         httpRequest.setInterceptor(credential);

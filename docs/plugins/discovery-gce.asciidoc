@@ -36,15 +36,15 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 
  `connect_timeout`::
 
-     Sets the timeout to establish a connection. A value of `0` corresponds to an infinite timeout, while
-     a value of `-1` corresponds to the default timeout provided by the Google Compute Engine Java Library (20 seconds).
-     Defaults to `-1`.
+     Sets the timeout to establish a connection. When this setting is not defined the default timeout provided by
+     the Google Compute Engine Java Library is used (20 seconds). A value of `-1` corresponds to an infinite timeout.
+     Defaults to `20s`.
 
  `read_timeout`::
 
-     Sets the timeout to read data from an established connection. A value of `0` corresponds to an infinite timeout, while
-     a value of `-1` corresponds to the default timeout provided by the Google Compute Engine Java Library (20 seconds).
-     Defaults to `-1`.
+     Sets the timeout to read data from an established connection. When this setting is not defined the default timeout
+     provided by the Google Compute Engine Java Library is used (20 seconds). A value of `-1` corresponds to an infinite timeout.
+     Defaults to `20s`.
 
  `retry`::
 

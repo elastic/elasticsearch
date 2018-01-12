@@ -71,19 +71,19 @@ public interface GceInstancesService {
 
     /**
      * cloud.gce.http.connect_timeout: Sets the timeout to establish a connection.
-     * A value of {@code 0} corresponds to an infinite timeout. A value of {@code -1} corresponds to
-     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to {@code -1}.
+     * A value of {@code -1} corresponds to an infinite timeout. A {@code null} value corresponds to
+     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to 20 seconds.
      */
     Setting<TimeValue> CONNECTION_TIMEOUT_SETTING =
-        Setting.timeSetting("cloud.gce.connect_timeout", TimeValue.MINUS_ONE, Property.NodeScope);
+        Setting.timeSetting("cloud.gce.connect_timeout", TimeValue.timeValueSeconds(20), TimeValue.timeValueSeconds(1), Property.NodeScope);
 
     /**
      * cloud.gce.http.read_timeout: Sets the timeout to read data from an established connection.
-     * A value of {@code 0} corresponds to an infinite timeout. A value of {@code -1} corresponds to
-     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to {@code -1}.
+     * A value of {@code -1} corresponds to an infinite timeout. A {@code null} value corresponds to
+     * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to 20 seconds.
      */
     Setting<TimeValue> READ_TIMEOUT_SETTING =
-        Setting.timeSetting("cloud.gce.read_timeout", TimeValue.MINUS_ONE, Property.NodeScope);
+        Setting.timeSetting("cloud.gce.read_timeout", TimeValue.timeValueSeconds(20), TimeValue.timeValueSeconds(1), Property.NodeScope);
 
     /**
      * Return a collection of running instances within the same GCE project

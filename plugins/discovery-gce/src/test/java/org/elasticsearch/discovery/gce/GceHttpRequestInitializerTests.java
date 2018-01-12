@@ -181,7 +181,7 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
         final MockGoogleCredential credential = newMockCredentialBuilder().build();
         final TimeValue connectTimeout = randomTimeout();
         final TimeValue readTimeout = randomTimeout();
-        final TimeValue maxWaitTime = randomTimeout();
+        final TimeValue maxWaitTime = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(0, 30_000));
         final boolean retry = randomBoolean();
 
         GenericUrl url = new GenericUrl("http://www.elastic.co");
@@ -199,15 +199,20 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
     }
 
     private static TimeValue randomTimeout() {
-        return randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(0, 60000));
+        if (rarely()) {
+            return TimeValue.MINUS_ONE;
+        }
+        return randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 60)) : null;
     }
 
     private static void assertTimeout(final TimeValue expected, final Supplier<Integer> supplier) {
         final Integer actual = supplier.get();
         assertNotNull(actual);
 
-        if (expected.getMillis() == TimeValue.MINUS_ONE.getMillis()) {
-            assertTrue(actual > 0);
+        if (expected == null) {
+            assertTrue("Expecting a default timeout value when the timeout is not defined", actual > 0);
+        } else if (expected.getMillis() == TimeValue.MINUS_ONE.getMillis()) {
+            assertEquals("Expecting a zero timeout when the timeout is infinite", 0, actual.intValue());
         } else {
             assertEquals((int) expected.getMillis(), actual.intValue());
         }

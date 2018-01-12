@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 
 import java.io.IOException;
@@ -111,16 +112,18 @@ public class UpdateProcessAction extends
 
         private ModelPlotConfig modelPlotConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
+        private MlFilter filter;
         private boolean updateScheduledEvents = false;
 
         Request() {
         }
 
-        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates,
+        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,
                        boolean updateScheduledEvents) {
             super(jobId);
             this.modelPlotConfig = modelPlotConfig;
             this.detectorUpdates = detectorUpdates;
+            this.filter = filter;
             this.updateScheduledEvents = updateScheduledEvents;
         }
 
@@ -130,6 +133,10 @@ public class UpdateProcessAction extends
 
         public List<JobUpdate.DetectorUpdate> getDetectorUpdates() {
             return detectorUpdates;
+        }
+
+        public MlFilter getFilter() {
+            return filter;
         }
 
         public boolean isUpdateScheduledEvents() {
@@ -144,6 +151,7 @@ public class UpdateProcessAction extends
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
             if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+                filter = in.readOptionalWriteable(MlFilter::new);
                 updateScheduledEvents = in.readBoolean();
             }
         }
@@ -158,13 +166,14 @@ public class UpdateProcessAction extends
                 out.writeList(detectorUpdates);
             }
             if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+                out.writeOptionalWriteable(filter);
                 out.writeBoolean(updateScheduledEvents);
             }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, updateScheduledEvents);
+            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, filter, updateScheduledEvents);
         }
 
         @Override
@@ -180,8 +189,8 @@ public class UpdateProcessAction extends
             return Objects.equals(getJobId(), other.getJobId()) &&
                     Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
                     Objects.equals(detectorUpdates, other.detectorUpdates) &&
+                    Objects.equals(filter, other.filter) &&
                     Objects.equals(updateScheduledEvents, other.updateScheduledEvents);
         }
     }
-
 }

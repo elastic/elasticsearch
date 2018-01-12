@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -24,16 +25,18 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
 
     private final ClusterService clusterService;
     private final JobProvider jobProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportUpdateCalendarJobAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobProvider jobProvider) {
+                                            ClusterService clusterService, JobProvider jobProvider, JobManager jobManager) {
         super(settings, UpdateCalendarJobAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, UpdateCalendarJobAction.Request::new);
         this.clusterService = clusterService;
         this.jobProvider = jobProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -55,6 +58,9 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
         }
 
         jobProvider.updateCalendar(request.getCalendarId(), request.getJobIdsToAdd(), request.getJobIdsToRemove(),
-                c -> listener.onResponse(new PutCalendarAction.Response(c)), listener::onFailure);
+                c -> {
+                    jobManager.updateProcessOnCalendarChanged(c.getJobIds());
+                    listener.onResponse(new PutCalendarAction.Response(c));
+                }, listener::onFailure);
     }
 }

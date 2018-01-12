@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -35,15 +36,17 @@ import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 public class TransportPutFilterAction extends HandledTransportAction<PutFilterAction.Request, PutFilterAction.Response> {
 
     private final Client client;
+    private final JobManager jobManager;
 
     @Inject
     public TransportPutFilterAction(Settings settings, ThreadPool threadPool,
                                     TransportService transportService, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Client client) {
+                                    Client client, JobManager jobManager) {
         super(settings, PutFilterAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, PutFilterAction.Request::new);
         this.client = client;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -64,6 +67,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse indexResponse) {
+                        jobManager.updateProcessOnFilterChanged(filter);
                         listener.onResponse(new PutFilterAction.Response());
                     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -26,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.util.Map;
@@ -37,15 +38,19 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
         DeleteCalendarEventAction.Response> {
 
     private final Client client;
+    private final JobProvider jobProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportDeleteCalendarEventAction(Settings settings, ThreadPool threadPool,
                            TransportService transportService, ActionFilters actionFilters,
                            IndexNameExpressionResolver indexNameExpressionResolver,
-                           Client client) {
+                           Client client, JobProvider jobProvider, JobManager jobManager) {
         super(settings, DeleteCalendarEventAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, DeleteCalendarEventAction.Request::new);
         this.client = client;
+        this.jobProvider = jobProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -57,27 +62,34 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException("Missing event [" + eventId + "]"));
+                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                     return;
                 }
 
                 Map<String, Object> source = getResponse.getSourceAsMap();
                 String calendarId = (String) source.get(Calendar.ID.getPreferredName());
                 if (calendarId == null) {
-                    listener.onFailure(new ElasticsearchStatusException("Event [" + eventId + "] does not have a valid "
-                            + Calendar.ID.getPreferredName(), RestStatus.BAD_REQUEST));
+                    listener.onFailure(ExceptionsHelper.badRequestException("Event [" + eventId + "] does not have a valid "
+                            + Calendar.ID.getPreferredName()));
                     return;
                 }
 
                 if (calendarId.equals(request.getCalendarId()) == false) {
-                    listener.onFailure(new ElasticsearchStatusException(
+                    listener.onFailure(ExceptionsHelper.badRequestException(
                             "Event [" + eventId + "] has " + Calendar.ID.getPreferredName() +
                                     " [" + calendarId + "] which does not match the request " + Calendar.ID.getPreferredName() +
-                                    " [" + request.getCalendarId() + "]", RestStatus.BAD_REQUEST));
+                                    " [" + request.getCalendarId() + "]"));
                     return;
                 }
 
-                deleteEvent(eventId, listener);
+                ActionListener<Calendar> calendarListener = ActionListener.wrap(
+                        calendar -> {
+                            deleteEvent(eventId, calendar, listener);
+                        },
+                        listener::onFailure
+                );
+
+                jobProvider.calendar(calendarId, calendarListener);
             }
 
             @Override
@@ -87,7 +99,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
         });
     }
 
-    private void deleteEvent(String eventId, ActionListener<DeleteCalendarEventAction.Response> listener) {
+    private void deleteEvent(String eventId, Calendar calendar, ActionListener<DeleteCalendarEventAction.Response> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -97,9 +109,9 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                     public void onResponse(DeleteResponse response) {
 
                         if (response.status() == RestStatus.NOT_FOUND) {
-                            listener.onFailure(new ResourceNotFoundException("Could not delete event [" + eventId
-                                    + "] because it does not exist"));
+                            listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                         } else {
+                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
                             listener.onResponse(new DeleteCalendarEventAction.Response(true));
                         }
                     }

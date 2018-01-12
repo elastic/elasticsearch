@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -96,38 +94,20 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         List<RuleCondition> conditions = Collections.singletonList(
                 RuleCondition.createCategorical("foo", "bar"));
 
+        DetectionRule updatedRule = new DetectionRule.Builder(conditions).build();
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
-                new JobUpdate.DetectorUpdate(0, "updated description",
-                        Collections.singletonList(new DetectionRule.Builder(conditions).build())));
+                new JobUpdate.DetectorUpdate(0, "updated description", Collections.singletonList(updatedRule)));
 
-        UpdateParams updateParams = new UpdateParams(null, detectorUpdates, true);
-        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
+        UpdateParams updateParams = UpdateParams.builder("foo").detectorUpdates(detectorUpdates).build();
+        List<ScheduledEvent> events = Collections.singletonList(
+                ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
 
         communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
 
-        // There are 2 detectors both will be updated with the rule for the scheduled event.
-        // The first has an additional update rule
-        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
-        InOrder inOrder = Mockito.inOrder(process);
-        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(0), captor.capture());
-        assertEquals(2, captor.getValue().size());
-        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(1), captor.capture());
-        assertEquals(1, captor.getValue().size());
+        verify(process).writeUpdateDetectorRulesMessage(eq(0), eq(Collections.singletonList(updatedRule)));
+        verify(process).writeUpdateScheduledEventsMessage(events, AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN);
         verify(process).isProcessAlive();
         verifyNoMoreInteractions(process);
-
-
-        // This time there is a single detector update and no scheduled events
-        detectorUpdates = Collections.singletonList(
-                new JobUpdate.DetectorUpdate(1, "updated description",
-                        Collections.singletonList(new DetectionRule.Builder(conditions).build())));
-        updateParams = new UpdateParams(null, detectorUpdates, true);
-        communicator.writeUpdateProcessMessage(updateParams, Collections.emptyList(), ((aVoid, e) -> {}));
-
-        inOrder = Mockito.inOrder(process);
-        inOrder.verify(process).writeUpdateDetectorRulesMessage(eq(1), captor.capture());
-        assertEquals(1, captor.getValue().size());
-        verify(process, times(2)).isProcessAlive();
     }
 
     public void testFlushJob() throws IOException {

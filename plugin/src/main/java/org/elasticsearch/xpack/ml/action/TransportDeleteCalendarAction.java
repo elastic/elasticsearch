@@ -7,9 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -26,7 +23,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
@@ -34,15 +32,19 @@ import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 public class TransportDeleteCalendarAction extends HandledTransportAction<DeleteCalendarAction.Request, DeleteCalendarAction.Response> {
 
     private final Client client;
+    private final JobManager jobManager;
+    private final JobProvider jobProvider;
 
     @Inject
     public TransportDeleteCalendarAction(Settings settings, ThreadPool threadPool,
                                          TransportService transportService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client) {
+                                         Client client, JobManager jobManager, JobProvider jobProvider) {
         super(settings, DeleteCalendarAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, DeleteCalendarAction.Request::new);
         this.client = client;
+        this.jobManager = jobManager;
+        this.jobProvider = jobProvider;
     }
 
     @Override
@@ -50,29 +52,25 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
         final String calendarId = request.getCalendarId();
 
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, Calendar.documentId(calendarId));
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
-                    @Override
-                    public void onResponse(GetResponse getResponse) {
-                        if (getResponse.isExists() == false) {
-                            listener.onFailure(new ResourceNotFoundException("Could not delete calendar [" + calendarId
-                                    + "] because it does not exist"));
-                            return;
-                        }
-
-                        // Delete calendar and events
-                        DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
-                        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(
-                                response -> listener.onResponse(new DeleteCalendarAction.Response(true)),
-                                listener::onFailure));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(ExceptionsHelper.serverError("Could not delete calendar [" + calendarId + "]", e));
-                    }
-                }
+        ActionListener<Calendar> calendarListener = ActionListener.wrap(
+                calendar -> {
+                    // Delete calendar and events
+                    DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(
+                            response -> {
+                                if (response.getDeleted() == 0) {
+                                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                                    return;
+                                }
+                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
+                                listener.onResponse(new DeleteCalendarAction.Response(true));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure
         );
+
+        jobProvider.calendar(calendarId, calendarListener);
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {

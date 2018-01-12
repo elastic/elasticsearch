@@ -475,7 +475,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(manager).setJobState(any(), eq(JobState.FAILED));
     }
 
-    public void testwriteUpdateProcessMessage() {
+    public void testWriteUpdateProcessMessage() {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
         ModelPlotConfig modelConfig = mock(ModelPlotConfig.class);
@@ -483,9 +483,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        UpdateParams updateParams = new UpdateParams(modelConfig, detectorUpdates, false);
+        UpdateParams updateParams = UpdateParams.builder("foo").modelPlotConfig(modelConfig).detectorUpdates(detectorUpdates).build();
         manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
-        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(Collections.emptyList()), any());
+        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(null), any());
     }
 
     public void testJobHasActiveAutodetectProcess() {

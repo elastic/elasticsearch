@@ -20,12 +20,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.watcher.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 

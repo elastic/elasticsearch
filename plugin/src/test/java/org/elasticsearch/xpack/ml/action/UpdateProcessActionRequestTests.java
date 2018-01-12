@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.config.MlFilterTests;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 
 import java.util.ArrayList;
@@ -29,7 +31,11 @@ public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<
                 updates.add(new JobUpdate.DetectorUpdate(randomInt(), randomAlphaOfLength(10), null));
             }
         }
-        return new UpdateProcessAction.Request(randomAlphaOfLength(10), config, updates, randomBoolean());
+        MlFilter filter = null;
+        if (randomBoolean()) {
+            filter = MlFilterTests.createTestFilter();
+        }
+        return new UpdateProcessAction.Request(randomAlphaOfLength(10), config, updates, filter, randomBoolean());
     }
 
     @Override

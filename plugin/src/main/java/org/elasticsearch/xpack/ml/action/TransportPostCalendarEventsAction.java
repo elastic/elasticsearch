@@ -23,7 +23,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
+import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -39,16 +41,18 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
 
     private final Client client;
     private final JobProvider jobProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportPostCalendarEventsAction(Settings settings, ThreadPool threadPool,
                                              TransportService transportService, ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Client client, JobProvider jobProvider) {
+                                             Client client, JobProvider jobProvider, JobManager jobManager) {
         super(settings, PostCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, PostCalendarEventsAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -56,8 +60,8 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                              ActionListener<PostCalendarEventsAction.Response> listener) {
         List<ScheduledEvent> events = request.getScheduledEvents();
 
-        ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
-                r -> {
+        ActionListener<Calendar> calendarListener = ActionListener.wrap(
+                calendar -> {
                     BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                     for (ScheduledEvent event: events) {
@@ -78,6 +82,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                             new ActionListener<BulkResponse>() {
                                 @Override
                                 public void onResponse(BulkResponse response) {
+                                    jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
                                     listener.onResponse(new PostCalendarEventsAction.Response(events));
                                 }
 
@@ -90,13 +95,6 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                 },
                 listener::onFailure);
 
-        checkCalendarExists(request.getCalendarId(), calendarExistsListener);
-    }
-
-    private void checkCalendarExists(String calendarId, ActionListener<Boolean> listener) {
-        jobProvider.calendar(calendarId, ActionListener.wrap(
-                c -> listener.onResponse(true),
-                listener::onFailure
-        ));
+        jobProvider.calendar(request.getCalendarId(), calendarListener);
     }
 }

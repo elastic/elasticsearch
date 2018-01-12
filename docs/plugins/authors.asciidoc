@@ -1,10 +1,18 @@
 [[plugin-authors]]
 == Help for plugin authors
 
+:plugin-properties-files: {docdir}/../../buildSrc/src/main/resources
+
 The Elasticsearch repository contains examples of:
 
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
   which contains Java code.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
+  which contains a rescore plugin.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]
+  which contains a script plugin.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/meta-plugin[Java plugin]
+  which contains a meta plugin.
 
 These examples provide the bare bones needed to get started.  For more
 information about how to write a plugin, we recommend looking at the plugins
@@ -18,10 +26,13 @@ All plugin files must be contained in a directory called `elasticsearch`.
 [float]
 === Plugin descriptor file
 
-All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`. The format
-for this file is described in detail here:
+All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`.
+The format for this file is described in detail in this example:
 
-https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources/plugin-descriptor.properties[`/buildSrc/src/main/resources/plugin-descriptor.properties`].
+["source","properties",subs="attributes"]
+--------------------------------------------------
+include::{plugin-properties-files}/plugin-descriptor.properties[]
+--------------------------------------------------
 
 Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.
@@ -112,3 +123,19 @@ AccessController.doPrivileged(
 
 See http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
+
+[float]
+=== Meta Plugin
+
+It is also possible to bundle multiple plugins into a meta plugin.
+A directory for each sub-plugin must be contained in a directory called `elasticsearch.
+The meta plugin must also contain a file called `meta-plugin-descriptor.properties` in the directory named
+`elasticsearch`.
+The format for this file is described in detail in this example:
+
+["source","properties",subs="attributes"]
+--------------------------------------------------
+include::{plugin-properties-files}/meta-plugin-descriptor.properties[]
+--------------------------------------------------
+
+A meta plugin can be installed/removed like a normal plugin with the `bin/elasticsearch-plugin` command.

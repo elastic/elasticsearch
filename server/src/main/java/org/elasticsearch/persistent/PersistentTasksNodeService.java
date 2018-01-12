@@ -160,8 +160,8 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-                return executor.createTask(id, type, action, parentTaskId, taskInProgress);
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
             }
         };
         AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",

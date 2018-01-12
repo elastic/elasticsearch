@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
@@ -30,9 +32,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -43,8 +47,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                // turn down token expiration interval and crank up the deletion interval
-                .put(TokenService.TOKEN_EXPIRATION.getKey(), TimeValue.timeValueSeconds(1L))
+                // crank up the deletion interval and set timeout for delete requests
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(2L))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -117,6 +120,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch.xpack.security.authc:DEBUG")
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -132,14 +136,24 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         InvalidateTokenResponse invalidateResponse = securityClient.prepareInvalidateToken(response.getTokenString()).get();
         assertTrue(invalidateResponse.isCreated());
+        AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE)))
-                    .setSize(0)
+                    .setSize(1)
                     .setTerminateAfter(1)
                     .get();
-            assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
         });
+
+        // hack doc to modify the time to the day before
+        Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
+        assertTrue(Instant.now().isAfter(dayBefore));
+        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, "doc", docId.get())
+                .setDoc("expiration_time", dayBefore.toEpochMilli())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -190,7 +204,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
-        assertSecurityIndexWriteable();
+        assertSecurityIndexActive();
     }
 
     @After

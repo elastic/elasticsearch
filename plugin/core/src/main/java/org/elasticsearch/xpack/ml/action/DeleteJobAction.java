@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response, DeleteJobAction.RequestBuilder> {
@@ -75,8 +76,8 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new JobStorageDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new JobStorageDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
         }
 
         @Override

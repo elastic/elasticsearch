@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -35,8 +36,9 @@ public class AllocatedPersistentTask extends CancellableTask {
     private volatile TaskManager taskManager;
 
 
-    public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask) {
-        super(id, type, action, description, parentTask);
+    public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
+                                   Map<String, String> headers) {
+        super(id, type, action, description, parentTask, headers);
         this.state = new AtomicReference<>(State.STARTED);
     }
 

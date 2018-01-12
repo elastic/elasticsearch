@@ -21,7 +21,6 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -60,11 +59,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-
-    @Before
-    public void waitForSecuritySetup() throws Exception {
-        SecurityClusterClientYamlTestCase.waitForSecurity();
-    }
 
     @Before
     public void waitForMlTemplates() throws Exception {

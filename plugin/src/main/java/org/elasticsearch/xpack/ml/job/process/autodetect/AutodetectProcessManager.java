@@ -268,7 +268,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
                 events -> {
-                    communicator.writeUpdateProcessMessage(updateParams, events.results(), (aVoid, e) -> {
+                    communicator.writeUpdateProcessMessage(updateParams, events == null ? null : events.results(), (aVoid, e) -> {
                         if (e == null) {
                             handler.accept(null);
                         } else {
@@ -283,7 +283,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(Long.toString(new Date().getTime()));
             jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
         } else {
-            eventsListener.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
+            eventsListener.onResponse(null);
         }
     }
 

@@ -18,6 +18,14 @@ cluster and receiving data through replication.
 
 include::securing-communications/setting-up-ssl.asciidoc[]
 
-include::securing-communications/enabling-cipher-suites.asciidoc[]
+//TO-DO: These sections can be removed when all links to them are removed.
 
-include::securing-communications/separating-node-client-traffic.asciidoc[]
+[[ciphers]]
+=== Enabling Cipher Suites for Stronger Encryption
+
+See {ref}/ciphers.html[Enabling Cipher Suites for Stronger Encryption].
+
+[[separating-node-client-traffic]]
+=== Separating node-to-node and client traffic
+
+See {ref}/separating-node-client-traffic.html[Separating node-to-node and client traffic].

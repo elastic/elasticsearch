@@ -37,10 +37,12 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
+import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -280,18 +282,16 @@ public class JobManager extends AbstractComponent {
                             // nothing to do
                             return currentState;
                         }
-                        changeWasRequired = true;
+                        // No change is required if the fields that the C++ uses aren't being updated
+                        changeWasRequired = jobUpdate.isAutodetectProcessUpdate();
                         return updateClusterState(updatedJob, true, currentState);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         if (changeWasRequired) {
-                            PersistentTasksCustomMetaData persistentTasks =
-                                    newState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                            JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
-                            if (jobState == JobState.OPENED) {
-                                updateJobProcessNotifier.submitJobUpdate(jobUpdate);
+                            if (isJobOpen(newState, jobId)) {
+                                updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate));
                             }
                         } else {
                             logger.debug("[{}] Ignored job update with no changes: {}", () -> jobId, () -> {
@@ -308,10 +308,38 @@ public class JobManager extends AbstractComponent {
                 });
     }
 
+    private boolean isJobOpen(ClusterState clusterState, String jobId) {
+        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+        return jobState == JobState.OPENED;
+    }
+
     ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
         MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
         builder.putJob(job, overwrite);
         return buildNewClusterState(currentState, builder);
+    }
+
+    public void updateProcessOnFilterChanged(MlFilter filter) {
+        ClusterState clusterState = clusterService.state();
+        QueryPage<Job> jobs = expandJobs("*", true, clusterService.state());
+        for (Job job : jobs.results()) {
+            if (isJobOpen(clusterState, job.getId())) {
+                Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+                if (jobFilters.contains(filter.getId())) {
+                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter));
+                }
+            }
+        }
+    }
+
+    public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
+        ClusterState clusterState = clusterService.state();
+        for (String jobId : calendarJobIds) {
+            if (isJobOpen(clusterState, jobId)) {
+                updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId));
+            }
+        }
     }
 
     public void deleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,

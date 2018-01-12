@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -126,6 +125,5 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
             super(client, INSTANCE, new Request());
         }
     }
-
 }
 

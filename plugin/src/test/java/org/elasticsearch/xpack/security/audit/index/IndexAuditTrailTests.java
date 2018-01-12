@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -43,6 +44,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -243,13 +245,13 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         }
 
         if (remoteCluster != null) {
-            remoteCluster.wipe(Collections.<String>emptySet());
+            remoteCluster.wipe(excludeTemplates());
         }
     }
 
     @Override
     protected Set<String> excludeTemplates() {
-        return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        return Sets.newHashSet(SecurityLifecycleService.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Override

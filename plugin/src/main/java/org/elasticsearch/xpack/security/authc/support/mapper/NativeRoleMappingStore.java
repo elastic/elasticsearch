@@ -167,8 +167,6 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
-        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
-            listener.onFailure(new IllegalStateException("role-mappings cannot be modified until template and mappings are up to date"));
         } else {
             try {
                 inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
@@ -181,7 +179,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         final ExpressionRoleMapping mapping = request.getMapping();
-        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -270,11 +268,11 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         } else {
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
-                logger.debug("Security Index [{}] [exists: {}] [available: {}] [writable: {}]",
+                logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
                         SECURITY_INDEX_NAME,
                         securityLifecycleService.isSecurityIndexExisting(),
                         securityLifecycleService.isSecurityIndexAvailable(),
-                        securityLifecycleService.isSecurityIndexWriteable()
+                        securityLifecycleService.isSecurityIndexMappingUpToDate()
                 );
             }
             listener.onResponse(Collections.emptyList());

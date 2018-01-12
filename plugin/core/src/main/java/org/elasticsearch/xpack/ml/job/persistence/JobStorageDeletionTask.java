@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -53,8 +54,8 @@ import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 public class JobStorageDeletionTask extends Task {
     private final Logger logger;
 
-    public JobStorageDeletionTask(long id, String type, String action, String description, TaskId parentTask) {
-        super(id, type, action, description, parentTask);
+    public JobStorageDeletionTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+        super(id, type, action, description, parentTask, headers);
         this.logger = Loggers.getLogger(getClass());
     }
 

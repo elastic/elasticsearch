@@ -12,16 +12,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -32,8 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Request, PostCalendarEventsAction.Response,
         PostCalendarEventsAction.RequestBuilder> {
@@ -58,55 +52,25 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
     public static class Request extends ActionRequest {
 
-        public static Request parseRequest(String calendarId, BytesReference data, XContentType contentType) throws IOException {
-            List<ScheduledEvent.Builder> events = new ArrayList<>();
+        private static final ObjectParser<List<ScheduledEvent.Builder>, Void> PARSER = new ObjectParser<>(NAME, ArrayList::new);
 
-            XContent xContent = contentType.xContent();
-            int lineNumber = 0;
-            int from = 0;
-            int length = data.length();
-            byte marker = xContent.streamSeparator();
-            while (true) {
-                int nextMarker = findNextMarker(marker, from, data, length);
-                if (nextMarker == -1) {
-                    break;
-                }
-                lineNumber++;
+        static {
+            PARSER.declareObjectArray(List::addAll, (p, c) -> ScheduledEvent.PARSER.apply(p, null), ScheduledEvent.RESULTS_FIELD);
+        }
 
-                try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
-                    try {
-                        ScheduledEvent.Builder event = ScheduledEvent.PARSER.apply(parser, null);
-                        events.add(event);
-                    } catch (ParsingException pe) {
-                        throw ExceptionsHelper.badRequestException("Failed to parse scheduled event on line [" + lineNumber + "]", pe);
-                    }
+        public static Request parseRequest(String calendarId, XContentParser parser) throws IOException {
+            List<ScheduledEvent.Builder> events = PARSER.apply(parser, null);
 
-                    from = nextMarker + 1;
-                }
-            }
-
-            for (ScheduledEvent.Builder event: events) {
+            for (ScheduledEvent.Builder event : events) {
                 if (event.getCalendarId() != null && event.getCalendarId().equals(calendarId) == false) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INCONSISTENT_ID,
                             Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId));
                 }
-
                 // Set the calendar Id in case it is null
                 event.calendarId(calendarId);
             }
-            return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
-        }
 
-        private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
-            for (int i = from; i < length; i++) {
-                if (data.get(i) == marker) {
-                    return i;
-                }
-            }
-            if (from != length) {
-                throw new IllegalArgumentException("The post calendar events request must be terminated by a newline [\n]");
-            }
-            return -1;
+            return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
         }
 
         private String calendarId;

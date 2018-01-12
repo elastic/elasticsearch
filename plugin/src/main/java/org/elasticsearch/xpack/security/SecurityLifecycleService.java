@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -64,7 +64,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME, SECURITY_TEMPLATE_NAME);
+        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -114,20 +114,34 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         return securityIndex;
     }
 
+    /**
+     * Returns {@code true} if the security index exists
+     */
     public boolean isSecurityIndexExisting() {
         return securityIndex.indexExists();
     }
 
+    /**
+     * Returns <code>true</code> if the security index does not exist or it exists and has the current
+     * value for the <code>index.format</code> index setting
+     */
     public boolean isSecurityIndexUpToDate() {
         return securityIndex.isIndexUpToDate();
     }
 
+    /**
+     * Returns <code>true</code> if the security index exists and all primary shards are active
+     */
     public boolean isSecurityIndexAvailable() {
         return securityIndex.isAvailable();
     }
 
-    public boolean isSecurityIndexWriteable() {
-        return securityIndex.isWritable();
+    /**
+     * Returns <code>true</code> if the security index does not exist or the mappings are up to date
+     * based on the version in the <code>_meta</code> field
+     */
+    public boolean isSecurityIndexMappingUpToDate() {
+        return securityIndex().isMappingUpToDate();
     }
 
     /**
@@ -170,22 +184,16 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
     }
 
-    public static boolean securityIndexMappingAndTemplateSufficientToRead(ClusterState clusterState,
-                                                                  Logger logger) {
-        return checkTemplateAndMappingVersions(clusterState, logger, MIN_READ_VERSION::onOrBefore);
+    public static boolean securityIndexMappingSufficientToRead(ClusterState clusterState, Logger logger) {
+        return checkMappingVersions(clusterState, logger, MIN_READ_VERSION::onOrBefore);
     }
 
-    public static boolean securityIndexMappingAndTemplateUpToDate(ClusterState clusterState,
-                                                                  Logger logger) {
-        return checkTemplateAndMappingVersions(clusterState, logger, Version.CURRENT::equals);
+    static boolean securityIndexMappingUpToDate(ClusterState clusterState, Logger logger) {
+        return checkMappingVersions(clusterState, logger, Version.CURRENT::equals);
     }
 
-    private static boolean checkTemplateAndMappingVersions(ClusterState clusterState, Logger logger,
-                                                           Predicate<Version> versionPredicate) {
-        return IndexLifecycleManager.checkTemplateExistsAndVersionMatches(SECURITY_TEMPLATE_NAME,
-                clusterState, logger, versionPredicate) &&
-                IndexLifecycleManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME,
-                        clusterState, logger, versionPredicate);
+    private static boolean checkMappingVersions(ClusterState clusterState, Logger logger, Predicate<Version> versionPredicate) {
+        return IndexLifecycleManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
     }
 
     public static List<String> indexNames() {
@@ -193,17 +201,11 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     /**
-     * Creates the security index, if it does not already exist, then runs the given
-     * action on the security index.
+     * Prepares the security index by creating it if it doesn't exist or updating the mappings if the mappings are
+     * out of date. After any tasks have been executed, the runnable is then executed.
      */
-    public <T> void createIndexIfNeededThenExecute(final ActionListener<T> listener, final Runnable andThen) {
-        if (!isSecurityIndexExisting() || isSecurityIndexUpToDate()) {
-            securityIndex.createIndexIfNeededThenExecute(listener, andThen);
-        } else {
-            listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - the native realm will not be operational until " +
-                "the upgrade API is run on the security index"));
-        }
+    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+            securityIndex.prepareIndexIfNeededThenExecute(consumer, andThen);
     }
 
     /**

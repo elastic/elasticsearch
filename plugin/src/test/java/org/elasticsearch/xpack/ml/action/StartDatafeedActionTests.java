@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
+import java.util.Collections;
 import java.util.Date;
 
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
@@ -87,7 +88,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                                                                                StartDatafeedAction.DatafeedParams params,
                                                                                DatafeedManager datafeedManager) {
         TransportStartDatafeedAction.DatafeedTask task = new TransportStartDatafeedAction.DatafeedTask(id, type, action, parentTaskId,
-                params);
+                params, Collections.emptyMap());
         task.datafeedManager = datafeedManager;
         return task;
     }

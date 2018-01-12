@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -231,20 +232,19 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }
+
     private NativeUsersStore startNativeUsersStore() {
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexWriteable()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexMappingUpToDate()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexOutOfDate()).thenReturn(false);
         when(securityLifecycleService.isSecurityIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
-            ActionListener listener = (ActionListener) i.getArguments()[0];
-            listener.onResponse(null);
             return null;
-        }).when(securityLifecycleService).createIndexIfNeededThenExecute(any(ActionListener.class), any(Runnable.class));
+        }).when(securityLifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         return new NativeUsersStore(Settings.EMPTY, client, securityLifecycleService);
     }
 

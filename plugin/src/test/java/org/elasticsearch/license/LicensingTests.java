@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -117,6 +118,11 @@ public class LicensingTests extends SecurityIntegTestCase {
     @Before
     public void resetLicensing() {
         enableLicensing();
+    }
+
+    @After
+    public void cleanupSecurityIndex() {
+        deleteSecurityIndex();
     }
 
     public void testEnableDisableBehaviour() throws Exception {

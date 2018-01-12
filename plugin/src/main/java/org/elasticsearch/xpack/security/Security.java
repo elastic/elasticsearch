@@ -207,7 +207,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -755,29 +754,22 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         }
 
         final boolean indexAuditingEnabled = Security.indexAuditLoggingEnabled(settings);
-        final String auditIndex;
         if (indexAuditingEnabled) {
-            auditIndex = "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*";
-        } else {
-            auditIndex = "";
-        }
-        String securityIndices = SecurityLifecycleService.indexNames().stream()
-                .collect(Collectors.joining(","));
-        String errorMessage = LoggerMessageFormat.format(
-                "the [action.auto_create_index] setting value [{}] is too" +
-                        " restrictive. disable [action.auto_create_index] or set it to " +
-                        "[{}{}]", (Object) value, securityIndices, auditIndex);
-        if (Booleans.isFalse(value)) {
-            throw new IllegalArgumentException(errorMessage);
-        }
+            String auditIndex = IndexAuditTrail.INDEX_NAME_PREFIX + "*";
+            String errorMessage = LoggerMessageFormat.format(
+                    "the [action.auto_create_index] setting value [{}] is too" +
+                            " restrictive. disable [action.auto_create_index] or set it to include " +
+                            "[{}]", (Object) value, auditIndex);
+            if (Booleans.isFalse(value)) {
+                throw new IllegalArgumentException(errorMessage);
+            }
 
-        if (Booleans.isTrue(value)) {
-            return;
-        }
+            if (Booleans.isTrue(value)) {
+                return;
+            }
 
-        String[] matches = Strings.commaDelimitedListToStringArray(value);
-        List<String> indices = new ArrayList<>(SecurityLifecycleService.indexNames());
-        if (indexAuditingEnabled) {
+            String[] matches = Strings.commaDelimitedListToStringArray(value);
+            List<String> indices = new ArrayList<>();
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover
             indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY));
@@ -788,34 +780,32 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(4), IndexNameResolver.Rollover.DAILY));
             indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(5), IndexNameResolver.Rollover.DAILY));
             indices.add(IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now.plusMonths(6), IndexNameResolver.Rollover.DAILY));
-        }
 
-        for (String index : indices) {
-            boolean matched = false;
-            for (String match : matches) {
-                char c = match.charAt(0);
-                if (c == '-') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        throw new IllegalArgumentException(errorMessage);
-                    }
-                } else if (c == '+') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        matched = true;
-                        break;
-                    }
-                } else {
-                    if (Regex.simpleMatch(match, index)) {
-                        matched = true;
-                        break;
+            for (String index : indices) {
+                boolean matched = false;
+                for (String match : matches) {
+                    char c = match.charAt(0);
+                    if (c == '-') {
+                        if (Regex.simpleMatch(match.substring(1), index)) {
+                            throw new IllegalArgumentException(errorMessage);
+                        }
+                    } else if (c == '+') {
+                        if (Regex.simpleMatch(match.substring(1), index)) {
+                            matched = true;
+                            break;
+                        }
+                    } else {
+                        if (Regex.simpleMatch(match, index)) {
+                            matched = true;
+                            break;
+                        }
                     }
                 }
+                if (!matched) {
+                    throw new IllegalArgumentException(errorMessage);
+                }
             }
-            if (!matched) {
-                throw new IllegalArgumentException(errorMessage);
-            }
-        }
 
-        if (indexAuditingEnabled) {
             logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                     " for the next 6 months audit indices are allowed to be created, but please make sure" +
                     " that any future history indices after 6 months with the pattern " +
@@ -904,17 +894,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            final byte[] securityTemplate = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
-                    Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+            templates.remove(SECURITY_TEMPLATE_NAME);
             final XContent xContent = XContentFactory.xContent(XContentType.JSON);
-
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, securityTemplate)) {
-                templates.put(SECURITY_TEMPLATE_NAME, IndexTemplateMetaData.Builder.fromXContent(parser, SECURITY_TEMPLATE_NAME));
-            } catch (IOException e) {
-                // TODO: should we handle this with a thrown exception?
-                logger.error("Error loading template [{}] as part of metadata upgrading", SECURITY_TEMPLATE_NAME);
-            }
-
             final byte[] auditTemplate = TemplateUtils.loadTemplate("/" + IndexAuditTrail.INDEX_TEMPLATE_NAME + ".json",
                     Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
 

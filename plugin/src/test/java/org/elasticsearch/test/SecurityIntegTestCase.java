@@ -58,8 +58,7 @@ import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_SECURE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateSufficientToRead;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateUpToDate;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingSufficientToRead;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
@@ -450,33 +449,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
-                assertTrue("security index mapping and template not sufficient to read:\n" +
+                assertTrue("security index mapping not sufficient to read:\n" +
                                 clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
-                        securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
-                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
-                if (securityIndex != null) {
-                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                    if (indexRoutingTable != null) {
-                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
-                    }
-                }
-            }, 30L, TimeUnit.SECONDS);
-        }
-    }
-
-    public void assertSecurityIndexWriteable() throws Exception {
-        assertSecurityIndexWriteable(cluster());
-    }
-
-    public void assertSecurityIndexWriteable(TestCluster testCluster) throws Exception {
-        for (Client client : testCluster.getClients()) {
-            assertBusy(() -> {
-                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
-                assertTrue("security index mapping and template not up to date:\n" +
-                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
-                        securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+                        securityIndexMappingSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);

@@ -44,7 +44,7 @@ import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateUpToDate;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingUpToDate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -135,7 +135,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+                () -> securityIndexMappingUpToDate(clusterState, logger));
         assertEquals("Cannot read security-version string in index " + SECURITY_INDEX_NAME,
             exception.getMessage());
     }

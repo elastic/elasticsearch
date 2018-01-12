@@ -41,10 +41,15 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
     @Override
     protected void taskOperation(UpdateProcessAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<UpdateProcessAction.Response> listener) {
+        UpdateParams updateParams = UpdateParams.builder(request.getJobId())
+                .modelPlotConfig(request.getModelPlotConfig())
+                .detectorUpdates(request.getDetectorUpdates())
+                .filter(request.getFilter())
+                .updateScheduledEvents(request.isUpdateScheduledEvents())
+                .build();
+
         try {
-            processManager.writeUpdateProcessMessage(task,
-                    new UpdateParams(request.getModelPlotConfig(),
-                            request.getDetectorUpdates(), request.isUpdateScheduledEvents()),
+            processManager.writeUpdateProcessMessage(task, updateParams,
                     e -> {
                         if (e == null) {
                             listener.onResponse(new UpdateProcessAction.Response());

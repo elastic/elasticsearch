@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -208,6 +211,24 @@ public class ControlMsgToProcessWriter {
             stringBuilder.append(builder.string());
         }
 
+        writeMessage(stringBuilder.toString());
+    }
+
+    public void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[filters]\n");
+        new MlFilterWriter(filters, stringBuilder).write();
+        writeMessage(stringBuilder.toString());
+    }
+
+    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[scheduledEvents]\n");
+        if (events.isEmpty()) {
+            stringBuilder.append("clear = true\n");
+        } else {
+            new ScheduledEventsWriter(events, bucketSpan, stringBuilder).write();
+        }
         writeMessage(stringBuilder.toString());
     }
 

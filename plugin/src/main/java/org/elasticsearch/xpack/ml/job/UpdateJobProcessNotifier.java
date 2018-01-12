@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -30,7 +30,7 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final LinkedBlockingQueue<JobUpdate> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
+    private final LinkedBlockingQueue<UpdateParams> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
 
     private volatile ThreadPool.Cancellable cancellable;
 
@@ -47,8 +47,8 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
         });
     }
 
-    boolean submitJobUpdate(JobUpdate jobUpdate) {
-        return orderedJobUpdates.offer(jobUpdate);
+    boolean submitJobUpdate(UpdateParams updateParams) {
+        return orderedJobUpdates.offer(updateParams);
     }
 
     @Override
@@ -82,24 +82,17 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
 
     private void processNextUpdate() {
         try {
-            JobUpdate jobUpdate = orderedJobUpdates.poll();
-            if (jobUpdate != null) {
-                executeRemoteJobIfNecessary(jobUpdate);
+            UpdateParams updateParams = orderedJobUpdates.poll();
+            if (updateParams != null) {
+                executeRemoteJob(updateParams);
             }
         } catch (Exception e) {
             logger.error("Unable while processing next job update", e);
         }
     }
 
-    void executeRemoteJobIfNecessary(JobUpdate update) {
-        // Do nothing if the fields that the C++ needs aren't being updated
-        if (update.isAutodetectProcessUpdate()) {
-            executeRemoteJob(update);
-        }
-    }
-
-    void executeRemoteJob(JobUpdate update) {
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(),
+    void executeRemoteJob(UpdateParams update) {
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
                 update.isUpdateScheduledEvents());
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
@@ -126,5 +119,4 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
                     }
                 });
     }
-
 }

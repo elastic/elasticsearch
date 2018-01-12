@@ -45,7 +45,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         action = new TransportGetRoleMappingsAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
                 transportService, store);

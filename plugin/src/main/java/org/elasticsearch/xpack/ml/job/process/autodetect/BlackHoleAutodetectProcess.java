@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -69,6 +72,14 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+    }
+
+    @Override
+    public void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException {
+    }
+
+    @Override
+    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException {
     }
 
     /**

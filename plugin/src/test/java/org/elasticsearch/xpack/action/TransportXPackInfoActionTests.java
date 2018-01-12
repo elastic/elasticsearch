@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Locale;
@@ -53,7 +54,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         }
 
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null);
+                x -> null, null, Collections.emptySet());
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), licenseService, featureSets);
 

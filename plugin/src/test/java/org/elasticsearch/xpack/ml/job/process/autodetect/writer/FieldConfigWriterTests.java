@@ -228,9 +228,9 @@ public class FieldConfigWriterTests extends ESTestCase {
 
         createFieldConfigWriter().write();
 
-        verify(writer).write("detector.0.clause = count\n" +
-                "filter.filter_1 = [\"a\",\"b\"]\n" +
-                "filter.filter_2 = [\"c\",\"d\"]\n");
+        verify(writer).write("filter.filter_1 = [\"a\",\"b\"]\n" +
+                "filter.filter_2 = [\"c\",\"d\"]\n" +
+                "detector.0.clause = count\n");
         verifyNoMoreInteractions(writer);
     }
 

@@ -113,7 +113,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     }
 
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
-        assertSecurityIndexWriteable();
+        assertSecurityIndexActive();
         securityClient(client()).prepareChangePassword("elastic", "password".toCharArray()).get();
 
         assertTribeNodeHasAllIndices();
@@ -124,8 +124,8 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     }
 
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
-        assertSecurityIndexWriteable();
-        assertSecurityIndexWriteable(cluster2);
+        assertSecurityIndexActive();
+        assertSecurityIndexActive(cluster2);
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
 
@@ -155,7 +155,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         final int randomRoles = scaledRandomIntBetween(3, 8);
         List<String> shouldBeSuccessfulRoles = new ArrayList<>();
 
-        assertSecurityIndexWriteable();
+        assertSecurityIndexActive();
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "preferredClusterRole" + i;
             PutRoleResponse response = securityClient(client()).preparePutRole(rolename).cluster("monitor").get();

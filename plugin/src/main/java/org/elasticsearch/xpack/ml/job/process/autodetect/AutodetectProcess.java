@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -73,6 +76,23 @@ public interface AutodetectProcess extends Closeable {
      */
     void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules)
             throws IOException;
+
+    /**
+     * Write message to update the filters
+     *
+     * @param filters the filters to update
+     * @throws IOException If the write fails
+     */
+    void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException;
+
+    /**
+     * Write message to update the scheduled events
+     *
+     * @param events Scheduled events
+     * @param bucketSpan The job bucket span
+     * @throws IOException If the write fails
+     */
+    void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException;
 
     /**
      * Flush the job pushing any stale data into autodetect.

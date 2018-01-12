@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -38,10 +41,12 @@ import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -60,19 +65,22 @@ public class TokenServiceTests extends ESTestCase {
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
 
     @Before
-    public void setupClient() throws GeneralSecurityException {
+    public void setupClient() {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         lifecycleService = mock(SecurityLifecycleService.class);
-        when(lifecycleService.isSecurityIndexWriteable()).thenReturn(true);
         doAnswer(invocationOnMock -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[2];
             GetResponse response = mock(GetResponse.class);
             when(response.isExists()).thenReturn(false);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         when(client.threadPool()).thenReturn(threadPool);
         this.clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings
                 .BUILT_IN_CLUSTER_SETTINGS), threadPool, Collections.emptyMap());
@@ -286,7 +294,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testInvalidatedToken() throws Exception {
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
         TokenService tokenService =
             new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
@@ -437,6 +445,13 @@ public class TokenServiceTests extends ESTestCase {
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            listener.onFailure(new NoShardAvailableActionException(new ShardId(new Index("foo", "uuid"), 0), "shard oh shard"));
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        when(client.prepareGet(anyString(), anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();

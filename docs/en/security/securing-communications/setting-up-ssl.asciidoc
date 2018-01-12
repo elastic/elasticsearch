@@ -1,117 +1,50 @@
 [[ssl-tls]]
-=== Setting Up SSL/TLS on a Cluster
+=== Setting Up TLS on a Cluster
 
-{security} enables you to encrypt traffic to, from, and within your Elasticsearch
+{security} enables you to encrypt traffic to, from, and within your {es}
 cluster. Connections are secured using Transport Layer Security (TLS), which is
 commonly referred to as "SSL".
 
 WARNING: Clusters that do not have encryption enabled send all data in plain text
 including passwords and will not be able to install a license that enables {security}.
 
-To enable encryption, you need to perform the following steps on each node in
-the cluster:
+The following steps describe how to enable encryption across the various
+components of the Elastic Stack. You must perform each of the steps that are
+applicable to your cluster.
 
-. <<installing-node-certificates, Generate a private key and X.509 certificate>>.
+. Generate a private key and X.509 certificate for each of your {es} nodes. See
+{ref}/configuring-tls.html#node-certificates[Generating Node Certificates].
 
-. <<configure-ssl, Configure the node>> to:
-.. Identify itself using its signed certificate.
-.. Enable SSL on the transport and HTTP layers.
+. Configure each node in the cluster to identify itself using its signed
+certificate and enable TLS on the transport layer. You can also optionally
+enable TLS on the HTTP layer. See
+{ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].
 
-. Restart Elasticsearch.
+. Configure {monitoring} to use encrypted connections. See <<secure-monitoring>>.
+
+. Configure {kib} to encrypt communications between the browser and
+the {kib} server and to connect to {es} via HTTPS. See
+{kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
+
+. Configure Logstash to use TLS encryption. See
+{logstash-ref}/ls-security.html[Configuring Security in Logstash].
+
+. Configure Beats to use encrypted connections. See <<beats>>.
+
+. Configure the Java transport client to use encrypted communications.
+See <<java-clients>>.
+
+. Configure {es} for Apache Hadoop to use secured transport. See
+{hadoop-ref}/security.html[{es} for Apache Hadoop Security].
+
+//The following sections can be removed after we clean up all links to these anchors.
 
 [[installing-node-certificates]]
-==== Generating Node Certificates
+==== Node Certificates
 
-TLS requires X.509 certificates to perform encryption and authentication of the application
-that is being communicated with. In order for the communication between nodes to be truly
-secure, the certificates must be validated. The recommended approach for validating
-certificate authenticity in a Elasticsearch cluster is to trust the certificate authority (CA)
-that signed the certificate. By doing this, as nodes are added to your cluster they just need
-to use a certificate signed by the same CA and the node is automatically allowed to join the
-cluster. Additionally, it is recommended that the certificates contain subject alternative
-names (SAN) that correspond to the node's IP address and DNS name so that hostname verification
-can be performed.
-
-In order to simplify the process of generating certificates for the Elastic Stack, a command
-line tool, {ref}/certutil.html[`certutil`] has been included with {xpack}. This
-tool takes care of the generating
-a CA and signing certificates with the CA. `certutil` can be used interactively or in a silent
-mode through the use of an input file. The `certutil` tool also supports generation of certificate
-signing requests (CSR), so that a commercial or organization specific CA can be used to sign
-the certificates. For example:
-
-1. Optional: Create a certificate authority by using the `certutil ca` command.
-2. Generate a certificate for each node by using the `certutil cert` command.
-+
---
-NOTE: You should secure the output files, since they contain the private keys
-for your instance.
-
---
-3. Copy the node certificate to the appropriate locations. For each Elastic
-product that you want to configure, copy the certificates to the relevant
-configuration directory. For more information, see
-<<enable-ssl,Configuring security in {es}>>,
-{kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}], and
-{logstash-ref}/ls-security.html[Configuring security in Logstash].
-
-NOTE: If you choose not to use `certutil`, the certificates that you obtain must allow for both
-`clientAuth` and `serverAuth` if the extended key usage extension is present. The certificates
-need to be in PEM or PKCS#12 format. Although not required, it is highly recommended that the certificate contain
-the DNS names and/or IP addresses of the node so that hostname verification can be used.
-
+See {ref}/node-certificates.html[Generating Node Certificates].
 
 [[enable-ssl]]
-==== Enabling SSL in the Node Configuration
+==== Enabling TLS in the Node Configuration
 
-Once you have the signed certificate, private key, and CA certificate you need to
-modify the node configuration to enable SSL.
-
-[[configure-ssl]]
-To enable SSL, make the following changes in `elasticsearch.yml`:
-
-. Specify the location of the node's keystore and the password(s) needed to
-access the node's certificate. For example:
-+
---
-[source, yaml]
---------------------------------------------------
-xpack.ssl.key:                     /home/es/config/x-pack/node01.key <1>
-xpack.ssl.certificate:             /home/es/config/x-pack/node01.crt <2>
-xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ] <3>
---------------------------------------------------
-<1> The full path to the node key file. This must be a location within the
-    Elasticsearch configuration directory.
-<2> The full path to the node certificate. This must be a location within the
-    Elasticsearch configuration directory.
-<3> An array of paths to the CA certificates that should be trusted. These paths
-    must be a location within the Elasticsearch configuration directory.
---
-
-. Enable SSL on the transport networking layer to ensure that communication
-between nodes is encrypted:
-+
-[source, yaml]
---------------------------------------------------
-xpack.security.transport.ssl.enabled: true
---------------------------------------------------
-+
-. Enable SSL on the HTTP layer to ensure that communication between HTTP clients
-and the cluster is encrypted:
-+
-[source, yaml]
---------------------------------------------------
-xpack.security.http.ssl.enabled: true
---------------------------------------------------
-+
-
-. Restart Elasticsearch.
-+
-You must perform a full cluster restart. Nodes which are configured to use
-SSL/TLS cannot communicate with nodes that are using unencrypted networking
-(and vice-versa). After enabling SSL/TLS you must restart all nodes in order
-to maintain communication across the cluster.
-
-NOTE: All SSL related node settings that are considered to be highly sensitive
-      and therefore are not exposed via the
-      {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
+See {ref}/enable-ssl.html[Enabling TLS on {es} Nodes].

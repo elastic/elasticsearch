@@ -13,12 +13,12 @@ components of the Elastic Stack. You must perform each of the steps that are
 applicable to your cluster.
 
 . Generate a private key and X.509 certificate for each of your {es} nodes. See
-{ref}/node-certificates.html[Generating Node Certificates].
+{ref}/configuring-tls.html#node-certificates[Generating Node Certificates].
 
 . Configure each node in the cluster to identify itself using its signed
 certificate and enable TLS on the transport layer. You can also optionally
 enable TLS on the HTTP layer. See
-{ref}/enable-ssl.html[Enabling TLS on {es} Nodes].
+{ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].
 
 . Configure {monitoring} to use encrypted connections. See <<secure-monitoring>>.
 

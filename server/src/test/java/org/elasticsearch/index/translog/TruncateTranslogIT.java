@@ -75,7 +75,6 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -150,7 +149,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             replica.flush(new FlushRequest());
             logger.info("--> performed extra flushing on replica");
         }
-        final SeqNoStats oldSeqNoStats = getSeqNoStats("test", 0);
 
         // shut down the replica node to be tested later
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
@@ -221,7 +219,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint is restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
-        assertThat(seqNoStats.getGlobalCheckpoint(), allOf(equalTo(seqNoStats.getMaxSeqNo()), equalTo(oldSeqNoStats.getMaxSeqNo())));
+        assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
@@ -269,7 +267,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
         Set<Path> translogDirs = getTranslogDirs(replicaNode, shardId);
 
-        final SeqNoStats oldSeqNoStats = getSeqNoStats("test", 0);
         // stop the cluster nodes. we don't use full restart so the node start up order will be the same
         // and shard roles will be maintained
         internalCluster().stopRandomDataNode();
@@ -327,7 +324,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint is restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats("test", 0);
-        assertThat(seqNoStats.getGlobalCheckpoint(), allOf(equalTo(seqNoStats.getMaxSeqNo()), equalTo(oldSeqNoStats.getMaxSeqNo())));
+        assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
     private Set<Path> getTranslogDirs(String indexName) throws IOException {

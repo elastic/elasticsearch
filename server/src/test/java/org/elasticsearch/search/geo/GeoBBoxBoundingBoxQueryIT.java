@@ -45,29 +45,27 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
     @Override
     public void testSimpleBoundingBoxQuery() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
-            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        // Not crossing
+        // basic bboxes
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
             .field("name", "BBox 1")
             .startObject("location").field("top_left", new GeoPoint(41.7143528, -74.0059731))
             .field("bottom_right", new GeoPoint(40.7143528 , -73.0059731)).endObject()
             .endObject()).execute().actionGet();
 
-        // XDL
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-            .field("name", "BBox 2 - xdl")
-            .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
-            .field("bottom_right", new GeoPoint(39.0 , -179.0)).endObject()
+            .field("name", "BBox 2")
+            .startObject("location").field("top_left", new GeoPoint(40.7143528, -180D))
+            .field("bottom_right", new GeoPoint(39.7143528 , -179D)).endObject()
             .endObject()).execute().actionGet();
 
         // Full lon range
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-            .field("name", "BBox 3 - Full Range")
+            .field("name", "BBox 2 - Full Range")
             .startObject("location").field("top_left", new GeoPoint(10.0, -180.0))
             .field("bottom_right", new GeoPoint(-10.0 , 180.0)).endObject()
             .endObject()).execute().actionGet();
@@ -128,7 +126,7 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
 
         // --- CROSSING DATELINE ---
         // INTERSECTS TESTS
-        searchResponse = client().prepareSearch() // test western bbox (test indexed box crossing dateline)
+        searchResponse = client().prepareSearch() // test western box
             .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, -178, 39.1, -179.5))
             .execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -140,10 +138,10 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
         searchResponse = client().prepareSearch() // test eastern bbox
             .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, 178, 39.1, 180))
             .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("4")));
+            assertThat(hit.getId(), anyOf(equalTo("4")));
         }
 
         // ... crosses dateline
@@ -156,15 +154,15 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
             assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("4")));
         }
 
-        // CONTAINS TEST
-        searchResponse = client().prepareSearch() // xdl
-            .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, 179.5, 39.1, -179.5)
-                .relation("CONTAINS"))
-            .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("4")));
+        try {
+            // CONTAINS TEST (should fail)
+            client().prepareSearch() // xdl
+                .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, 179.5, 39.1, -179.5)
+                    .relation("CONTAINS"))
+                .execute().actionGet();
+        } catch (Exception e) {
+            assertThat(e.getCause().getMessage(), containsString("[CONTAINS] relation not supported for dateline "
+                + "crossing bounding box queries"));
         }
 
         // WITHIN TESTS
@@ -183,8 +181,7 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
     @Override
     public void testLimit2BoundingBox() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
-            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -196,11 +193,18 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
             .field("bottom_right", new GeoPoint(40.7143528 , -73.0059731)).endObject()
             .endObject()).execute().actionGet();
 
-        // XDL
+        // XDL Western
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-            .field("name", "BBox 2 - xdl")
+            .field("name", "BBox 2")
+            .startObject("location").field("top_left", new GeoPoint(40.0, -179.9))
+            .field("bottom_right", new GeoPoint(39.0 , -178.0)).endObject()
+            .endObject()).execute().actionGet();
+
+        // XDL Eastern
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+            .field("name", "BBox 3")
             .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
-            .field("bottom_right", new GeoPoint(39.0 , -179.0)).endObject()
+            .field("bottom_right", new GeoPoint(39.0 , 180.0)).endObject()
             .endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -218,12 +222,21 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
         // --- CROSSING DATELINE ---
         // INTERSECTS TESTS
         searchResponse = client().prepareSearch() // test western bbox (test indexed box crossing dateline)
-            .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, -179.0, 39.1, -178.0))
+            .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, 179.0, 39.1, -178.0))
             .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("2")));
+            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("3")));
+        }
+
+        searchResponse = client().prepareSearch() // test western bbox (test indexed box crossing dateline)
+            .setQuery(geoBoundingBoxQuery("location").setCorners(39.9, -180.0, 39.1, -178.0))
+            .execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("3")));
         }
 
         searchResponse = client().prepareSearch() // test eastern bbox (lon touches)
@@ -232,25 +245,24 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("2")));
+            assertThat(hit.getId(), anyOf(equalTo("3")));
         }
 
         // ... crosses dateline (lat touches)
         searchResponse = client().prepareSearch() // test xdl query
             .setQuery(geoBoundingBoxQuery("location").setCorners(41.0, 179.5, 40.0, -179.5))
             .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("2")));
+            assertThat(hit.getId(), anyOf(equalTo("2"), equalTo("3")));
         }
     }
 
     @Override
     public void testCompleteLonRange() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
-            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
+            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -262,13 +274,6 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
             .field("bottom_right", new GeoPoint(39.0 , -73.0059731)).endObject()
             .endObject()).execute().actionGet();
 
-        // XDL
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-            .field("name", "BBox 2 - xdl")
-            .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
-            .field("bottom_right", new GeoPoint(39.0 , -179.0)).endObject()
-            .endObject()).execute().actionGet();
-
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -276,114 +281,50 @@ public class GeoBBoxBoundingBoxQueryIT extends BaseGeoBoundingBoxQueryTestCase {
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(39.0, MIN_LON, -39.0, MAX_LON)
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(39.0, MIN_LON, -39.0, MAX_LON).type("indexed")
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(90, MIN_LON, -90, MAX_LON)
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(90, MIN_LON, -90, MAX_LON).type("indexed")
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(39.0, 0, -39.0, 360)
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(39.0, 0, -39.0, 360).type("indexed")
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(90, 0, -90, 360)
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
                     .setCorners(90, 0, -90, 360).type("indexed")
             ).execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-    }
-
-    public void testMultivalueWithWrapDateline() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box")
-            .field(GeoBoundingBoxFieldMapper.Names.WRAP_DATELINE.getPreferredName(), true);
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
-        ensureGreen();
-
-        try {
-            // multi values
-            client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "BBox 1")
-                .startArray("location")
-                .startObject()
-                .field("top_left", new GeoPoint(40.0, -74.0059731))
-                .field("bottom_right", new GeoPoint(39.0 , -73.0059731))
-                .endObject()
-                .startObject()
-                .field("top_left", new GeoPoint(-40.0, -74.0))
-                .field("bottom_right", new GeoPoint(-41.0, -73.0))
-                .endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. [geo_bounding_box] type does " +
-                "not support multivalues when [wrap_dateline] parameter is set to [true]"));
-        }
-    }
-
-    public void testMulivalueMixedDatelineCrossing() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_bounding_box");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
-        ensureGreen();
-
-        try {
-            // Not crossing
-            client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "BBox 1")
-                .startArray("location")
-                .startObject()
-                .field("top_left", new GeoPoint(40.0, -74.0059731))
-                .field("bottom_right", new GeoPoint(39.0, -73.0059731))
-                .endObject()
-                .startObject()
-                .field("top_left", new GeoPoint(-40.0, -74.0))
-                .field("bottom_right", new GeoPoint(-41.0, -73.0))
-                .endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-
-            // XDL
-            client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("name", "BBox 2 - xdl")
-                .startObject("location").field("top_left", new GeoPoint(40.0, 179.0))
-                .field("bottom_right", new GeoPoint(39.0, -179.0)).endObject()
-                .endObject()).execute().actionGet();
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), containsString("failed to index [location] field. Box crosses "
-                + "dateline but [wrap_dateline] parameter is set to [false]"));
-        }
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 
     public void testMulivalue() throws Exception {

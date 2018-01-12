@@ -126,6 +126,16 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 return Math.min(commits.size() - 1, i + 1);
             }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
+            // If a 6.x node with a 5.x index is promoted to be a primary, it will flush a new index commit to
+            // make sure translog operations without seqno will never be replayed (see IndexShard#updateShardState).
+            // However the global checkpoint is still UNASSIGNED and the max_seqno of both commits are NO_OPS_PERFORMED.
+            // If this policy considers the first commit as a safe commit, we will send the first commit without replaying
+            // translog between these commits to the replica in a peer-recovery. This causes the replica missing those operations.
+            // To prevent this, we should not keep more than one commit whose max_seqno is NO_OPS_PERFORMED.
+            // Once we can retain a safe commit, a NO_OPS_PERFORMED commit will be deleted just as other commits.
+            if (maxSeqNoFromCommit == SequenceNumbers.NO_OPS_PERFORMED) {
+                return i;
+            }
             if (maxSeqNoFromCommit <= globalCheckpoint) {
                 return i;
             }

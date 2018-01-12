@@ -42,6 +42,7 @@ import static org.elasticsearch.index.engine.EngineConfig.OpenMode.OPEN_INDEX_CR
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -147,6 +148,54 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         verify(freshCommit, times(0)).delete();
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
+    }
+
+    public void testKeepSingleNoOpsCommits() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(randomLong());
+        final UUID translogUUID = UUID.randomUUID();
+        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
+
+        final List<IndexCommit> commitList = new ArrayList<>();
+        final int numOfNoOpsCommits = between(1, 10);
+        long lastNoopTranslogGen = 0;
+        for (int i = 0; i < numOfNoOpsCommits; i++) {
+            lastNoopTranslogGen += between(1, 20);
+            commitList.add(mockIndexCommit(SequenceNumbers.NO_OPS_PERFORMED, translogUUID, lastNoopTranslogGen));
+        }
+        // Keep only one no_ops commit.
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastNoopTranslogGen));
+        for (int i = 0; i < numOfNoOpsCommits - 1; i++) {
+            verify(commitList.get(i), times(1)).delete();
+        }
+        verify(commitList.get(commitList.size() - 1), never()).delete();
+        // Add a some good commits.
+        final int numOfGoodCommits = between(1, 5);
+        long maxSeqNo = 0;
+        long lastTranslogGen = lastNoopTranslogGen;
+        for (int i = 0; i < numOfGoodCommits; i++) {
+            maxSeqNo += between(1, 1000);
+            lastTranslogGen += between(1, 20);
+            commitList.add(mockIndexCommit(maxSeqNo, translogUUID, lastTranslogGen));
+        }
+        // If the global checkpoint is still unassigned, we should still keep one NO_OPS_PERFORMED commit.
+        globalCheckpoint.set(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+        for (int i = 0; i < numOfNoOpsCommits - 1; i++) {
+            verify(commitList.get(i), times(2)).delete();
+        }
+        verify(commitList.get(numOfNoOpsCommits - 1), never()).delete();
+        // Delete no-ops commit if global checkpoint advanced enough.
+        final long lower = Long.parseLong(commitList.get(numOfNoOpsCommits).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        globalCheckpoint.set(randomLongBetween(lower, Long.MAX_VALUE));
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), greaterThan(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+        verify(commitList.get(numOfNoOpsCommits - 1), times(1)).delete();
     }
 
     public void testDeleteInvalidCommits() throws Exception {

@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 
-public final class BytesWriteOperation implements WriteOperation {
+public class BytesWriteOperation implements WriteOperation {
 
     private final NioSocketChannel channel;
     private final BiConsumer<Void, Throwable> listener;

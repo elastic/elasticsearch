@@ -1,0 +1,28 @@
+[role="xpack"]
+[[configuring-tls]]
+=== Encrypting Communications in {es}
+
+{security} enables you to encrypt traffic to, from, and within your {es} cluster.
+Connections are secured using Transport Layer Security (TLS/SSL).
+
+WARNING: Clusters that do not have encryption enabled send all data in plain text
+including passwords and will not be able to install a license that enables {security}.
+
+To enable encryption, you need to perform the following steps on each node in
+the cluster:
+
+. <<installing-xpack-es,Install {xpack} into {es}>>.
+
+. <<node-certificates, Generate a private key and X.509 certificate>>.
+
+. <<enable-ssl, Configure each node>> to:
+.. Identify itself using its signed certificate.
+.. Required: Enable SSL on the transport layer.
+.. Recommended: Enable SSL on the HTTP layer.
+. Restart {es}.
+
+For more information about encrypting communications across the Elastic Stack,
+see {xpack-ref}/encrypting-communications.html[Encrypting Communications].
+
+include::node-certificates.asciidoc[]
+include::node-config.asciidoc[]

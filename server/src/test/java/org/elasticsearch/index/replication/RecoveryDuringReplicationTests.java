@@ -31,7 +31,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -226,7 +228,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
-            boolean expectSeqNoRecovery = true;
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -239,7 +240,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
-                    expectSeqNoRecovery = false;
                 }
             }
 
@@ -252,9 +252,30 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 equalTo(totalDocs - 1L));
 
             // index some more
-            totalDocs += shards.indexDocs(randomIntBetween(0, 5));
+            int moreDocs = shards.indexDocs(randomIntBetween(0, 5));
+            totalDocs += moreDocs;
+
+            // As a replica keeps a safe commit, the file-based recovery only happens if the required translog
+            // for the sequence based recovery are not fully retained and extra documents were added to the primary.
+            boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
+            int uncommittedOpsOnPrimary = 0;
+            if (expectSeqNoRecovery == false) {
+                IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
+                builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                );
+                newPrimary.indexSettings().updateIndexMetaData(builder.build());
+                newPrimary.onSettingsChanged();
+                shards.syncGlobalCheckpoint();
+                newPrimary.flush(new FlushRequest());
+                uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
+                totalDocs += uncommittedOpsOnPrimary;
+            }
 
             if (randomBoolean()) {
+                uncommittedOpsOnPrimary = 0;
+                shards.syncGlobalCheckpoint();
                 newPrimary.flush(new FlushRequest());
             }
 
@@ -269,7 +290,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs));
+                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));
             }
 
             // roll back the extra ops in the replica

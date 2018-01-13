@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -2109,7 +2108,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.openIndexAndTranslog();
+        shard.openIndexAndRecoveryFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2137,8 +2136,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
                     // Shard is still inactive since we haven't started recovering yet
                     assertFalse(replica.isActive());
 
@@ -2186,8 +2185,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
                     assertListenerCalled.accept(replica);
                 }
 

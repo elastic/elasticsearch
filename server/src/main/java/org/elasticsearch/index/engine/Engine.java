@@ -1513,6 +1513,11 @@ public abstract class Engine implements Closeable {
     public abstract Engine recoverFromTranslog() throws IOException;
 
     /**
+     * Do not replay translog operations, but make the engine be ready.
+     */
+    public abstract void skipTranslogRecovery();
+
+    /**
      * Returns <code>true</code> iff this engine is currently recovering from translog.
      */
     public boolean isRecovering() {

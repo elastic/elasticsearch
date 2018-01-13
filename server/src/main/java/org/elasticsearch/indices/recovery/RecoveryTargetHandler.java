@@ -32,10 +32,10 @@ public interface RecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
-     *
-     * @param totalTranslogOps total translog operations expected to be sent
+     *  @param createNewTranslog whether or not to delete the local translog on the target
+     * @param totalTranslogOps    total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and

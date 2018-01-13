@@ -401,6 +401,15 @@ public class InternalEngine extends Engine {
         return this;
     }
 
+    @Override
+    public void skipTranslogRecovery() {
+        if (openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            throw new IllegalStateException("Can't skip translog recovery with open mode: " + openMode);
+        }
+        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+        pendingTranslogRecovery.set(false); // we are good - now we can commit
+    }
+
     private IndexCommit getStartingCommitPoint() throws IOException {
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();

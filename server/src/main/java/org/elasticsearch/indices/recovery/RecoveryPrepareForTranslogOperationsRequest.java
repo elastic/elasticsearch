@@ -50,7 +50,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             createNewTranslog = in.readBoolean();
         } else {
             createNewTranslog = true;
@@ -82,7 +82,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_2_0)) {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {

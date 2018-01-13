@@ -32,6 +32,7 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
@@ -282,8 +283,9 @@ class BuildPlugin implements Plugin<Project> {
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { ModuleDependency dep ->
-            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
+        Closure disableTransitiveDeps = { Dependency dep ->
+            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency)
+                    && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -433,7 +435,9 @@ class BuildPlugin implements Plugin<Project> {
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    options.compilerArgs << '-profile' << 'compact3'
+                    if (project.compactProfile != 'full') {
+                        options.compilerArgs << '-profile' << project.compactProfile
+                    }
                 }
                 /*
                  * -path because gradle will send in paths that don't always exist.

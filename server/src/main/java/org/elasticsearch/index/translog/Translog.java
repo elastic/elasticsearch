@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1718,5 +1720,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     List<TranslogReader> getReaders() {
         return readers;
+    }
+
+    public static String createEmptyTranslog(final Path location, final long initialGlobalCheckpoint, final ShardId shardId)
+        throws IOException {
+        IOUtils.rm(location);
+        Files.createDirectories(location);
+        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, 1, initialGlobalCheckpoint, 1);
+        final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
+        Checkpoint.write(FileChannel::open, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        IOUtils.fsync(checkpointFile, false);
+        final String translogUUID = UUIDs.randomBase64UUID();
+        TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), FileChannel::open,
+            new ByteSizeValue(10), 1, initialGlobalCheckpoint,
+            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }
+        );
+        writer.close();
+        return translogUUID;
     }
 }

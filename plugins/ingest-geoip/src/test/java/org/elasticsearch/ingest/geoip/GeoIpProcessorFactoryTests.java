@@ -209,11 +209,15 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Set<GeoIpProcessor.Property> properties = EnumSet.noneOf(GeoIpProcessor.Property.class);
         List<String> fieldNames = new ArrayList<>();
+
+        int counter = 0;
         int numFields = scaledRandomIntBetween(1, GeoIpProcessor.Property.values().length);
-        for (int i = 0; i < numFields; i++) {
-            GeoIpProcessor.Property property = GeoIpProcessor.Property.values()[i];
+        for (GeoIpProcessor.Property property : GeoIpProcessor.Property.ALL_CITY_PROPERTIES) {
             properties.add(property);
             fieldNames.add(property.name().toLowerCase(Locale.ROOT));
+            if (++counter >= numFields) {
+                break;
+            }
         }
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

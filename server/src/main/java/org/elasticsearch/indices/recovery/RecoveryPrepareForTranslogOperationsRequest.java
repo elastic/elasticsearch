@@ -33,13 +33,13 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
-    private final boolean deleteLocalTranslog;
+    private final boolean createNewTranslog;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean deleteLocalTranslog) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean createNewTranslog) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.deleteLocalTranslog = deleteLocalTranslog;
+        this.createNewTranslog = createNewTranslog;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -51,9 +51,9 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            deleteLocalTranslog = in.readBoolean();
+            createNewTranslog = in.readBoolean();
         } else {
-            deleteLocalTranslog = true;
+            createNewTranslog = true;
         }
     }
 
@@ -70,10 +70,10 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     }
 
     /**
-     * Whether or not the recover target should delete its local translog
+     * Whether or not the recover target should create a new local translog
      */
-    boolean deleteLocalTranslog() {
-        return deleteLocalTranslog;
+    boolean createNewTranslog() {
+        return createNewTranslog;
     }
 
     @Override
@@ -86,7 +86,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(deleteLocalTranslog);
+            out.writeBoolean(createNewTranslog);
         }
     }
 }

@@ -31,7 +31,7 @@ The format for this file is described in detail in this example:
 
 ["source","properties",subs="attributes"]
 --------------------------------------------------
-include-tagged::{plugin-properties-files}/plugin-descriptor.properties[plugin-descriptor.properties]
+include::{plugin-properties-files}/plugin-descriptor.properties[]
 --------------------------------------------------
 
 Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
@@ -135,7 +135,7 @@ The format for this file is described in detail in this example:
 
 ["source","properties",subs="attributes"]
 --------------------------------------------------
-include-tagged::{plugin-properties-files}/meta-plugin-descriptor.properties[meta-plugin-descriptor.properties]
+include::{plugin-properties-files}/meta-plugin-descriptor.properties[]
 --------------------------------------------------
 
 A meta plugin can be installed/removed like a normal plugin with the `bin/elasticsearch-plugin` command.

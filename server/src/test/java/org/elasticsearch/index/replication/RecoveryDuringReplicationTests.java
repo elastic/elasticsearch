@@ -215,6 +215,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28209")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();

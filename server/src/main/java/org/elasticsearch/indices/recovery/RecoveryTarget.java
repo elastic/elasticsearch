@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -362,14 +364,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        if (createNewTranslog) {
-            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
-        } else {
-            indexShard().openIndexAndSkipTranslogRecovery();
-        }
+        indexShard().openEngineAndSkipTranslogRecovery();
     }
 
     @Override
@@ -442,6 +439,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final Store store = store();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
+                EngineDiskUtils.verifyHasHistoryUUID(store.directory());
+            }
+            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

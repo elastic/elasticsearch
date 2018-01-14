@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -32,8 +30,8 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 
@@ -83,13 +81,17 @@ public final class EngineDiskUtils {
         }
     }
 
-    private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
-        List<IndexCommit> commits = DirectoryReader.listCommits(writer.getDirectory());
-        if (commits.size() != 1) {
-            throw new UnsupportedOperationException("can only update commit data if there's a single commit, found [" +
-                commits.size() + "]");
-        }
 
+    public static void verifyHasHistoryUUID(final Directory dir) throws IOException {
+        try (IndexWriter writer = newIndexWriter(false, dir)) {
+            final Map<String, String> userData = getUserData(writer);
+            if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
+                updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
+            }
+        }
+    }
+
+    private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
@@ -102,14 +104,14 @@ public final class EngineDiskUtils {
         return userData;
     }
 
-    private static IndexWriter newIndexWriter(final boolean existing, final Directory dir) throws IOException {
+    private static IndexWriter newIndexWriter(final boolean create, final Directory dir) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(null)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(existing ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
+            .setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(dir, iwc);
     }
 }

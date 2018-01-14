@@ -43,15 +43,13 @@ import java.util.function.LongSupplier;
  */
 public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private IndexCommit lastCommit; // the most recent commit point
 
-    CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
+    CombinedDeletionPolicy(TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier) {
-        this.openMode = openMode;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new ObjectIntHashMap<>();
@@ -59,21 +57,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        switch (openMode) {
-            case CREATE_INDEX_AND_TRANSLOG:
-                break;
-            case OPEN_INDEX_CREATE_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, a new fresh index commit will be created immediately.
-                // We therefore can simply skip processing here as `onCommit` will be called right after with a new commit.
-                break;
-            case OPEN_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                onCommit(commits);
-                break;
-            default:
-                throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
-        }
+        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        onCommit(commits);
     }
 
     @Override

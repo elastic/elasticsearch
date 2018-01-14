@@ -133,23 +133,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
      *
      * @param config                   the configuration of this translog
-     * @param expectedTranslogUUID     the translog uuid to open, null for a new translog
+     * @param translogUUID     the translog uuid to open, null for a new translog
      * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
      *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
      */
     public Translog(
-        final TranslogConfig config, final String expectedTranslogUUID, TranslogDeletionPolicy deletionPolicy,
+        final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.deletionPolicy = deletionPolicy;
-        if (expectedTranslogUUID == null) {
-            translogUUID = UUIDs.randomBase64UUID();
-        } else {
-            translogUUID = expectedTranslogUUID;
-        }
+        this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
@@ -158,53 +154,38 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Files.createDirectories(this.location);
 
         try {
-            if (expectedTranslogUUID != null) {
-                final Checkpoint checkpoint = readCheckpoint(location);
-                final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
-                final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
-                // this is special handling for error condition when we create a new writer but we fail to bake
-                // the newly written file (generation+1) into the checkpoint. This is still a valid state
-                // we just need to cleanup before we continue
-                // we hit this before and then blindly deleted the new generation even though we managed to bake it in and then hit this:
-                // https://discuss.elastic.co/t/cannot-recover-index-because-of-missing-tanslog-files/38336 as an example
-                //
-                // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that file exists
-                // if not we don't even try to clean it up and wait until we fail creating it
-                assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogWriter.getHeaderLength(expectedTranslogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
-                if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
-                        && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
-                    logger.warn("deleted previously created, but not yet committed, next generation [{}]. This can happen due to a tragic exception when creating a new generation", nextTranslogFile.getFileName());
+            final Checkpoint checkpoint = readCheckpoint(location);
+            final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
+            final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
+            // this is special handling for error condition when we create a new writer but we fail to bake
+            // the newly written file (generation+1) into the checkpoint. This is still a valid state
+            // we just need to cleanup before we continue
+            // we hit this before and then blindly deleted the new generation even though we managed to bake it in and then hit this:
+            // https://discuss.elastic.co/t/cannot-recover-index-because-of-missing-tanslog-files/38336 as an example
+            //
+            // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that file exists
+            // if not we don't even try to clean it up and wait until we fail creating it
+            assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogWriter.getHeaderLength(translogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
+            if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
+                && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
+                logger.warn("deleted previously created, but not yet committed, next generation [{}]. This can happen due to a tragic exception when creating a new generation", nextTranslogFile.getFileName());
+            }
+            this.readers.addAll(recoverFromFiles(checkpoint));
+            if (readers.isEmpty()) {
+                throw new IllegalStateException("at least one reader must be recovered");
+            }
+            boolean success = false;
+            current = null;
+            try {
+                current = createWriter(checkpoint.generation + 1, getMinFileGeneration(), checkpoint.globalCheckpoint);
+                success = true;
+            } finally {
+                // we have to close all the recovered ones otherwise we leak file handles here
+                // for instance if we have a lot of tlog and we can't create the writer we keep on holding
+                // on to all the uncommitted tlog files if we don't close
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(readers);
                 }
-                this.readers.addAll(recoverFromFiles(checkpoint));
-                if (readers.isEmpty()) {
-                    throw new IllegalStateException("at least one reader must be recovered");
-                }
-                boolean success = false;
-                current = null;
-                try {
-                    current = createWriter(checkpoint.generation + 1, getMinFileGeneration(), checkpoint.globalCheckpoint);
-                    success = true;
-                } finally {
-                    // we have to close all the recovered ones otherwise we leak file handles here
-                    // for instance if we have a lot of tlog and we can't create the writer we keep on holding
-                    // on to all the uncommitted tlog files if we don't close
-                    if (success == false) {
-                        IOUtils.closeWhileHandlingException(readers);
-                    }
-                }
-            } else {
-                IOUtils.rm(location);
-                // start from whatever generation lucene points to
-                final long generation = deletionPolicy.getMinTranslogGenerationForRecovery();
-                logger.debug("wipe translog location - creating new translog, starting generation [{}]", generation);
-                Files.createDirectories(location);
-                final long initialGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
-                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
-                final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
-                Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-                IOUtils.fsync(checkpointFile, false);
-                current = createWriter(generation, generation, initialGlobalCheckpoint);
-                readers.clear();
             }
         } catch (Exception e) {
             // close the opened translog files if we fail to create a new translog...

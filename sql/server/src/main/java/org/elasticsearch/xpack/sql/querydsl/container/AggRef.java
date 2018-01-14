@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 
-public class AggRef implements ColumnReference {
+public class AggRef implements FieldExtraction {
     private final String path;
     private final int depth;
 

@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 
 import static org.mockito.Mockito.mock;
 
 public class AttributeInputTests extends ESTestCase {
     public void testResolveAttributes() {
-        ColumnReference column = mock(ColumnReference.class);
+        FieldExtraction column = mock(FieldExtraction.class);
         Expression expression = mock(Expression.class);
         Attribute attribute = mock(Attribute.class);
 

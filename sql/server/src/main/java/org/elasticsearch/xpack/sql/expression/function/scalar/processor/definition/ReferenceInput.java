@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 
-public class ReferenceInput extends NonExecutableInput<ColumnReference> {
-    public ReferenceInput(Expression expression, ColumnReference context) {
+public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
+    public ReferenceInput(Expression expression, FieldExtraction context) {
         super(expression, context);
     }
 

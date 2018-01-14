@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -55,7 +56,7 @@ public class QueryContainer {
 
     // final output seen by the client (hence the list or ordering)
     // gets converted by the Scroller into Extractors for hits or actual results in case of aggregations
-    private final List<ColumnReference> columns;
+    private final List<FieldExtraction> columns;
 
     // aliases (maps an alias to its actual resolved attribute)
     private final Map<Attribute, Attribute> aliases;
@@ -78,7 +79,7 @@ public class QueryContainer {
         this(null, null, null, null, null, null, null, -1);
     }
 
-    public QueryContainer(Query query, Aggs aggs, List<ColumnReference> refs, Map<Attribute, Attribute> aliases,
+    public QueryContainer(Query query, Aggs aggs, List<FieldExtraction> refs, Map<Attribute, Attribute> aliases,
             Map<String, GroupingAgg> pseudoFunctions,
             Map<Attribute, ProcessorDefinition> scalarFunctions,
             Set<Sort> sort, int limit) {
@@ -90,8 +91,8 @@ public class QueryContainer {
         this.columns = refs == null || refs.isEmpty() ? emptyList() : refs;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
-        aggsOnly = columns.stream().allMatch(ColumnReference::supportedByAggsOnlyQuery);
-        aggDepth = columns.stream().mapToInt(ColumnReference::depth).max().orElse(0);
+        aggsOnly = columns.stream().allMatch(FieldExtraction::supportedByAggsOnlyQuery);
+        aggDepth = columns.stream().mapToInt(FieldExtraction::depth).max().orElse(0);
     }
 
     public Query query() {
@@ -102,7 +103,7 @@ public class QueryContainer {
         return aggs;
     }
 
-    public List<ColumnReference> columns() {
+    public List<FieldExtraction> columns() {
         return columns;
     }
 
@@ -142,7 +143,7 @@ public class QueryContainer {
         return new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
-    public QueryContainer with(List<ColumnReference> r) {
+    public QueryContainer with(List<FieldExtraction> r) {
         return new QueryContainer(query, aggs, r, aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
@@ -179,13 +180,13 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private ColumnReference searchHitFieldRef(FieldAttribute fieldAttr) {
+    private FieldExtraction searchHitFieldRef(FieldAttribute fieldAttr) {
         return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.dataType().hasDocValues());
     }
 
-    private Tuple<QueryContainer, ColumnReference> nestedFieldRef(FieldAttribute attr) {
+    private Tuple<QueryContainer, FieldExtraction> nestedFieldRef(FieldAttribute attr) {
         // Find the nested query for this field. If there isn't one then create it
-        List<ColumnReference> nestedRefs = new ArrayList<>();
+        List<FieldExtraction> nestedRefs = new ArrayList<>();
 
         Query q = rewriteToContainNestedField(query, attr.location(),
             attr.nestedParent().path(), aliasName(attr), attr.dataType().hasDocValues());
@@ -221,7 +222,7 @@ public class QueryContainer {
     }
 
     // replace function's input with references
-    private Tuple<QueryContainer, ColumnReference> computingRef(ScalarFunctionAttribute sfa) {
+    private Tuple<QueryContainer, FieldExtraction> computingRef(ScalarFunctionAttribute sfa) {
         Attribute name = aliases.getOrDefault(sfa, sfa);
         ProcessorDefinition proc = scalarFunctions.get(name);
 
@@ -243,9 +244,9 @@ public class QueryContainer {
             }
 
             @Override
-            public ColumnReference resolve(Attribute attribute) {
+            public FieldExtraction resolve(Attribute attribute) {
                 Attribute attr = aliases.getOrDefault(attribute, attribute);
-                Tuple<QueryContainer, ColumnReference> ref = container.toReference(attr);
+                Tuple<QueryContainer, FieldExtraction> ref = container.toReference(attr);
                 container = ref.v1();
                 return ref.v2();
             }
@@ -262,11 +263,11 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(Attribute attr) {
-        Tuple<QueryContainer, ColumnReference> tuple = toReference(attr);
+        Tuple<QueryContainer, FieldExtraction> tuple = toReference(attr);
         return tuple.v1().addColumn(tuple.v2());
     }
 
-    private Tuple<QueryContainer, ColumnReference> toReference(Attribute attr) {
+    private Tuple<QueryContainer, FieldExtraction> toReference(Attribute attr) {
         if (attr instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) attr;
             if (fa.isNested()) {
@@ -288,7 +289,7 @@ public class QueryContainer {
         throw new SqlIllegalArgumentException("Unknown output attribute %s", attr);
     }
 
-    public QueryContainer addColumn(ColumnReference ref) {
+    public QueryContainer addColumn(FieldExtraction ref) {
         return with(combine(columns, ref));
     }
 
@@ -304,7 +305,7 @@ public class QueryContainer {
     }
 
     public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId) {
-        ColumnReference ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
+        FieldExtraction ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
         Map<String, GroupingAgg> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
         pseudoFunctions.put(functionId, parentGroup);
         return new QueryContainer(query, aggs, combine(columns, ref), aliases, pseudoFunctions, scalarFunctions, sort, limit);

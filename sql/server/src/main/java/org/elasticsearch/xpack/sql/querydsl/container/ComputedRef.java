@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 
-public class ComputedRef implements ColumnReference {
+public class ComputedRef implements FieldExtraction {
 
     private final ProcessorDefinition processor;
 

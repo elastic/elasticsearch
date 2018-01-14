@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-public abstract class FieldReference implements ColumnReference {
+import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
+
+public abstract class FieldReference implements FieldExtraction {
     /**
      * Field name.
      *

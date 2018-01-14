@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.container.AggRef;
-import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
@@ -115,9 +114,9 @@ public class Scroller {
             // this method assumes the nested aggregation are all part of the same tree (the SQL group-by)
             int maxDepth = -1;
 
-            List<ColumnReference> cols = query.columns();
+            List<FieldExtraction> cols = query.columns();
             for (int index = 0; index < cols.size(); index++) {
-                ColumnReference col = cols.get(index);
+                FieldExtraction col = cols.get(index);
                 Supplier<Object> supplier = null;
 
                 if (col instanceof ComputedRef) {
@@ -157,7 +156,7 @@ public class Scroller {
                     listener::onFailure));
         }
 
-        private Object[] extractAggValue(ColumnReference col, SearchResponse response) {
+        private Object[] extractAggValue(FieldExtraction col, SearchResponse response) {
             if (col == TotalCountRef.INSTANCE) {
                 return new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
             }
@@ -254,17 +253,17 @@ public class Scroller {
 
         private List<HitExtractor> getExtractors() {
             // create response extractors for the first time
-            List<ColumnReference> refs = query.columns();
+            List<FieldExtraction> refs = query.columns();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
 
-            for (ColumnReference ref : refs) {
+            for (FieldExtraction ref : refs) {
                 exts.add(createExtractor(ref));
             }
             return exts;
         }
 
-        private HitExtractor createExtractor(ColumnReference ref) {
+        private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
                 return new FieldHitExtractor(f.name(), f.useDocValue(), f.hitName());

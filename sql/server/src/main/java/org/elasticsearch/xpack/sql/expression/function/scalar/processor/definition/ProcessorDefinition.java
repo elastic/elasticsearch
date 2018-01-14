@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-import org.elasticsearch.xpack.sql.querydsl.container.ColumnReference;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
@@ -33,13 +32,13 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> impl
 
     /**
      * Resolve {@link Attribute}s which are unprocessable into
-     * {@link ColumnReference}s which are processable.
+     * {@link FieldExtraction}s which are processable.
      *
      * @return {@code this} if the resolution doesn't change the
      *      definition, a new {@link ProcessorDefinition} otherwise
      */
     public abstract ProcessorDefinition resolveAttributes(AttributeResolver resolver);
     public interface AttributeResolver {
-        ColumnReference resolve(Attribute attribute);
+        FieldExtraction resolve(Attribute attribute);
     }
 }

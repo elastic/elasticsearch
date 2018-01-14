@@ -215,7 +215,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28209")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
@@ -268,7 +267,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 );
                 newPrimary.indexSettings().updateIndexMetaData(builder.build());
                 newPrimary.onSettingsChanged();
-                shards.syncGlobalCheckpoint();
+                // Make sure the global checkpoint on the new primary is persisted properly,
+                // otherwise the deletion policy won't trim translog
+                assertBusy(() -> {
+                    shards.syncGlobalCheckpoint();
+                    assertThat(newPrimary.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
+                });
                 newPrimary.flush(new FlushRequest());
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;

@@ -28,19 +28,33 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
+class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final int totalTranslogOps;
+    private final boolean createNewTranslog;
 
-    public RecoveryPrepareForTranslogOperationsRequest() {
-    }
-
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean createNewTranslog) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
+        this.createNewTranslog = createNewTranslog;
+    }
+
+    RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        recoveryId = in.readLong();
+        shardId = ShardId.readShardId(in);
+        totalTranslogOps = in.readVInt();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+            in.readLong(); // maxUnsafeAutoIdTimestamp
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            createNewTranslog = in.readBoolean();
+        } else {
+            createNewTranslog = true;
+        }
     }
 
     public long recoveryId() {
@@ -55,15 +69,11 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         return totalTranslogOps;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readLong(); // maxUnsafeAutoIdTimestamp
-        }
+    /**
+     * Whether or not the recover target should create a new local translog
+     */
+    boolean createNewTranslog() {
+        return createNewTranslog;
     }
 
     @Override
@@ -74,6 +84,9 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         out.writeVInt(totalTranslogOps);
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeBoolean(createNewTranslog);
         }
     }
 }

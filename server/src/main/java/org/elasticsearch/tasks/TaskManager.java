@@ -32,25 +32,36 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager extends AbstractComponent implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
+
+    /** Rest headers that are copied to the task */
+    private final List<String> taskHeaders;
+    private final ThreadPool threadPool;
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -65,8 +76,13 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
-    public TaskManager(Settings settings) {
+    private final ByteSizeValue maxHeaderSize;
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         super(settings);
+        this.threadPool = threadPool;
+        this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -80,7 +96,21 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TaskAwareRequest request) {
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
+        Map<String, String> headers = new HashMap<>();
+        long headerSize = 0;
+        long maxSize = maxHeaderSize.getBytes();
+        ThreadContext threadContext = threadPool.getThreadContext();
+        for (String key : taskHeaders) {
+            String httpHeader = threadContext.getHeader(key);
+            if (httpHeader != null) {
+                headerSize += key.length() * 2 + httpHeader.length() * 2;
+                if (headerSize > maxSize) {
+                    throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
+                }
+                headers.put(key, httpHeader);
+            }
+        }
+        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
         if (task == null) {
             return null;
         }

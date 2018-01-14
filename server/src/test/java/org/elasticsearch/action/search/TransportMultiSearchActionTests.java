@@ -35,8 +35,11 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,6 +57,22 @@ import static org.mockito.Mockito.when;
 
 public class TransportMultiSearchActionTests extends ESTestCase {
 
+    protected ThreadPool threadPool;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        threadPool.shutdown();
+        super.tearDown();
+    }
+
     public void testBatchExecute() throws Exception {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder()
@@ -63,8 +82,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
         TaskManager taskManager = mock(TaskManager.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null) {
+        TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
+            Collections.emptySet()) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;
@@ -102,8 +123,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 });
             }
         };
-        
-        TransportMultiSearchAction action = 
+
+        TransportMultiSearchAction action =
                 new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
                 System::nanoTime);
 

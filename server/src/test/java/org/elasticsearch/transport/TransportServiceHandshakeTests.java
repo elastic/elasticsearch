@@ -73,7 +73,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             boundAddress.publishAddress(),
             emptyMap(),
             emptySet(),
-            version), null);
+            version), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         transportServices.add(transportService);

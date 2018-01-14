@@ -77,7 +77,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Max length of the source document to include into toString()
      *
-     * @see ReplicationRequest#createTask(long, java.lang.String, java.lang.String, org.elasticsearch.tasks.TaskId)
+     * @see ReplicationRequest#createTask
      */
     static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 

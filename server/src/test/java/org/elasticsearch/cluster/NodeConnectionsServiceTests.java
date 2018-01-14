@@ -155,7 +155,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         this.threadPool = new TestThreadPool(getClass().getName());
         this.transport = new MockTransport();
         transportService = new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null);
+            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null,
+            Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
     }

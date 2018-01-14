@@ -186,6 +186,21 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         return builder;
     }
 
+    /**
+     * Presents a flat list of tasks
+     */
+    public XContentBuilder toXContentGroupedByNone(XContentBuilder builder, Params params) throws IOException {
+        toXContentCommon(builder, params);
+        builder.startArray("tasks");
+        for (TaskInfo taskInfo : getTasks()) {
+            builder.startObject();
+            taskInfo.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
+        return builder;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

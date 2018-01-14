@@ -4324,7 +4324,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testAcquireIndexCommit() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();
-        final AtomicLong globalCheckpoint = new AtomicLong();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
             int numDocs = between(1, 20);
             for (int i = 0; i < numDocs; i++) {

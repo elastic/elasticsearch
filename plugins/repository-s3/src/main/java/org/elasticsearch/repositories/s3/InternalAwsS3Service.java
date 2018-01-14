@@ -132,7 +132,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         }
         if (credentials == null) {
             logger.debug("Using instance profile credentials");
-            return new PrivilegedInstanceProfileCredentialsProvider();
+            return new PrivilegedEC2ContainerCredentialsProviderWrapper();
         } else {
             logger.debug("Using basic key/secret credentials");
             return new StaticCredentialsProvider(credentials);
@@ -157,10 +157,10 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         IdleConnectionReaper.shutdown();
     }
 
-    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
+    static class PrivilegedEC2ContainerCredentialsProviderWrapper implements AWSCredentialsProvider {
         private final EC2ContainerCredentialsProviderWrapper credentials;
 
-        private PrivilegedInstanceProfileCredentialsProvider() {
+        private PrivilegedEC2ContainerCredentialsProviderWrapper() {
             this.credentials = new EC2ContainerCredentialsProviderWrapper();
         }
 

@@ -311,7 +311,7 @@ to floating point types.
 | int   | explicit | explicit | explicit |          | implicit | implicit | implicit
 | long  | explicit | explicit | explicit | explicit |          | implicit | implicit
 | float | explicit | explicit | explicit | explicit | explicit |          | implicit
-| float | explicit | explicit | explicit | explicit | explicit | explicit |
+| double | explicit | explicit | explicit | explicit | explicit | explicit |
 |====
 
 

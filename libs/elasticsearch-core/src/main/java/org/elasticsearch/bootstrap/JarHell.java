@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
@@ -120,7 +119,8 @@ public class JarHell {
             //   }
             // Instead we just throw an exception, and keep it clean.
             if (element.isEmpty()) {
-                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous version?) classpath='" + classPath + "'");
+                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous" +
+                    " version?) classpath='" + classPath + "'");
             }
             // we should be able to just Paths.get() each element, but unfortunately this is not the
             // whole story on how classpath parsing works: if you want to know, start at sun.misc.Launcher,
@@ -215,20 +215,12 @@ public class JarHell {
     }
 
     /** inspect manifest for sure incompatibilities */
-    static void checkManifest(Manifest manifest, Path jar) {
+    private static void checkManifest(Manifest manifest, Path jar) {
         // give a nice error if jar requires a newer java version
         String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
         if (targetVersion != null) {
             checkVersionFormat(targetVersion);
             checkJavaVersion(jar.toString(), targetVersion);
-        }
-
-        // give a nice error if jar is compiled against different es version
-        String systemESVersion = Version.CURRENT.toString();
-        String targetESVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-        if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
-            throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
-                    + ", your system: " + systemESVersion);
         }
     }
 
@@ -237,7 +229,8 @@ public class JarHell {
             throw new IllegalStateException(
                     String.format(
                             Locale.ROOT,
-                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was %s",
+                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have " +
+                                "leading zeros but was %s",
                             targetVersion
                     )
             );
@@ -263,7 +256,7 @@ public class JarHell {
         }
     }
 
-    static void checkClass(Map<String,Path> clazzes, String clazz, Path jarpath) {
+    private static void checkClass(Map<String, Path> clazzes, String clazz, Path jarpath) {
         Path previous = clazzes.put(clazz, jarpath);
         if (previous != null) {
             if (previous.equals(jarpath)) {

@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class JavaVersion implements Comparable<JavaVersion> {
+
     private final List<Integer> version;
 
     public List<Integer> getVersion() {

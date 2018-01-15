@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -164,7 +163,8 @@ public class JarHellTests extends ESTestCase {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
+            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated " +
+                "by \".\"'s and may have leading zeros but was bogus"));
         }
     }
 
@@ -176,33 +176,6 @@ public class JarHellTests extends ESTestCase {
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         JarHell.checkJarHell(jars);
-    }
-
-    /** make sure if a plugin is compiled against the same ES version, it works */
-    public void testGoodESVersionInJar() throws Exception {
-        Path dir = createTempDir();
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), Version.CURRENT.toString());
-        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        JarHell.checkJarHell(jars);
-    }
-
-    /** make sure if a plugin is compiled against a different ES version, it fails */
-    public void testBadESVersionInJar() throws Exception {
-        Path dir = createTempDir();
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), "1.0-bogus");
-        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        try {
-            JarHell.checkJarHell(jars);
-            fail("did not get expected exception");
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
-        }
     }
 
     public void testValidVersions() {

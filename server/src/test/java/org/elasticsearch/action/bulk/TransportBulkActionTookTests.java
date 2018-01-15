@@ -49,6 +49,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -92,7 +93,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         CapturingTransport capturingTransport = new CapturingTransport();
         TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null);
+            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);

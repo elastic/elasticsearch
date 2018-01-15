@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tasks;
 
+import java.util.Map;
+
 /**
  * An interface for a request that can be used to register a task manager task
  */
@@ -47,8 +49,8 @@ public interface TaskAwareRequest {
      * A request can override this method and return null to avoid being tracked by the task
      * manager.
      */
-    default Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new Task(id, type, action, getDescription(), parentTaskId);
+    default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new Task(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     /**

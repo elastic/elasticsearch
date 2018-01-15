@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -117,8 +118,8 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override

@@ -101,9 +101,7 @@ public abstract class AggregationBuilder
         if (rewritten == this) {
             return rewritten;
         }
-        if (getMetaData() != null && rewritten.getMetaData() == null) {
-            rewritten.setMetaData(getMetaData());
-        }
+        rewritten.setMetaData(getMetaData());
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         rewritten.subAggregations(rewrittenSubAggs);
         return rewritten;

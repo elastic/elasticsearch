@@ -85,6 +85,13 @@ public interface ActionPlugin {
     }
 
     /**
+     * Returns headers which should be copied from internal requests into tasks.
+     */
+    default Collection<String> getTaskHeaders() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns a function used to wrap each rest request before handling the request.
      *
      * Note: Only one installed plugin may implement a rest wrapper.

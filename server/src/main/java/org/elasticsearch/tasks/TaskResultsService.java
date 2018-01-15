@@ -34,6 +34,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 
 /**
  * Service that can store task results.
@@ -59,6 +61,10 @@ public class TaskResultsService extends AbstractComponent {
     public static final String TASK_TYPE = "task";
 
     public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
+
+    public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
+
+    public static final int TASK_RESULT_MAPPING_VERSION = 2;
 
     private final Client client;
 
@@ -109,7 +115,7 @@ public class TaskResultsService extends AbstractComponent {
             });
         } else {
             IndexMetaData metaData = state.getMetaData().index(TASK_INDEX);
-            if (metaData.getMappings().containsKey(TASK_TYPE) == false) {
+            if (getTaskResultMappingVersion(metaData) < TASK_RESULT_MAPPING_VERSION) {
                 // The index already exists but doesn't have our mapping
                 client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
@@ -131,6 +137,17 @@ public class TaskResultsService extends AbstractComponent {
         }
     }
 
+    private int getTaskResultMappingVersion(IndexMetaData metaData) {
+        MappingMetaData mappingMetaData = metaData.getMappings().get(TASK_TYPE);
+        if (mappingMetaData == null) {
+            return 0;
+        }
+        @SuppressWarnings("unchecked") Map<String, Object> meta = (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
+        if (meta == null || meta.containsKey(TASK_RESULT_MAPPING_VERSION_META_FIELD) == false) {
+            return 1; // The mapping was created before meta field was introduced
+        }
+        return (int) meta.get(TASK_RESULT_MAPPING_VERSION_META_FIELD);
+    }
 
     private void doStoreResult(TaskResult taskResult, ActionListener<Void> listener) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX, TASK_TYPE, taskResult.getTask().getTaskId().toString());

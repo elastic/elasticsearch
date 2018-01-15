@@ -34,7 +34,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -117,7 +117,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+        this.logger = ServerLoggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
@@ -362,10 +362,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        // TODO: take the local checkpoint from store as global checkpoint, once we know it's safe
-        indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        if (createNewTranslog) {
+            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        } else {
+            indexShard().openIndexAndSkipTranslogRecovery();
+        }
     }
 
     @Override

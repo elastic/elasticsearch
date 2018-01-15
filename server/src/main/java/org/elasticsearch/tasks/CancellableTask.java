@@ -21,6 +21,7 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.common.Nullable;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -30,8 +31,8 @@ public abstract class CancellableTask extends Task {
 
     private final AtomicReference<String> reason = new AtomicReference<>();
 
-    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId) {
-        super(id, type, action, description, parentTaskId);
+    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+        super(id, type, action, description, parentTaskId, headers);
     }
 
     /**

@@ -163,7 +163,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
@@ -977,7 +977,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()),
                 Version.CURRENT);
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> clusterService.localNode(),null);
+                x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -1040,7 +1040,7 @@ public class TransportReplicationActionTests extends ESTestCase {
      * half the time.
      */
     private ReplicationTask maybeTask() {
-        return random().nextBoolean() ? new ReplicationTask(0, null, null, null, null) : null;
+        return random().nextBoolean() ? new ReplicationTask(0, null, null, null, null, null) : null;
     }
 
     /**

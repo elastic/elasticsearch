@@ -38,6 +38,8 @@ archivesBaseName = 'elasticsearch'
 
 dependencies {
 
+  compile "org.elasticsearch:elasticsearch-core:${version}"
+
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
 

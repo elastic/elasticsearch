@@ -109,9 +109,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId);
+                return super.createTask(id, type, action, parentTaskId, headers);
             } else {
                 return null;
             }
@@ -156,9 +156,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId);
+                return super.createTask(id, type, action, parentTaskId, headers);
             } else {
                 return null;
             }

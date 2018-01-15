@@ -171,15 +171,15 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
         globalCheckpoint.set(randomLongBetween(0, maxSeqNo - 1));
         indexPolicy.onCommit(Arrays.asList(legacyCommit, freshCommit));
-        verify(legacyCommit, times(0)).delete();
+        verify(legacyCommit, times(1)).delete(); // Do not keep the legacy commit once we have a new commit.
         verify(freshCommit, times(0)).delete();
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(legacyTranslogGen));
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
 
         // Make the fresh commit safe.
         globalCheckpoint.set(randomLongBetween(maxSeqNo, Long.MAX_VALUE));
         indexPolicy.onCommit(Arrays.asList(legacyCommit, freshCommit));
-        verify(legacyCommit, times(1)).delete();
+        verify(legacyCommit, times(2)).delete();
         verify(freshCommit, times(0)).delete();
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));

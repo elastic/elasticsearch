@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
 
 /**
@@ -29,7 +30,7 @@ import java.util.function.BiConsumer;
  * close behavior is required, it should be implemented in this context.
  *
  * The only methods of the context that should ever be called from a non-selector thread are
- * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
+ * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
  */
 public interface ChannelContext {
 
@@ -37,7 +38,7 @@ public interface ChannelContext {
 
     int read() throws IOException;
 
-    void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
+    void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener);
 
     void queueWriteOperation(WriteOperation writeOperation);
 

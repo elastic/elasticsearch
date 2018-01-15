@@ -77,8 +77,7 @@ public class BytesChannelContext implements ChannelContext {
     }
 
     @Override
-    public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
-        ByteBuffer[] buffers = (ByteBuffer[]) message;
+    public void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
         if (isClosing.get()) {
             listener.accept(null, new ClosedChannelException());
             return;

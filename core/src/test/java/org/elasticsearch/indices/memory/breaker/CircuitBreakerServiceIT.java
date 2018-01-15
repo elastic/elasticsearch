@@ -227,6 +227,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * this case, the fielddata breaker borrows space from the request breaker
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.action.search:TRACE")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/28223")
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");

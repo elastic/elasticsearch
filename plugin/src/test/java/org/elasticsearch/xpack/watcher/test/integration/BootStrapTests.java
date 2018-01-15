@@ -148,6 +148,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo(1L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1915")
     public void testLoadExistingWatchesUponStartup() throws Exception {
         ensureWatcherStarted();
         stopWatcher();
@@ -226,6 +227,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertSingleExecutionAndCompleteWatchHistory(numWatches, numRecords);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3437")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")

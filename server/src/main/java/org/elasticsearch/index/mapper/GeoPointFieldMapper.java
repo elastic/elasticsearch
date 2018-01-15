@@ -25,12 +25,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -197,6 +201,22 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+            GeoPoint topLeft = (GeoPoint)lowerTerm;
+            GeoPoint bottomRight = (GeoPoint)upperTerm;
+
+            Query query = LatLonPoint.newBoxQuery(name(), bottomRight.getLat(), topLeft.getLat(),
+                topLeft.getLon(), bottomRight.getLon());
+            if (hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(name(),
+                    bottomRight.getLat(), topLeft.getLat(), topLeft.getLon(), bottomRight.getLon());
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
     }
 

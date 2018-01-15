@@ -63,7 +63,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     public static final ParseField LT_FIELD = new ParseField("lt");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FORMAT_FIELD = new ParseField("format");
-    private static final ParseField RELATION_FIELD = new ParseField("relation");
+    public static final ParseField RELATION_FIELD = new ParseField("relation");
 
     private final String fieldName;
 

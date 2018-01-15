@@ -116,7 +116,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         try {
             return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
         } catch (IOException e) {
-            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
+            return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
     }
 
@@ -136,7 +136,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
-                rethrowUnlessLenient(e);
+                disjuncts.add(rethrowUnlessLenient(e));
             }
         }
         if (disjuncts.size() == 1) {
@@ -157,7 +157,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             return queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, phraseWeights, text, null);
         } catch (IOException e) {
-            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
+            throw new IllegalStateException(e.getMessage());
         } finally {
             queryBuilder.setPhraseSlop(0);
         }
@@ -185,7 +185,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
-                return rethrowUnlessLenient(e);
+                disjuncts.add(rethrowUnlessLenient(e));
             }
         }
         if (disjuncts.size() == 1) {

@@ -46,10 +46,12 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -613,12 +615,14 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         Query query = new SimpleQueryStringBuilder("t*")
             .field(DATE_FIELD_NAME)
+            .field(STRING_FIELD_NAME)
             .lenient(true)
             .toQuery(createShardContext());
-        MatchNoDocsQuery expected = new MatchNoDocsQuery("");
+        List<Query> expectedQueries = new ArrayList<>();
+        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(new PrefixQuery(new Term(STRING_FIELD_NAME, "t")));
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
-        assertThat(query.toString(),
-            containsString("Can only use prefix queries on keyword and text fields - not on [mapped_date] which is of type [date]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

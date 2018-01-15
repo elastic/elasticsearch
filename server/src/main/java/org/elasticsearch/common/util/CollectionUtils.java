@@ -228,7 +228,7 @@ public class CollectionUtils {
     public static void ensureNoSelfReferences(Object value) {
         Iterable<?> it = convert(value);
         if (it != null) {
-            ensureNoSelfReferences(it, Collections.newSetFromMap(new IdentityHashMap<>()));
+            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()));
         }
     }
 
@@ -247,16 +247,15 @@ public class CollectionUtils {
         }
     }
 
-    private static void ensureNoSelfReferences(final Iterable<?> value, final Set<Object> ancestors) {
-
+    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors) {
         if (value != null) {
-            if (ancestors.add(value) == false) {
+            if (ancestors.add(originalReference) == false) {
                 throw new IllegalArgumentException("Iterable object is self-referencing itself");
             }
             for (Object o : value) {
-                ensureNoSelfReferences(convert(o), ancestors);
+                ensureNoSelfReferences(convert(o), o, ancestors);
             }
-            ancestors.remove(value);
+            ancestors.remove(originalReference);
         }
     }
 

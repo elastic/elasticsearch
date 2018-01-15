@@ -25,7 +25,12 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -39,6 +44,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -52,6 +58,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -583,5 +590,39 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testIndexPrefixMapping() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "text")
+            .field("analyzer", "english")
+            .startObject("index_prefix")
+            .field("min_chars", 1)
+            .field("max_chars", 10)
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+        Query q = mapper.mappers().getMapper("field").fieldType().prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
+        assertEquals(new TermQuery(new Term("field._prefix", "goin")), q);
+        q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
+        assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "Some English text that is going to be very useful")
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field._prefix");
+        assertEquals(1, fields.length);
+
     }
 }

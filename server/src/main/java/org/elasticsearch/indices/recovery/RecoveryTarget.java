@@ -442,7 +442,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
                 EngineDiskUtils.verifyHasHistoryUUID(store.directory());
             }
-            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {

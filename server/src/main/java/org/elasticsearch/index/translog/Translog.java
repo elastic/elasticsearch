@@ -1705,14 +1705,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static String createEmptyTranslog(final Path location, final long initialGlobalCheckpoint, final ShardId shardId)
         throws IOException {
+        final ChannelFactory channelFactory = FileChannel::open;
+        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory);
+    }
+
+    static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId, ChannelFactory channelFactory) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, 1, initialGlobalCheckpoint, 1);
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
-        Checkpoint.write(FileChannel::open, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
         final String translogUUID = UUIDs.randomBase64UUID();
-        TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), FileChannel::open,
+        TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
             () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }
         );

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
@@ -23,7 +23,7 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
 
     public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine,
                             HttpRequestTemplate.Parser requestTemplateParser) {
-        super(Loggers.getLogger(ExecutableHttpInput.class, settings));
+        super(ServerLoggers.getLogger(ExecutableHttpInput.class, settings));
         this.templateEngine = templateEngine;
         this.httpClient = httpClient;
         this.requestTemplateParser = requestTemplateParser;

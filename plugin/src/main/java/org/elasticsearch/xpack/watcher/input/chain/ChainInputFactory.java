@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
@@ -23,7 +23,7 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
     private final InputRegistry inputRegistry;
 
     public ChainInputFactory(Settings settings, InputRegistry inputRegistry) {
-        super(Loggers.getLogger(ExecutableChainInput.class, settings));
+        super(ServerLoggers.getLogger(ExecutableChainInput.class, settings));
         this.inputRegistry = inputRegistry;
     }
 

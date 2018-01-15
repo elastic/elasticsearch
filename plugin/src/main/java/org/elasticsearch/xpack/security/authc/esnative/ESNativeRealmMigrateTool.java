@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -357,7 +357,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
      */
     static Logger getTerminalLogger(final Terminal terminal) {
         final Logger logger = ESLoggerFactory.getLogger(ESNativeRealmMigrateTool.class);
-        Loggers.setLevel(logger, Level.ALL);
+        ServerLoggers.setLevel(logger, Level.ALL);
 
         // create appender
         final Appender appender = new AbstractAppender(ESNativeRealmMigrateTool.class.getName(), null,
@@ -384,8 +384,8 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         final Configuration config = ctx.getConfiguration();
         final LoggerConfig loggerConfig = config.getLoggerConfig(ESNativeRealmMigrateTool.class.getName());
         loggerConfig.setParent(null);
-        loggerConfig.getAppenders().forEach((s, a) -> Loggers.removeAppender(logger, a));
-        Loggers.addAppender(logger, appender);
+        loggerConfig.getAppenders().forEach((s, a) -> ServerLoggers.removeAppender(logger, a));
+        ServerLoggers.addAppender(logger, appender);
         return logger;
     }
 }

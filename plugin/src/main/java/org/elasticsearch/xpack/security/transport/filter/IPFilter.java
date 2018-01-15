@@ -10,7 +10,7 @@ import io.netty.handler.ipfilter.IpFilterRuleType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -117,7 +117,7 @@ public class IPFilter {
 
     public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
                     XPackLicenseState licenseState) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+        this.logger = ServerLoggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);

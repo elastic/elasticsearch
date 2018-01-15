@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -25,7 +25,7 @@ public class EmailActionFactory extends ActionFactory {
 
     public EmailActionFactory(Settings settings, EmailService emailService, TextTemplateEngine templateEngine,
                               EmailAttachmentsParser emailAttachmentsParser) {
-        super(Loggers.getLogger(ExecutableEmailAction.class, settings));
+        super(ServerLoggers.getLogger(ExecutableEmailAction.class, settings));
         this.emailService = emailService;
         this.templateEngine = templateEngine;
         this.htmlSanitizer = new HtmlSanitizer(settings);

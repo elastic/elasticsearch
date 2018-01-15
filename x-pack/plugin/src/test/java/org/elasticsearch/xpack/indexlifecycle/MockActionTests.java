@@ -102,6 +102,57 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
         assertEquals(true, listenerCalled.get());
     }
 
+    public void testResetComplete() {
+
+        MockAction action = new MockAction();
+        action.setCompleteOnExecute(true);
+
+        assertFalse(action.wasCompleted());
+        assertEquals(0L, action.getExecutedCount());
+
+        SetOnce<Boolean> listenerCalled = new SetOnce<>();
+
+        action.execute(null, null, null, new LifecycleAction.Listener() {
+
+            @Override
+            public void onSuccess(boolean completed) {
+                listenerCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertTrue(action.wasCompleted());
+        assertEquals(1L, action.getExecutedCount());
+        assertEquals(true, listenerCalled.get());
+
+        action.resetCompleted();
+
+        assertFalse(action.wasCompleted());
+
+        SetOnce<Boolean> listenerCalled2 = new SetOnce<>();
+
+        action.execute(null, null, null, new LifecycleAction.Listener() {
+
+            @Override
+            public void onSuccess(boolean completed) {
+                listenerCalled2.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertTrue(action.wasCompleted());
+        assertEquals(2L, action.getExecutedCount());
+        assertEquals(true, listenerCalled2.get());
+    }
+
     public void testExecuteFailure() {
         Exception exception = new RuntimeException();
 

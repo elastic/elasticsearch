@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -91,6 +92,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock,
             threadPool, () -> randomMilli);
+        Mockito.verify(clusterService).addListener(indexLifecycleService);
     }
 
     public void testOnlyChangesStateOnMaster() throws Exception {
@@ -167,6 +169,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((IntervalSchedule)indexLifecycleService.getScheduledJob().getSchedule()).interval(),
             equalTo(new IntervalSchedule.Interval(pollInterval.seconds(), IntervalSchedule.Interval.Unit.SECONDS)));
+        indexLifecycleService.clusterChanged(new ClusterChangedEvent("_source", currentState, currentState));
+        assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        assertThat(((IntervalSchedule) indexLifecycleService.getScheduledJob().getSchedule()).interval(),
+                equalTo(new IntervalSchedule.Interval(pollInterval.seconds(), IntervalSchedule.Interval.Unit.SECONDS)));
 
         verify(clusterService, only()).addListener(any());
         verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
@@ -232,5 +238,98 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService.triggered(schedulerEvent);
 
         assertThat(mockAction.getExecutedCount(), equalTo(1L));
+    }
+
+    /**
+     * Check that if an index has an unknown lifecycle policy set it does not
+     * execute any policy but does process other indexes.
+     */
+    public void testTriggeredUnknownPolicyNameSet() {
+        String policyName = randomAlphaOfLengthBetween(1, 20);
+        MockAction mockAction = new MockAction();
+        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
+                Collections.singletonMap(phase.getName(), phase));
+        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
+        policyMap.put(policyName, policy);
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), "foo"))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
+                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+                indexMetadata).fPut(index2.getName(), indexMetadata2);
+        MetaData metaData = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
+                .indices(indices.build()).persistentSettings(settings(Version.CURRENT).build()).build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)
+                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).build();
+
+        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
+
+        when(clusterService.state()).thenReturn(currentState);
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+            return null;
+
+        }).when(indicesClient).updateSettings(any(), any());
+
+        indexLifecycleService.triggered(schedulerEvent);
+
+        assertThat(mockAction.getExecutedCount(), equalTo(1L));
+    }
+
+    /**
+     * Check that if an index has no lifecycle policy set it does not execute
+     * any policy but does process other indexes.
+     */
+    public void testTriggeredNoPolicyNameSet() {
+        String policyName = randomAlphaOfLengthBetween(1, 20);
+        MockAction mockAction = new MockAction();
+        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
+                Collections.singletonMap(phase.getName(), phase));
+        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
+        policyMap.put(policyName, policy);
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName()).settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
+                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+                indexMetadata).fPut(index2.getName(), indexMetadata2);
+        MetaData metaData = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
+                .indices(indices.build()).persistentSettings(settings(Version.CURRENT).build()).build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)
+                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).build();
+
+        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
+
+        when(clusterService.state()).thenReturn(currentState);
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+            return null;
+
+        }).when(indicesClient).updateSettings(any(), any());
+
+        indexLifecycleService.triggered(schedulerEvent);
+
+        assertThat(mockAction.getExecutedCount(), equalTo(1L));
+    }
+
+    public void testTriggeredDifferentJob() {
+        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());
+        indexLifecycleService.triggered(schedulerEvent);
+        Mockito.verifyZeroInteractions(indicesClient, clusterService);
     }
 }

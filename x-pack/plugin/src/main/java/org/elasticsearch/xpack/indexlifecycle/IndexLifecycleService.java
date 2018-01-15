@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.FormattedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
@@ -115,8 +116,8 @@ public class IndexLifecycleService extends AbstractComponent
                         try {
                             policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
                         } catch (ElasticsearchException e) {
-                            logger.error("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
-                                    idxMeta.getIndex().getName());
+                            logger.error(new FormattedMessage("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
+                                    idxMeta.getIndex().getName()), e);
                         }
                     }
                 }

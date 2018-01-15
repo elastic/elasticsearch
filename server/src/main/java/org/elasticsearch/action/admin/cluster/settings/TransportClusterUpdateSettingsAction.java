@@ -21,10 +21,15 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,26 +42,53 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
     private final AllocationService allocationService;
-
     private final ClusterSettings clusterSettings;
+    private final TransportService transportService;
+    private final Environment environment;
+    private final String transportNodeActionName = "cluster:admin/settings/update_secure[n]";
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
+                                                IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings,
+                                                Environment environment) {
         super(settings, ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
+        this.transportService = transportService;
+        this.environment = environment;
+        transportService.registerRequestHandler(transportNodeActionName, NodeRequest::new, ThreadPool.Names.GENERIC,
+                new NodeTransportHandler());
     }
 
     @Override
@@ -102,6 +134,7 @@ public class TransportClusterUpdateSettingsAction extends
 
             @Override
             public void onAllNodesAcked(@Nullable Exception e) {
+                threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 if (changed) {
                     reroute(true);
                 } else {
@@ -180,11 +213,147 @@ public class TransportClusterUpdateSettingsAction extends
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                ClusterState clusterState = updater.updateSettings(currentState, request.transientSettings(), request.persistentSettings());
+                final ClusterState clusterState = updater.updateSettings(currentState, request.transientSettings(), request.persistentSettings());
                 changed = clusterState != currentState;
                 return clusterState;
             }
         });
+    }
+
+    AbstractRunnable() {
+
+    }
+
+    private void fireKeystoreReload(ClusterUpdateSettingsRequest request, Task parentTaks) {
+        final TransportRequestOptions.Builder optionsBuilder = TransportRequestOptions.builder();
+        if (request.timeout() != null) {
+            optionsBuilder.withTimeout(request.timeout());
+        }
+        volatile Set<Map.Entry<String, String>> secretSettingsWithHashes = null;
+        volatile success = true;
+        for (final DiscoveryNode node : clusterService.state().nodes()) {
+            final TransportRequest nodeRequest = new NodeRequest(node.getId(), request.secretStorePassword());
+            nodeRequest.setParentTask(clusterService.localNode().getId(), parentTaks.getId());
+            transportService.sendRequest(node, transportNodeActionName, nodeRequest, optionsBuilder.build(),
+                    new TransportResponseHandler<NodeResponse>() {
+                        @Override
+                        public NodeResponse newInstance() {
+                            return new NodeResponse();
+                        }
+
+                        @Override
+                        public void handleResponse(NodeResponse response) {
+                            if (secretSettingsWithHashes == null) {
+                                secretSettingsWithHashes = response.secretSettingsHashes.entrySet();
+                            } else {
+
+                            }
+                            onOperation(idx, response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            onFailure(idx, node.getId(), exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    });
+        }
+    }
+
+    private class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
+
+        @Override
+        public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
+            messageReceived(request, channel);
+        }
+
+        @Override
+        public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
+            final Map<String, byte[]> secretHashes = new HashMap<>();
+            // TODO Search for abstract components using SecureSetting s and pass them the
+            // newly decrypted keystore
+            KeyStoreWrapper keystore = null;
+            try {
+                keystore = KeyStoreWrapper.load(environment.configFile());
+                keystore.decrypt(new char[0] /* use password from request */);
+                for (final String settingName : keystore.getSettingNames()) {
+                    if (settingName.equals(KeyStoreWrapper.SEED_SETTING.getKey())) {
+                        continue;
+                    }
+                    // assume all secure setting values are string typed
+                    final MessageDigest valueDigest = MessageDigest.getInstance("SHA-256");
+                    try (SecureString settingValue = keystore.getString(settingName)) {
+                        for (final char c : settingValue.getChars()) {
+                            valueDigest.update((byte)c);
+                        }
+                    }
+                    secretHashes.put(settingName, valueDigest.digest());
+                }
+            } finally {
+                if (keystore != null) {
+                    keystore.close();
+                }
+            }
+            channel.sendResponse(new NodeResponse(clusterService.localNode(), secretHashes));
+        }
+
+    }
+
+    private static class NodeRequest extends BaseNodeRequest {
+        private String secretStorePassword;
+
+        NodeRequest() {
+        }
+
+        NodeRequest(String nodeId, String secretStorePassword) {
+            super(nodeId);
+            this.secretStorePassword = secretStorePassword;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            this.secretStorePassword = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(this.secretStorePassword);
+        }
+    }
+
+    private static class NodeResponse extends BaseNodeResponse {
+
+        private Map<String, byte[]> secretSettingHashes;
+
+        NodeResponse() {
+        }
+
+        public NodeResponse(DiscoveryNode node, Map<String, byte[]> secretSettingHashes) {
+            super(node);
+            this.secretSettingHashes = secretSettingHashes;
+        }
+
+        public Map<String, byte[]> secretSettingHashes() {
+            return this.secretSettingHashes;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            this.secretSettingHashes = in.readMap(StreamInput::readString, StreamInput::readByteArray);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeMap(this.secretSettingHashes, StreamOutput::writeString, StreamOutput::writeByteArray);
+        }
     }
 
 }

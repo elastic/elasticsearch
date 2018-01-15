@@ -62,6 +62,9 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         if (source.containsKey("persistent")) {
             clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
+        if (source.containsKey("secretStorePassword")) {
+            clusterUpdateSettingsRequest.secretStorePassword((String) source.get("secretStorePassword"));
+        }
 
         return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
                 new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import com.google.common.base.Strings;
+
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +47,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
+    private String secretStorePassword;
 
     public ClusterUpdateSettingsRequest() {
     }
@@ -51,7 +55,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (transientSettings.isEmpty() && persistentSettings.isEmpty()) {
+        if (transientSettings.isEmpty() && persistentSettings.isEmpty() && Strings.isNullOrEmpty(secretStorePassword)) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
@@ -63,6 +67,10 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     public Settings persistentSettings() {
         return persistentSettings;
+    }
+
+    public String secretStorePassword() {
+        return secretStorePassword;
     }
 
     /**
@@ -95,10 +103,10 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @SuppressWarnings("unchecked")
     public ClusterUpdateSettingsRequest transientSettings(Map source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
             transientSettings(builder.string(), builder.contentType());
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
@@ -134,12 +142,17 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @SuppressWarnings("unchecked")
     public ClusterUpdateSettingsRequest persistentSettings(Map source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
             persistentSettings(builder.string(), builder.contentType());
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+        return this;
+    }
+
+    public ClusterUpdateSettingsRequest secretStorePassword(String secretStorePassword) {
+        this.secretStorePassword = secretStorePassword;
         return this;
     }
 
@@ -148,6 +161,10 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
+        // TODO version condition
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            secretStorePassword = in.readOptionalString();
+        }
     }
 
     @Override
@@ -155,5 +172,9 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
+        // TODO version condition
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(secretStorePassword);
+        }
     }
 }

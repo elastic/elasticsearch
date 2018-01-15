@@ -85,8 +85,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * 1. Replica can use unsafe commit in peer-recovery. This happens when a replica with a safe commit c1(max_seqno=1)
      * and an unsafe commit c2(max_seqno=2) recovers from a primary with c1(max_seqno=1). If a new document(seqno=2)
      * is added without flushing, the global checkpoint is advanced to 2; and the replica recovers again, it will use
-     * the unsafe commit c2(max_seqno=2 <= gcp=2) as the starting commit for sequenced-based recovery even the commit c2
-     * contains a stale operation and the document(with seqno=2) will not be replicated to the replica.
+     * the unsafe commit c2(max_seqno=2 at most gcp=2) as the starting commit for sequenced-based recovery even the
+     * commit c2 contains a stale operation and the document(with seqno=2) will not be replicated to the replica.
      * <p>
      * 2. Min translog gen for recovery can go backwards in peer-recovery. This happens when are replica with a safe commit
      * c1(local_checkpoint=1, recovery_translog_gen=1) and an unsafe commit c2(local_checkpoint=2, recovery_translog_gen=2).

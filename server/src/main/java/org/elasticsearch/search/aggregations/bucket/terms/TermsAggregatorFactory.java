@@ -259,8 +259,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
                 assert maxOrd != -1;
-                final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs()); 
-                
+                final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
+
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
                         Aggregator.descendsFromBucketAggregator(parent) == false &&

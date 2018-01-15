@@ -285,12 +285,12 @@ public class EvilLoggerTests extends ESTestCase {
 
         final Logger hasConsoleAppender = ESLoggerFactory.getLogger("has_console_appender");
 
-        final Appender testLoggerConsoleAppender = Loggers.findAppender(hasConsoleAppender, ConsoleAppender.class);
+        final Appender testLoggerConsoleAppender = ServerLoggers.findAppender(hasConsoleAppender, ConsoleAppender.class);
         assertNotNull(testLoggerConsoleAppender);
         assertThat(testLoggerConsoleAppender.getName(), equalTo("console"));
         final Logger hasCountingNoOpAppender = ESLoggerFactory.getLogger("has_counting_no_op_appender");
-        assertNull(Loggers.findAppender(hasCountingNoOpAppender, ConsoleAppender.class));
-        final Appender countingNoOpAppender = Loggers.findAppender(hasCountingNoOpAppender, CountingNoOpAppender.class);
+        assertNull(ServerLoggers.findAppender(hasCountingNoOpAppender, ConsoleAppender.class));
+        final Appender countingNoOpAppender = ServerLoggers.findAppender(hasCountingNoOpAppender, CountingNoOpAppender.class);
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 

@@ -437,6 +437,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // to recover from in case of a full cluster shutdown just when this code executes...
         renameAllTempFiles();
         final Store store = store();
+        store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
@@ -468,6 +469,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
             fail(rfe, true);
             throw rfe;
+        } finally {
+            store.decRef();
         }
     }
 

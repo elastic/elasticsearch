@@ -19,8 +19,24 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.plugins.Plugin;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
-public class MyWhitelistPlugin extends Plugin {
-    // we don't actually need anything here, since whitelists are extended through SPI
+import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
+
+/** An extension of painless which adds a whitelist. */
+public class ExampleWhitelistExtension implements PainlessExtension {
+
+    private static final Whitelist WHITELIST =
+        WhitelistLoader.loadFromResourceFiles(ExampleWhitelistExtension.class, "example_whitelist.txt");
+
+    @Override
+    public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
+        return Collections.singletonMap(SearchScript.CONTEXT, Collections.singletonList(WHITELIST));
+    }
 }

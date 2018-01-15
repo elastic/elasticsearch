@@ -5,7 +5,7 @@
 <titleabbrev>Create {dfeeds-cap}</titleabbrev>
 ++++
 
-The create {dfeed} API enables you to instantiate a {dfeed}.
+This API enables you to instantiate a {dfeed}.
 
 
 ==== Request

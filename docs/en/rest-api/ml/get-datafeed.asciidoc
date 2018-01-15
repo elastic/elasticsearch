@@ -5,8 +5,7 @@
 <titleabbrev>Get {dfeeds-cap}</titleabbrev>
 ++++
 
-The get {dfeeds} API enables you to retrieve configuration information for
-{dfeeds}.
+This API enables you to retrieve configuration information for {dfeeds}.
 
 ==== Request
 

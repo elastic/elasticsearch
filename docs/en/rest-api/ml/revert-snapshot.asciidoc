@@ -5,7 +5,7 @@
 <titleabbrev>Revert Model Snapshots</titleabbrev>
 ++++
 
-The revert model snapshot API enables you to revert to a specific snapshot.
+This API enables you to revert to a specific snapshot.
 
 ==== Request
 
@@ -14,13 +14,13 @@ The revert model snapshot API enables you to revert to a specific snapshot.
 
 ==== Description
 
-The {ml} feature in {xpack} reacts quickly to anomalous input, learning new behaviors in data.
-Highly anomalous input increases the variance in the models whilst the system learns
-whether this is a new step-change in behavior or a one-off event. In the case
-where this anomalous input is known to be a one-off, then it might be appropriate
-to reset the model state to a time before this event. For example, you might
-consider reverting to a saved snapshot after Black Friday
-or a critical system failure.
+The {ml} feature in {xpack} reacts quickly to anomalous input, learning new
+behaviors in data. Highly anomalous input increases the variance in the models
+whilst the system learns whether this is a new step-change in behavior or a
+one-off event. In the case where this anomalous input is known to be a one-off,
+then it might be appropriate to reset the model state to a time before this
+event. For example, you might consider reverting to a saved snapshot after Black
+Friday or a critical system failure.
 
 ////
 To revert to a saved snapshot, you must follow this sequence:

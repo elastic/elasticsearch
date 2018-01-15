@@ -5,8 +5,7 @@
 <titleabbrev>Get Influencers</titleabbrev>
 ++++
 
-The get influencers API enables you to retrieve job results for one or more
-influencers.
+This API enables you to retrieve job results for one or more influencers.
 
 
 ==== Request

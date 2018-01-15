@@ -5,7 +5,7 @@
 <titleabbrev>Preview {dfeeds-cap}</titleabbrev>
 ++++
 
-The preview {dfeed} API enables you to preview a {dfeed}.
+This API enables you to preview a {dfeed}.
 
 
 ==== Request
@@ -15,9 +15,9 @@ The preview {dfeed} API enables you to preview a {dfeed}.
 
 ==== Description
 
-The API returns the first "page" of results from the `search` that is created
-by using the current {dfeed} settings. This preview shows the structure of
-the data that will be passed to the anomaly detection engine.
+The preview {dfeeds} API returns the first "page" of results from the `search`
+that is created by using the current {dfeed} settings. This preview shows the
+structure of the data that will be passed to the anomaly detection engine.
 
 
 ==== Path Parameters

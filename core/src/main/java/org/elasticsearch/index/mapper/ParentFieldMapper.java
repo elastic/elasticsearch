@@ -299,15 +299,16 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
-        super.doMerge(mergeWith, updateAllTypes);
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
             throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
         }
-
-        if (active()) {
-            fieldType = currentFieldType;
+        // If fieldMergeWith is not active it means the user provided a mapping
+        // update that does not explicitly configure the _parent field, so we
+        // ignore it.
+        if (fieldMergeWith.active()) {
+            super.doMerge(mergeWith, updateAllTypes);
         }
+
     }
 
     /**

@@ -309,9 +309,9 @@ job creation fails.
 [[ml-categorizationanalyzer]]
 ==== Categorization Analyzer
 
-The categorization analyzer specifies how the `categorization_field` will be
+The categorization analyzer specifies how the `categorization_field` is
 interpreted by the categorization process. The syntax is very similar to that
-used to define the `analyzer` in the {ref}/analyze.html[Analyze endpoint].
+used to define the `analyzer` in the <<indices-analyze,Analyze endpoint>>.
 
 The `categorization_analyzer` field can be specified either as a string or as
 an object.

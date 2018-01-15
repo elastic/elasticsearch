@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -908,10 +909,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         } else {
             _unfilteredRoles = randomListFromLengthBetween(unfilteredPolicy, 1, unfilteredPolicy.size());
             // add roles from other filter policies
-            final List<String> otherRoles = new ArrayList<>();
-            for (int j = 0; j < randomIntBetween(1, 4); j++) {
-                otherRoles.add(FILTER_MARKER + randomAlphaOfLengthBetween(1, 4));
-            }
+            final List<String> otherRoles = randomNonEmptyListOfFilteredNames("other");
             _unfilteredRoles.addAll(randomListFromLengthBetween(otherRoles, 1, otherRoles.size()));
             settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.otherPolicy.roles", otherRoles);
         }
@@ -1161,7 +1159,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Collections.emptyList());
             }
         }
-        // filtered roles are a subset of the roles of any policy
+        // filtered indices are a subset of the indices of any policy
         final List<String> filterPolicy = randomFrom(allFilteredIndices);
         final String[] filteredIndices = randomListFromLengthBetween(filterPolicy, 1, filterPolicy.size()).toArray(new String[0]);
         // unfiltered index sets either have indices distinct from any other in any
@@ -1177,10 +1175,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         } else {
             _unfilteredIndices = randomListFromLengthBetween(unfilteredPolicy, 1, unfilteredPolicy.size());
             // add indices from other filter policies
-            final List<String> otherIndices = new ArrayList<>();
-            for (int j = 0; j < randomIntBetween(1, 4); j++) {
-                otherIndices.add(FILTER_MARKER + randomAlphaOfLengthBetween(1, 4));
-            }
+            final List<String> otherIndices = randomNonEmptyListOfFilteredNames("other");
             _unfilteredIndices.addAll(randomListFromLengthBetween(otherIndices, 1, otherIndices.size()));
             settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.otherPolicy.indices", otherIndices);
         }
@@ -1506,10 +1501,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         return ans;
     }
 
-    private List<String> randomNonEmptyListOfFilteredNames() {
+    private List<String> randomNonEmptyListOfFilteredNames(String... namePrefix) {
         final List<String> filtered = new ArrayList<>(4);
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
-            filtered.add(FILTER_MARKER + randomAlphaOfLengthBetween(1, 4));
+            filtered.add(FILTER_MARKER + Strings.arrayToCommaDelimitedString(namePrefix) + randomAlphaOfLengthBetween(1, 4));
         }
         return filtered;
     }

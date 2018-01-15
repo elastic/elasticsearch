@@ -102,8 +102,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
                     retry(task, params, followGlobalCheckPoint);
                 } else {
-                    assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + leaderGlobalCheckPoint +
-                            "] is not below leaderGlobalCheckPoint [" + followGlobalCheckPoint + "]";
+                    assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
+                            "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
                     Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
                     Consumer<Exception> handler = e -> {
                         if (e == null) {

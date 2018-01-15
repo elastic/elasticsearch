@@ -29,7 +29,6 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -237,6 +236,9 @@ public class MultiMatchQuery extends MatchQuery {
             if (blendedFields == null) {
                 return super.blendPhrase(query, type);
             }
+            /**
+             * We build phrase queries for multi-word synonyms when {@link QueryBuilder#autoGenerateSynonymsPhraseQuery} is true.
+             */
             return MultiMatchQuery.blendPhrase(query, blendedFields);
         }
     }
@@ -312,7 +314,7 @@ public class MultiMatchQuery extends MatchQuery {
             Term[] terms = query.getTerms();
             PhraseQuery.Builder builder = new PhraseQuery.Builder();
             for (int i = 0; i < terms.length; i++) {
-                builder.add(new Term(field.fieldType.name(), terms[i].text()), positions[i]);
+                builder.add(new Term(field.fieldType.name(), terms[i].bytes()), positions[i]);
             }
             Query q = builder.build();
             if (field.boost != AbstractQueryBuilder.DEFAULT_BOOST) {

@@ -183,6 +183,7 @@ subprojects {
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
     "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',

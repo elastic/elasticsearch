@@ -138,7 +138,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
 
         final Level level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        Loggers.setLevel(ESLoggerFactory.getLogger("x"), level);
+        ServerLoggers.setLevel(ESLoggerFactory.getLogger("x"), level);
 
         assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(level));
         assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(level));

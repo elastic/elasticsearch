@@ -187,7 +187,7 @@ public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAct
 
     public void testExecuteAllocationNotComplete() {
 
-        ReplicasAction action = createTestInstance();
+        ReplicasAction action = new ReplicasAction(randomIntBetween(1, 10));
 
         int numberOfShards = randomIntBetween(1, 5);
         int numberOfReplicas = action.getNumberOfReplicas();
@@ -218,6 +218,73 @@ public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAct
         ClusterState clusterstate = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.when(clusterService.state()).thenReturn(clusterstate);
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+        action.execute(index, client, clusterService, new Listener() {
+
+            @Override
+            public void onSuccess(boolean completed) {
+                actionCompleted.set(completed);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(false, actionCompleted.get());
+
+        Mockito.verify(clusterService, Mockito.times(2)).state();
+        Mockito.verify(client, Mockito.never()).admin();
+        Mockito.verify(adminClient, Mockito.never()).indices();
+        Mockito.verify(indicesClient, Mockito.never()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteAllocationUnassignedPrimaries() {
+
+        ReplicasAction action = createTestInstance();
+
+        int numberOfShards = randomIntBetween(1, 5);
+        int numberOfReplicas = action.getNumberOfReplicas();
+        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLengthBetween(1, 20))
+                .settings(Settings.builder().put("index.version.created", Version.CURRENT.id)).numberOfShards(numberOfShards)
+                .numberOfReplicas(numberOfReplicas).build();
+        Index index = indexMetadata.getIndex();
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+                indexMetadata);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        for (int shard = 0; shard < numberOfShards; shard++) {
+            boolean unassignedPrimary = shard == 0 || randomBoolean();
+            for (int replica = 0; replica < numberOfReplicas + 1; replica++) {
+                ShardRoutingState state;
+                if (unassignedPrimary) {
+                    state = ShardRoutingState.UNASSIGNED;
+                } else if (replica == 0) {
+                    state = ShardRoutingState.STARTED;
+                } else if ((replica == numberOfReplicas) || randomBoolean()) {
+                    state = randomFrom(ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING);
+                } else {
+                    state = ShardRoutingState.STARTED;
+                }
+                String nodeId = "node" + replica;
+                if (ShardRoutingState.UNASSIGNED.equals(state)) {
+                    nodeId = null;
+                }
+                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, shard), nodeId, replica == 0, state));
+            }
+        }
+        ClusterState clusterstate = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+                .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         Client client = Mockito.mock(Client.class);
         AdminClient adminClient = Mockito.mock(AdminClient.class);

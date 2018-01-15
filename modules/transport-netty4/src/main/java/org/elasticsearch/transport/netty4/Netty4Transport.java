@@ -249,7 +249,7 @@ public class Netty4Transport extends TcpTransport {
         }
         addClosedExceptionLogger(channel);
 
-        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
+        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel, "default");
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         channelFuture.addListener(f -> {
@@ -272,7 +272,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     protected NettyTcpChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-        NettyTcpChannel esChannel = new NettyTcpChannel(channel);
+        NettyTcpChannel esChannel = new NettyTcpChannel(channel, name);
         channel.attr(CHANNEL_KEY).set(esChannel);
         return esChannel;
     }
@@ -335,7 +335,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch);
+            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch, name);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             serverAcceptedChannel(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());

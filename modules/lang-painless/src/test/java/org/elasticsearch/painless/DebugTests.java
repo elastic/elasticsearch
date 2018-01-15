@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -34,7 +35,8 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final Definition definition = Definition.DEFINITION;
+    private final Definition definition = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
 
     public void testExplain() {
         // Debug.explain can explain an object

@@ -1281,9 +1281,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
-        assert
-            recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE ||
-            recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
         innerOpenEngineAndTranslog();
         getEngine().recoverFromTranslog();
     }

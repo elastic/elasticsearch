@@ -51,6 +51,12 @@ public class SettingTests extends ESTestCase {
         assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
     }
 
+    public void testDef() {
+        Setting<Integer> setting = Setting.intSetting("toto", -1, 1, Property.Dynamic);
+        assertThat(setting.get(Settings.builder().build()), equalTo(-1));
+        assertThat(setting.get(Settings.builder().put("toto", 1).build()), equalTo(1));
+    }
+
     public void testByteSize() {
         Setting<ByteSizeValue> byteSizeValueSetting =
             Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);

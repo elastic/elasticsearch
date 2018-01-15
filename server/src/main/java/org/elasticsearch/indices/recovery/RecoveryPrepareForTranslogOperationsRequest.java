@@ -33,13 +33,13 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
-    private final boolean deleteLocalTranslog;
+    private final boolean createNewTranslog;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean deleteLocalTranslog) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean createNewTranslog) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.deleteLocalTranslog = deleteLocalTranslog;
+        this.createNewTranslog = createNewTranslog;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -50,10 +50,10 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            deleteLocalTranslog = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            createNewTranslog = in.readBoolean();
         } else {
-            deleteLocalTranslog = true;
+            createNewTranslog = true;
         }
     }
 
@@ -70,10 +70,10 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     }
 
     /**
-     * Whether or not the recover target should delete its local translog
+     * Whether or not the recover target should create a new local translog
      */
-    boolean deleteLocalTranslog() {
-        return deleteLocalTranslog;
+    boolean createNewTranslog() {
+        return createNewTranslog;
     }
 
     @Override
@@ -85,8 +85,8 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(deleteLocalTranslog);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeBoolean(createNewTranslog);
         }
     }
 }

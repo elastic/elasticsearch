@@ -33,6 +33,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -90,7 +91,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
      */
     private Query rethrowUnlessLenient(RuntimeException e) {
         if (settings.lenient()) {
-            return null;
+            return Queries.newMatchNoDocsQuery("failed query, caused by " + e.getMessage());
         }
         throw e;
     }

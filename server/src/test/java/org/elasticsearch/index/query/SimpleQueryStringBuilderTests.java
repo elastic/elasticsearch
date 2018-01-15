@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -605,6 +606,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .toQuery(createShardContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
         assertEquals(expected, query);
+    }
+
+    public void testLenientToPrefixQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new SimpleQueryStringBuilder("t*")
+            .field(DATE_FIELD_NAME)
+            .lenient(true)
+            .toQuery(createShardContext());
+        MatchNoDocsQuery expected = new MatchNoDocsQuery("");
+        assertEquals(expected, query);
+        assertThat(query.toString(),
+            containsString("Can only use prefix queries on keyword and text fields - not on [mapped_date] which is of type [date]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

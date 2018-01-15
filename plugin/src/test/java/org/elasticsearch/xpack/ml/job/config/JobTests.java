@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -549,6 +550,30 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         assertEquals(ByteSizeUnit.MB.toBytes(JobUpdate.UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT) + Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
                 builder.build().estimateMemoryFootprint());
+    }
+
+    public void testEarliestValidTimestamp_GivenEmptyDataCounts() {
+        assertThat(createRandomizedJob().earliestValidTimestamp(new DataCounts("foo")), equalTo(0L));
+    }
+
+    public void testEarliestValidTimestamp_GivenDataCountsAndZeroLatency() {
+        Job.Builder builder = buildJobBuilder("foo");
+        DataCounts dataCounts = new DataCounts(builder.getId());
+        dataCounts.setLatestRecordTimeStamp(new Date(123456789L));
+
+        assertThat(builder.build().earliestValidTimestamp(dataCounts), equalTo(123456789L));
+    }
+
+    public void testEarliestValidTimestamp_GivenDataCountsAndLatency() {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(builder.build().getAnalysisConfig());
+        analysisConfig.setLatency(TimeValue.timeValueMillis(1000L));
+        builder.setAnalysisConfig(analysisConfig);
+
+        DataCounts dataCounts = new DataCounts(builder.getId());
+        dataCounts.setLatestRecordTimeStamp(new Date(123456789L));
+
+        assertThat(builder.build().earliestValidTimestamp(dataCounts), equalTo(123455789L));
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

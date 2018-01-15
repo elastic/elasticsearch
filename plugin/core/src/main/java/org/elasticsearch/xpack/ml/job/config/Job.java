@@ -26,6 +26,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
@@ -448,6 +449,23 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         Long modelMemoryLimit = (analysisLimits != null) ? analysisLimits.getModelMemoryLimit() : null;
         return ByteSizeUnit.MB.toBytes((modelMemoryLimit != null) ? modelMemoryLimit : JobUpdate.UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT)
                 + PROCESS_MEMORY_OVERHEAD.getBytes();
+    }
+
+    /**
+     * Returns the timestamp before which data is not accepted by the job.
+     * This is the latest record timestamp minus the job latency.
+     * @param dataCounts the job data counts
+     * @return the timestamp before which data is not accepted by the job
+     */
+    public long earliestValidTimestamp(DataCounts dataCounts) {
+        long currentTime = 0;
+        Date latestRecordTimestamp = dataCounts.getLatestRecordTimeStamp();
+        if (latestRecordTimestamp != null) {
+            TimeValue latency = analysisConfig.getLatency();
+            long latencyMillis = latency == null ? 0 : latency.millis();
+            currentTime = latestRecordTimestamp.getTime() - latencyMillis;
+        }
+        return currentTime;
     }
 
     @Override

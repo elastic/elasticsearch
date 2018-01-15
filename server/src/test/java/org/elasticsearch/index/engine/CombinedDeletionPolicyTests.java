@@ -215,6 +215,10 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
     }
 
+    /**
+     * Keeping existing unsafe commits can be problematic because these commits are not safe at the recovering time
+     * but they can suddenly become safe in the future. See {@link CombinedDeletionPolicy#keepOnlyStartingCommitOnInit(List)}
+     */
     public void testKeepOnlyStartingCommitOnInit() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();

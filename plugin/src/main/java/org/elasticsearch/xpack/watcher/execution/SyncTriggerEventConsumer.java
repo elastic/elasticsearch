@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 
@@ -22,7 +22,7 @@ public class SyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent>
     private final Logger logger;
 
     public SyncTriggerEventConsumer(Settings settings, ExecutionService executionService) {
-        this.logger = Loggers.getLogger(SyncTriggerEventConsumer.class, settings);
+        this.logger = ServerLoggers.getLogger(SyncTriggerEventConsumer.class, settings);
         this.executionService = executionService;
     }
 

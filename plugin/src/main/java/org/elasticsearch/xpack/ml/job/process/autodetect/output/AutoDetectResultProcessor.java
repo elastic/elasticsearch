@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
-import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 

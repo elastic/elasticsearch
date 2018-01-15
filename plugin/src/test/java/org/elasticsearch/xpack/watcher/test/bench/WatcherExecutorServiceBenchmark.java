@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
@@ -226,7 +226,7 @@ public class WatcherExecutorServiceBenchmark {
 
             public BenchmarkWatcher(Settings settings) {
                 super(settings);
-                Loggers.getLogger(XPackBenchmarkPlugin.class, settings).info("using watcher benchmark plugin");
+                ServerLoggers.getLogger(XPackBenchmarkPlugin.class, settings).info("using watcher benchmark plugin");
             }
 
             @Override

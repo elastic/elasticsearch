@@ -369,10 +369,7 @@ public class JobProvider {
         ActionListener<AutodetectParams.Builder> getScheduledEventsListener = ActionListener.wrap(
                 paramsBuilder -> {
                     ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
-                    Date lastestRecordTime = paramsBuilder.getDataCounts().getLatestRecordTimeStamp();
-                    if (lastestRecordTime != null) {
-                        scheduledEventsQueryBuilder.start(Long.toString(lastestRecordTime.getTime()));
-                    }
+                    scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
                     scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
                             events -> {
                                 paramsBuilder.setScheduledEvents(events.results());

@@ -88,8 +88,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    listener.onFailure(
-                                            ExceptionsHelper.serverError("Error indexing event", e));
+                                    listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
                                 }
                             });
                 },

@@ -50,6 +50,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTimeZone;
@@ -1065,8 +1067,73 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void testSearchCase(Query query,
-                                Sort sort,
+    public void testWithKeywordAndTopHits() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a"),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "a"),
+                createDocument("keyword", "d"),
+                createDocument("keyword", "c")
+            )
+        );
+        final Sort sort = new Sort(new SortedSetSortField("keyword", false));
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"));
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
+                assertNotNull(topHits);
+                assertEquals(topHits.getHits().getHits().length, 2);
+                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
+                assertNotNull(topHits);
+                assertEquals(topHits.getHits().getHits().length, 2);
+                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
+                assertNotNull(topHits);
+                assertEquals(topHits.getHits().getHits().length, 1);
+                assertEquals(topHits.getHits().getTotalHits(), 1L);;
+            }
+        );
+
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("keyword", "a"))
+                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"));
+            }, (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=c}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
+                assertNotNull(topHits);
+                assertEquals(topHits.getHits().getHits().length, 2);
+                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
+                assertNotNull(topHits);
+                assertEquals(topHits.getHits().getHits().length, 1);
+                assertEquals(topHits.getHits().getTotalHits(), 1L);
+            }
+        );
+    }
+
+    private void testSearchCase(Query query, Sort sort,
                                 List<Map<String, List<Object>>> dataset,
                                 Supplier<CompositeAggregationBuilder> create,
                                 Consumer<InternalComposite> verify) throws IOException {
@@ -1107,7 +1174,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, sort == null, sort == null);
                 CompositeAggregationBuilder aggregationBuilder = create.get();
                 if (sort != null) {
-                    CompositeAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, indexSettings, FIELD_TYPES);
+                    CompositeAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, indexSettings, FIELD_TYPES);
                     assertTrue(aggregator.canEarlyTerminate());
                 }
                 final InternalComposite composite;

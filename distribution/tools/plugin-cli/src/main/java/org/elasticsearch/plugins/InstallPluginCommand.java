@@ -232,14 +232,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3 && pluginId.contains("/") == false) {
+        if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, true);
         }
 
         // fall back to plain old URL
-        if (pluginId.contains(":/") == false) {
+        if (pluginId.contains(":") == false) {
             // definitely not a valid url, so assume it is a plugin name
             List<String> plugins = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
@@ -667,7 +667,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             pluginInfos.add(info);
             Path tmpBinDir = plugin.resolve("bin");
             if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(metaInfo.getName()).resolve(info.getName());
+                Path destBinDir = env.binFile().resolve(metaInfo.getName());
                 deleteOnFailure.add(destBinDir);
                 installBin(info, tmpBinDir, destBinDir);
             }
@@ -676,7 +676,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             if (Files.exists(tmpConfigDir)) {
                 // some files may already exist, and we don't remove plugin config files on plugin removal,
                 // so any installed config files are left on failure too
-                Path destConfigDir = env.configFile().resolve(metaInfo.getName()).resolve(info.getName());
+                Path destConfigDir = env.configFile().resolve(metaInfo.getName());
                 installConfig(info, tmpConfigDir, destConfigDir);
             }
         }
@@ -743,7 +743,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         });
     }
-
 
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {

@@ -1,15 +1,13 @@
 {
-  "index_patterns": [
-    ".monitoring-beats-${monitoring.template.version}-*"
-  ],
+  "index_patterns": [ ".monitoring-beats-${monitoring.template.version}-*" ],
+  "version": 6020099,
   "settings": {
-    "index.auto_expand_replicas": "0-1",
-    "index.codec": "best_compression",
-    "index.format": 6,
+    "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
-    "index.number_of_shards": 1
+    "index.auto_expand_replicas": "0-1",
+    "index.format": 6,
+    "index.codec": "best_compression"
   },
-  "version": 6010099,
   "mappings": {
     "doc": {
       "dynamic": false,

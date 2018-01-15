@@ -20,6 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
@@ -33,9 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.PrefixWrappedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -182,6 +183,42 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             return builder;
+        }
+    }
+
+    private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
+
+        private final int minChars;
+        private final int maxChars;
+        private final Analyzer delegate;
+
+        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars) {
+            super(delegate.getReuseStrategy());
+            this.delegate = delegate;
+            this.minChars = minChars;
+            this.maxChars = maxChars;
+        }
+
+        @Override
+        protected Analyzer getWrappedAnalyzer(String fieldName) {
+            return delegate;
+        }
+
+        @Override
+        protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
+            TokenFilter filter = new EdgeNGramTokenFilter(components.getTokenStream(), minChars, maxChars);
+            return new TokenStreamComponents(components.getTokenizer(), filter);
+        }
+
+        public boolean accept(int length) {
+            return length >= minChars && length <= maxChars;
+        }
+
+        public void doXContent(XContentBuilder builder) throws IOException {
+            builder.startObject("index_prefix");
+            builder.field("min_chars", minChars);
+            builder.field("max_chars", maxChars);
+            builder.endObject();
         }
     }
 

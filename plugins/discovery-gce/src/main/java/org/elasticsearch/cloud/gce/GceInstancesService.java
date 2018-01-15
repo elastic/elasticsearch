@@ -75,7 +75,7 @@ public interface GceInstancesService {
      * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to 20 seconds.
      */
     Setting<TimeValue> CONNECTION_TIMEOUT_SETTING =
-        Setting.timeSetting("cloud.gce.connect_timeout", TimeValue.timeValueSeconds(20), TimeValue.timeValueSeconds(1), Property.NodeScope);
+        Setting.timeSetting("cloud.gce.connect_timeout", TimeValue.timeValueSeconds(20), Property.NodeScope);
 
     /**
      * cloud.gce.http.read_timeout: Sets the timeout to read data from an established connection.
@@ -83,7 +83,7 @@ public interface GceInstancesService {
      * the default timeout of the Google Compute Engine Java Library (20 seconds). Defaults to 20 seconds.
      */
     Setting<TimeValue> READ_TIMEOUT_SETTING =
-        Setting.timeSetting("cloud.gce.read_timeout", TimeValue.timeValueSeconds(20), TimeValue.timeValueSeconds(1), Property.NodeScope);
+        Setting.timeSetting("cloud.gce.read_timeout", TimeValue.timeValueSeconds(20), Property.NodeScope);
 
     /**
      * Return a collection of running instances within the same GCE project

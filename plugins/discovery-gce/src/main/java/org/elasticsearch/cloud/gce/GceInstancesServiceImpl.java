@@ -102,11 +102,20 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
 
     private final boolean validateCerts;
 
+    private final Integer connectTimeout;
+    private final Integer readTimeout;
+    private final TimeValue maxWaitTime;
+    private final boolean retry;
+
     public GceInstancesServiceImpl(Settings settings) {
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
         this.zones = ZONE_SETTING.get(settings);
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
+        this.connectTimeout = timeoutToMillis(settings, CONNECTION_TIMEOUT_SETTING);
+        this.readTimeout = timeoutToMillis(settings, READ_TIMEOUT_SETTING);
+        this.maxWaitTime = MAX_WAIT_SETTING.get(settings);
+        this.retry = RETRY_SETTING.exists(settings) && RETRY_SETTING.get(settings);
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
@@ -158,11 +167,6 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
                                                         .setApplicationName(VERSION)
                                                         .setRootUrl(GCE_ROOT_URL.get(settings));
 
-            final TimeValue connectTimeout = CONNECTION_TIMEOUT_SETTING.get(settings);
-            final TimeValue readTimeout = READ_TIMEOUT_SETTING.get(settings);
-            final TimeValue maxWaitTime = MAX_WAIT_SETTING.get(settings);
-            final boolean retry = RETRY_SETTING.exists(settings) && RETRY_SETTING.get(settings);
-
             builder.setHttpRequestInitializer(new GceHttpRequestInitializer(credential, connectTimeout, readTimeout, maxWaitTime, retry));
             this.client = builder.build();
         } catch (Exception e) {
@@ -178,5 +182,22 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         if (gceHttpTransport != null) {
             gceHttpTransport.shutdown();
         }
+    }
+
+    // pkg private for testing
+    static Integer timeoutToMillis(final Settings settings, final Setting<TimeValue> setting) {
+        final TimeValue timeout = setting.get(settings);
+        if (timeout != null) {
+            final long timeoutMillis = timeout.getMillis();
+            if (timeoutMillis == TimeValue.MINUS_ONE.getMillis()) {
+                // Infinite timeout as expected by the Google Cloud Java library
+                return 0;
+            } else if (timeoutMillis <= 0) {
+                throw new IllegalArgumentException("Timeout [" + setting.getKey() + "] must be greater than zero " +
+                    "(or equal to -1 for infinite timeout)");
+            }
+            return Math.toIntExact(timeoutMillis);
+        }
+        return null;
     }
 }

@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -105,7 +104,7 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
         MockSleeper mockSleeper = new MockSleeper();
 
         GceHttpRequestInitializer gceHttpRequestInitializer =
-            new GceHttpRequestInitializer(credential, TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, maxWaitTime, true, mockSleeper);
+            new GceHttpRequestInitializer(credential, randomTimeout(), randomTimeout(), maxWaitTime, true, mockSleeper);
 
         Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
                 .setHttpRequestInitializer(gceHttpRequestInitializer)
@@ -137,7 +136,7 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
         };
 
         GceHttpRequestInitializer gceHttpRequestInitializer =
-            new GceHttpRequestInitializer(credential, TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, maxWaitTime, true, oneTimeSleeper);
+            new GceHttpRequestInitializer(credential, randomTimeout(), randomTimeout(), maxWaitTime, true, oneTimeSleeper);
 
         Compute client = new Compute.Builder(fakeTransport, jsonFactory, null)
                 .setHttpRequestInitializer(gceHttpRequestInitializer)
@@ -163,7 +162,7 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
         MockGoogleCredential credential = newMockCredentialBuilder().build();
         MockSleeper mockSleeper = new MockSleeper();
         GceHttpRequestInitializer gceHttpRequestInitializer =
-            new GceHttpRequestInitializer(credential, TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, maxWaitTime, true, mockSleeper);
+            new GceHttpRequestInitializer(credential, randomTimeout(), randomTimeout(), maxWaitTime, true, mockSleeper);
 
         Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
                 .setHttpRequestInitializer(gceHttpRequestInitializer)
@@ -179,8 +178,8 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
 
     public void testTimeouts() throws IOException {
         final MockGoogleCredential credential = newMockCredentialBuilder().build();
-        final TimeValue connectTimeout = randomTimeout();
-        final TimeValue readTimeout = randomTimeout();
+        final Integer connectTimeout = randomTimeout();
+        final Integer readTimeout = randomTimeout();
         final TimeValue maxWaitTime = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(0, 30_000));
         final boolean retry = randomBoolean();
 
@@ -190,31 +189,23 @@ public class GceHttpRequestInitializerTests extends ESTestCase {
         final HttpRequest httpRequest = new MockHttpTransport().createRequestFactory().buildGetRequest(url);
         initializer.initialize(httpRequest);
 
-        assertTimeout(connectTimeout, httpRequest::getConnectTimeout);
-        assertTimeout(readTimeout, httpRequest::getReadTimeout);
+        assertTimeout(connectTimeout, httpRequest.getConnectTimeout());
+        assertTimeout(readTimeout, httpRequest.getReadTimeout());
         assertEquals(credential, httpRequest.getInterceptor());
         if (retry == false) {
             assertTrue(httpRequest.getUnsuccessfulResponseHandler() instanceof Credential);
         }
     }
 
-    private static TimeValue randomTimeout() {
-        if (rarely()) {
-            return TimeValue.MINUS_ONE;
-        }
-        return randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 60)) : null;
+    private static Integer randomTimeout() {
+        return /*randomFrom(*/randomIntBetween(1, 60) * 1000/*, 0, null)*/;
     }
 
-    private static void assertTimeout(final TimeValue expected, final Supplier<Integer> supplier) {
-        final Integer actual = supplier.get();
-        assertNotNull(actual);
-
+    private static void assertTimeout(final Integer expected, final Integer actual) {
         if (expected == null) {
             assertTrue("Expecting a default timeout value when the timeout is not defined", actual > 0);
-        } else if (expected.getMillis() == TimeValue.MINUS_ONE.getMillis()) {
-            assertEquals("Expecting a zero timeout when the timeout is infinite", 0, actual.intValue());
         } else {
-            assertEquals((int) expected.getMillis(), actual.intValue());
+            assertEquals(expected.intValue(), actual.intValue());
         }
     }
 

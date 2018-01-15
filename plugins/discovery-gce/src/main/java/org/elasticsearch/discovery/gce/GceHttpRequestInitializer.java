@@ -26,6 +26,7 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -41,29 +42,29 @@ public class GceHttpRequestInitializer implements HttpRequestInitializer {
     // A sleeper; you can replace it with a mock in your test.
     private final Sleeper sleeper;
 
-    private final TimeValue connectTimeout;
-    private final TimeValue readTimeout;
+    private final Integer connectTimeoutMillis;
+    private final Integer readTimeoutMillis;
     private final TimeValue maxElapsedTime;
     private final boolean retry;
 
     public GceHttpRequestInitializer(final Credential credential,
-                                     final TimeValue connectTimeout,
-                                     final TimeValue readTimeout,
+                                     @Nullable final Integer connectTimeoutMillis,
+                                     @Nullable final Integer readTimeoutMillis,
                                      final TimeValue maxElapsedTime,
                                      final boolean retry) {
-        this(credential, connectTimeout, readTimeout, maxElapsedTime, retry, null);
+        this(credential, connectTimeoutMillis, readTimeoutMillis, maxElapsedTime, retry, null);
     }
 
     // pkg private for tests
     GceHttpRequestInitializer(final Credential credential,
-                              final TimeValue connectTimeout,
-                              final TimeValue readTimeout,
+                              @Nullable final Integer connectTimeoutMillis,
+                              @Nullable final Integer readTimeoutMillis,
                               final TimeValue maxElapsedTime,
                               final boolean retry,
                               final Sleeper sleeper) {
         this.credential = Objects.requireNonNull(credential, "credential must be not null");
-        this.connectTimeout = connectTimeout;
-        this.readTimeout = readTimeout;
+        this.connectTimeoutMillis = connectTimeoutMillis;
+        this.readTimeoutMillis = readTimeoutMillis;
         this.maxElapsedTime = Objects.requireNonNull(maxElapsedTime, "maxElapsedTime must be not null");
         this.retry = retry;
         this.sleeper = sleeper;
@@ -90,23 +91,11 @@ public class GceHttpRequestInitializer implements HttpRequestInitializer {
             httpRequest.setUnsuccessfulResponseHandler(credential);
         }
 
-        final long infiniteTimeout = TimeValue.MINUS_ONE.getMillis();
-        if (connectTimeout != null) {
-            final long connectTimeoutMillis = connectTimeout.getMillis();
-            if (connectTimeoutMillis > 0) {
-                httpRequest.setConnectTimeout((int) connectTimeoutMillis);
-            } else if (connectTimeoutMillis == infiniteTimeout) {
-                httpRequest.setConnectTimeout(0);
-            }
+        if (connectTimeoutMillis != null) {
+            httpRequest.setConnectTimeout(connectTimeoutMillis);
         }
-
-        if (readTimeout != null) {
-            final long readTimeoutMillis = readTimeout.getMillis();
-            if (readTimeoutMillis > 0) {
-                httpRequest.setReadTimeout((int) readTimeoutMillis);
-            } else if (readTimeoutMillis == infiniteTimeout) {
-                httpRequest.setReadTimeout(0);
-            }
+        if (readTimeoutMillis != null) {
+            httpRequest.setReadTimeout(readTimeoutMillis);
         }
 
         httpRequest.setInterceptor(credential);

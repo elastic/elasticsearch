@@ -37,6 +37,8 @@ import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
@@ -58,12 +60,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(GeoBoundingBoxQueryBuilder.class));
+
     /**
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
+    private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
@@ -481,6 +486,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName)) {
                     envelope = (EnvelopeBuilder)(GeoWKTParser.parseExpectedType(parser, GeoShapeType.ENVELOPE));
+                } else if (FIELD_FIELD.match(currentFieldName)) {
+                    DEPRECATION_LOGGER.deprecated("[{}] field is deprecated and no longer used", FIELD_FIELD.getPreferredName());
                 } else if (TOP_FIELD.match(currentFieldName)) {
                     top = parser.doubleValue();
                 } else if (BOTTOM_FIELD.match(currentFieldName)) {

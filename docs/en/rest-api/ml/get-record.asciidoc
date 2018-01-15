@@ -5,7 +5,7 @@
 <titleabbrev>Get Records</titleabbrev>
 ++++
 
-The get records API enables you to retrieve anomaly records for a job.
+This API enables you to retrieve anomaly records for a job.
 
 
 ==== Request

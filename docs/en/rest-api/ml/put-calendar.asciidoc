@@ -5,7 +5,7 @@
 <titleabbrev>Create Calendar</titleabbrev>
 ++++
 
-The create calendar API enables you to instantiate a calendar.
+This API enables you to instantiate a calendar.
 
 ==== Request
 

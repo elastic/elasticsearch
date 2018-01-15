@@ -5,7 +5,7 @@
 <titleabbrev>Validate Jobs</titleabbrev>
 ++++
 
-The validate jobs API validates job configuration information.
+This API validates job configuration information.
 
 ==== Request
 
@@ -13,7 +13,8 @@ The validate jobs API validates job configuration information.
 
 ==== Description
 
-This API enables you validate the job configuration before you create the job.
+The validate jobs API enables you validate the job configuration before you
+create the job.
 
 
 ==== Request Body

@@ -5,7 +5,7 @@
 <titleabbrev>Flush Jobs</titleabbrev>
 ++++
 
-The flush job API forces any buffered data to be processed by the job.
+This API forces any buffered data to be processed by the job.
 
 
 ==== Request
@@ -15,7 +15,7 @@ The flush job API forces any buffered data to be processed by the job.
 
 ==== Description
 
-The flush job API is only applicable when sending data for analysis using the
+The flush jobs API is only applicable when sending data for analysis using the
 <<ml-post-data,post data API>>. Depending on the content of the buffer, then it
 might additionally calculate new results.
 

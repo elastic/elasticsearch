@@ -5,11 +5,15 @@ The following limitations and known problems apply to the {version} release of
 {xpack}:
 
 [float]
-=== Categorization uses English tokenization rules and dictionary words
+=== Categorization uses English dictionary words
 //See x-pack-elasticsearch/#3021
 Categorization identifies static parts of unstructured logs and groups similar
-messages together. This is currently supported only for English language log
-messages.
+messages together. The default categorization tokenizer assumes English language
+log messages. For other languages you must define a different
+categorization_analyzer for your job. Additionally, a dictionary used to influence
+the categorization process contains only English words. This means categorization
+may work better in English than in other languages. The ability to customize the
+dictionary will be added in a future release.
 
 [float]
 === Pop-ups must be enabled in browsers

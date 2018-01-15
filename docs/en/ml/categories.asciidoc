@@ -79,6 +79,129 @@ image::images/ml-category-advanced.jpg["Advanced job configuration options relat
 NOTE: To add the `categorization_examples_limit` property, you must use the
 **Edit JSON** tab and copy the `analysis_limits` object from the API example.
 
+It is possible to customize the way the categorization field values are interpreted
+to an even greater extent:
+
+[source,js]
+----------------------------------
+PUT _xpack/ml/anomaly_detectors/it_ops_new_logs2
+{
+  "description" : "IT Ops Application Logs",
+  "analysis_config" : {
+    "categorization_field_name": "message",
+    "bucket_span":"30m",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory",
+      "detector_description": "Unusual message counts"
+    }],
+    "categorization_analyzer":{
+      "char_filter": [
+        { "type": "pattern_replace", "pattern": "\\[statement:.*\\]" } <1>
+      ],
+      "tokenizer": "ml_classic", <2>
+      "filter": [
+        { "type" : "stop", "stopwords": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] } <3>
+      ]
+    }
+  },
+  "analysis_limits":{
+    "categorization_examples_limit": 5
+  },
+  "data_description" : {
+    "time_field":"time",
+    "time_format": "epoch_ms"
+  }
+}
+----------------------------------
+//CONSOLE
+<1> The
+{ref}/analysis-pattern-replace-charfilter.html[`pattern_replace` character filter]
+here achieves exactly the same as the `categorization_filters` in the first
+example.
+<2> The `ml_classic` tokenizer works like the non-customizable tokenization
+that was used for categorization in older versions of machine learning. Use
+it if you want the same categorization behavior as older versions.
+<3> English day/month words are filtered by default from log messages
+before categorization. If your logs are in a different language and contain
+dates then you may get better results by filtering day/month words in your
+language.
+
+The optional `categorization_analyzer` property allows even greater customization
+of how categorization interprets the categorization field value. It can refer to
+a built-in Elasticsearch analyzer, or a combination of zero or more character
+filters, a tokenizer, and zero or more token filters.
+
+The `ml_classic` tokenizer and the day/month stopword filter are more-or-less
+equivalent to the following analyzer defined using only built-in Elasticsearch
+{ref}/analysis-tokenizers.html[tokenizers] and
+{ref}/analysis-tokenfilters.html[token filters]:
+
+[source,js]
+----------------------------------
+PUT _xpack/ml/anomaly_detectors/it_ops_new_logs3
+{
+  "description" : "IT Ops Application Logs",
+  "analysis_config" : {
+    "categorization_field_name": "message",
+    "bucket_span":"30m",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory",
+      "detector_description": "Unusual message counts"
+    }],
+    "categorization_analyzer":{
+      "tokenizer": {
+        "type" : "simple_pattern_split",
+        "pattern" : "[^-0-9A-Za-z_.]+" <1>
+      },
+      "filter": [
+        { "type" : "pattern_replace", "pattern": "^[0-9].*" }, <2>
+        { "type" : "pattern_replace", "pattern": "^[-0-9A-Fa-f.]+$" }, <3>
+        { "type" : "pattern_replace", "pattern": "^[^0-9A-Za-z]+" }, <4>
+        { "type" : "pattern_replace", "pattern": "[^0-9A-Za-z]+$" }, <5>
+        { "type" : "stop", "stopwords": [
+          "",
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] }
+      ]
+    }
+  },
+  "analysis_limits":{
+    "categorization_examples_limit": 5
+  },
+  "data_description" : {
+    "time_field":"time",
+    "time_format": "epoch_ms"
+  }
+}
+----------------------------------
+//CONSOLE
+<1> Tokens basically consist of hyphens, digits, letters, underscores and dots.
+<2> By default categorization ignores tokens that begin with a digit.
+<3> By default categorization also ignores tokens that are hexadecimal numbers.
+<4> Underscores, hypens and dots are removed from the beginning of tokens.
+<5> Also at the end of tokens.
+
+The key difference between the default `categorization_analyzer` and this example
+analyzer is that using the `ml_classic` tokenizer is several times faster. (The
+difference in behavior is that this custom analyzer does not include accented
+letters in tokens whereas the `ml_classic` tokenizer will, although that could be
+fixed by using more complex regular expressions.)
+
+NOTE: To add the `categorization_analyzer` property, you must use the **Edit JSON**
+tab and copy the `categorization_analyzer` object from one of the API examples above.
+
 
 After you open the job and start the {dfeed} or supply data to the job, you can
 view the results in {kib}. For example:

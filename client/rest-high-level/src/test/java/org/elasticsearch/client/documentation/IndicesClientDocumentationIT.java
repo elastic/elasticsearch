@@ -190,10 +190,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::create-index-response
             boolean acknowledged = createIndexResponse.isAcknowledged(); // <1>
-            boolean shardsAcked = createIndexResponse.isShardsAcked(); // <2>
+            boolean shardsAcknowledged = createIndexResponse.isShardsAcknowledged(); // <2>
             // end::create-index-response
             assertTrue(acknowledged);
-            assertTrue(shardsAcked);
+            assertTrue(shardsAcknowledged);
         }
     }
 
@@ -202,7 +202,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             CreateIndexRequest request = new CreateIndexRequest("twitter");
-
             // tag::create-index-execute-async
             client.indices().createIndexAsync(request, new ActionListener<CreateIndexResponse>() {
                 @Override

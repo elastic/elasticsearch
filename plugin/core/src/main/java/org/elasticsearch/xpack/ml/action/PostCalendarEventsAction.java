@@ -82,6 +82,10 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
             this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, EVENTS.getPreferredName());
+
+            if (scheduledEvents.isEmpty()) {
+                throw ExceptionsHelper.badRequestException("at least 1 event is required");
+            }
         }
 
         public String getCalendarId() {

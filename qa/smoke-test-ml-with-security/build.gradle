@@ -22,6 +22,7 @@ integTestRunner {
     // know whether to expect an authorization exception or a validation exception
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
+    'ml/calendar_crud/Test post calendar events given empty events',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',

@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -120,13 +121,14 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
+        EngineDiskUtils.createEmpty(store.directory(), translogConfig.getTranslogPath(), shardId);
         EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
-                indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null, null,
-                new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+            indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
+            eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+            TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
+            (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED);
         engine = new InternalEngine(config);
+        engine.recoverFromTranslog();
         listeners.setTranslog(engine.getTranslog());
     }
 

@@ -185,7 +185,7 @@ public class InternalEngine extends Engine {
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
-                    translog::getLastSyncedGlobalCheckpoint);
+                    translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
@@ -429,6 +429,7 @@ public class InternalEngine extends Engine {
                     "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
                 return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
             } else {
+                // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
                 return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
             }
         }

@@ -45,15 +45,17 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
+    private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private IndexCommit lastCommit; // the most recent commit point
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
-                           LongSupplier globalCheckpointSupplier) {
+                           LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) {
         this.openMode = openMode;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.startingCommit = startingCommit;
         this.snapshottedCommits = new ObjectIntHashMap<>();
     }
 
@@ -61,19 +63,31 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
+                assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
+                assert startingCommit == null : "OPEN_INDEX_CREATE_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
                 // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, a new fresh index commit will be created immediately.
                 // We therefore can simply skip processing here as `onCommit` will be called right after with a new commit.
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                onCommit(commits);
+                assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
+                    + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
+                keepOnlyStartingCommitOnInit(commits);
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
         }
+    }
+
+    private synchronized void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) throws IOException {
+        commits.stream().filter(commit -> startingCommit.equals(commit) == false).forEach(IndexCommit::delete);
+        assert startingCommit.isDeleted() == false : "Starting commit must not be deleted";
+        lastCommit = startingCommit;
+        safeCommit = startingCommit;
+        updateTranslogDeletionPolicy();
     }
 
     @Override

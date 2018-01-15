@@ -66,11 +66,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                assert startingCommit == null : "OPEN_INDEX_CREATE_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
-                // When an engine starts with OPEN_INDEX_CREATE_TRANSLOG, a new fresh index commit will be created immediately.
-                // We therefore can simply skip processing here as `onCommit` will be called right after with a new commit.
-                break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
                 assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
@@ -109,7 +104,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert startingCommit.isDeleted() == false : "Starting commit must not be deleted";
         lastCommit = startingCommit;
         safeCommit = startingCommit;
-        updateTranslogDeletionPolicy();
+        // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
+        // We therefore should not use that index commit to update the translog deletion policy.
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            updateTranslogDeletionPolicy();
+        }
     }
 
     @Override

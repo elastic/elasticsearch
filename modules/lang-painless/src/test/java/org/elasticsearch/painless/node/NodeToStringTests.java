@@ -33,10 +33,12 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.WhitelistLoader;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,7 +50,8 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
-    private final Definition definition = Definition.DEFINITION;
+    private final Definition definition = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, Definition.DEFINITION_FILES)));
 
     public void testEAssignment() {
         assertToString(
@@ -161,12 +164,12 @@ public class NodeToStringTests extends ESTestCase {
     public void testECast() {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, "test");
-        Cast cast = Cast.standard(Definition.DEFINITION.StringType, Definition.DEFINITION.IntegerType, true);
+        Cast cast = Cast.standard(definition.StringType, definition.IntegerType, true);
         assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = Cast.standard(Definition.DEFINITION.IntegerType, Definition.DEFINITION.BooleanType, true);
+        cast = Cast.standard(definition.IntegerType, definition.BooleanType, true);
         assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
             new ECast(l, child, cast).toString());
     }
@@ -396,7 +399,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubBrace() {
         Location l = new Location(getTestName(), 0);
-        PSubBrace node = new PSubBrace(l, Definition.DEFINITION.intType, new ENumeric(l, "1", 10));
+        PSubBrace node = new PSubBrace(l, definition.intType, new ENumeric(l, "1", 10));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubBrace (EVariable a) (ENumeric 1))", node.toString());
     }
@@ -762,7 +765,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachArray() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", Definition.DEFINITION.intType, 5, false);
+        Variable v = new Variable(l, "test", definition.intType, 5, false);
         AExpression e = new ENewArray(l, "int", Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)), true);
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachArray node = new SSubEachArray(l, v, e, b);
@@ -774,7 +777,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachIterable() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", Definition.DEFINITION.intType, 5, false);
+        Variable v = new Variable(l, "test", definition.intType, 5, false);
         AExpression e = new EListInit(l, Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)));
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachIterable node = new SSubEachIterable(l, v, e, b);

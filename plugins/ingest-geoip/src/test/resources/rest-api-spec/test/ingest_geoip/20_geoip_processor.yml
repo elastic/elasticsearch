@@ -87,7 +87,7 @@
   - match: { _source.geoip.continent_name: "North America" }
 
 ---
-"Test geoip processor with different database file":
+"Test geoip processor with different database file - GeoLite2-Country":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -195,3 +195,41 @@
   - match: { _source.geoip.location.lat: 44.9759 }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
+
+---
+"Test geoip processor with different database file - GeoLite2-ASN":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "database_file" : "GeoLite2-ASN.mmdb.gz"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "82.170.213.79"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "82.170.213.79" }
+  - length: { _source.geoip: 3 }
+  - match: { _source.geoip.ip: "82.170.213.79" }
+  - match: { _source.geoip.asn: 5615 }
+  - match: { _source.geoip.organization_name: "KPN B.V." }

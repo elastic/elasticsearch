@@ -134,48 +134,80 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? (Boolean) val : false;
+        try {
+            return val != null ? (Boolean) val : false;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a boolean", cce);
+        }
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).byteValue() : 0;
+        try {
+            return val != null ? ((Number) val).byteValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a byte", cce);
+        }
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).shortValue() : 0;
+        try {
+            return val != null ? ((Number) val).shortValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a short", cce);
+        }
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).intValue() : 0;
+        try {
+            return val != null ? ((Number) val).intValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to an int", cce);
+        }
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).longValue() : 0;
+        try {
+            return val != null ? ((Number) val).longValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a long", cce);
+        }
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).floatValue() : 0;
+        try {
+            return val != null ? ((Number) val).floatValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a float", cce);
+        }
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val != null ? ((Number) val).doubleValue() : 0;
+        try {
+            return val != null ? ((Number) val).doubleValue() : 0;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a double", cce);
+        }
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        return (byte[]) column(columnIndex);
+        try {
+            return (byte[]) column(columnIndex);
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a byte array", cce);
+        }
     }
 
     @Override
@@ -245,7 +277,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        return val == null ? null : (Long) val;
+        try {
+            return val == null ? null : (Long) val;
+        } catch (ClassCastException cce) {
+            throw new SQLException("unable to convert column " + columnIndex + " to a long", cce);
+        }
     }
 
     private Calendar safeCalendar(Calendar calendar) {
@@ -324,7 +360,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         if (type != null && type.isInstance(val)) {
-            return type.cast(val);
+            try {
+                return type.cast(val);
+            } catch (ClassCastException cce) {
+                throw new SQLException("unable to convert column " + columnIndex + " to " + type, cce);
+            }
         }
 
         JDBCType columnType = cursor.columns().get(columnIndex - 1).type;

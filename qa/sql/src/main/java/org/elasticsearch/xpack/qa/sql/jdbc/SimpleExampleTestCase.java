@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 
 public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
@@ -23,6 +24,8 @@ public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
                 assertTrue(results.next());
                 assertEquals("Don Quixote", results.getString(1));
                 assertEquals(1072, results.getInt(2));
+                SQLException e = expectThrows(SQLException.class, () -> results.getInt(1));
+                assertTrue(e.getMessage(), e.getMessage().contains("unable to convert column 1 to an int"));
                 assertFalse(results.next());
             }
             // end::simple_example

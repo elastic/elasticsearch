@@ -4389,20 +4389,18 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testOpenIndexCreateTranslogKeepOnlyLastCommit() throws Exception {
         IOUtils.close(engine);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get);
+        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
         final Map<String, String> lastCommit;
         try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
             engine.skipTranslogRecovery();
             final int numDocs = between(5, 50);
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
+                if (randomBoolean()) {
+                    engine.flush();
+                }
             }
-            globalCheckpoint.set(engine.getLocalCheckpointTracker().getMaxSeqNo());
-            engine.getTranslog().sync();
-            engine.flush();
             final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
-            assertThat("Should keep one commit with in-sync global checkpoint", commits, hasSize(1));
             lastCommit = commits.get(commits.size() - 1).getUserData();
         }
         try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {

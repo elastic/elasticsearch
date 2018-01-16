@@ -246,7 +246,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
-        filters.add(PreConfiguredTokenFilter.singleton("trim", false, TrimFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));

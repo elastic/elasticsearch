@@ -13,7 +13,7 @@ the specified value so that it can be indexed and searched.  For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "status_code": {
           "type":       "keyword",
@@ -24,12 +24,12 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "status_code": null
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "status_code": [] <2>
 }

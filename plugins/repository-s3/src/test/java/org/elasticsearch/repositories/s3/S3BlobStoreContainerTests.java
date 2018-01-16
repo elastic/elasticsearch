@@ -199,7 +199,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
 
-        final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 1024));
+        final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
         final long bufferSize =  ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);

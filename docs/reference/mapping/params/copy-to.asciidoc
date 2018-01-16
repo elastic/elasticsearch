@@ -11,7 +11,7 @@ the `full_name` field as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "first_name": {
           "type": "text",
@@ -29,7 +29,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "first_name": "John",
   "last_name": "Smith"

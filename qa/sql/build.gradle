@@ -128,7 +128,7 @@ subprojects {
       Project cli = project(':x-pack-elasticsearch:sql:cli')
       dependsOn project.configurations.cliFixture
       dependsOn cli.jar
-      executable = new File(project.javaHome, 'bin/java')
+      executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
       args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
           baseDir, "${ -> cli.jar.outputs.files.singleFile}"

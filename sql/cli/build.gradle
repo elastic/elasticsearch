@@ -73,7 +73,7 @@ task runcli {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
   dependsOn 'assemble'
   doLast {
-    List command = [new File(project.javaHome, 'bin/java').absolutePath]
+    List command = [new File(project.runtimeJavaHome, 'bin/java').absolutePath]
     if ('true'.equals(System.getProperty('debug', 'false'))) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }

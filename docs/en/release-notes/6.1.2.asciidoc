@@ -24,12 +24,13 @@ data.
 //Repo: x-pack-elasticsearch
 //Pull: 3362
 
-////
 Monitoring::
-* [Monitoring] Add Cluster Alert Blacklist
+* Added a `cluster_alerts.management.blacklist` setting for HTTP Exporters,
+which you can use to block the creation of specific cluster alerts. For more
+information, see <<monitoring-settings>>.
 //Repo: x-pack-elasticsearch
 //Pull: 3326
-////
+
 Security::
 * Fixed an issue in the Active Directory realm when following referrals that
 resulted in an increase in the number of connections made to Active Directory.

@@ -169,7 +169,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
                     StandardCopyOption.REPLACE_EXISTING)
 
-            if (project.javaVersion < JavaVersion.VERSION_1_10) {
+            if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
                 String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
                 String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
                 Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),

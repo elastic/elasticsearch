@@ -495,6 +495,17 @@ thirdPartyAudit.excludes = [
   'de.l3s.boilerpipe.document.TextDocument',
   'de.l3s.boilerpipe.extractors.DefaultExtractor',
   'de.l3s.boilerpipe.sax.BoilerpipeHTMLContentHandler',
+  'javax.activation.ActivationDataFlavor',
+  'javax.activation.CommandMap',
+  'javax.activation.DataContentHandler',
+  'javax.activation.DataHandler',
+  'javax.activation.DataSource',
+  'javax.activation.FileDataSource',
+  'javax.activation.MailcapCommandMap',
+  'javax.xml.bind.DatatypeConverter',
+  'javax.xml.bind.JAXBContext',
+  'javax.xml.bind.JAXBElement',
+  'javax.xml.bind.Unmarshaller',
   'javax.mail.BodyPart',
   'javax.mail.Header',
   'javax.mail.Message$RecipientType',
@@ -2091,21 +2102,3 @@ thirdPartyAudit.excludes = [
   'ucar.nc2.Variable',
   'ucar.nc2.dataset.NetcdfDataset'
 ]
-
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-    'javax.activation.ActivationDataFlavor',
-    'javax.activation.CommandMap',
-    'javax.activation.DataContentHandler',
-    'javax.activation.DataHandler',
-    'javax.activation.DataSource',
-    'javax.activation.FileDataSource',
-    'javax.activation.MailcapCommandMap',
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.Marshaller',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.helpers.DefaultValidationEventHandler',
-  ]
-}

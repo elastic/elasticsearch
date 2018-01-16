@@ -596,7 +596,7 @@
 "Test post calendar events given empty events":
 
   - do:
-      catch: /at least 1 event is required/
+      catch: /At least 1 event is required/
       xpack.ml.post_calendar_events:
         calendar_id: "foo"
         body: >

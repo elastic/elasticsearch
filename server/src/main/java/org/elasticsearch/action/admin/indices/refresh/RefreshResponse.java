@@ -24,10 +24,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -56,24 +54,7 @@ public class RefreshResponse extends BroadcastResponse implements ToXContentFrag
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields._SHARDS);
-        builder.field(Fields.TOTAL, getTotalShards());
-        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
-        builder.field(Fields.FAILED, getFailedShards());
-        builder.endObject();
-        return builder;
-    }
-
     public static RefreshResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    static final class Fields {
-        static final String _SHARDS = "_shards";
-        static final String TOTAL = "total";
-        static final String SUCCESSFUL = "successful";
-        static final String FAILED = "failed";
     }
 }

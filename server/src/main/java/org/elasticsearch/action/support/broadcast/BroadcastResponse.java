@@ -23,8 +23,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +36,7 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
 /**
  * Base class for all broadcast operation based responses.
  */
-public class BroadcastResponse extends ActionResponse {
+public class BroadcastResponse extends ActionResponse implements ToXContentFragment{
     private static final ShardOperationFailedException[] EMPTY = new ShardOperationFailedException[0];
     private int totalShards;
     private int successfulShards;
@@ -126,5 +128,22 @@ public class BroadcastResponse extends ActionResponse {
         for (ShardOperationFailedException exp : shardFailures) {
             exp.writeTo(out);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, getTotalShards());
+        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
+        builder.field(Fields.FAILED, getFailedShards());
+        builder.endObject();
+        return builder;
+    }
+
+    public static final class Fields {
+        public static final String _SHARDS = "_shards";
+        public static final String TOTAL = "total";
+        public static final String SUCCESSFUL = "successful";
+        public static final String FAILED = "failed";
     }
 }

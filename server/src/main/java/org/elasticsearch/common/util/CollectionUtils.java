@@ -237,9 +237,9 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            return ((Map) value).values();
+            return ((Map<?,?>) value).values();
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable) value;
+            return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
             return Arrays.asList((Object[]) value);
         } else {

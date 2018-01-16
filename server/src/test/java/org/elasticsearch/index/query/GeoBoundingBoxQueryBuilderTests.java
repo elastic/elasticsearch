@@ -406,6 +406,50 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 
+    public void testFromWKT() throws IOException {
+        String wkt =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        // toXContent generates the query in geojson only; for now we need to test against the expected
+        // geojson generated content
+        String expectedJson =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        // parse with wkt
+        GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(wkt);
+        // check the builder's generated geojson content against the expected json output
+        checkGeneratedJson(expectedJson, parsed);
+        double delta = 0d;
+        assertEquals(expectedJson, "pin.location", parsed.fieldName());
+        assertEquals(expectedJson, -74.1, parsed.topLeft().getLon(), delta);
+        assertEquals(expectedJson, 40.73, parsed.topLeft().getLat(), delta);
+        assertEquals(expectedJson, -71.12, parsed.bottomRight().getLon(), delta);
+        assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
+        assertEquals(expectedJson, 1.0, parsed.boost(), delta);
+        assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);

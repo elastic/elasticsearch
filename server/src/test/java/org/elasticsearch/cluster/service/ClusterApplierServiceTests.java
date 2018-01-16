@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -130,7 +130,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         "*failed to execute cluster state applier in [2s]*"));
 
         Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
-        Loggers.addAppender(clusterLogger, mockAppender);
+        ServerLoggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(3);
             clusterApplierService.currentTimeOverride = System.nanoTime();
@@ -180,7 +180,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 });
             latch.await();
         } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
+            ServerLoggers.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
@@ -210,7 +210,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         "*cluster state applier task [test3] took [34s] above the warn threshold of *"));
 
         Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
-        Loggers.addAppender(clusterLogger, mockAppender);
+        ServerLoggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
@@ -276,7 +276,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 });
             latch.await();
         } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
+            ServerLoggers.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();

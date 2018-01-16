@@ -599,6 +599,9 @@ public class Strings {
      * @see #delimitedListToStringArray
      */
     public static String[] tokenizeToStringArray(String str, String delimiters) {
+        if (str == null) {
+            return EMPTY_ARRAY;
+        }
         return tokenizeToStringArray(str, delimiters, true, true);
     }
 

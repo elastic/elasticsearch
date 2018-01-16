@@ -194,6 +194,14 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals("invalid IP address [" + invalidIP + "] for [" + ipKey + "]", e.getMessage());
     }
 
+    public void testNull() {
+        Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+
+        IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT).putNull(filterSetting.getKey() + "name")).numberOfShards(2).numberOfReplicas(0).build();
+    }
+
     public void testWildcardIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
         Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,

@@ -67,7 +67,7 @@ The translog stores all operations that are not yet safely persisted in Lucene (
 not part of a Lucene commit point). Although these operations are available for reads, they will
 need to be reindexed if the shard was to shutdown and has to be recovered. This settings controls
 the maximum total size of these operations, to prevent recoveries from taking too long. Once the
-maximum size has been reached a flush will happen, generating a new Lucene commit. Defaults to `512mb`.
+maximum size has been reached a flush will happen, generating a new Lucene commit point. Defaults to `512mb`.
 
 `index.translog.retention.size`::
 

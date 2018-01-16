@@ -60,7 +60,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public void onInit(List<? extends IndexCommit> commits) throws IOException {
+    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
                 assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
@@ -71,6 +71,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
                     + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
                 keepOnlyStartingCommitOnInit(commits);
+                // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
+                // We therefore should not use that index commit to update the translog deletion policy.
+                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                    updateTranslogDeletionPolicy();
+                }
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
@@ -99,16 +104,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * (v6.2), may not have a safe commit. If that index has a snapshotted commit without translog and an unsafe commit,
      * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
      */
-    private synchronized void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) throws IOException {
+    private void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) {
         commits.stream().filter(commit -> startingCommit.equals(commit) == false).forEach(IndexCommit::delete);
         assert startingCommit.isDeleted() == false : "Starting commit must not be deleted";
         lastCommit = startingCommit;
         safeCommit = startingCommit;
-        // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
-        // We therefore should not use that index commit to update the translog deletion policy.
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            updateTranslogDeletionPolicy();
-        }
     }
 
     @Override

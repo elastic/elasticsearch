@@ -24,7 +24,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Information about a column.
+ * Information about a column returned with first query response
  */
 public final class ColumnInfo implements Writeable, ToXContentObject {
 

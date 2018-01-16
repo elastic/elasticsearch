@@ -15,6 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.Strings.hasText;
@@ -37,11 +38,8 @@ public class TransportSqlListTablesAction extends HandledTransportAction<SqlList
     @Override
     protected void doExecute(SqlListTablesRequest request, ActionListener<SqlListTablesResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        // TODO: This is wrong
-        // See https://github.com/elastic/x-pack-elasticsearch/pull/3438/commits/61b7c26fe08db2721f0431579f215fe493744af3
-        // and https://github.com/elastic/x-pack-elasticsearch/issues/3460
-        String indexPattern = hasText(request.getPattern()) ? request.getPattern() : "*";
-        String regexPattern = null;
+        String indexPattern = hasText(request.getPattern()) ? StringUtils.likeToIndexWildcard(request.getPattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.getPattern()) ? StringUtils.likeToJavaPattern(request.getPattern(), (char) 0) : null;
 
         indexResolver.resolveNames(indexPattern, regexPattern, ActionListener.wrap(set -> listener.onResponse(
                 new SqlListTablesResponse(set.stream()

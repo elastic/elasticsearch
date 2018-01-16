@@ -194,7 +194,7 @@ indices that are available to the user execute:
 --------------------------------------------------
 POST /_xpack/sql/tables
 {
-    "table_pattern": "lib*"
+    "table_pattern": "lib%"
 }
 --------------------------------------------------
 // CONSOLE
@@ -228,12 +228,14 @@ POST /_xpack/sql/columns
 --------------------------------------------------
 {
     "columns": [
-        {"table": "library", "name": "author",       "type": "text"},
-        {"table": "library", "name": "name",         "type": "text"},
-        {"table": "library", "name": "page_count",   "type": "short"},
-        {"table": "library", "name": "release_date", "type": "date"}
+        {"table": "library", "name": "author",       "type": "text",  "position": 1},
+        {"table": "library", "name": "name",         "type": "text",  "position": 2},
+        {"table": "library", "name": "page_count",   "type": "short", "position": 3},
+        {"table": "library", "name": "release_date", "type": "date",  "position": 4}
     ]
 }
 --------------------------------------------------
 // TESTRESPONSE
 
+The `position` is the position in the original table and won't match the position in the
+array if the `column_pattern` removes any columns.

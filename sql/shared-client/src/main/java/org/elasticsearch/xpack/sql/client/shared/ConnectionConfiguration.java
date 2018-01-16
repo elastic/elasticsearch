@@ -69,12 +69,12 @@ public class ConnectionConfiguration {
     private final String connectionString;
     // Proxy
 
-    private long connectTimeout;
-    private long networkTimeout;
-    private long queryTimeout;
+    private final long connectTimeout;
+    private final long networkTimeout;
+    private final long queryTimeout;
 
-    private long pageTimeout;
-    private int pageSize;
+    private final long pageTimeout;
+    private final int pageSize;
 
     private final String user, pass;
 
@@ -103,6 +103,27 @@ public class ConnectionConfiguration {
 
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
     }
+
+    public ConnectionConfiguration(URI baseURI, String connectionString, long connectTimeout, long networkTimeout, long queryTimeout,
+                                   long pageTimeout, int pageSize, String user, String pass, SslConfig sslConfig,
+                                   ProxyConfig proxyConfig) throws ClientException {
+        this.connectionString = connectionString;
+        this.connectTimeout = connectTimeout;
+        this.networkTimeout = networkTimeout;
+        this.queryTimeout = queryTimeout;
+        // page
+        this.pageTimeout = pageTimeout;
+        this.pageSize = pageSize;
+
+        // auth
+        this.user = user;
+        this.pass = pass;
+
+        this.sslConfig = sslConfig;
+        this.proxyConfig = proxyConfig;
+        this.baseURI = baseURI;
+    }
+
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled)  {
         // Make sure the protocol is correct
@@ -164,32 +185,20 @@ public class ConnectionConfiguration {
         return sslConfig.isEnabled();
     }
 
-    SslConfig sslConfig() {
+    public SslConfig sslConfig() {
         return sslConfig;
     }
 
-    ProxyConfig proxyConfig() {
+    public ProxyConfig proxyConfig() {
         return proxyConfig;
-    }
-
-    public void connectTimeout(long millis) {
-        connectTimeout = millis;
     }
 
     public long connectTimeout() {
         return connectTimeout;
     }
 
-    public void networkTimeout(long millis) {
-        networkTimeout = millis;
-    }
-
     public long networkTimeout() {
         return networkTimeout;
-    }
-
-    public void queryTimeout(long millis) {
-        queryTimeout = millis;
     }
 
     public long queryTimeout() {

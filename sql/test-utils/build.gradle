@@ -23,3 +23,5 @@ thirdPartyAudit.excludes = [
  * hard to configure and (hopefully) much less important for tests than
  * production code. */
 dependencyLicenses.enabled = false
+
+test.enabled = false

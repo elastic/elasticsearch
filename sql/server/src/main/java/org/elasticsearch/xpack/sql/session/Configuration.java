@@ -5,26 +5,25 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
-import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 import org.joda.time.DateTimeZone;
 
 // Typed object holding properties for a given action 
 public class Configuration {
-    public static final Configuration DEFAULT = new Configuration(DateTimeZone.UTC, 
-                                AbstractQueryInitRequest.DEFAULT_FETCH_SIZE,
-                                AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT,
-                                AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT,
-                                null);
+    public static final Configuration DEFAULT = new Configuration(DateTimeZone.UTC,
+            AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE,
+            AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT,
+            AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT,
+            null);
 
     private DateTimeZone timeZone;
     private int pageSize;
     private TimeValue requestTimeout;
     private TimeValue pageTimeout;
-    
+
     @Nullable
     private QueryBuilder filter;
 
@@ -43,7 +42,7 @@ public class Configuration {
     public int pageSize() {
         return pageSize;
     }
-    
+
     public TimeValue requestTimeout() {
         return requestTimeout;
     }

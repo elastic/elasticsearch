@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
 import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
@@ -73,7 +74,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // mutable ones
     private TimeZone timeZone;
 
-    public static JdbcConfiguration create(String u, Properties props) throws JdbcSQLException {
+    public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
         Properties urlProps = parseProperties(uri, u);
         uri = removeQuery(uri, u, DEFAULT_URI);
@@ -81,6 +82,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         // override properties set in the URL with the ones specified programmatically
         if (props != null) {
             urlProps.putAll(props);
+        }
+
+        if (loginTimeoutSeconds > 0) {
+            urlProps.setProperty(CONNECT_TIMEOUT, Long.toString(TimeUnit.SECONDS.toMillis(loginTimeoutSeconds)));
         }
 
         try {

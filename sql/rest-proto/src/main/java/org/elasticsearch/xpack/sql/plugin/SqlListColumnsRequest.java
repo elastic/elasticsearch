@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -20,6 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Request to get a list of SQL-supported columns of an index
@@ -37,11 +39,13 @@ public class SqlListColumnsRequest extends AbstractSqlRequest implements ToXCont
             ));
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField("table_pattern"));
-        PARSER.declareString(constructorArg(), new ParseField("column_pattern"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("table_pattern"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("column_pattern"));
     }
 
+    @Nullable
     private String tablePattern;
+    @Nullable
     private String columnPattern;
 
 
@@ -57,20 +61,8 @@ public class SqlListColumnsRequest extends AbstractSqlRequest implements ToXCont
 
     public SqlListColumnsRequest(StreamInput in) throws IOException {
         super(in);
-        this.tablePattern = in.readString();
-        this.columnPattern = in.readString();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (tablePattern == null) {
-            validationException = addValidationError("[index_pattern] is required", validationException);
-        }
-        if (columnPattern == null) {
-            validationException = addValidationError("[column_pattern] is required", validationException);
-        }
-        return validationException;
+        this.tablePattern = in.readOptionalString();
+        this.columnPattern = in.readOptionalString();
     }
 
     /**
@@ -98,8 +90,8 @@ public class SqlListColumnsRequest extends AbstractSqlRequest implements ToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(tablePattern);
-        out.writeString(columnPattern);
+        out.writeOptionalString(tablePattern);
+        out.writeOptionalString(columnPattern);
     }
 
     @Override
@@ -111,8 +103,12 @@ public class SqlListColumnsRequest extends AbstractSqlRequest implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("table_pattern", tablePattern);
-            builder.field("column_pattern", columnPattern);
+            if (tablePattern != null) {
+                builder.field("table_pattern", tablePattern);
+            }
+            if (columnPattern != null) {
+                builder.field("column_pattern", columnPattern);
+            }
         }
         return builder.endObject();
     }

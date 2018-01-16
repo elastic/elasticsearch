@@ -2,7 +2,6 @@ description = 'Request and response objects shared by the cli and ' +
     'its backend in :sql:server'
 
 dependencies {
-  compile project(':x-pack-elasticsearch:sql:shared-proto')
   compile (project(':server')) {
     transitive = false
   }
@@ -19,11 +18,9 @@ dependencies {
 }
 
 dependencyLicenses {
-  mapping from: /shared-proto.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
-  ignoreSha 'shared-proto'
   ignoreSha 'elasticsearch'
   ignoreSha 'elasticsearch-core'
 }

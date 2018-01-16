@@ -123,7 +123,7 @@ setup:
   - do:
       xpack.sql.tables:
         body:
-          table_pattern: "t*"
+          table_pattern: "t%"
 
   - length: { tables: 1 }
   - match: { tables.0: 'test' }
@@ -133,7 +133,7 @@ setup:
   - do:
       xpack.sql.columns:
         body:
-          table_pattern: "t*"
+          table_pattern: "t%"
           column_pattern: ""
 
   - length: { columns: 2 }

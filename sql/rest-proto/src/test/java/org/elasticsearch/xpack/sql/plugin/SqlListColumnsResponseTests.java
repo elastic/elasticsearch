@@ -25,11 +25,16 @@ public class SqlListColumnsResponseTests extends AbstractStreamableXContentTestC
     @Override
     protected SqlListColumnsResponse createTestInstance() {
         int columnCount = between(1, 10);
-
-        List<ColumnInfo> columns = new ArrayList<>(columnCount);
+        boolean jdbcMode = randomBoolean();
+        List<MetaColumnInfo> columns = new ArrayList<>(columnCount);
         for (int i = 0; i < columnCount; i++) {
-            columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                    randomFrom(JDBCType.values()), randomInt(25)));
+            if (jdbcMode) {
+                columns.add(new MetaColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                        randomFrom(JDBCType.values()), randomInt(25), randomInt(20)));
+            } else {
+                columns.add(new MetaColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(20)));
+
+            }
         }
         return new SqlListColumnsResponse(columns);
     }
@@ -52,12 +57,18 @@ public class SqlListColumnsResponseTests extends AbstractStreamableXContentTestC
             assertThat(columns, hasSize(testInstance.getColumns().size()));
             for (int i = 0; i < columns.size(); i++) {
                 Map<?, ?> columnMap = (Map<?, ?>) columns.get(i);
-                ColumnInfo columnInfo = testInstance.getColumns().get(i);
+                MetaColumnInfo columnInfo = testInstance.getColumns().get(i);
                 assertEquals(columnInfo.table(), columnMap.get("table"));
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
-                assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
+                if (columnInfo.jdbcType() == null) {
+                    assertNull(columnMap.get("jdbc_type"));
+                    assertNull(columnMap.get("size"));
+                } else {
+                    assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
+                    assertEquals(columnInfo.size(), columnMap.get("size"));
+                }
+                assertEquals(columnInfo.position(), columnMap.get("position"));
             }
         } else {
             assertNull(rootMap.get("columns"));

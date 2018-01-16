@@ -22,6 +22,8 @@ import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
+import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
+
 public class JdbcDataSource implements DataSource, Wrapper {
 
     static {
@@ -98,10 +100,7 @@ public class JdbcDataSource implements DataSource, Wrapper {
     }
 
     private Connection doGetConnection(Properties p) throws SQLException {
-        JdbcConfiguration cfg = JdbcConfiguration.create(url, p);
-        if (loginTimeout > 0) {
-            cfg.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
-        }
+        JdbcConfiguration cfg = JdbcConfiguration.create(url, p, loginTimeout);
         JdbcConnection con = new JdbcConnection(cfg);
         // enable logging if needed
         return cfg.debug() ? Debug.proxy(cfg, con, writer) : con;

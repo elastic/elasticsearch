@@ -25,6 +25,12 @@ import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
+import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
+import org.elasticsearch.xpack.sql.plugin.SqlListTablesRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
@@ -52,6 +58,10 @@ public class HttpClient {
 
     private NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
 
+    public boolean ping(long timeoutInMs) throws SQLException {
+        return head("/", timeoutInMs);
+    }
+
     public MainResponse serverInfo() throws SQLException {
         return get("/", MainResponse::fromXContent);
     }
@@ -61,6 +71,10 @@ public class HttpClient {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, null, DateTimeZone.UTC, fetchSize,
                 TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()), ""
         );
+        return query(sqlRequest);
+    }
+
+    public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
         return post(SqlQueryAction.REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
@@ -76,14 +90,23 @@ public class HttpClient {
                 SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
+    
+    public SqlListTablesResponse listTables(SqlListTablesRequest request)  throws SQLException {
+        return post(SqlListTablesAction.REST_ENDPOINT, request, SqlListTablesResponse::fromXContent);
+    }
 
-    private <Request extends ToXContent, Response> Response post(String path, Request request,
+    public SqlListColumnsResponse listColumns(SqlListColumnsRequest request)  throws SQLException {
+        return post(SqlListColumnsAction.REST_ENDPOINT, request, SqlListColumnsResponse::fromXContent);
+    }
+
+    private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request,
                                                                  CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         BytesReference requestBytes = toXContent(request);
+        String query = "error_trace&mode=" + request.mode();
         Tuple<XContentType, BytesReference> response =
                 AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, BytesReference>>>) () ->
-                JreHttpUrlConnection.http(path, "error_trace", cfg, con ->
+                JreHttpUrlConnection.http(path, query, cfg, con ->
                         con.request(
                                 requestBytes::writeTo,
                                 this::readFrom,
@@ -91,6 +114,18 @@ public class HttpClient {
                         )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);
+    }
+
+    private boolean head(String path, long timeoutInMs) throws SQLException {
+        ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(),
+                cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
+                cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
+        try {
+            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () ->
+                    JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head));
+        } catch (ClientException ex) {
+            throw new SQLException("Cannot ping server", ex);
+        }
     }
 
     private <Response> Response get(String path, CheckedFunction<XContentParser, Response, IOException> responseParser)

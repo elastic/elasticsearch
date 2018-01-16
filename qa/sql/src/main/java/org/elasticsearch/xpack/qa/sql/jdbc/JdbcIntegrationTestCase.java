@@ -40,14 +40,8 @@ import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearch
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     /**
-     * Should the HTTP server that serves SQL be embedded in the test
-     * process (true) or should the JDBC driver connect to Elasticsearch
-     * running at {@code tests.rest.cluster}. Note that to use embedded
-     * HTTP you have to have Elasticsearch's transport protocol open on
-     * port 9300 but the Elasticsearch running there does not need to have
-     * the SQL plugin installed. Note also that embedded HTTP is faster
-     * but is not canonical because it runs against a different HTTP server
-     * then JDBC will use in production. Gradle always uses non-embedded.
+     * Starts an internal cluster instead of using external REST cluster. Useful for IDE debugging.
+     * Use: -Dtests.embed.sql=true -Dtests.security.manager=false
      */
     protected static final boolean EMBED_SQL = Booleans.parseBoolean(System.getProperty("tests.embed.sql", "false"));
 

@@ -45,28 +45,28 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
     protected void doExecute(SqlListColumnsRequest request, ActionListener<SqlListColumnsResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
-        // TODO: This is wrong
-        // See https://github.com/elastic/x-pack-elasticsearch/pull/3438/commits/61b7c26fe08db2721f0431579f215fe493744af3
-        // and https://github.com/elastic/x-pack-elasticsearch/issues/3460
+        String indexPattern = hasText(request.getTablePattern()) ?
+                StringUtils.likeToIndexWildcard(request.getTablePattern(), (char) 0) : "*";
+        String regexPattern = hasText(request.getTablePattern()) ?
+                StringUtils.likeToJavaPattern(request.getTablePattern(), (char) 0) : null;
 
-        String indexPattern = hasText(request.getTablePattern()) ? request.getTablePattern() : "*";
-        String regexPattern = null;
-        
         Pattern columnMatcher = hasText(request.getColumnPattern()) ? Pattern.compile(
                 StringUtils.likeToJavaPattern(request.getColumnPattern(), (char) 0)) : null;
 
         indexResolver.resolveAsSeparateMappings(indexPattern, regexPattern, ActionListener.wrap(esIndices -> {
-            List<ColumnInfo> columns = new ArrayList<>();
+            List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
+                int pos = 0;
                 for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
                     String name = entry.getKey();
+                    pos++; // JDBC is 1-based so we start with 1 here
                     if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                         DataType type = entry.getValue();
-                        // the column size it's actually its precision (based on the Javadocs)
                         if (request.mode() == JDBC) {
-                            columns.add(new ColumnInfo(esIndex.name(), name, type.esName(), type.sqlType(), type.displaySize()));
+                            // the column size it's actually its precision (based on the Javadocs)
+                            columns.add(new MetaColumnInfo(esIndex.name(), name, type.esName(), type.sqlType(), type.precision(), pos));
                         } else {
-                            columns.add(new ColumnInfo(esIndex.name(), name, type.esName()));
+                            columns.add(new MetaColumnInfo(esIndex.name(), name, type.esName(), pos));
                         }
                     }
                 }

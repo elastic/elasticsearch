@@ -34,6 +34,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
             }
             return Mode.valueOf(mode.toUpperCase(Locale.ROOT));
         }
+
+
+        @Override
+        public String toString() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private Mode mode = Mode.PLAIN;

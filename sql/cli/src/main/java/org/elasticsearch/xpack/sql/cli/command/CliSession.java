@@ -9,7 +9,7 @@ import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.Version;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
 
 import java.sql.SQLException;
 
@@ -18,7 +18,7 @@ import java.sql.SQLException;
  */
 public class CliSession {
     private final HttpClient httpClient;
-    private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
+    private int fetchSize = AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
 

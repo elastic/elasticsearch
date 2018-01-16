@@ -8,11 +8,8 @@ package org.elasticsearch.xpack.sql.client.shared;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSocketFactory;
 import javax.sql.rowset.serial.SerialException;
+import java.io.BufferedInputStream;
 import java.io.Closeable;
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -33,8 +30,6 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -131,28 +126,6 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public <R> ResponseOrException<R> post(
-            CheckedConsumer<DataOutput, IOException> doc,
-            CheckedFunction<DataInput, R, IOException> parser
-    ) throws ClientException {
-        try {
-            con.setRequestMethod("POST");
-            con.setDoOutput(true);
-            con.setRequestProperty("Content-Type", "application/json");
-            try (OutputStream out = con.getOutputStream()) {
-                doc.accept(new DataOutputStream(out));
-            }
-            if (shouldParseBody(con.getResponseCode())) {
-                try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return new ResponseOrException<>(parser.apply(new DataInputStream(stream)));
-                }
-            }
-            return parserError();
-        } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
-        }
-    }
-
     public <R> ResponseOrException<R> request(
             CheckedConsumer<OutputStream, IOException> doc,
             CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
@@ -165,13 +138,13 @@ public class JreHttpUrlConnection implements Closeable {
             con.setRequestProperty("Accept", "application/json");
             if (doc != null) {
                 try (OutputStream out = con.getOutputStream()) {
-                    doc.accept(new DataOutputStream(out));
+                    doc.accept(out);
                 }
             }
             if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
                     return new ResponseOrException<>(parser.apply(
-                            new DataInputStream(stream),
+                            new BufferedInputStream(stream),
                             con::getHeaderField
                             ));
                 }

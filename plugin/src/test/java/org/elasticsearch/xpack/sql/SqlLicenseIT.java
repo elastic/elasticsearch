@@ -5,15 +5,9 @@
  */
 package org.elasticsearch.xpack.sql;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,39 +18,25 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.protocol.shared.Request;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStandardOrGold;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -205,42 +185,6 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         assertThat(source.docValueFields(), Matchers.contains("count"));
         FetchSourceContext fetchSource = source.fetchSource();
         assertThat(fetchSource.includes(), Matchers.arrayContaining("data"));
-    }
-
-    public void testJdbcActionLicense() throws Exception {
-        setupTestIndex();
-        disableJdbcLicensing();
-
-        Request request = new MetaTableRequest("test");
-        ResponseException responseException = expectThrows(ResponseException.class, () -> jdbc(request));
-        assertThat(responseException.getMessage(), containsString("current license is non-compliant for [jdbc]"));
-        assertThat(responseException.getMessage(), containsString("security_exception"));
-
-
-        enableJdbcLicensing();
-        Response response = jdbc(request);
-        assertThat(response, instanceOf(MetaTableResponse.class));
-    }
-
-    private Response jdbc(Request request) throws IOException {
-        // Convert the request to the HTTP entity that JDBC uses
-        HttpEntity entity;
-        try (BytesStreamOutput bytes = new BytesStreamOutput()) {
-            DataOutput out = new DataOutputStream(bytes);
-            Proto.INSTANCE.writeRequest(request, out);
-            entity = new ByteArrayEntity(BytesRef.deepCopyOf(bytes.bytes().toBytesRef()).bytes, ContentType.APPLICATION_JSON);
-        }
-
-        // Execute
-        InputStream response = getRestClient().performRequest("POST", "/_xpack/sql/jdbc", emptyMap(), entity).getEntity().getContent();
-
-        // Deserialize bytes to response like JDBC does
-        try {
-            DataInput in = new DataInputStream(response);
-            return Proto.INSTANCE.readResponse(request, in);
-        } finally {
-            response.close();
-        }
     }
 
     // TODO test SqlGetIndicesAction. Skipping for now because of lack of serialization support.

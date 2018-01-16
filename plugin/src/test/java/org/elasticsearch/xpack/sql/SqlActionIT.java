@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.sql;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
 import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 
 import java.io.IOException;
@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +73,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertThat(tables, containsInAnyOrder("foo", "bar", "baz", "broken"));
 
 
-        response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("b*").get();
+        response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("b%").get();
         tables = removeInternal(response.getTables());
         assertThat(tables, hasSize(3));
         assertThat(tables, containsInAnyOrder("bar", "baz", "broken"));
@@ -95,11 +96,20 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         SqlListColumnsResponse response = client().prepareExecute(SqlListColumnsAction.INSTANCE)
                 .indexPattern("bar").columnPattern("").mode(Mode.JDBC).get();
-        List<ColumnInfo> columns = response.getColumns();
+        List<MetaColumnInfo> columns = response.getColumns();
         assertThat(columns, hasSize(2));
-        assertThat(columns, containsInAnyOrder(
-                new ColumnInfo("bar", "str_field", "text", JDBCType.VARCHAR, 0),
-                new ColumnInfo("bar", "int_field", "integer", JDBCType.INTEGER, 11)
+        assertThat(columns, contains(
+                new MetaColumnInfo("bar", "int_field", "integer", JDBCType.INTEGER, 10, 1),
+                new MetaColumnInfo("bar", "str_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE, 2)
+        ));
+
+        response = client().prepareExecute(SqlListColumnsAction.INSTANCE)
+                .indexPattern("bar").columnPattern("").mode(Mode.PLAIN).get();
+        columns = response.getColumns();
+        assertThat(columns, hasSize(2));
+        assertThat(columns, contains(
+                new MetaColumnInfo("bar", "int_field", "integer", null, 0, 1),
+                new MetaColumnInfo("bar", "str_field", "text", null, 0, 2)
         ));
     }
 

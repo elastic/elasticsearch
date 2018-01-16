@@ -9,13 +9,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 
 import java.sql.SQLException;
+import java.util.Properties;
 
+import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.PAGE_TIMEOUT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class JdbcConfigurationTests extends ESTestCase {
 
     private JdbcConfiguration ci(String url) throws SQLException {
-        return JdbcConfiguration.create(url, null);
+        return JdbcConfiguration.create(url, null, 0);
     }
 
     public void testJustThePrefix() throws Exception {
@@ -78,5 +82,29 @@ public class JdbcConfigurationTests extends ESTestCase {
         JdbcConfiguration ci = ci("jdbc:es://test?ssl=false");
         assertThat(ci.baseUri().toString(), is("http://test:9200/"));
     }
+
+    public void testTimoutOverride() throws Exception {
+        Properties properties  = new Properties();
+        properties.setProperty(CONNECT_TIMEOUT, "3"); // Should be overridden
+        properties.setProperty(PAGE_TIMEOUT, "4");
+
+        String url = "jdbc:es://test?connect.timeout=1&page.timeout=2";
+
+        // No properties
+        JdbcConfiguration ci = JdbcConfiguration.create(url, null, 0);
+        assertThat(ci.connectTimeout(), equalTo(1L));
+        assertThat(ci.pageTimeout(), equalTo(2L));
+
+        // Properties override
+        ci = JdbcConfiguration.create(url, properties, 0);
+        assertThat(ci.connectTimeout(), equalTo(3L));
+        assertThat(ci.pageTimeout(), equalTo(4L));
+
+        // Driver default override for connection timeout
+        ci = JdbcConfiguration.create(url, properties, 5);
+        assertThat(ci.connectTimeout(), equalTo(5000L));
+        assertThat(ci.pageTimeout(), equalTo(4L));
+    }
+
 
 }

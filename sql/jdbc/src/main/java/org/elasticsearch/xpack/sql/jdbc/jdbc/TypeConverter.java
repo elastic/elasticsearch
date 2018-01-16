@@ -136,37 +136,72 @@ abstract class TypeConverter {
     }
 
     // keep in check with JdbcUtils#columnType
-    private static Object asNative(Object v, JDBCType columnType) {
-        Object result = null;
+    static Object asNative(Object v, JDBCType columnType) {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
-            case TINYINT:
-            case SMALLINT:
-            case INTEGER:
-            case BIGINT:
-            case REAL:
-            case FLOAT:
-            case DOUBLE:
             case BINARY:
             case VARBINARY:
             case LONGVARBINARY:
             case CHAR:
             case VARCHAR:
             case LONGVARCHAR:
+                return v;
+            case TINYINT:
+                return ((Number) v).byteValue();
+            case SMALLINT:
+                return ((Number) v).shortValue();
+            case INTEGER:
+                return ((Number) v).intValue();
+            case BIGINT:
+                return ((Number) v).longValue();
+            case FLOAT:
+            case DOUBLE:
+                return doubleValue(v);
+            case REAL:
+                return floatValue(v);
             case TIMESTAMP:
-                result = v;
-                break;
+                return ((Number) v).longValue();
             // since the date is already in UTC_CALENDAR just do calendar math
             case DATE:
-                result = new Date(utcMillisRemoveTime(((Long) v).longValue()));
-                break;
+                return new Date(utcMillisRemoveTime(((Number) v).longValue()));
             case TIME:
-                result = new Time(utcMillisRemoveDate(((Long) v).longValue()));
-                break;
+                return new Time(utcMillisRemoveDate(((Number) v).longValue()));
             default:
+                return null;
         }
-        return result;
+    }
+
+    private static Double doubleValue(Object v) {
+        if (v instanceof String) {
+            switch ((String) v) {
+                case "NaN":
+                    return Double.NaN;
+                case "Infinity":
+                    return Double.POSITIVE_INFINITY;
+                case "-Infinity":
+                    return Double.NEGATIVE_INFINITY;
+                default:
+                    return Double.parseDouble((String) v);
+            }
+        }
+        return ((Number) v).doubleValue();
+    }
+
+    private static Float floatValue(Object v) {
+        if (v instanceof String) {
+            switch ((String) v) {
+                case "NaN":
+                    return Float.NaN;
+                case "Infinity":
+                    return Float.POSITIVE_INFINITY;
+                case "-Infinity":
+                    return Float.NEGATIVE_INFINITY;
+                default:
+                    return Float.parseFloat((String) v);
+            }
+        }
+        return ((Number) v).floatValue();
     }
 
     private static String asString(Object nativeValue) {

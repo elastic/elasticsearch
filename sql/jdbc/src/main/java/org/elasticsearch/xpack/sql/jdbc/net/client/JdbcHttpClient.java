@@ -5,77 +5,65 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
+import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoRequest;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryCloseResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
+import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlListTablesRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.joda.time.DateTimeZone;
 
-import java.io.DataInput;
-import java.io.IOException;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.sql.client.shared.StringUtils.EMPTY;
 
 public class JdbcHttpClient {
-    @FunctionalInterface
-    interface DataInputFunction<R> {
-        R apply(DataInput in) throws IOException, SQLException;
-    }
-
-    private final HttpClient http;
+    private final HttpClient httpClient;
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
     public JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
-        http = new HttpClient(conCfg);
+        httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
     }
 
     public boolean ping(long timeoutInMs) throws SQLException {
-        long oldTimeout = http.getNetworkTimeout();
-        try {
-            // this works since the connection is single-threaded and its configuration not shared
-            // with others connections
-        http.setNetworkTimeout(timeoutInMs);
-            return http.head();
-        } finally {
-            http.setNetworkTimeout(oldTimeout);
-        }
+        return httpClient.ping(timeoutInMs);
     }
 
     public Cursor query(String sql, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-        QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
-        QueryInitResponse response = (QueryInitResponse) http.post(request);
-        return new DefaultCursor(this, response.cursor(), (Page) response.data, meta);
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.JDBC, sql, null, DateTimeZone.UTC, fetch,
+                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.timeoutInMs()), "");
+        SqlQueryResponse response = httpClient.query(sqlRequest);
+        return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
 
     /**
-     * Read the next page of results, updating the {@link Page} and returning
+     * Read the next page of results and returning
      * the scroll id to use to fetch the next page.
      */
-    public String nextPage(String cursor, Page page, RequestMeta meta) throws SQLException {
-        QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
-        return ((QueryPageResponse) http.post(request)).cursor();
+    public Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
+        TimeValue timeValue = TimeValue.timeValueMillis(meta.timeoutInMs());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest().cursor(cursor);
+        sqlRequest.mode(AbstractSqlRequest.Mode.JDBC);
+        sqlRequest.requestTimeout(timeValue);
+        sqlRequest.pageTimeout(timeValue);
+        SqlQueryResponse response = httpClient.query(sqlRequest);
+        return new Tuple<>(response.cursor(), response.rows());
     }
 
     public boolean queryClose(String cursor) throws SQLException {
-        QueryCloseRequest request = new QueryCloseRequest(cursor);
-        return ((QueryCloseResponse) http.post(request)).succeeded();
+        return httpClient.queryClose(cursor);
     }
 
     public InfoResponse serverInfo() throws SQLException {
@@ -86,37 +74,25 @@ public class JdbcHttpClient {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        InfoRequest request = new InfoRequest();
-        return (InfoResponse) http.post(request);
+        MainResponse mainResponse = httpClient.serverInfo();
+        return new InfoResponse(mainResponse.getClusterName().value(), mainResponse.getVersion().major, mainResponse.getVersion().minor);
     }
 
     public List<String> metaInfoTables(String pattern) throws SQLException {
-        MetaTableRequest request = new MetaTableRequest(pattern);
-        return ((MetaTableResponse) http.post(request)).tables;
+        return httpClient.listTables(new SqlListTablesRequest(AbstractSqlRequest.Mode.JDBC, pattern)).getTables();
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
-        MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
-        return ((MetaColumnResponse) http.post(request)).columns;
+        return httpClient.listColumns(new SqlListColumnsRequest(AbstractSqlRequest.Mode.JDBC, tablePattern, columnPattern)).getColumns();
     }
 
-    public void setNetworkTimeout(long millis) {
-        http.setNetworkTimeout(millis);
+    /**
+     * Converts REST column metadata into JDBC column metadata
+     */
+    private List<ColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.plugin.ColumnInfo> columns) {
+        return columns.stream().map(columnInfo ->
+                new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize())
+        ).collect(Collectors.toList());
     }
 
-    public long getNetworkTimeout() {
-        return http.getNetworkTimeout();
-    }
-
-    private TimeoutInfo timeout(RequestMeta meta) {
-        // client time
-        long clientTime = Instant.now().toEpochMilli();
-
-        // timeout (in ms)
-        long timeout = meta.timeoutInMs();
-        if (timeout == 0) {
-            timeout = conCfg.queryTimeout();
-        }
-        return new TimeoutInfo(clientTime, timeout, conCfg.pageTimeout());
-    }
 }

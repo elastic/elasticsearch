@@ -1,9 +1,7 @@
 description = 'The server components of SQL for Elasticsearch'
 
 dependencies {
-  compile project(':x-pack-elasticsearch:sql:jdbc-proto')
   compile project(':x-pack-elasticsearch:sql:rest-proto')
-  compile project(':x-pack-elasticsearch:sql:shared-proto')
   compile 'org.antlr:antlr4-runtime:4.5.3'
   provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
 
@@ -11,12 +9,8 @@ dependencies {
 }
 
 dependencyLicenses {
-  mapping from: /jdbc-proto.*/, to: 'elasticsearch'
   mapping from: /rest-proto.*/, to: 'elasticsearch'
-  mapping from: /shared-proto.*/, to: 'elasticsearch'
-  ignoreSha 'jdbc-proto'
   ignoreSha 'rest-proto'
-  ignoreSha 'shared-proto'
 }
 
 // TODO probably not a good thing to rely on. See https://github.com/elastic/x-pack-elasticsearch/issues/2871

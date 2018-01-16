@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Nullable;
 
 import java.io.InputStream;
 import java.io.Reader;

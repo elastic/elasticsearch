@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
-import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,12 +28,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.plugin.AbstractSqlProtocolRestAction.CURSOR_REGISTRY;
-
 /**
  * Information required to access the next page of response.
  */
 public interface Cursor extends NamedWriteable {
+    NamedWriteableRegistry CURSOR_REGISTRY = new NamedWriteableRegistry(Cursor.getNamedWriteables());
+
     Cursor EMPTY = EmptyCursor.INSTANCE;
 
     /**
@@ -56,7 +55,6 @@ public interface Cursor extends NamedWriteable {
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> EMPTY));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CliFormatterCursor.NAME, CliFormatterCursor::new));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, JdbcCursor.NAME, JdbcCursor::new));
         return entries;
     }
 

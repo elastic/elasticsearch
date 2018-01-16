@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
-import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -28,11 +26,14 @@ import java.util.function.Supplier;
  * Base class for requests that contain sql queries (Query and Translate)
  */
 public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, ToXContentFragment {
-
     public static final DateTimeZone DEFAULT_TIME_ZONE = DateTimeZone.UTC;
-    public static final int DEFAULT_FETCH_SIZE = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
-    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_REQUEST_TIMEOUT);
-    public static final TimeValue DEFAULT_PAGE_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_PAGE_TIMEOUT);
+
+    /**
+     * Global choice for the default fetch size.
+     */
+    public static final int DEFAULT_FETCH_SIZE = 1000;
+    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(90);
+    public static final TimeValue DEFAULT_PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
 
     private String query = "";
     private DateTimeZone timeZone = DEFAULT_TIME_ZONE;

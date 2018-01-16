@@ -3,23 +3,23 @@ read_all:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: test
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
     - names: bort
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
 
 read_something_else:
   cluster:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: something_that_isnt_test
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
 
 read_test_a:
   cluster:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: test
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
       field_security:
         grant: [a]
 
@@ -28,7 +28,7 @@ read_test_a_and_b:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: test
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
       field_security:
         grant: ["*"]
         except: [c]
@@ -38,7 +38,7 @@ read_test_without_c_3:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: test
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]
       query: |
         {
           "bool": {
@@ -57,4 +57,4 @@ read_bort:
     - "cluster:monitor/main" # Used by JDBC's MetaData
   indices:
     - names: bort
-      privileges: [read, "indices:admin/get"]
+      privileges: [read, "indices:admin/get", "indices:admin/sql/tables", "indices:admin/sql/columns"]

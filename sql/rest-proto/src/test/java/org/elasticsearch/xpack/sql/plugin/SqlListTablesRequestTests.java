@@ -44,8 +44,7 @@ public class SqlListTablesRequestTests extends AbstractSerializingTestCase<SqlLi
                 request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(AbstractSqlRequest.Mode.values()))),
                 request -> request.setPattern(randomValueOtherThan(request.getPattern(), () -> randomAlphaOfLength(10)))
         );
-        SqlListTablesRequest newRequest =
-                new SqlListTablesRequest(instance.mode(), instance.getPattern());
+        SqlListTablesRequest newRequest = new SqlListTablesRequest(instance.mode(), instance.getPattern());
         mutator.accept(newRequest);
         return newRequest;
     }

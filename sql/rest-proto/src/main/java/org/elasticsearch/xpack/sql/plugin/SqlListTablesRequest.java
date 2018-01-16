@@ -20,6 +20,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Request to get a list of SQL-supported indices
@@ -36,7 +37,7 @@ public class SqlListTablesRequest extends AbstractSqlRequest implements ToXConte
                     (String) objects[0]));
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField("table_pattern"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("table_pattern"));
     }
 
     private String pattern;
@@ -52,16 +53,7 @@ public class SqlListTablesRequest extends AbstractSqlRequest implements ToXConte
 
     public SqlListTablesRequest(StreamInput in) throws IOException {
         super(in);
-        this.pattern = in.readString();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (pattern == null) {
-            validationException = addValidationError("[pattern] is required", validationException);
-        }
-        return validationException;
+        this.pattern = in.readOptionalString();
     }
 
     /**
@@ -78,7 +70,7 @@ public class SqlListTablesRequest extends AbstractSqlRequest implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(pattern);
+        out.writeOptionalString(pattern);
     }
 
     @Override
@@ -90,7 +82,9 @@ public class SqlListTablesRequest extends AbstractSqlRequest implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("table_pattern", pattern);
+            if (pattern != null) {
+                builder.field("table_pattern", pattern);
+            }
         }
         return builder.endObject();
     }

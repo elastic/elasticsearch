@@ -27,20 +27,20 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class SqlListColumnsResponse extends ActionResponse implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SqlListColumnsResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
-            objects -> new SqlListColumnsResponse((List<ColumnInfo>) objects[0]));
+            objects -> new SqlListColumnsResponse((List<MetaColumnInfo>) objects[0]));
 
     public static final ParseField COLUMNS = new ParseField("columns");
 
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ColumnInfo.fromXContent(p), COLUMNS);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetaColumnInfo.fromXContent(p), COLUMNS);
     }
 
-    private List<ColumnInfo> columns;
+    private List<MetaColumnInfo> columns;
 
     public SqlListColumnsResponse() {
     }
 
-    public SqlListColumnsResponse(List<ColumnInfo> columns) {
+    public SqlListColumnsResponse(List<MetaColumnInfo> columns) {
         this.columns = columns;
     }
 
@@ -48,14 +48,14 @@ public class SqlListColumnsResponse extends ActionResponse implements ToXContent
      * The key that must be sent back to SQL to access the next page of
      * results. If equal to "" then there is no next page.
      */
-    public List<ColumnInfo> getColumns() {
+    public List<MetaColumnInfo> getColumns() {
         return columns;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        columns = in.readList(ColumnInfo::new);
+        columns = in.readList(MetaColumnInfo::new);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class SqlListColumnsResponse extends ActionResponse implements ToXContent
         {
             builder.startArray("columns");
             {
-                for (ColumnInfo column : columns) {
+                for (MetaColumnInfo column : columns) {
                     column.toXContent(builder, params);
                 }
             }

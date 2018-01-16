@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -16,31 +16,35 @@ class DefaultCursor implements Cursor {
     private final JdbcHttpClient client;
     private final RequestMeta meta;
 
-    private final Page page;
+    private final List<ColumnInfo> columnInfos;
+    private List<List<Object>> rows;
     private int row = -1;
     private String cursor;
 
-    DefaultCursor(JdbcHttpClient client, String cursor, Page page, RequestMeta meta) {
+    DefaultCursor(JdbcHttpClient client, String cursor, List<ColumnInfo> columnInfos, List<List<Object>> rows, RequestMeta meta) {
         this.client = client;
         this.meta = meta;
         this.cursor = cursor;
-        this.page = page;
+        this.columnInfos = columnInfos;
+        this.rows = rows;
     }
 
     @Override
     public List<ColumnInfo> columns() {
-        return page.columnInfo();
+        return columnInfos;
     }
 
     @Override
     public boolean next() throws SQLException {
-        if (row < page.rows() - 1) {
+        if (row < rows.size() - 1) {
             row++;
             return true;
         }
         else {
             if (cursor.isEmpty() == false) {
-                cursor = client.nextPage(cursor, page, meta);
+                Tuple<String, List<List<Object>>> nextPage = client.nextPage(cursor, meta);
+                cursor = nextPage.v1();
+                rows = nextPage.v2();
                 row = -1;
                 return next();
             }
@@ -50,12 +54,12 @@ class DefaultCursor implements Cursor {
 
     @Override
     public Object column(int column) {
-        return page.entry(row, column);
+        return rows.get(row).get(column);
     }
 
     @Override
     public int batchSize() {
-        return page.rows();
+        return rows.size();
     }
 
     @Override

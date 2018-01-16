@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.plugin.CliFormatter;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
 import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -24,6 +23,7 @@ import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.mockito.Matchers.any;
@@ -71,27 +71,21 @@ public class CursorTests extends ESTestCase {
         return new SqlQueryResponse("", columns, Collections.emptyList());
     }
 
+    @SuppressWarnings("unchecked")
     static Cursor randomNonEmptyCursor() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return ScrollCursorTests.randomScrollCursor();
-            case 1:
-                int typeNum = randomIntBetween(0, 10);
-                List<JDBCType> types = new ArrayList<>();
-                for (int i = 0; i < typeNum; i++) {
-                    types.add(randomFrom(JDBCType.values()));
+        Supplier<Cursor> cursorSupplier = randomFrom(
+                () -> ScrollCursorTests.randomScrollCursor(),
+                () -> {
+                    SqlQueryResponse response = createRandomSqlResponse();
+                    if (response.columns() != null && response.rows() != null) {
+                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                    } else {
+                        return ScrollCursorTests.randomScrollCursor();
+                    }
+
                 }
-                return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
-            case 2:
-                SqlQueryResponse response = createRandomSqlResponse();
-                if (response.columns() != null && response.rows() != null) {
-                    return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
-                } else {
-                    return ScrollCursorTests.randomScrollCursor();
-                }
-            default:
-                throw new IllegalArgumentException("Unexpected random value ");
-        }
+        );
+        return cursorSupplier.get();
     }
 
     public void testVersionHandling() {

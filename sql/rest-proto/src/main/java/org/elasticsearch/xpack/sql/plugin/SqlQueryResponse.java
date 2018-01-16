@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -154,6 +155,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        AbstractSqlRequest.Mode mode = AbstractSqlRequest.Mode.fromString(params.param("mode"));
         builder.startObject();
         {
             if (columns != null) {
@@ -169,7 +171,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             for (List<Object> row : rows()) {
                 builder.startArray();
                 for (Object value : row) {
-                    builder.value(value);
+                    value(builder, mode, value);
                 }
                 builder.endArray();
             }
@@ -180,6 +182,19 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         return builder.endObject();
+    }
+
+    /**
+     * Serializes the provided value in SQL-compatible way based on the client mode
+     */
+    public static XContentBuilder value(XContentBuilder builder, AbstractSqlRequest.Mode mode, Object value) throws IOException {
+        if (mode == AbstractSqlRequest.Mode.JDBC && value instanceof ReadableDateTime) {
+            // JDBC cannot parse dates in string format
+            builder.value(((ReadableDateTime) value).getMillis());
+        } else {
+            builder.value(value);
+        }
+        return builder;
     }
 
     public static SqlQueryResponse fromXContent(XContentParser parser) {

@@ -19,6 +19,8 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
+
 public class JdbcDriver implements java.sql.Driver {
 
     private static final JdbcDriver INSTANCE = new JdbcDriver();
@@ -79,13 +81,7 @@ public class JdbcDriver implements java.sql.Driver {
     }
 
     private static JdbcConfiguration initCfg(String url, Properties props) throws JdbcSQLException {
-        JdbcConfiguration ci = JdbcConfiguration.create(url, props);
-
-        // if there's a timeout set on the DriverManager, make sure to use it
-        if (DriverManager.getLoginTimeout() > 0) {
-            ci.connectTimeout(TimeUnit.SECONDS.toMillis(DriverManager.getLoginTimeout()));
-        }
-        return ci;
+        return JdbcConfiguration.create(url, props, DriverManager.getLoginTimeout());
     }
 
     @Override
@@ -98,7 +94,7 @@ public class JdbcDriver implements java.sql.Driver {
         if (!acceptsURL(url)) {
             return new DriverPropertyInfo[0];
         }
-        return JdbcConfiguration.create(url, info).driverPropertyInfo();
+        return JdbcConfiguration.create(url, info, DriverManager.getLoginTimeout()).driverPropertyInfo();
     }
 
     @Override

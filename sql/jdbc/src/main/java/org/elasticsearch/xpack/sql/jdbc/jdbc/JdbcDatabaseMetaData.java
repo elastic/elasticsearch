@@ -9,8 +9,8 @@ import org.elasticsearch.xpack.sql.client.shared.ObjectUtils;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -817,21 +817,21 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
             row[ 0] = cat;
             row[ 1] = "";
-            row[ 2] = col.table;
-            row[ 3] = col.name;
-            row[ 4] = col.type.getVendorTypeNumber();
-            row[ 5] = col.type.getName();
-            row[ 6] = col.size;
+            row[ 2] = col.table();
+            row[ 3] = col.name();
+            row[ 4] = col.jdbcType().getVendorTypeNumber();
+            row[ 5] = col.jdbcType().getName();
+            row[ 6] = col.size();
             row[ 7] = null;
             row[ 8] = null;
-            row[ 9] = numericPrecisionRadix(col.type.getVendorTypeNumber());
+            row[ 9] = numericPrecisionRadix(col.jdbcType().getVendorTypeNumber());
             row[10] = columnNullable;
             row[11] = null;
             row[12] = null;
             row[13] = null;
             row[14] = null;
             row[15] = null;
-            row[16] = col.position;
+            row[16] = col.position();
             row[17] = "YES";
             row[18] = null;
             row[19] = null;

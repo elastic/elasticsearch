@@ -28,7 +28,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXContentObject {
-
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
     public static final ParseField CURSOR = new ParseField("cursor");

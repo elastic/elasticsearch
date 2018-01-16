@@ -14,11 +14,10 @@ In the event of a crash, recent transactions can be replayed from the
 translog when the shard recovers.
 
 An Elasticsearch flush is the process of performing a Lucene commit and
-starting a new translog. It is done automatically in the background in order
-to make sure the transaction log doesn't grow too large, which would make
+starting a new translog. Flushes are performed automatically in the background in order
+to make sure the translog doesn't grow too large, which would make
 replaying its operations take a considerable amount of time during recovery.
-It is also exposed through an API, though its rarely needed to be performed
-manually.
+The ability to perform a flush manually is also exposed through an API, although this is rarely needed.
 
 [float]
 === Translog settings

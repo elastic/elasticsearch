@@ -449,6 +449,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 options.encoding = 'UTF-8'
                 options.incremental = true
+                // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
                 options.compilerArgs << '--release' << project.targetCompatibility.majorVersion
             }
         }

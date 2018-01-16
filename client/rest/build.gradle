@@ -57,7 +57,7 @@ dependencies {
 }
 
 forbiddenApisMain {
-  //client does not depend on core, so only jdk and http signatures should be checked
+  //client does not depend on server, so only jdk and http signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
                     PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
@@ -66,12 +66,13 @@ forbiddenApisTest {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
-  //client does not depend on core, so only jdk signatures should be checked
+  //client does not depend on server, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
                     PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
-//JarHell is part of es core, which we don't want to pull in
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in elasticsearch-core
 jarHell.enabled=false
 
 namingConventions {

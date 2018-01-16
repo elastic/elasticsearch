@@ -75,13 +75,11 @@ thirdPartyAudit.excludes = [
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
   'software.amazon.ion.system.IonWriterBuilder',
+  'javax.xml.bind.DatatypeConverter',
+  'javax.xml.bind.JAXBContext',
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
   'org.apache.log.Logger',
 ]
-
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
-}

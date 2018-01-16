@@ -34,6 +34,8 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
@@ -287,6 +289,25 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
+    }
+
+    /**
+     * Retrieves multiple documents by id using the Multi Get API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     */
+    public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, singleton(404), headers);
+    }
+
+    /**
+     * Asynchronously retrieves multiple documents by id using the Multi Get API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     */
+    public void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, listener,
+                singleton(404), headers);
     }
 
     /**

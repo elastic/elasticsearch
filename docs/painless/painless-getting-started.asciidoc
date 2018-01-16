@@ -234,7 +234,7 @@ POST hockey/player/_update_by_query
 ----------------------------------------------------------------
 // CONSOLE
 
-Using the match operator (`==~`) you can update all the hockey players who's
+Using the match operator (`==~`) you can update all the hockey players whose
 names start with a consonant and end with a vowel:
 
 [source,js]

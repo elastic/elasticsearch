@@ -6,8 +6,8 @@ which is a relatively heavy operation and so cannot be performed after every
 index or delete operation. Changes that happen after one commit and before another
 will be lost in the event of process exit or hardware failure.
 
-To prevent this data loss, each shard has a _transaction log_ or write ahead
-log associated with it. Any index or delete operation is written to the
+To prevent this data loss, each shard copy has a _transaction log_ known as its _translog_
+associated with it. Any index or delete operation is written to the
 translog after being processed by the internal Lucene index.
 
 In the event of a crash, recent transactions can be replayed from the

@@ -46,7 +46,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -111,7 +111,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
-        final Predicate<String> loggerPredicate = ESLoggerFactory.LOG_LEVEL_SETTING::match;
+        final Predicate<String> loggerPredicate = ServerLoggers.LOG_LEVEL_SETTING::match;
         private final Settings settings;
 
         LoggingSettingUpdater(Settings settings) {
@@ -129,10 +129,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             builder.put(current.filter(loggerPredicate));
             for (String key : previous.keySet()) {
                 if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
-                    if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
+                    if (ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
+                        builder.put(key, ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }
@@ -150,12 +150,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
                     }
                 } else {
-                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    ServerLoggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -379,8 +379,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
-                    ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
-                    ESLoggerFactory.LOG_LEVEL_SETTING,
+                    ServerLoggers.LOG_DEFAULT_LEVEL_SETTING,
+                    ServerLoggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,

@@ -39,6 +39,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -51,6 +52,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 /**
  * Tests for {@code GeoWKTShapeParser}
@@ -251,5 +254,14 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
             assertExpected(gcb.build(), gcb);
         }
+    }
+
+    public void testUnexpectedShapeException() throws IOException {
+        XContentBuilder builder = toWKTContent(new PointBuilder(-1, 2), false);
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> GeoWKTParser.parseExpectedType(parser, GeoShapeType.POLYGON));
+        assertThat(e, hasToString(containsString("Expected geometry type [polygon] but found [point]")));
     }
 }

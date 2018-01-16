@@ -266,6 +266,45 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 
+    public void testUpdateProcessOnCalendarChanged_GivenGroups() {
+        Job.Builder job1 = buildJobBuilder("job-1");
+        job1.setGroups(Collections.singletonList("group-1"));
+        Job.Builder job2 = buildJobBuilder("job-2");
+        job2.setGroups(Collections.singletonList("group-1"));
+        Job.Builder job3 = buildJobBuilder("job-3");
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(job1.build(), false);
+        mlMetadata.putJob(job2.build(), false);
+        mlMetadata.putJob(job3.build(), false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask(job1.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(job2.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask(job3.getId(), "node_id", JobState.OPENED, tasksBuilder);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
+                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager();
+
+        jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"));
+
+        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+
+        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
+        assertThat(capturedUpdateParams.size(), equalTo(2));
+        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo(job1.getId()));
+        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(job2.getId()));
+        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+    }
+
     private Job.Builder createJob() {
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("client");

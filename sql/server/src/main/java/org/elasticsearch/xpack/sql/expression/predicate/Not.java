@@ -7,15 +7,32 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.util.Objects;
+
 public class Not extends UnaryExpression {
 
     public Not(Location location, Expression child) {
         super(location, child);
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (DataTypes.BOOLEAN.same(child().dataType())) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return new TypeResolution("Cannot negate expression ([" + Expressions.name(child()) + "] of type ["
+                + child().dataType().esName() + "])");
+    }
+
+    @Override
+    public Object fold() {
+        return Objects.equals(child().fold(), Boolean.TRUE) ? Boolean.FALSE : Boolean.TRUE;
     }
 
     @Override

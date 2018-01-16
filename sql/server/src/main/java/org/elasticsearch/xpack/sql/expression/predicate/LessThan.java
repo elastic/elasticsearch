@@ -16,6 +16,12 @@ public class LessThan extends BinaryComparison implements Negateable {
     }
 
     @Override
+    public Object fold() {
+        Integer compare = compare(left().fold(), right().fold());
+        return compare != null && compare.intValue() < 0;
+    }
+
+    @Override
     public GreaterThan swapLeftAndRight() {
         return new GreaterThan(location(), right(), left());
     }

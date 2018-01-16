@@ -441,7 +441,7 @@ abstract class QueryTranslator {
             }
 
             if (e instanceof Like) {
-                LikePattern p = ((Like) e).right();
+                LikePattern p = (LikePattern) ((Like) e).right();
                 if (inexact) {
                     q = new QueryStringQuery(e.location(), p.asLuceneWildcard(), target);
                 }

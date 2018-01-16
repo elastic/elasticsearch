@@ -32,4 +32,12 @@ public abstract class BinaryComparison extends BinaryOperator {
     public DataType dataType() {
         return DataTypes.BOOLEAN;
     }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static Integer compare(Object left, Object right) {
+        if (left instanceof Comparable && right instanceof Comparable) {
+            return Integer.valueOf(((Comparable) left).compareTo(right));
+        }
+        return null;
+    }
 }

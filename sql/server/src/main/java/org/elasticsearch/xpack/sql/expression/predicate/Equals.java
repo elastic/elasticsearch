@@ -8,10 +8,17 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+import java.util.Objects;
+
 public class Equals extends BinaryComparison {
 
     public Equals(Location location, Expression left, Expression right) {
         super(location, left, right);
+    }
+
+    @Override
+    public Object fold() {
+        return Objects.equals(left().fold(), right().fold());
     }
 
     @Override

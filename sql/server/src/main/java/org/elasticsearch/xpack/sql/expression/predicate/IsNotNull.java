@@ -18,6 +18,11 @@ public class IsNotNull extends UnaryExpression {
     }
 
     @Override
+    public Object fold() {
+        return child().fold() != null && !DataTypes.NULL.same(child().dataType());
+    }
+
+    @Override
     public boolean nullable() {
         return false;
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.Arrays;
 import java.util.Objects;
 
-// BETWEEN or range - is a mix of gt(e) AND lt(e) 
+// BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends Expression {
 
     private final Expression value, lower, upper;
@@ -55,6 +55,16 @@ public class Range extends Expression {
     }
 
     @Override
+    public Object fold() {
+        Object val = value.fold();
+        Integer lowerCompare = BinaryComparison.compare(lower.fold(), val);
+        Integer upperCompare = BinaryComparison.compare(val, upper().fold());
+        boolean lowerComparsion = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);
+        boolean upperComparsion = upperCompare == null ? false : (includeUpper ? upperCompare <= 0 : upperCompare < 0);
+        return lowerComparsion && upperComparsion;
+    }
+
+    @Override
     public boolean nullable() {
         return value.nullable() && lower.nullable() && upper.nullable();
     }
@@ -80,7 +90,7 @@ public class Range extends Expression {
         }
         
         Range other = (Range) obj;
-        return Objects.equals(includeLower, other.includeLower) 
+        return Objects.equals(includeLower, other.includeLower)
                 && Objects.equals(includeUpper, other.includeUpper)
                 && Objects.equals(value, other.value)
                 && Objects.equals(lower, other.lower)

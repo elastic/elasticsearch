@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.util.regex.Pattern;
+
 public class RLike extends BinaryExpression {
 
     public RLike(Location location, Expression left, Literal right) {
@@ -19,8 +21,9 @@ public class RLike extends BinaryExpression {
     }
 
     @Override
-    public Literal right() {
-        return (Literal) super.right();
+    public Object fold() {
+        Pattern p = Pattern.compile(right().fold().toString());
+        return p.matcher(left().fold().toString()).matches();
     }
 
     @Override

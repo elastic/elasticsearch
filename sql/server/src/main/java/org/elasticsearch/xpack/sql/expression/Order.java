@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 public class Order extends UnaryExpression {
 
@@ -24,6 +24,11 @@ public class Order extends UnaryExpression {
 
     public OrderDirection direction() {
         return direction;
+    }
+
+    @Override
+    public boolean foldable() {
+        return false;
     }
 
     @Override

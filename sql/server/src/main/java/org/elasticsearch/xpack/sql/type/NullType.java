@@ -10,7 +10,7 @@ import java.sql.JDBCType;
 public class NullType extends AbstractDataType {
 
     NullType() {
-        super(JDBCType.NULL, true);
+        super(JDBCType.NULL, false);
     }
 
     @Override

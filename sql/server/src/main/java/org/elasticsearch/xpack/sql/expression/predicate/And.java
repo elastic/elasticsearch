@@ -10,10 +10,17 @@ import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+import java.util.Objects;
+
 public class And extends BinaryLogic implements Negateable {
     
     public And(Location location, Expression left, Expression right) {
         super(location, left, right);
+    }
+
+    @Override
+    public Object fold() {
+        return Objects.equals(left().fold(), Boolean.TRUE) && Objects.equals(right().fold(), Boolean.TRUE);
     }
 
     @Override

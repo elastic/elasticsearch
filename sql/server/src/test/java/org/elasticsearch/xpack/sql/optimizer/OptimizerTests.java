@@ -20,9 +20,15 @@ import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
+import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.regex.Like;
+import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
@@ -205,6 +211,40 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(5, ((Literal) c).value());
     }
 
+    public void testConstantFoldingBinaryComparison() {
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThan(EMPTY, L(2), L(3))));
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThanOrEqual(EMPTY, L(2), L(3))));
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Equals(EMPTY, L(2), L(3))));
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThanOrEqual(EMPTY, L(2), L(3))));
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThan(EMPTY, L(2), L(3))));
+    }
+
+    public void testConstantFoldingBinaryLogic() {
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, new GreaterThan(EMPTY, L(2), L(3)), Literal.TRUE)));
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, L(2), L(3)), Literal.TRUE)));
+    }
+
+    public void testConstantFoldingRange() {
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Range(EMPTY, L(5), L(5), true, L(10), false)));
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Range(EMPTY, L(5), L(5), false, L(10), false)));
+    }
+
+    public void testConstantIsNotNull() {
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new IsNotNull(EMPTY, L(null))));
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new IsNotNull(EMPTY, L(5))));
+    }
+
+    public void testConstantNot() {
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Not(EMPTY, Literal.TRUE)));
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Not(EMPTY, Literal.FALSE)));
+    }
+
+    public void testConstantFoldingLikes() {
+        assertEquals(Literal.TRUE,
+                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0))));
+        assertEquals(Literal.TRUE,
+                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))));
+    }
 
     public void testBinaryComparisonSimplification() {
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, L(5), L(5))));
@@ -223,7 +263,6 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(a, eq.left());
         assertEquals(L(5), eq.right());
     }
-
 
     public void testBoolSimplifyOr() {
         BooleanSimplification simplification = new BooleanSimplification();

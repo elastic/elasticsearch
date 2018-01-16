@@ -32,18 +32,22 @@ public class ComputingHitExtractor implements HitExtractor {
      */
     static final String NAME = "p";
     private final Processor processor;
+    private final String hitName;
 
-    public ComputingHitExtractor(Processor processor) {
+    public ComputingHitExtractor(Processor processor, String hitName) {
         this.processor = processor;
+        this.hitName = hitName;
     }
 
     ComputingHitExtractor(StreamInput in) throws IOException {
         processor = in.readNamedWriteable(Processor.class);
+        hitName = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(processor);
+        out.writeOptionalString(hitName);
     }
 
     @Override
@@ -62,7 +66,7 @@ public class ComputingHitExtractor implements HitExtractor {
 
     @Override
     public String hitName() {
-        return null;
+        return hitName;
     }
 
     @Override
@@ -71,12 +75,13 @@ public class ComputingHitExtractor implements HitExtractor {
             return false;
         }
         ComputingHitExtractor other = (ComputingHitExtractor) obj;
-        return processor.equals(other.processor);
+        return Objects.equals(processor, other.processor)
+                && Objects.equals(hitName, other.hitName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(processor);
+        return Objects.hash(processor, hitName);
     }
 
     @Override

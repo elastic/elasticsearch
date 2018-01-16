@@ -28,10 +28,10 @@ public abstract class DataTypeConversion {
         if (left.same(right)) {
             return left;
         }
-        if (nullable(left)) {
+        if (DataTypes.isNull(left)) {
             return right;
         }
-        if (nullable(right)) {
+        if (DataTypes.isNull(right)) {
             return left;
         }
         if (left.isNumeric() && right.isNumeric()) {
@@ -63,10 +63,6 @@ public abstract class DataTypeConversion {
         }
         // none found
         return null;
-    }
-
-    public static boolean nullable(DataType from) {
-        return from instanceof NullType;
     }
 
     public static boolean canConvert(DataType from, DataType to) { // TODO it'd be cleaner and more right to fetch the conversion
@@ -317,7 +313,7 @@ public abstract class DataTypeConversion {
      * is important because it is used for serialization.
      */
     public enum Conversion {
-        DATE_TO_STRING(fromLong(UTC_DATE_FORMATTER::print)),
+        DATE_TO_STRING(Object::toString),
         OTHER_TO_STRING(String::valueOf),
         RATIONAL_TO_LONG(fromDouble(DataTypeConversion::safeToLong)),
         INTEGER_TO_LONG(fromLong(value -> value)),

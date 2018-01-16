@@ -77,6 +77,14 @@ public abstract class DataTypes {
         ES_PRIMITIVES_NO_DOC_VALUES.put(type.esName(), type);
     }
 
+    public static boolean isNull(DataType from) {
+        return from instanceof NullType;
+    }
+
+    public static boolean isUnsupported(DataType from) {
+        return from instanceof UnsupportedDataType;
+    }
+
     public static DataType fromJava(Object value) {
         if (value == null) {
             return NULL;

@@ -48,7 +48,9 @@ import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 // TODO: add retry/back-off
 public class Scroller {
@@ -276,9 +278,23 @@ public class Scroller {
 
             if (ref instanceof ComputedRef) {
                 ProcessorDefinition proc = ((ComputedRef) ref).processor();
-                proc = proc.transformDown(l -> new HitExtractorInput(l.expression(),
-                        createExtractor(l.context())), ReferenceInput.class);
-                return new ComputingHitExtractor(proc.asProcessor());
+                // collect hitNames
+                Set<String> hitNames = new LinkedHashSet<>();
+                proc = proc.transformDown(l -> {
+                    HitExtractor he = createExtractor(l.context());
+                    hitNames.add(he.hitName());
+
+                    if (hitNames.size() > 1) {
+                        throw new SqlIllegalArgumentException("Multi-level nested fields [%s] not supported yet", hitNames);
+                    }
+
+                    return new HitExtractorInput(l.expression(), he);
+                }, ReferenceInput.class);
+                String hitName = null;
+                if (hitNames.size() == 1) {
+                    hitName = hitNames.iterator().next();
+                }
+                return new ComputingHitExtractor(proc.asProcessor(), hitName);
             }
 
             throw new SqlIllegalArgumentException("Unexpected ValueReference %s", ref.getClass());

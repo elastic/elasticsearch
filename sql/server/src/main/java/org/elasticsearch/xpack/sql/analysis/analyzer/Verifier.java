@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -34,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static java.lang.String.format;
 
@@ -167,15 +170,8 @@ abstract class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
-            Map<String, Function> resolvedFunctions = new LinkedHashMap<>();
-
             // collect Function to better reason about encountered attributes
-            plan.forEachExpressionsDown(e -> {
-                if (e.resolved() && e instanceof Function) {
-                    Function f = (Function) e;
-                    resolvedFunctions.put(f.functionId(), f);
-                }
-            });
+            Map<String, Function> resolvedFunctions = Functions.collectFunctions(plan);
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();
@@ -197,6 +193,8 @@ abstract class Verifier {
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
+
+                checkNestedUsedInGroupByOrHaving(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -389,5 +387,35 @@ abstract class Verifier {
                     .filter(exp -> exp.anyMatch(Score.class::isInstance))
                     .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function"))),
                 Function.class));
+    }
+
+    private static void checkNestedUsedInGroupByOrHaving(LogicalPlan p, Set<Failure> localFailures) {
+        List<FieldAttribute> nested = new ArrayList<>();
+        Consumer<FieldAttribute> match = fa -> {
+            if (fa.isNested()) {
+                nested.add(fa);
+            }
+        };
+
+        // nested fields shouldn't be used in aggregates or having (yet)
+        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(match, FieldAttribute.class)), Aggregate.class);
+
+        if (!nested.isEmpty()) {
+            localFailures.add(
+                    fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+            nested.clear();
+        }
+        
+        // check in having
+        p.forEachDown(f -> {
+            if (f.child() instanceof Aggregate) {
+                f.condition().forEachUp(match, FieldAttribute.class);
+            }
+        }, Filter.class);
+        
+        if (!nested.isEmpty()) {
+            localFailures.add(
+                    fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+        }
     }
 }

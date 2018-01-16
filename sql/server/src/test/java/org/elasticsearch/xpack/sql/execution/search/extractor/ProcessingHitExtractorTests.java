@@ -31,7 +31,7 @@ import static java.util.Collections.singletonMap;
 
 public class ProcessingHitExtractorTests extends AbstractWireSerializingTestCase<ComputingHitExtractor> {
     public static ComputingHitExtractor randomProcessingHitExtractor(int depth) {
-        return new ComputingHitExtractor(randomProcessor(0));
+        return new ComputingHitExtractor(randomProcessor(0), randomAlphaOfLength(10));
     }
 
     public static Processor randomProcessor(int depth) {
@@ -64,7 +64,9 @@ public class ProcessingHitExtractorTests extends AbstractWireSerializingTestCase
     @Override
     protected ComputingHitExtractor mutateInstance(ComputingHitExtractor instance) throws IOException {
         return new ComputingHitExtractor(
-                randomValueOtherThan(instance.processor(), () -> randomProcessor(0)));
+                randomValueOtherThan(instance.processor(), () -> randomProcessor(0)),
+                randomValueOtherThan(instance.hitName(), () -> randomAlphaOfLength(10))
+                );
     }
 
     public void testGet() {

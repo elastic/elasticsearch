@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.UnsupportedDataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTimeZone;
 
@@ -352,13 +352,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // if it's a object/compound type, keep it unresolved with a nice error message
                         if (named instanceof FieldAttribute) {
                             FieldAttribute fa = (FieldAttribute) named;
-                            if (fa.dataType() instanceof UnsupportedDataType) {
+                            if (DataTypes.isUnsupported(fa.dataType())) {
                                 named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "], its type [" + fa.dataType().esName() + "] is unsupported");
+                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esName() + "] as is unsupported");
                             }
                             else if (!fa.dataType().isPrimitive()) {
                                 named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "], type [" + fa.dataType().esName() + "] only its subfields");
+                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esName() + "] only its subfields");
                             }
                         }
 
@@ -407,11 +407,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // filter the attributes that match based on their path
                     if (attr instanceof FieldAttribute) {
                         FieldAttribute fa = (FieldAttribute) attr;
-                        if (fa.dataType() instanceof UnsupportedDataType) {
+                        if (DataTypes.isUnsupported(fa.dataType())) {
                             continue;
                         }
                         if (q.qualifier() != null) {
-                            if (Objects.equals(q.qualifiedName(), fa.qualifiedName())) {
+                            if (Objects.equals(q.qualifiedName(), fa.qualifiedPath())) {
                                 expanded.add(fa.withLocation(attr.location()));
                             }
                         } else {
@@ -424,14 +424,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             } else {
                 // add only primitives
-                // but filter out multi fields
+                // but filter out multi fields (allow only the top-level value)
                 Set<Attribute> seenMultiFields = new LinkedHashSet<>();
 
                 for (Attribute a : output) {
-                    if (!(a.dataType() instanceof UnsupportedDataType) && a.dataType().isPrimitive()) {
+                    if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
                         if (a instanceof FieldAttribute) {
                             FieldAttribute fa = (FieldAttribute) a;
-                            if (!seenMultiFields.contains(fa.parent())) {
+                            // skip nested fields and seen multi-fields
+                            if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
                                 expanded.add(a);
                                 seenMultiFields.add(a);
                             }

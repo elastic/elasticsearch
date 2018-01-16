@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AttributeInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
@@ -31,6 +29,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.tree.Location;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,8 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -180,18 +177,19 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private FieldExtraction searchHitFieldRef(FieldAttribute fieldAttr) {
+    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
         return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.dataType().hasDocValues());
     }
 
-    private Tuple<QueryContainer, FieldExtraction> nestedFieldRef(FieldAttribute attr) {
+    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         // Find the nested query for this field. If there isn't one then create it
         List<FieldExtraction> nestedRefs = new ArrayList<>();
 
+        String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.location(),
-            attr.nestedParent().path(), aliasName(attr), attr.dataType().hasDocValues());
+                attr.nestedParent().name(), name, attr.dataType().hasDocValues());
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(attr.name(), attr.dataType().hasDocValues(), attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.dataType().hasDocValues(), attr.parent().name());
         nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
@@ -271,9 +269,9 @@ public class QueryContainer {
         if (attr instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) attr;
             if (fa.isNested()) {
-                return nestedFieldRef(fa);
+                return nestedHitFieldRef(fa);
             } else {
-                return new Tuple<>(this, searchHitFieldRef(fa));
+                return new Tuple<>(this, topHitFieldRef(fa));
             }
         }
         if (attr instanceof ScalarFunctionAttribute) {

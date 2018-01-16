@@ -10,6 +10,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
 import org.joda.time.ReadableDateTime;
 
@@ -32,6 +33,14 @@ public class FieldHitExtractor implements HitExtractor {
      */
     static final String NAME = "f";
 
+    /**
+     * Source extraction requires only the (relative) field name, without its parent path.
+     */
+    private static String[] sourcePath(String name, boolean useDocValue, String hitName) {
+        return useDocValue ? Strings.EMPTY_ARRAY : Strings
+                .tokenizeToStringArray(hitName == null ? name : name.substring(hitName.length() + 1), ".");
+    }
+
     private final String fieldName, hitName;
     private final boolean useDocValue;
     private final String[] path;
@@ -44,14 +53,21 @@ public class FieldHitExtractor implements HitExtractor {
         this.fieldName = name;
         this.useDocValue = useDocValue;
         this.hitName = hitName;
-        this.path = useDocValue ? Strings.EMPTY_ARRAY : Strings.tokenizeToStringArray(fieldName, ".");
+
+        if (hitName != null) {
+            if (!name.contains(hitName)) {
+                throw new SqlIllegalArgumentException("Hitname [%s] specified but not part of the name [%s]", hitName, name);
+            }
+        }
+
+        this.path = sourcePath(fieldName, useDocValue, hitName);
     }
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
-        path = useDocValue ? Strings.EMPTY_ARRAY : Strings.tokenizeToStringArray(fieldName, ".");
+        path = sourcePath(fieldName, useDocValue, hitName);
     }
 
     @Override

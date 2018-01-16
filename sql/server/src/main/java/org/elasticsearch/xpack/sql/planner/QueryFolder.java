@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -488,9 +487,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     // ignore constant
                                     throw new PlanningException("does not know how to order by expression %s", sfa.orderBy());
                                 }
+                            } else {
+                                // nope, use scripted sorting
+                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
                             }
-                            // nope, use scripted sorting
-                            qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
                         } else if (attr instanceof ScoreAttribute) {
                             qContainer = qContainer.sort(new ScoreSort(direction));
                         } else {

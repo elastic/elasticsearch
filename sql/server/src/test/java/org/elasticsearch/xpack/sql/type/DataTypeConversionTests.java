@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 public class DataTypeConversionTests extends ESTestCase {
     public void testConversionToString() {
@@ -17,11 +19,11 @@ public class DataTypeConversionTests extends ESTestCase {
 
         conversion = DataTypeConversion.conversionFor(new DateType(true), KeywordType.DEFAULT);
         assertNull(conversion.convert(null));
-        assertEquals("1970-01-01T00:00:00Z", conversion.convert(0));
+        assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(new DateTime(0, DateTimeZone.UTC)));
     }
 
     /**
-     * Test conversion to a date or long. These are almost the same. 
+     * Test conversion to a date or long. These are almost the same.
      */
     public void testConversionToLongOrDate() {
         DataType to = randomBoolean() ? new LongType(true) : new DateType(true);

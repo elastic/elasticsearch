@@ -29,7 +29,9 @@ import static org.hamcrest.Matchers.is;
 
 public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<FieldHitExtractor> {
     public static FieldHitExtractor randomFieldHitExtractor() {
-        return new FieldHitExtractor(randomAlphaOfLength(5), randomBoolean(), randomAlphaOfLength(5));
+        String hitName = randomAlphaOfLength(5);
+        String name = randomAlphaOfLength(5) + "." + hitName;
+        return new FieldHitExtractor(name, randomBoolean(), hitName);
     }
 
     @Override
@@ -162,7 +164,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testToString() {
-        assertEquals("field@hit", new FieldHitExtractor("field", true, "hit").toString());
+        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", true, "hit").toString());
     }
 
     public void testMultiValuedDocValue() {

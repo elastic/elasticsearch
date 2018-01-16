@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
@@ -70,6 +71,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
@@ -704,23 +706,39 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class PruneOrderByNestedFields extends OptimizerRule<Project> {
 
+        private void findNested(Expression exp, Map<String, Function> functions, Consumer<FieldAttribute> onFind) {
+            exp.forEachUp(e -> {
+                if (e instanceof FunctionAttribute) {
+                    FunctionAttribute sfa = (FunctionAttribute) e;
+                    Function f = functions.get(sfa.functionId());
+                    if (f != null) {
+                        findNested(f, functions, onFind);
+                    }
+                }
+                if (e instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) e;
+                    if (fa.isNested()) {
+                        onFind.accept(fa);
+                    }
+                }
+            });
+        }
+
         @Override
         protected LogicalPlan rule(Project project) {
             // check whether OrderBy relies on nested fields which are not used higher up
             if (project.child() instanceof OrderBy) {
                 OrderBy ob = (OrderBy) project.child();
 
-                // count the direct parents
+                // resolve function aliases (that are hiding the target)
+                Map<String, Function> functions = Functions.collectFunctions(project);
+
+                // track the direct parents
                 Map<String, Order> nestedOrders = new LinkedHashMap<>();
 
                 for (Order order : ob.order()) {
-                    Attribute attr = ((NamedExpression) order.child()).toAttribute();
-                    if (attr instanceof FieldAttribute) {
-                        FieldAttribute fa = (FieldAttribute) attr;
-                        if (fa.isNested()) {
-                            nestedOrders.put(fa.nestedParent().name(), order);
-                        }
-                    }
+                    // traverse the tree since the field might be wrapped in a function
+                    findNested(order.child(), functions, fa -> nestedOrders.put(fa.nestedParent().name(), order));
                 }
 
                 // no nested fields in sort
@@ -731,13 +749,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // count the nested parents (if any) inside the parents
                 List<String> nestedTopFields = new ArrayList<>();
 
-                for (Attribute attr : project.output()) {
-                    if (attr instanceof FieldAttribute) {
-                        FieldAttribute fa = (FieldAttribute) attr;
-                        if (fa.isNested()) {
-                            nestedTopFields.add(fa.nestedParent().name());
-                        }
-                    }
+                for (NamedExpression ne : project.projections()) {
+                    // traverse the tree since the field might be wrapped in a function
+                    findNested(ne, functions, fa -> nestedTopFields.add(fa.nestedParent().name()));
                 }
 
                 List<Order> orders = new ArrayList<>(ob.order());

@@ -21,7 +21,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private SqlParser parser = new SqlParser(DateTimeZone.UTC);
 
     private String verify(String sql) {
-        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
         EsIndex test = new EsIndex("test", mapping);
         return verify(IndexResolution.valid(test), sql);
     }
@@ -108,13 +108,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
     }
 
+    public void testGroupByOnNested() {
+        assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                verify("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
+    }
+
+    public void testHavingOnNested() {
+        assertEquals("1:51: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
+                verify("SELECT int FROM test GROUP BY int HAVING AVG(YEAR(dep.start_date)) > 1980"));
+    }
+
     public void testGroupByScalarFunctionWithAggOnTarget() {
         assertEquals("1:31: Cannot use an aggregate [AVG] for grouping",
                 verify("SELECT int FROM test GROUP BY AVG(int) + 2"));
     }
 
     public void testUnsupportedType() {
-        assertEquals("1:8: Cannot use field [unsupported], its type [ip_range] is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
                 verify("SELECT unsupported FROM test"));
     }
 }

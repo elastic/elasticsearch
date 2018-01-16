@@ -62,6 +62,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
         container.columns().forEach(cr -> cr.collectFields(sortBuilder));
         sortBuilder.build(source);
+        optimize(sortBuilder, source);
 
         // add the aggs
         Aggs aggs = container.aggs();
@@ -127,12 +128,9 @@ public abstract class SourceGenerator {
                     fa = fa.isInexact() ? fa.exactAttribute() : fa;
 
                     sortBuilder = fieldSort(fa.name());
-                    if (!fa.isNested()) {
-                        sortBuilder = fieldSort(fa.name());
-                    } else {
+                    if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name());
-                        String nestedPath = fa.nestedParent().path();
-                        NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
+                        NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 
                         if (nestedSort == null) {
@@ -166,13 +164,25 @@ public abstract class SourceGenerator {
         }
     }
 
-    private static void optimize(QueryContainer query, SearchSourceBuilder source) {
+    private static void optimize(SqlSourceBuilder sqlSource, SearchSourceBuilder builder) {
+        if (sqlSource.sourceFields.isEmpty()) {
+            disableSource(builder);
+        }
+    }
+
+    private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
         // if only aggs are needed, don't retrieve any docs
         if (query.isAggsOnly()) {
-            source.size(0);
+            builder.size(0);
             // disable source fetching (only doc values are used)
-            source.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-            source.storedFields(NO_STORED_FIELD);
+            disableSource(builder);
+        }
+    }
+
+    private static void disableSource(SearchSourceBuilder builder) {
+        builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        if (builder.storedFields() == null) {
+            builder.storedFields(NO_STORED_FIELD);
         }
     }
 }

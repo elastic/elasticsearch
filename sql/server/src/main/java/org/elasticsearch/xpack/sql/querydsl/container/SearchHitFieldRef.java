@@ -37,6 +37,10 @@ public class SearchHitFieldRef extends FieldReference {
 
     @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
+        // nested fields are handled by inner hits
+        if (hitName != null) {
+            return;
+        }
         if (docValue) {
             sourceBuilder.addDocField(name);
         } else {

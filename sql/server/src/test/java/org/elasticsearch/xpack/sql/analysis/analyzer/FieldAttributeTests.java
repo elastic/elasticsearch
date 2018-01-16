@@ -106,7 +106,7 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.isInexact(), is(true));
         MappingException me = expectThrows(MappingException.class, () -> attr.exactAttribute());
         assertThat(me.getMessage(),
-                is("Multiple exact keyword candidates [one, two] available for some.ambiguous; specify which one to use"));
+                is("Multiple exact keyword candidates [one, two] available for [some.ambiguous]; specify which one to use"));
     }
 
     public void testNormalizedKeyword() {
@@ -118,12 +118,12 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testDottedFieldPath() {
-        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some], type [object] only its subfields"));
+        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathDeeper() {
         assertThat(error("some.dotted"),
-                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted], type [object] only its subfields"));
+                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathTypo() {

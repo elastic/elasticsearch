@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTempl
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Objects;
 
@@ -52,7 +53,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public boolean nullable() {
-        return field().nullable() || DataTypeConversion.nullable(from());
+        return field().nullable() || DataTypes.isNull(from());
     }
 
     @Override

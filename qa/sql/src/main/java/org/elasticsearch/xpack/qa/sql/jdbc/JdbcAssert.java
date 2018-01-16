@@ -103,41 +103,50 @@ public class JdbcAssert {
         int columns = metaData.getColumnCount();
 
         long count = 0;
-        for (count = 0; expected.next(); count++) {
-            assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
+        try {
+            for (count = 0; expected.next(); count++) {
+                assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
 
-            if (logger != null) {
+                if (logger != null) {
+                    logger.info(JdbcTestUtils.resultSetCurrentData(actual));
+                }
+
+                for (int column = 1; column <= columns; column++) {
+                    Object expectedObject = expected.getObject(column);
+                    Object actualObject = actual.getObject(column);
+
+                    int type = metaData.getColumnType(column);
+
+                    String msg = format(Locale.ROOT, "Different result for column [" + metaData.getColumnName(column) + "], entry [" + count
+                            + "]; " + "expected %s but was %s", expectedObject, actualObject);
+
+                    // handle nulls first
+                    if (expectedObject == null || actualObject == null) {
+                        assertEquals(expectedObject, actualObject);
+                    }
+                    // then timestamp
+                    else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
+                        assertEquals(getTime(expected, column), getTime(actual, column));
+                    }
+                    // and floats/doubles
+                    else if (type == Types.DOUBLE) {
+                        // the 1d/1f difference is used due to rounding/flooring
+                        assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
+                    } else if (type == Types.FLOAT) {
+                        assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
+                    }
+                    // finally the actual comparison
+                    else {
+                        assertEquals(msg, expectedObject, actualObject);
+                    }
+                }
+            }
+        } catch (AssertionError ae) {
+            if (logger != null && actual.next()) {
+                logger.info("^^^ Assertion failure ^^^");
                 logger.info(JdbcTestUtils.resultSetCurrentData(actual));
             }
-
-            for (int column = 1; column <= columns; column++) {
-                Object expectedObject = expected.getObject(column);
-                Object actualObject = actual.getObject(column);
-
-                int type = metaData.getColumnType(column);
-
-                String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
-
-                // handle nulls first
-                if (expectedObject == null || actualObject == null) {
-                    assertEquals(expectedObject, actualObject);
-                }
-                // then timestamp
-                else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                    assertEquals(getTime(expected, column), getTime(actual, column));
-                }
-                // and floats/doubles
-                else if (type == Types.DOUBLE) {
-                    // the 1d/1f difference is used due to rounding/flooring
-                    assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
-                } else if (type == Types.FLOAT) {
-                    assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
-                }
-                // finally the actual comparison
-                else {
-                    assertEquals(msg, expectedObject, actualObject);
-                }
-            }
+            throw ae;
         }
 
         if (actual.next()) {

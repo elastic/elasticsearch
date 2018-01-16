@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -65,7 +66,8 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public String qualifiedPath() {
-        return qualifier() != null ? qualifier() + "." + path : path;
+        // return only the qualifier is there's no path
+        return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
     }
 
     public boolean isNested() {
@@ -88,11 +90,13 @@ public class FieldAttribute extends TypedAttribute {
                 return innerField(entry.getKey(), entry.getValue());
             }
             if (exactFields.isEmpty()) {
-                throw new MappingException("No docValue multi-field defined for %s", name());
+                throw new MappingException(
+                        "No keyword/multi-field defined exact matches for [%s]; define one or use MATCH/QUERY instead",
+                        name());
             }
             // pick the default - keyword
             if (exactFields.size() > 1) {
-                throw new MappingException("Multiple exact keyword candidates %s available for %s; specify which one to use",
+                throw new MappingException("Multiple exact keyword candidates %s available for [%s]; specify which one to use",
                         exactFields.keySet(), name());
             }
         }

@@ -31,15 +31,15 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public AttributeSet(Attribute attr) {
-        delegate = new AttributeMap<Object>(attr, PRESENT);
+        delegate = new AttributeMap<>(attr, PRESENT);
     }
 
-    public AttributeSet(Collection<Attribute> attr) {
+    public AttributeSet(Collection<? extends Attribute> attr) {
         if (attr.isEmpty()) {
             delegate = EMPTY_DELEGATE;
         }
         else {
-            delegate = new AttributeMap<Object>();
+            delegate = new AttributeMap<>();
 
             for (Attribute a : attr) {
                 delegate.add(a, PRESENT);
@@ -51,7 +51,7 @@ public class AttributeSet implements Set<Attribute> {
         this.delegate = delegate;
     }
 
-    // package protected - should be called through Expressions to cheaply create 
+    // package protected - should be called through Expressions to cheaply create
     // a set from a collection of sets without too much copying
     void addAll(AttributeSet other) {
         delegate.addAll(other.delegate);
@@ -73,22 +73,27 @@ public class AttributeSet implements Set<Attribute> {
         return delegate.attributeNames();
     }
 
+    @Override
     public void forEach(Consumer<? super Attribute> action) {
         delegate.forEach((k, v) -> action.accept(k));
     }
 
+    @Override
     public int size() {
         return delegate.size();
     }
 
+    @Override
     public boolean isEmpty() {
         return delegate.isEmpty();
     }
 
+    @Override
     public boolean contains(Object o) {
         return delegate.containsKey(o);
     }
 
+    @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
             if (!delegate.containsKey(o)) {
@@ -98,62 +103,77 @@ public class AttributeSet implements Set<Attribute> {
         return true;
     }
 
+    @Override
     public Iterator<Attribute> iterator() {
         return delegate.keySet().iterator();
     }
 
+    @Override
     public Object[] toArray() {
         return delegate.keySet().toArray();
     }
 
+    @Override
     public <T> T[] toArray(T[] a) {
         return delegate.keySet().toArray(a);
     }
 
+    @Override
     public boolean add(Attribute e) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean remove(Object o) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean addAll(Collection<? extends Attribute> c) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean retainAll(Collection<?> c) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean removeAll(Collection<?> c) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public void clear() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Spliterator<Attribute> spliterator() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean removeIf(Predicate<? super Attribute> filter) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Stream<Attribute> stream() {
         return delegate.keySet().stream();
     }
 
+    @Override
     public Stream<Attribute> parallelStream() {
         return delegate.keySet().parallelStream();
     }
 
+    @Override
     public boolean equals(Object o) {
         return delegate.equals(o);
     }
 
+    @Override
     public int hashCode() {
         return delegate.hashCode();
     }

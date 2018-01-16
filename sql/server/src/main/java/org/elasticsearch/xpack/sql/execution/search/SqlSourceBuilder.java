@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -67,8 +64,10 @@ public class SqlSourceBuilder {
      */
     public void build(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(this.trackScores);
-        sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
-        docFields.forEach(dvf -> sourceBuilder.docValueField(dvf));
-        scriptFields.forEach((k, v) -> sourceBuilder.scriptField(k, v));
+        if (!sourceFields.isEmpty()) {
+            sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
+        }
+        docFields.forEach(sourceBuilder::docValueField);
+        scriptFields.forEach(sourceBuilder::scriptField);
     }
 }

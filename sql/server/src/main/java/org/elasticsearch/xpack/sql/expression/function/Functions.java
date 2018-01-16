@@ -7,10 +7,25 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.plan.QueryPlan;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public abstract class Functions {
 
     public static boolean isAggregate(Expression e) {
         return e instanceof AggregateFunction;
+    }
+
+    public static Map<String, Function> collectFunctions(QueryPlan<?> plan) {
+        Map<String, Function> resolvedFunctions = new LinkedHashMap<>();
+        plan.forEachExpressionsDown(e -> {
+            if (e.resolved() && e instanceof Function) {
+                Function f = (Function) e;
+                resolvedFunctions.put(f.functionId(), f);
+            }
+        });
+        return resolvedFunctions;
     }
 }

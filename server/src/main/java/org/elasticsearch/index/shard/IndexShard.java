@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -1290,12 +1291,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /** opens the engine on top of the existing lucene engine but creates an empty translog **/
     public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
-        assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
-            recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
-        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
-        assert commitInfo.localCheckpoint >= globalCheckpoint :
-            "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+        if (Assertions.ENABLED) {
+            assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
+                recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
+            SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
+            assert commitInfo.localCheckpoint >= globalCheckpoint :
+                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
                     + globalCheckpoint + "]";
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+        }
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
     }

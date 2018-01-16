@@ -185,7 +185,7 @@ public class InternalEngine extends Engine {
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
-                    translog::getLastSyncedGlobalCheckpoint);
+                    translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
@@ -411,28 +411,44 @@ public class InternalEngine extends Engine {
     }
 
     private IndexCommit getStartingCommitPoint() throws IOException {
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
-            final long minRetainedTranslogGen = translog.getMinFileGeneration();
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose full translog
-            // files are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
-            // To avoid this issue, we only select index commits whose translog files are fully retained.
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
-                final List<IndexCommit> recoverableCommits = new ArrayList<>();
-                for (IndexCommit commit : existingCommits) {
-                    if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
-                        recoverableCommits.add(commit);
+        final IndexCommit startingIndexCommit;
+        final List<IndexCommit> existingCommits;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+                startingIndexCommit = null;
+                break;
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                // Use the last commit
+                existingCommits = DirectoryReader.listCommits(store.directory());
+                startingIndexCommit = existingCommits.get(existingCommits.size() - 1);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                // Use the safe commit
+                final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+                final long minRetainedTranslogGen = translog.getMinFileGeneration();
+                existingCommits = DirectoryReader.listCommits(store.directory());
+                // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
+                // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
+                // To avoid this issue, we only select index commits whose translog are fully retained.
+                if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
+                    final List<IndexCommit> recoverableCommits = new ArrayList<>();
+                    for (IndexCommit commit : existingCommits) {
+                        if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
+                            recoverableCommits.add(commit);
+                        }
                     }
+                    assert recoverableCommits.isEmpty() == false : "No commit point with translog found; " +
+                        "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
+                    startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
+                } else {
+                    // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
+                    startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
                 }
-                assert recoverableCommits.isEmpty() == false : "No commit point with full translog found; " +
-                    "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
-            } else {
-                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-            }
+                break;
+            default:
+                throw new IllegalArgumentException("unknown mode: " + openMode);
         }
-        return null;
+        return startingIndexCommit;
     }
 
     private void recoverFromTranslogInternal() throws IOException {
@@ -557,9 +573,7 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                // The index commit from IndexWriterConfig is null if the engine is open with other modes
-                // rather than CREATE_INDEX_AND_TRANSLOG. In those cases lastCommittedSegmentInfos will be retrieved from the last commit.
-                lastCommittedSegmentInfos = store.readCommittedSegmentsInfo(indexWriter.getConfig().getIndexCommit());
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;

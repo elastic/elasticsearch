@@ -10,10 +10,12 @@ dependencyLicenses {
   mapping from: /rest-proto.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
+  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
   mapping from: /lucene-.*/, to: 'lucene'
   ignoreSha 'rest-proto'
   ignoreSha 'shared-proto'
   ignoreSha 'elasticsearch'
+  ignoreSha 'elasticsearch-core'
 }
 
 forbiddenApisMain {

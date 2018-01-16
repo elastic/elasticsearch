@@ -1,0 +1,34 @@
+[[release-notes-5.6.6]]
+== 5.6.6 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.6]]
+[float]
+=== Bug fixes
+
+Index Templates::
+* Prevent constructing an index template without index patterns {pull}27662[#27662]
+
+Network::
+* Only bind loopback addresses when binding to local {pull}28029[#28029] (issue: {issue}1877[#1877])
+
+Plugin Repository HDFS::
+* Fix SecurityException when HDFS Repository used against HA Namenodes {pull}27196[#27196]
+
+Search::
+* Use the underlying connection version for CCS connections  {pull}28093[#28093]
+* Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
+
+Settings::
+* Allow index settings to be reset by wildcards {pull}27671[#27671] (issue: {issue}27537[#27537])
+
+Snapshot/Restore::
+* Fail restore when the shard allocations max retries count is reached {pull}27493[#27493] (issue: {issue}26865[#26865])
+
+[[upgrade-5.6.6]]
+[float]
+=== Upgrades
+
+Ingest::
+* update ingest-attachment to use Tika 1.17 and newer deps {pull}27824[#27824]

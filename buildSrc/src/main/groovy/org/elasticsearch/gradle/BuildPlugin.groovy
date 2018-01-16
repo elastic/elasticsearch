@@ -167,26 +167,22 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
     }
 
-    /** Finds and enforces JAVA_HOME is set */
     private static String findCompilerJavaHome() {
-        return findJavaHome(System.getenv('JAVA_HOME'), null)
-    }
-
-    private static String findRuntimeJavaHome(final String compilerJavaHome) {
-        return findJavaHome(System.getenv('RUNTIME_JAVA_HOME'), compilerJavaHome)
-    }
-
-    private static String findJavaHome(String maybeJavaHome, String defaultJavaHome) {
-        final String javaHome = maybeJavaHome ?: defaultJavaHome
+        final String javaHome = System.getenv('JAVA_HOME')
         if (javaHome == null) {
             if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
-                javaHome = Jvm.current().javaHome
+                return Jvm.current().javaHome
             } else {
-                assert false
+                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
             }
         }
         return javaHome
+    }
+
+    private static String findRuntimeJavaHome(final String compilerJavaHome) {
+        assert compilerJavaHome != null
+        return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome
     }
 
     /** Finds printable java version of the given JAVA_HOME */

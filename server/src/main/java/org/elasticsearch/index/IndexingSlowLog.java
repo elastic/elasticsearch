@@ -22,7 +22,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -87,7 +87,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
+        this.indexLogger = ServerLoggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -117,7 +117,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     private void setLevel(SlowLogLevel level) {
         this.level = level;
-        Loggers.setLevel(this.indexLogger, level.name());
+        ServerLoggers.setLevel(this.indexLogger, level.name());
     }
 
     private void setWarnThreshold(TimeValue warnThreshold) {

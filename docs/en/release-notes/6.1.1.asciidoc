@@ -27,13 +27,6 @@ where the cluster state can change between some data collectors, which could
 cause temporary issues in the Monitoring UI.
 // https://github.com/elastic/x-pack-elasticsearch/pull/3216[#3216] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3156[#3156])
 
-
-Security::
-* Ensured that TLS is not required to install a license if you are using
-single-node discovery. For more information, see <<single-node-discovery>> and 
-{xpack-ref}/ssl-tls.html[Setting up TLS on a Cluster].
-// https://github.com/elastic/x-pack-elasticsearch/pull/3245[#3245] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2828[#2828])
-
 Watcher::
 * Fixed the pagerduty action to send context data. For more information, see
 {xpack-ref}/actions-pagerduty.html[PagerDuty Action].

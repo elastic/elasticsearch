@@ -23,6 +23,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -87,6 +90,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
         // Replay all documents that contain at least one top bucket (collected during the first pass).
         grow(keys.size()+1);
+        final boolean needsScores = needsScores();
+        Weight weight = null;
+        if (needsScores) {
+            Query query = context.query();
+            weight = context.searcher().createNormalizedWeight(query, true);
+        }
         for (LeafContext context : contexts) {
             DocIdSetIterator docIdSetIterator = context.docIdSet.iterator();
             if (docIdSetIterator == null) {
@@ -95,7 +104,21 @@ final class CompositeAggregator extends BucketsAggregator {
             final CompositeValuesSource.Collector collector =
                 array.getLeafCollector(context.ctx, getSecondPassCollector(context.subCollector));
             int docID;
+            DocIdSetIterator scorerIt = null;
+            if (needsScores) {
+                Scorer scorer = weight.scorer(context.ctx);
+                // We don't need to check if the scorer is null
+                // since we are sure that there are documents to replay (docIdSetIterator it not empty).
+                scorerIt = scorer.iterator();
+                context.subCollector.setScorer(scorer);
+            }
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (needsScores) {
+                    assert scorerIt.docID() < docID;
+                    scorerIt.advance(docID);
+                    // aggregations should only be replayed on matching documents
+                    assert scorerIt.docID() == docID;
+                }
                 collector.collect(docID);
             }
         }

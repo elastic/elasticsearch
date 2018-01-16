@@ -78,6 +78,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -162,6 +163,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1924,8 +1926,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.DEBUG);
+        ServerLoggers.addAppender(rootLogger, mockAppender);
+        ServerLoggers.setLevel(rootLogger, Level.DEBUG);
         rootLogger = LogManager.getRootLogger();
 
         try {
@@ -1936,15 +1938,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            Loggers.setLevel(rootLogger, Level.TRACE);
+            ServerLoggers.setLevel(rootLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
+            ServerLoggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
+            ServerLoggers.setLevel(rootLogger, savedLevel);
         }
     }
 
@@ -2214,8 +2216,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
-        Loggers.addAppender(iwIFDLogger, mockAppender);
-        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
+        ServerLoggers.addAppender(iwIFDLogger, mockAppender);
+        ServerLoggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2226,16 +2228,16 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
-            Loggers.setLevel(iwIFDLogger, Level.TRACE);
+            ServerLoggers.setLevel(iwIFDLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            Loggers.removeAppender(iwIFDLogger, mockAppender);
+            ServerLoggers.removeAppender(iwIFDLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(iwIFDLogger, (Level) null);
+            ServerLoggers.setLevel(iwIFDLogger, (Level) null);
         }
     }
 
@@ -4009,13 +4011,15 @@ public class InternalEngineTests extends EngineTestCase {
 
 
         boolean flushed = false;
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         Engine recoveringEngine = null;
         try {
             assertEquals(docs - 1, engine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(docs - 1, engine.getLocalCheckpointTracker().getCheckpoint());
             assertEquals(maxSeqIDOnReplica, replicaEngine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getLocalCheckpointTracker().getCheckpoint());
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine = new InternalEngine(copy(
+                replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
             assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().uncommittedOperations());
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
@@ -4037,6 +4041,8 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getCheckpoint());
                 if ((flushed = randomBoolean())) {
+                    globalCheckpoint.set(recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
+                    recoveringEngine.getTranslog().sync();
                     recoveringEngine.flush(true, true);
                 }
             }
@@ -4046,7 +4052,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine = new InternalEngine(
+                copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
             if (flushed) {
                 assertEquals(0, recoveringEngine.getTranslog().uncommittedOperations());
             }
@@ -4352,6 +4359,59 @@ public class InternalEngineTests extends EngineTestCase {
             // check it's clean up
             engine.flush(true, true);
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+        }
+    }
+
+    public void testOpenIndexAndTranslogKeepOnlySafeCommit() throws Exception {
+        IOUtils.close(engine);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get);
+        final IndexCommit safeCommit;
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+            final int numDocs = between(5, 50);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+                if (randomBoolean()) {
+                    engine.flush();
+                }
+            }
+            // Selects a starting commit and advances and persists the global checkpoint to that commit.
+            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
+            safeCommit = randomFrom(commits);
+            globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+            engine.getTranslog().sync();
+        }
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
+            assertThat("OPEN_INDEX_AND_TRANSLOG should keep only safe commit", existingCommits, contains(safeCommit));
+        }
+    }
+
+    public void testOpenIndexCreateTranslogKeepOnlyLastCommit() throws Exception {
+        IOUtils.close(engine);
+        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+        final Map<String, String> lastCommit;
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            engine.skipTranslogRecovery();
+            final int numDocs = between(5, 50);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+                if (randomBoolean()) {
+                    engine.flush();
+                }
+            }
+            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
+            lastCommit = commits.get(commits.size() - 1).getUserData();
+        }
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
+            assertThat("OPEN_INDEX_CREATE_TRANSLOG should keep only last commit", existingCommits, hasSize(1));
+            final Map<String, String> userData = existingCommits.get(0).getUserData();
+            assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(lastCommit.get(SequenceNumbers.MAX_SEQ_NO)));
+            assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(lastCommit.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+            // Translog tags should be fresh.
+            assertThat(userData.get(Translog.TRANSLOG_UUID_KEY), not(equalTo(lastCommit.get(Translog.TRANSLOG_UUID_KEY))));
+            assertThat(userData.get(Translog.TRANSLOG_GENERATION_KEY), equalTo("1"));
         }
     }
 

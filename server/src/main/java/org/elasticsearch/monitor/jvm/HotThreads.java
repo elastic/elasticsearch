@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 public class HotThreads {
 
@@ -187,19 +188,19 @@ public class HotThreads {
         List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
         final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
         // skip that for now
-        CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
-            @Override
-            public int compare(MyThreadInfo o1, MyThreadInfo o2) {
-                if ("cpu".equals(type)) {
-                    return (int) (o2.cpuTime - o1.cpuTime);
-                } else if ("wait".equals(type)) {
-                    return (int) (o2.waitedTime - o1.waitedTime);
-                } else if ("block".equals(type)) {
-                    return (int) (o2.blockedTime - o1.blockedTime);
-                }
-                throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
-            }
-        });
+        final ToLongFunction<MyThreadInfo> getter;
+        if ("cpu".equals(type)) {
+            getter = o -> o.cpuTime;
+        } else if ("wait".equals(type)) {
+            getter = o -> o.waitedTime;
+        } else if ("block".equals(type)) {
+            getter = o -> o.blockedTime;
+        } else {
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
+        }
+
+        CollectionUtil.introSort(hotties, Comparator.comparingLong(getter).reversed());
+
         // analyse N stack traces for M busiest threads
         long[] ids = new long[busiestThreads];
         for (int i = 0; i < busiestThreads; i++) {
@@ -215,14 +216,7 @@ public class HotThreads {
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
         for (int t = 0; t < busiestThreads; t++) {
-            long time = 0;
-            if ("cpu".equals(type)) {
-                time = hotties.get(t).cpuTime;
-            } else if ("wait".equals(type)) {
-                time = hotties.get(t).waitedTime;
-            } else if ("block".equals(type)) {
-                time = hotties.get(t).blockedTime;
-            }
+            long time = getter.applyAsLong(hotties.get(t));
             String threadName = null;
             for (ThreadInfo[] info : allInfos) {
                 if (info != null && info[t] != null) {

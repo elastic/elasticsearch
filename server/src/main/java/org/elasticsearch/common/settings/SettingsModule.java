@@ -22,7 +22,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -58,7 +57,7 @@ public class SettingsModule implements Module {
     }
 
     public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
-        logger = Loggers.getLogger(getClass(), settings);
+        logger = ServerLoggers.getLogger(getClass(), settings);
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);

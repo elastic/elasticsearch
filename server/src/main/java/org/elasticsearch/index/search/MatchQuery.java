@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -350,7 +351,12 @@ public class MatchQuery {
                     throw exc;
                 }
             }
-            return super.analyzePhrase(field, stream, slop);
+            Query query = super.analyzePhrase(field, stream, slop);
+            if (query instanceof PhraseQuery) {
+                // synonyms that expand to multiple terms can return a phrase query.
+                return blendPhraseQuery((PhraseQuery) query, mapper);
+            }
+            return query;
         }
 
         /**
@@ -472,6 +478,14 @@ public class MatchQuery {
         }
     }
 
+    /**
+     * Called when a phrase query is built with {@link QueryBuilder#analyzePhrase(String, TokenStream, int)}.
+     * Subclass can override this function to blend this query to multiple fields.
+     */
+    protected Query blendPhraseQuery(PhraseQuery query, MappedFieldType fieldType) {
+        return query;
+    }
+
     protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
         return new SynonymQuery(terms);
     }
@@ -494,5 +508,4 @@ public class MatchQuery {
         }
         return termQuery(fieldType, term.bytes(), lenient);
     }
-
 }

@@ -76,10 +76,8 @@ task verifyDocsLuceneVersion {
       throw new GradleException('Could not find lucene version in docs version file')
     }
     String expectedLuceneVersion = VersionProperties.lucene
-    if (expectedLuceneVersion.contains('-snapshot-')) {
-      expectedLuceneVersion = expectedLuceneVersion.substring(0, expectedLuceneVersion.lastIndexOf('-'))
-      expectedLuceneVersion = expectedLuceneVersion.toUpperCase(Locale.ROOT)
-    }
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
     if (docsLuceneVersion != expectedLuceneVersion) {
       throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
     }

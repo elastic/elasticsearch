@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -138,4 +139,23 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         return numFieldWithParentPrefix;
     }
 
+    public void testUpdateEagerGlobalOrds() throws IOException {
+        String parentMapping = XContentFactory.jsonBuilder().startObject().startObject("parent_type")
+                .endObject().endObject().string();
+        String childMapping = XContentFactory.jsonBuilder().startObject().startObject("child_type")
+                .startObject("_parent").field("type", "parent_type").endObject()
+                .endObject().endObject().string();
+        IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
+        indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
+
+        assertTrue(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
+
+        String childMappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("child_type")
+                .startObject("_parent").field("type", "parent_type").field("eager_global_ordinals", false).endObject()
+                .endObject().endObject().string();
+        indexService.mapperService().merge("child_type", new CompressedXContent(childMappingUpdate), MergeReason.MAPPING_UPDATE, false);
+
+        assertFalse(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
+    }
 }

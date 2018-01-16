@@ -610,7 +610,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
         Query q = mapper.mappers().getMapper("field").fieldType().prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
-        assertEquals(new TermQuery(new Term("field._prefix", "goin")), q);
+        assertEquals(new TermQuery(new Term("field..prefix", "goin")), q);
         q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
@@ -621,8 +621,22 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes(),
             XContentType.JSON));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field._prefix");
+        IndexableField[] fields = doc.rootDoc().getFields("field..prefix");
         assertEquals(1, fields.length);
 
+        String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "text")
+            .field("analyzer", "english")
+            .startObject("fields")
+            .startObject("field..prefix").field("type", "text").endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> parser.parse("type", new CompressedXContent(illegalMapping))
+        );
+        assertThat(e.getMessage(), containsString("cannot contain '.'"));
     }
 }

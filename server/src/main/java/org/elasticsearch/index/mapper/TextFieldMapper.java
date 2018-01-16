@@ -188,6 +188,8 @@ public class TextFieldMapper extends FieldMapper {
 
     private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
 
+        static final String SUBFIELD = "..prefix";
+
         private final int minChars;
         private final int maxChars;
         private final Analyzer delegate;
@@ -210,11 +212,11 @@ public class TextFieldMapper extends FieldMapper {
             return new TokenStreamComponents(components.getTokenizer(), filter);
         }
 
-        public boolean accept(int length) {
+        boolean accept(int length) {
             return length >= minChars && length <= maxChars;
         }
 
-        public void doXContent(XContentBuilder builder) throws IOException {
+        void doXContent(XContentBuilder builder) throws IOException {
             builder.startObject("index_prefix");
             builder.field("min_chars", minChars);
             builder.field("max_chars", maxChars);
@@ -344,7 +346,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixAnalyzer == null || prefixAnalyzer.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            TermQuery q = new TermQuery(new Term(name() + "._prefix", indexedValueForSearch(value)));
+            TermQuery q = new TermQuery(new Term(name() + PrefixWrappedAnalyzer.SUBFIELD, indexedValueForSearch(value)));
             if (boost() != 1f)
                 return new BoostQuery(q, boost());
             return q;
@@ -421,7 +423,7 @@ public class TextFieldMapper extends FieldMapper {
                 createFieldNamesField(context, fields);
             }
             if (fieldType().prefixAnalyzer != null) {
-                String prefixFieldName = fieldType().name() + "._prefix";
+                String prefixFieldName = fieldType().name() + PrefixWrappedAnalyzer.SUBFIELD;
                 fields.add(new TextField(prefixFieldName, fieldType().prefixAnalyzer.tokenStream(prefixFieldName, value)));
             }
         }

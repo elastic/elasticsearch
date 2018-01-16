@@ -64,7 +64,7 @@ update, or bulk request.  This setting accepts the following parameters:
 `index.translog.flush_threshold_size`::
 
 The translog stores all operations that are not yet safely persisted in Lucene (i.e., are
-not part of a lucene commit point). Although these operations are available for reads, they will
+not part of a Lucene commit point). Although these operations are available for reads, they will
 need to be reindexed if the shard was to shutdown and has to be recovered. This settings controls
 the maximum total size of these operations, to prevent recoveries from taking too long. Once the
 maximum size has been reached a flush will happen, generating a new Lucene commit. Defaults to `512mb`.

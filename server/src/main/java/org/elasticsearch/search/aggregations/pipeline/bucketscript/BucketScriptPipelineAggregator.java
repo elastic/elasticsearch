@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -112,6 +113,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             } else {
                 ExecutableScript executableScript = factory.newInstance(vars);
                 Object returned = executableScript.run();
+                CollectionUtils.ensureNoSelfReferences(reduceContext);
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {

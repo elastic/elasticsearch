@@ -1,5 +1,5 @@
 [[java-admin-indices-put-mapping]]
-:base-dir: {docdir}/../../core/src/test/java/org/elasticsearch/action/admin/indices/create
+:base-dir: {docdir}/../../server/src/test/java/org/elasticsearch/action/admin/indices/create
 
 ==== Put Mapping
 

@@ -16,7 +16,7 @@ incorrectly deemed to be hexadecimal numbers. For more information, see
 //Repo: machine-learning-cpp
 //Pull: 512
 * Reduced the sensitivity of the analysis to small perturbations in the input
-data. 
+data.
 //Repo: machine-learning-cpp
 //Pull: 478
 * Disabled the ability to create forecasts for jobs that were created before
@@ -47,9 +47,7 @@ Security::
 //Repo: x-pack-elasticsearch
 //Pull: 3470
 ////
-////
 Watcher::
-* Watcher: Fix encoding of UTF8 data in HttpClient
+* Fixed encoding of UTF-8 data in the HTTP client.
 //Repo: x-pack-elasticsearch
 //Pull: 3398
-////

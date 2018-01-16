@@ -11,7 +11,7 @@ associated with it. Any index or delete operation is written to the
 translog after being processed by the internal Lucene index.
 
 In the event of a crash, recent transactions can be replayed from the
-transaction log when the shard recovers.
+translog when the shard recovers.
 
 An Elasticsearch flush is the process of performing a Lucene commit and
 starting a new translog. It is done automatically in the background in order
@@ -23,7 +23,7 @@ manually.
 [float]
 === Translog settings
 
-The data in the transaction log is only persisted to disk when the translog is
+The data in the translog is only persisted to disk when the translog is
 ++fsync++ed and committed.  In the event of hardware failure, any data written
 since the previous translog commit will be lost.
 
@@ -31,11 +31,11 @@ By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds if
 to `async` or if set to `request` (default) at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
 <<docs-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
 will only report success of an index, delete, update, or bulk request to the
-client after the transaction log has been successfully ++fsync++ed and committed
+client after the translog has been successfully ++fsync++ed and committed
 on the primary and on every allocated replica.
 
 The following <<indices-update-settings,dynamically updatable>> per-index settings
-control the behaviour of the transaction log:
+control the behaviour of the translog:
 
 `index.translog.sync_interval`::
 

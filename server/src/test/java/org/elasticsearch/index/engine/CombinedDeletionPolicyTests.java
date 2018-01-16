@@ -54,7 +54,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testKeepCommitsAfterGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get, null);
 
         final LongArrayList maxSeqNoList = new LongArrayList();
         final LongArrayList translogGenList = new LongArrayList();
@@ -93,7 +94,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final UUID translogUUID = UUID.randomUUID();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get, null);
         long lastMaxSeqNo = between(1, 1000);
         long lastTranslogGen = between(1, 20);
         int safeIndex = 0;
@@ -156,11 +158,12 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final UUID translogUUID = UUID.randomUUID();
 
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get, null);
 
         long legacyTranslogGen = randomNonNegativeLong();
         IndexCommit legacyCommit = mockLegacyIndexCommit(translogUUID, legacyTranslogGen);
-        indexPolicy.onInit(singletonList(legacyCommit));
+        indexPolicy.onCommit(singletonList(legacyCommit));
         verify(legacyCommit, never()).delete();
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(legacyTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(legacyTranslogGen));
@@ -188,7 +191,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_CREATE_TRANSLOG, translogPolicy, globalCheckpoint::get);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_CREATE_TRANSLOG, translogPolicy, globalCheckpoint::get, null);
 
         final int invalidCommits = between(1, 10);
         final List<IndexCommit> commitList = new ArrayList<>();
@@ -209,6 +213,35 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         for (int i = 0; i < invalidCommits - 1; i++) {
             verify(commitList.get(i), times(1)).delete();
         }
+    }
+
+    /**
+     * Keeping existing unsafe commits can be problematic because these commits are not safe at the recovering time
+     * but they can suddenly become safe in the future. See {@link CombinedDeletionPolicy#keepOnlyStartingCommitOnInit(List)}
+     */
+    public void testKeepOnlyStartingCommitOnInit() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
+        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        final UUID translogUUID = UUID.randomUUID();
+        final List<IndexCommit> commitList = new ArrayList<>();
+        int totalCommits = between(2, 20);
+        for (int i = 0; i < totalCommits; i++) {
+            commitList.add(mockIndexCommit(randomNonNegativeLong(), translogUUID, randomNonNegativeLong()));
+        }
+        final IndexCommit startingCommit = randomFrom(commitList);
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get, startingCommit);
+        indexPolicy.onInit(commitList);
+        for (IndexCommit commit : commitList) {
+            if (commit.equals(startingCommit) == false) {
+                verify(commit, times(1)).delete();
+            }
+        }
+        verify(startingCommit, never()).delete();
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(),
+            equalTo(Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(),
+            equalTo(Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
     }
 
     IndexCommit mockIndexCommit(long maxSeqNo, UUID translogUUID, long translogGen) throws IOException {

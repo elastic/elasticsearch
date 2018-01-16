@@ -21,11 +21,8 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -37,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -48,7 +46,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,11 +58,13 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
@@ -134,7 +133,6 @@ public class TransportClusterUpdateSettingsAction extends
 
             @Override
             public void onAllNodesAcked(@Nullable Exception e) {
-                threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 if (changed) {
                     reroute(true);
                 } else {
@@ -155,10 +153,9 @@ public class TransportClusterUpdateSettingsAction extends
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
-                        updater.getPersistentUpdate()));
+                    maybeTriggerKeystoreReload(request, updateSettingsAcked);
                     return;
                 }
 
@@ -182,12 +179,21 @@ public class TransportClusterUpdateSettingsAction extends
                         return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, updater.getTransientUpdates(),
                             updater.getPersistentUpdate());
                     }
+                    
+                    @Override
+                    public void onAllNodesAcked(@Nullable Exception e) {
+                        maybeTriggerKeystoreReload(request, updateSettingsAcked);
+                    }
+
+                    @Override
+                    public void onAckTimeout() {
+                        maybeTriggerKeystoreReload(request, false);
+                    }
 
                     @Override
                     public void onNoLongerMaster(String source) {
-                        logger.debug("failed to preform reroute after cluster settings were updated - current node is no longer a master");
-                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
-                            updater.getPersistentUpdate()));
+                        logger.debug("failed to perform reroute after cluster settings were updated - current node is no longer a master");
+                        maybeTriggerKeystoreReload(request, updateSettingsAcked);
                     }
 
                     @Override
@@ -217,25 +223,25 @@ public class TransportClusterUpdateSettingsAction extends
                 changed = clusterState != currentState;
                 return clusterState;
             }
-        });
-    }
 
-    AbstractRunnable() {
-
-    }
-
-    private void fireKeystoreReload(ClusterUpdateSettingsRequest request, Task parentTaks) {
-        final TransportRequestOptions.Builder optionsBuilder = TransportRequestOptions.builder();
-        if (request.timeout() != null) {
-            optionsBuilder.withTimeout(request.timeout());
-        }
-        volatile Set<Map.Entry<String, String>> secretSettingsWithHashes = null;
-        volatile success = true;
-        for (final DiscoveryNode node : clusterService.state().nodes()) {
-            final TransportRequest nodeRequest = new NodeRequest(node.getId(), request.secretStorePassword());
-            nodeRequest.setParentTask(clusterService.localNode().getId(), parentTaks.getId());
-            transportService.sendRequest(node, transportNodeActionName, nodeRequest, optionsBuilder.build(),
-                    new TransportResponseHandler<NodeResponse>() {
+            private void maybeTriggerKeystoreReload(ClusterUpdateSettingsRequest request, boolean updateSettingsAcked) {
+                if (request.secretStorePassword() == null) {
+                    listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
+                            updater.getPersistentUpdate()));
+                    return;
+                }
+                final TransportRequestOptions.Builder optionsBuilder = TransportRequestOptions.builder();
+                if (request.timeout() != null) {
+                    optionsBuilder.withTimeout(request.timeout());
+                }
+                final DiscoveryNodes nodes = clusterService.state().nodes();
+                final AtomicReference<Map<String, byte[]>> secretSettingHashes = new AtomicReference<>();
+                final AtomicBoolean success = new AtomicBoolean(true);
+                final AtomicInteger counter = new AtomicInteger(nodes.getSize());
+                for (final DiscoveryNode node : nodes) {
+                    final TransportRequest nodeRequest = new NodeRequest(node.getId(), request.secretStorePassword());
+                    transportService.sendRequest(node, transportNodeActionName, nodeRequest, optionsBuilder.build(),
+                            new TransportResponseHandler<NodeResponse>() {
                         @Override
                         public NodeResponse newInstance() {
                             return new NodeResponse();
@@ -243,17 +249,23 @@ public class TransportClusterUpdateSettingsAction extends
 
                         @Override
                         public void handleResponse(NodeResponse response) {
-                            if (secretSettingsWithHashes == null) {
-                                secretSettingsWithHashes = response.secretSettingsHashes.entrySet();
-                            } else {
-
+                            secretSettingHashes.compareAndSet(null, response.secretSettingHashes);
+                            if (compareSecretSettingHashes(secretSettingHashes.get(), response.secretSettingHashes) == false) {
+                                success.set(false);
                             }
-                            onOperation(idx, response);
+                            if (counter.decrementAndGet() == 0) {
+                                listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked && success.get(),
+                                    updater.getTransientUpdates(), updater.getPersistentUpdate()));
+                            }
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
-                            onFailure(idx, node.getId(), exp);
+                            success.set(false);
+                            if (counter.decrementAndGet() == 0) {
+                                listener.onResponse(new ClusterUpdateSettingsResponse(false, updater.getTransientUpdates(),
+                                    updater.getPersistentUpdate()));
+                            }
                         }
 
                         @Override
@@ -261,7 +273,22 @@ public class TransportClusterUpdateSettingsAction extends
                             return ThreadPool.Names.SAME;
                         }
                     });
-        }
+                }
+            }
+
+            private boolean compareSecretSettingHashes(Map<String, byte[]> m1, Map<String, byte[]> m2) {
+                assert m1 != null && m2 != null;
+                if (m1.size() != m2.size()) {
+                    return false;
+                }
+                for (final Map.Entry<String, byte[]> e : m1.entrySet()) {
+                    if (Arrays.equals(e.getValue(), m2.get(e.getKey())) == false) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
     }
 
     private class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {

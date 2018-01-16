@@ -5,7 +5,7 @@
 <titleabbrev>Update Model Snapshots</titleabbrev>
 ++++
 
-The update model snapshot API enables you to update certain properties of a snapshot.
+This API enables you to update certain properties of a snapshot.
 
 ==== Request
 

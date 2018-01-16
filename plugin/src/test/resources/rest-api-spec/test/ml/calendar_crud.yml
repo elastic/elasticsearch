@@ -93,6 +93,13 @@
           }
 
 ---
+"Test get calendar given missing":
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.get_calendars:
+        calendar_id: "unknown"
+
+---
 "Test PageParams":
   - do:
       xpack.ml.put_calendar:
@@ -584,3 +591,15 @@
   - length: { events: 2 }
   - match: { events.0.description: ski }
   - match: { events.1.description: snow }
+
+---
+"Test post calendar events given empty events":
+
+  - do:
+      catch: /At least 1 event is required/
+      xpack.ml.post_calendar_events:
+        calendar_id: "foo"
+        body: >
+          {
+            "events": []
+          }

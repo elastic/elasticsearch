@@ -5,7 +5,7 @@
 <titleabbrev>Delete Jobs from Calendar</titleabbrev>
 ++++
 
-The delete jobs from calendar API enables you to remove jobs from a calendar.
+This API enables you to remove jobs from a calendar.
 
 
 ==== Request

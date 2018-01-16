@@ -110,6 +110,18 @@ An analysis configuration object has the following properties:
   consideration for defining categories. For example, you can exclude SQL
   statements that appear in your log files. For more information, see
   {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+  This property cannot be used at the same time as `categorization_analyzer`.
+  If you only want to define simple regular expression filters to be applied
+  prior to tokenization then it is easiest to specify them using this property.
+  If you also want to customize the tokenizer or post-tokenization filtering
+  then these filters must be included in the `categorization_analyzer` as
+  `pattern_replace` `char_filter`s. The effect is exactly the same.
+//<<ml-configuring-categories>>.
+
+`categorization_analyzer`::
+  (object or string) If `categorization_field_name` is specified,
+  you can also define the analyzer that will be used to interpret the field
+  to be categorized. See <<ml-categorizationanalyzer,categorization analyzer>>.
 //<<ml-configuring-categories>>.
 
 `detectors`::
@@ -292,6 +304,102 @@ If the pattern that you specify is not sufficient to produce a complete timestam
 job creation fails.
 
 --
+
+[float]
+[[ml-categorizationanalyzer]]
+==== Categorization Analyzer
+
+The categorization analyzer specifies how the `categorization_field` is
+interpreted by the categorization process. The syntax is very similar to that
+used to define the `analyzer` in the <<indices-analyze,Analyze endpoint>>.
+
+The `categorization_analyzer` field can be specified either as a string or as
+an object.
+
+If it is a string it must refer to a
+{ref}/analysis-analyzers.html[built-in analyzer] or one added by
+another plugin.
+
+If it is an object it has the following properties:
+
+`char_filter`::
+  (array of strings or objects) One or more
+  {ref}/analysis-charfilters.html[character filters]. In addition
+  to the built-in character filters other plugins may provide more. This property
+  is optional. If not specified then there will be no character filters. If
+  you are customizing some other aspect of the analyzer and need to achieve
+  the equivalent of `categorization_filters` (which are not permitted when some
+  other aspect of the analyzer is customized), add them here as
+  {ref}/analysis-pattern-replace-charfilter.html[pattern replace character filters].
+
+`tokenizer`::
+  (string or object) The name or definition of the
+  {ref}/analysis-tokenizers.html[tokenizer] to use after character
+  filters have been applied. This property is compulsory if `categorization_analyzer`
+  is specified as an object. Machine learning provides a tokenizer called `ml_classic`
+  that tokenizes in the same way as the non-customizable tokenizer in older versions of
+  the product. If you would like to stick with this but change the character or token
+  filters then specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+
+`filter`::
+  (array of strings or objects) One or more
+  {ref}/analysis-tokenfilters.html[token filters]. In addition to the built-in token
+  filters other plugins may provide more. This property is optional. If not specified
+  then there will be no token filters.
+
+If you omit `categorization_analyzer` entirely then the default that will be used is
+the one from the following job:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/ml/anomaly_detectors/_validate
+{
+  "analysis_config" : {
+    "categorization_analyzer" : {
+      "tokenizer" : "ml_classic",
+      "filter" : [
+        { "type" : "stop", "stopwords": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] }
+      ]
+    },
+    "categorization_field_name": "message",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory"
+    }]
+  },
+  "data_description" : {
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+However, if you specify any part of `categorization_analyzer` then any omitted
+sub-properties are _not_ defaulted.
+
+If you are categorizing non-English messages in a language where words are separated
+by spaces you may get better results if you change the day/month words in the stop
+token filter to those from your language. If you are categorizing messages in a language
+where words are not separated by spaces then you will need to use a different tokenizer
+as well in order to get sensible categorization results.
+
+It is important to be aware that analyzing for categorization of machine generated
+log messages is a little different to tokenizing for search. Features that work well
+for search, such as stemming, synonym substitution and lowercasing are likely to make
+the results of categorization worse. However, in order for drilldown from machine
+learning results to work correctly, the tokens that the categorization analyzer
+produces need to be sufficiently similar to those produced by the search analyzer
+that if you search for the tokens that the categorization analyzer produces you will
+find the original document that the field to be categorized came from.
+
+For more information, see {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
+
 
 [float]
 [[ml-apilimits]]

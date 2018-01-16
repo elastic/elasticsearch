@@ -81,10 +81,15 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             return;
         }
 
+        // no master node, exit immediately
+        DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
+        if (masterNode == null) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the history template, which might be newer than the
         // history template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
-        DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
         if (event.localNodeMaster() || localNodeVersionAfterMaster) {

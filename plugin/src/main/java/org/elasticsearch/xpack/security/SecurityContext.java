@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -34,7 +34,7 @@ public class SecurityContext {
      * and {@link #getAuthentication()} will always return null.
      */
     public SecurityContext(Settings settings, ThreadContext threadContext) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+        this.logger = ServerLoggers.getLogger(getClass(), settings);
         this.threadContext = threadContext;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }

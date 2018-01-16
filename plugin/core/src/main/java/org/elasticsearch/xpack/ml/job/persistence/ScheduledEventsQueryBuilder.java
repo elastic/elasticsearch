@@ -41,6 +41,11 @@ public class ScheduledEventsQueryBuilder {
         return this;
     }
 
+    public ScheduledEventsQueryBuilder start(long start) {
+        this.start = Long.toString(start);
+        return this;
+    }
+
     public ScheduledEventsQueryBuilder end(String end) {
         this.end = end;
         return this;

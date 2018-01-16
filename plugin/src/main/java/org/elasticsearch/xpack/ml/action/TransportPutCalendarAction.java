@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -43,18 +42,16 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
     private final Client client;
     private final ClusterService clusterService;
-    private final JobManager jobManager;
 
     @Inject
     public TransportPutCalendarAction(Settings settings, ThreadPool threadPool,
                            TransportService transportService, ActionFilters actionFilters,
                            IndexNameExpressionResolver indexNameExpressionResolver,
-                           Client client, ClusterService clusterService, JobManager jobManager) {
+                           Client client, ClusterService clusterService) {
         super(settings, PutCalendarAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, PutCalendarAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
-        this.jobManager = jobManager;
     }
 
     @Override
@@ -81,7 +78,6 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
                 new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
-                        jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
                         listener.onResponse(new PutCalendarAction.Response(calendar));
                     }
 

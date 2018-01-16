@@ -1,73 +1,36 @@
 {
-  "index_patterns": [ ".monitoring-beats-${monitoring.template.version}-*" ],
-  "version": 7000001,
+  "index_patterns": [
+    ".monitoring-beats-${monitoring.template.version}-*"
+  ],
   "settings": {
-    "index.number_of_shards": 1,
-    "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
+    "index.codec": "best_compression",
     "index.format": 6,
-    "index.codec": "best_compression"
+    "index.number_of_replicas": 0,
+    "index.number_of_shards": 1
   },
+  "version": 7000001,
   "mappings": {
     "doc": {
       "dynamic": false,
       "properties": {
-        "cluster_uuid": {
-          "type": "keyword"
-        },
-        "timestamp": {
-          "type": "date",
-          "format": "date_time"
-        },
-        "interval_ms": {
-          "type": "long"
-        },
-        "type": {
-          "type": "keyword"
-        },
-        "source_node": {
-          "properties": {
-            "uuid": {
-              "type": "keyword"
-            },
-            "host": {
-              "type": "keyword"
-            },
-            "transport_address": {
-              "type": "keyword"
-            },
-            "ip": {
-              "type": "keyword"
-            },
-            "name": {
-              "type": "keyword"
-            }
-          }
-        },
         "beats_stats": {
           "properties": {
-            "timestamp": {
-              "type": "date",
-              "format": "date_time"
-            },
-            "tags": {
-              "type": "keyword"
-            },
             "beat": {
               "properties": {
-                "uuid": {
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
                   "type": "keyword"
                 },
                 "type": {
                   "type": "keyword"
                 },
+                "uuid": {
+                  "type": "keyword"
+                },
                 "version": {
-                  "type": "keyword"
-                },
-                "host": {
-                  "type": "keyword"
-                },
-                "name": {
                   "type": "keyword"
                 }
               }
@@ -76,6 +39,41 @@
               "properties": {
                 "beat": {
                   "properties": {
+                    "cpu": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "norm": {
+                              "properties": {
+                                "pct": {
+                                  "type": "double"
+                                }
+                              }
+                            },
+                            "pct": {
+                              "type": "double"
+                            },
+                            "value": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "info": {
+                      "properties": {
+                        "ephemeral_id": {
+                          "type": "keyword"
+                        },
+                        "uptime": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
                     "memstats": {
                       "properties": {
                         "gc_next": {
@@ -85,6 +83,9 @@
                           "type": "long"
                         },
                         "memory_total": {
+                          "type": "long"
+                        },
+                        "rss": {
                           "type": "long"
                         }
                       }
@@ -124,6 +125,12 @@
                               "type": "long"
                             },
                             "batches": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "duplicates": {
                               "type": "long"
                             },
                             "failed": {
@@ -199,10 +206,100 @@
                       }
                     }
                   }
+                },
+                "system": {
+                  "properties": {
+                    "cpu": {
+                      "properties": {
+                        "cores": {
+                          "type": "long"
+                        },
+                        "total": {
+                          "properties": {
+                            "norm": {
+                              "properties": {
+                                "pct": {
+                                  "type": "double"
+                                }
+                              }
+                            },
+                            "pct": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "load": {
+                      "properties": {
+                        "1": {
+                          "type": "double"
+                        },
+                        "15": {
+                          "type": "double"
+                        },
+                        "5": {
+                          "type": "double"
+                        },
+                        "norm": {
+                          "properties": {
+                            "1": {
+                              "type": "double"
+                            },
+                            "15": {
+                              "type": "double"
+                            },
+                            "5": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
+            },
+            "tags": {
+              "type": "keyword"
+            },
+            "timestamp": {
+              "format": "date_time",
+              "type": "date"
             }
           }
+        },
+        "cluster_uuid": {
+          "type": "keyword"
+        },
+        "interval_ms": {
+          "type": "long"
+        },
+        "source_node": {
+          "properties": {
+            "host": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "transport_address": {
+              "type": "keyword"
+            },
+            "uuid": {
+              "type": "keyword"
+            }
+          }
+        },
+        "timestamp": {
+          "format": "date_time",
+          "type": "date"
+        },
+        "type": {
+          "type": "keyword"
         }
       }
     }

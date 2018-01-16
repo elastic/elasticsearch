@@ -51,6 +51,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -369,10 +370,7 @@ public class JobProvider {
         ActionListener<AutodetectParams.Builder> getScheduledEventsListener = ActionListener.wrap(
                 paramsBuilder -> {
                     ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
-                    Date lastestRecordTime = paramsBuilder.getDataCounts().getLatestRecordTimeStamp();
-                    if (lastestRecordTime != null) {
-                        scheduledEventsQueryBuilder.start(Long.toString(lastestRecordTime.getTime()));
-                    }
+                    scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
                     scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
                             events -> {
                                 paramsBuilder.setScheduledEvents(events.results());
@@ -1207,7 +1205,11 @@ public class JobProvider {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                } else {
+                    listener.onFailure(e);
+                }
             }
         },
         client::get);

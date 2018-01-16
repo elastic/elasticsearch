@@ -7,6 +7,7 @@ package org.elasticsearch.smoketest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -28,6 +29,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.
 import static org.hamcrest.Matchers.is;
 
 @TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2920")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After

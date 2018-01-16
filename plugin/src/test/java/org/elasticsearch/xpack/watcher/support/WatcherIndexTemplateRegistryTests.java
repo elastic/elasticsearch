@@ -128,6 +128,17 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         verifyZeroInteractions(client);
     }
 
+    public void testThatMissingMasterNodeDoesNothing() {
+        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME,
+                WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME, ".watch-history-6"), nodes);
+        registry.clusterChanged(event);
+
+        verifyZeroInteractions(client);
+    }
+
     private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames, DiscoveryNodes nodes) {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
         when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());

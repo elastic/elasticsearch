@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -28,7 +28,7 @@ public class TimeWarpedWatcher extends Watcher {
 
     public TimeWarpedWatcher(Settings settings) {
         super(settings);
-        Logger logger = Loggers.getLogger(TimeWarpedWatcher.class, settings);
+        Logger logger = ServerLoggers.getLogger(TimeWarpedWatcher.class, settings);
         logger.info("using time warped watchers plugin");
     }
 

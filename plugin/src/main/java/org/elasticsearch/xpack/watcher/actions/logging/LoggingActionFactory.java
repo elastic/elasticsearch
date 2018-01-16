@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -19,7 +19,7 @@ public class LoggingActionFactory extends ActionFactory {
     private final TextTemplateEngine templateEngine;
 
     public LoggingActionFactory(Settings settings, TextTemplateEngine templateEngine) {
-        super(Loggers.getLogger(ExecutableLoggingAction.class, settings));
+        super(ServerLoggers.getLogger(ExecutableLoggingAction.class, settings));
         this.settings = settings;
         this.templateEngine = templateEngine;
     }

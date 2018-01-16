@@ -5,7 +5,7 @@
 <titleabbrev>Get Calendars</titleabbrev>
 ++++
 
-The get calendars API enables you to retrieve configuration information for
+This API enables you to retrieve configuration information for
 calendars.
 
 

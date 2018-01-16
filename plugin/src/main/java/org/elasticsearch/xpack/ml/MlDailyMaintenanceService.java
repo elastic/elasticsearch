@@ -14,7 +14,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.joda.time.DateTime;
@@ -27,7 +26,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 /**
  * A service that runs once a day and triggers maintenance tasks.

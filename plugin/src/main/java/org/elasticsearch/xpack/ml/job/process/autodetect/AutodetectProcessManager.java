@@ -60,7 +60,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -280,7 +279,8 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         if (updateParams.isUpdateScheduledEvents()) {
             Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
-            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(Long.toString(new Date().getTime()));
+            DataCounts dataCounts = getStatistics(jobTask).get().v1();
+            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
             jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
         } else {
             eventsListener.onResponse(null);

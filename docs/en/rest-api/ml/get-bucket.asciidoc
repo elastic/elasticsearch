@@ -5,7 +5,7 @@
 <titleabbrev>Get Buckets</titleabbrev>
 ++++
 
-The get bucket API enables you to retrieve job results for one or more buckets.
+This API enables you to retrieve job results for one or more buckets.
 
 
 ==== Request
@@ -17,7 +17,8 @@ The get bucket API enables you to retrieve job results for one or more buckets.
 
 ==== Description
 
-This API presents a chronological view of the records, grouped by bucket.
+The get buckets API presents a chronological view of the records, grouped by
+bucket.
 
 
 ==== Path Parameters

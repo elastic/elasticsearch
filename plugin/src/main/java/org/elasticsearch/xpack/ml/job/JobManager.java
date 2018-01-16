@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -132,6 +133,14 @@ public class JobManager extends AbstractComponent {
         return job;
     }
 
+    private Set<String> expandJobIds(String expression, boolean allowNoJobs, ClusterState clusterState) {
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
+        }
+        return mlMetadata.expandJobIds(expression, allowNoJobs);
+    }
+
     /**
      * Get the jobs that match the given {@code expression}.
      * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
@@ -142,11 +151,8 @@ public class JobManager extends AbstractComponent {
      * @return A {@link QueryPage} containing the matching {@code Job}s
      */
     public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
+        Set<String> expandedJobIds = expandJobIds(expression, allowNoJobs, clusterState);
         MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
-        Set<String> expandedJobIds = mlMetadata.expandJobIds(expression, allowNoJobs);
         List<Job> jobs = new ArrayList<>();
         for (String expandedJobId : expandedJobIds) {
             jobs.add(mlMetadata.getJobs().get(expandedJobId));
@@ -335,7 +341,9 @@ public class JobManager extends AbstractComponent {
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
         ClusterState clusterState = clusterService.state();
-        for (String jobId : calendarJobIds) {
+        Set<String> expandedJobIds = new HashSet<>();
+        calendarJobIds.stream().forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
+        for (String jobId : expandedJobIds) {
             if (isJobOpen(clusterState, jobId)) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId));
             }

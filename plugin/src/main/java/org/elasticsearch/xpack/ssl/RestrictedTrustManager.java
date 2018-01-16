@@ -28,7 +28,7 @@ import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERTaggedObject;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -46,7 +46,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     private final int SAN_CODE_OTHERNAME = 0;
 
     public RestrictedTrustManager(Settings settings, X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+        this.logger = ServerLoggers.getLogger(getClass(), settings);
         this.delegate = delegate;
         this.trustRestrictions = restrictions;
         logger.debug("Configured with trust restrictions: [{}]", restrictions);

@@ -5,7 +5,7 @@
 <titleabbrev>Update {dfeeds-cap}</titleabbrev>
 ++++
 
-The update {dfeed} API enables you to update certain properties of a {dfeed}.
+This API enables you to update certain properties of a {dfeed}.
 
 ==== Request
 

@@ -84,7 +84,7 @@ the `http` exporter will not be deleted automatically.
 
 If both {monitoring} and {watcher} are enabled, you can use this setting to
 affect the {watcher} cleaner service too. For more information, see the
-`xpack.watcher.history.cleaner_service.enabled` setting in the 
+`xpack.watcher.history.cleaner_service.enabled` setting in the
 <<notification-settings>>.
 --
 
@@ -235,6 +235,23 @@ to future-proof them.
 Whether to create cluster alerts for this cluster. The default value is `true`.
 To use this feature, {watcher} must be enabled.  If you have a basic license,
 cluster alerts are not displayed.
+
+`cluster_alerts.management.blacklist`::
+
+Prevents the creation of specific cluster alerts. It also removes any applicable
+watches that already exist in the current cluster. +
++
+--
+You can add any of the following watch identifiers to the blacklist:
+
+* `elasticsearch_cluster_status`
+* `elasticsearch_version_mismatch`
+* `kibana_version_mismatch`
+* `logstash_version_mismatch`
+* `xpack_license_expiration`
+
+For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
+--
 
 [[ssl-monitoring-settings]]
 :ssl-prefix:             xpack.monitoring.exporters.$NAME

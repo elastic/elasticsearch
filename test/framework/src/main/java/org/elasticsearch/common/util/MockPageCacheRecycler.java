@@ -57,7 +57,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private final Random random;
 
-    MockPageCacheRecycler(Settings settings) {
+    public MockPageCacheRecycler(Settings settings) {
         super(settings);
         // we always initialize with 0 here since we really only wanna have some random bytes / ints / longs
         // and given the fact that it's called concurrently it won't reproduces anyway the same order other than in a unittest

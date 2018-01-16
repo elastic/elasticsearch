@@ -19,7 +19,7 @@ Below is an example of configuring a mapping with various range fields followed 
 PUT range_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "expected_attendees": {
           "type": "integer_range"
@@ -33,7 +33,7 @@ PUT range_index
   }
 }
 
-PUT range_index/my_type/1
+PUT range_index/_doc/1
 {
   "expected_attendees" : { <2>
     "gte" : 10,
@@ -86,7 +86,7 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "my_type",
+        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

@@ -6,13 +6,13 @@ resources available to it.  In order to do so, you need to configure your
 operating system to allow the user running Elasticsearch to access more
 resources than allowed by default.
 
-The following settings *must* be addressed before going to production:
+The following settings *must* be considered before going to production:
 
-* <<heap-size,Set JVM heap size>>
 * <<setup-configuration-memory,Disable swapping>>
 * <<file-descriptors,Increase file descriptors>>
 * <<vm-max-map-count,Ensure sufficient virtual memory>>
 * <<max-number-of-threads,Ensure sufficient threads>>
+* <<networkaddress-cache-ttl,JVM DNS cache settings>>
 
 [[dev-vs-prod]]
 [float]
@@ -30,8 +30,6 @@ starting.  This is an important safety measure to ensure that you will not
 lose data because of a malconfigured server.
 
 include::sysconfig/configuring.asciidoc[]
-
-include::sysconfig/heap_size.asciidoc[]
 
 include::sysconfig/swap.asciidoc[]
 

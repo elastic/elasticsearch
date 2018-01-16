@@ -19,10 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -40,6 +36,10 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
@@ -137,14 +137,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             logger.debug("Using basic key/secret credentials");
             return new StaticCredentialsProvider(credentials);
         }
-    }
-
-    /** Returns the value for a given setting from the repository, or returns the fallback value. */
-    private static <T> T getRepoValue(Settings repositorySettings, Setting<T> repositorySetting, T fallback) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        }
-        return fallback;
     }
 
     @Override

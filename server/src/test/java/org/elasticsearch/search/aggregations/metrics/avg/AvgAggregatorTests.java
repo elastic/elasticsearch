@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.avg;
 
-import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -31,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -102,15 +102,46 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSummationAccuracy() throws IOException {
+        // Summing up a normal array and expect an accurate value
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifyAvgOfDoubles(values, 0.9, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifyAvgOfDoubles(values, sum / n, 1e-10);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifyAvgOfDoubles(largeValues, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifyAvgOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
         testCase(new MatchAllDocsQuery(),
             iw -> {
-                double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
                 for (double value : values) {
-                    iw.addDocument(singleton(new DoubleDocValuesField("number", value)));
+                    iw.addDocument(singleton(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
                 }
             },
-            avg -> assertEquals(0.9, avg.getValue(), 0d),
-            NumberFieldMapper.NumberType.DOUBLE);
+            avg -> assertEquals(expected, avg.getValue(), delta),
+            NumberFieldMapper.NumberType.DOUBLE
+        );
     }
 
     private void testCase(Query query,

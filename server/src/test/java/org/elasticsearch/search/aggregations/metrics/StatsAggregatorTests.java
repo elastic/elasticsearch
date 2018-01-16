@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoubleDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -117,22 +117,61 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSummationAccuracy() throws IOException {
+        // Summing up a normal array and expect an accurate value
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifySummationOfDoubles(values, 15.3, 0.9, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifySummationOfDoubles(values, sum, sum / n, TOLERANCE);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifySummationOfDoubles(largeValues, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifySummationOfDoubles(double[] values, double expectedSum,
+                                          double expectedAvg, double delta) throws IOException {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        final String fieldName = "field";
-        ft.setName(fieldName);
+        ft.setName("field");
+
+        double max = Double.NEGATIVE_INFINITY;
+        double min = Double.POSITIVE_INFINITY;
+        for (double value : values) {
+            max = Math.max(max, value);
+            min = Math.min(min, value);
+        }
+        double expectedMax = max;
+        double expectedMin = min;
         testCase(ft,
             iw -> {
-                double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
                 for (double value : values) {
-                    iw.addDocument(singleton(new DoubleDocValuesField(fieldName, value)));
+                    iw.addDocument(singleton(new NumericDocValuesField("field", NumericUtils.doubleToSortableLong(value))));
                 }
             },
             stats -> {
-                assertEquals(15, stats.getCount());
-                assertEquals(0.9, stats.getAvg(), 0d);
-                assertEquals(13.5, stats.getSum(), 0d);
-                assertEquals(1.7, stats.getMax(), 0d);
-                assertEquals(0.1, stats.getMin(), 0d);
+                assertEquals(values.length, stats.getCount());
+                assertEquals(expectedAvg, stats.getAvg(), delta);
+                assertEquals(expectedSum, stats.getSum(), delta);
+                assertEquals(expectedMax, stats.getMax(), 0d);
+                assertEquals(expectedMin, stats.getMin(), 0d);
             }
         );
     }

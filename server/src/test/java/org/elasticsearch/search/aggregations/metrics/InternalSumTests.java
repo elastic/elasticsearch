@@ -27,15 +27,12 @@ import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
-
-    private static final double TOLERANCE = 1e-10;
 
     @Override
     protected InternalSum createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -55,10 +52,10 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         assertEquals(expectedSum, reduced.getValue(), 0.0001d);
     }
 
-    public void testSummationAccuracy() throws IOException {
+    public void testSummationAccuracy() {
         // Summing up a normal array and expect an accurate value
         double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
-        verifySummationOfDoubles(values, 13.5, 0);
+        verifySummationOfDoubles(values, 13.5, 0d);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         int n = randomIntBetween(5, 10);
@@ -74,20 +71,19 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
         // Summing up some big double values and expect infinity result
         n = randomIntBetween(5, 10);
-        double[] bigPositiveDoubles = new double[n];
+        double[] largeValues = new double[n];
         for (int i = 0; i < n; i++) {
-            bigPositiveDoubles[i] = Double.MAX_VALUE;
+            largeValues[i] = Double.MAX_VALUE;
         }
-        verifySummationOfDoubles(bigPositiveDoubles, Double.POSITIVE_INFINITY, 0d);
+        verifySummationOfDoubles(largeValues, Double.POSITIVE_INFINITY, 0d);
 
-        double[] bigNegativeDoubles = new double[n];
         for (int i = 0; i < n; i++) {
-            bigNegativeDoubles[i] = -Double.MAX_VALUE;
+            largeValues[i] = -Double.MAX_VALUE;
         }
-        verifySummationOfDoubles(bigNegativeDoubles, Double.NEGATIVE_INFINITY, 0d);
+        verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
     }
 
-    private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
+    private void verifySummationOfDoubles(double[] values, double expected, double delta) {
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         for (double value : values) {
             aggregations.add(new InternalSum("dummy1", value, null, null, null));

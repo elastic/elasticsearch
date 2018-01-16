@@ -126,3 +126,42 @@
                 field3: value
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
+
+---
+"Find a task result record from the old cluster":
+  - do:
+      search:
+        index: .tasks
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: '/.+:\d+/' }
+  - set: {hits.hits.0._id: task_id}
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task_id
+
+  - is_false: node_failures
+  - is_true: task
+
+  - do:
+      headers: { "X-Opaque-Id": "Reindexing Again" }
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: reindexed_index_copy
+            size: 1
+          dest:
+            index: reindexed_index_another_copy
+  - match: { task: '/.+:\d+/' }
+  - set: { task: task_id }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task_id
+  - match: { task.headers.X-Opaque-Id: "Reindexing Again" }

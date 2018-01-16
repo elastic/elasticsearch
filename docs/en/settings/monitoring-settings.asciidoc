@@ -246,6 +246,7 @@ You can add any of the following watch identifiers to the blacklist:
 
 * `elasticsearch_cluster_status`
 * `elasticsearch_version_mismatch`
+* `elasticsearch_nodes`
 * `kibana_version_mismatch`
 * `logstash_version_mismatch`
 * `xpack_license_expiration`

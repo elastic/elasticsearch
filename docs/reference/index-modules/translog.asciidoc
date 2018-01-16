@@ -85,10 +85,12 @@ The maximum duration for which translog files will be kept. Defaults to `12h`.
 [[corrupt-translog-truncation]]
 === What to do if the translog becomes corrupted?
 
-In some cases (a bad drive, user error) the translog can become corrupted. When
+In some cases (a bad drive, user error) the translog on a shard copy can become corrupted. When
 this corruption is detected by Elasticsearch due to mismatching checksums,
-Elasticsearch will fail the shard and refuse to allocate that copy of the data
-to the node, recovering from a replica if available.
+Elasticsearch will fail that shard copy and refuse to use that copy of the data.
+If there are other copies of the shard available then Elasticsearch will
+automatically recover from one of them using the normal shard allocation and recovery mechanism.
+In particular, if the corrupt shard copy was the primary when the corruption was detected then one of its replicas will be promoted in its place.
 
 If there is no copy of the data from which Elasticsearch can recover
 successfully, a user may want to recover the data that is part of the shard at

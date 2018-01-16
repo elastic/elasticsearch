@@ -26,14 +26,12 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -345,70 +343,4 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         assertEquals("Should have index name in response", "foo", response.index());
     }
-
-    /**
-     * This test method is used to generate the Put Mapping Java Indices API documentation
-     * at "docs/java-api/admin/indices/put-mapping.asciidoc" so the documentation gets tested
-     * so that it compiles and runs without throwing errors at runtime.
-     */
-     public void testPutMappingDocumentation() throws Exception {
-         Client client = client();
-         // tag::addMapping-create-index-request
-         client.admin().indices().prepareCreate("twitter")  // <1>
-         .addMapping("tweet", "{\n" +                       // <2>
-                 "    \"tweet\": {\n" +
-                 "      \"properties\": {\n" +
-                 "        \"message\": {\n" +
-                 "          \"type\": \"text\"\n" +
-                 "        }\n" +
-                 "      }\n" +
-                 "    }\n" +
-                 "  }", XContentType.JSON)
-         .get();
-         // end::addMapping-create-index-request
-
-         // we need to delete in order to create a fresh new index with another type
-         client.admin().indices().prepareDelete("twitter").get();
-         client.admin().indices().prepareCreate("twitter").get();
-
-         // tag::putMapping-request-source
-         client.admin().indices().preparePutMapping("twitter")   // <1>
-         .setType("user")                                        // <2>
-         .setSource("{\n" +                                      // <3>
-                 "  \"properties\": {\n" +
-                 "    \"name\": {\n" +
-                 "      \"type\": \"text\"\n" +
-                 "    }\n" +
-                 "  }\n" +
-                 "}", XContentType.JSON)
-         .get();
-
-         // You can also provide the type in the source document
-         client.admin().indices().preparePutMapping("twitter")
-         .setType("user")
-         .setSource("{\n" +
-                 "    \"user\":{\n" +                            // <4>
-                 "        \"properties\": {\n" +
-                 "            \"name\": {\n" +
-                 "                \"type\": \"text\"\n" +
-                 "            }\n" +
-                 "        }\n" +
-                 "    }\n" +
-                 "}", XContentType.JSON)
-         .get();
-         // end::putMapping-request-source
-
-         // tag::putMapping-request-source-append
-         client.admin().indices().preparePutMapping("twitter")   // <1>
-         .setType("user")                                        // <2>
-         .setSource("{\n" +                                      // <3>
-                 "  \"properties\": {\n" +
-                 "    \"user_name\": {\n" +
-                 "      \"type\": \"text\"\n" +
-                 "    }\n" +
-                 "  }\n" +
-                 "}", XContentType.JSON)
-         .get();
-         // end::putMapping-request-source-append
-     }
 }

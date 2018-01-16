@@ -32,7 +32,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -52,7 +51,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -92,7 +91,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 public abstract class Engine implements Closeable {
 
@@ -132,7 +130,7 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
-        this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
+        this.logger = ServerLoggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
@@ -880,9 +878,10 @@ public abstract class Engine implements Closeable {
      * Snapshots the index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      *
+     * @param safeCommit indicates whether the engine should acquire the most recent safe commit, or the most recent commit.
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException;
+    public abstract IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.
@@ -1458,9 +1457,9 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(SnapshotDeletionPolicy deletionPolicy) throws IOException {
-            indexCommit = deletionPolicy.snapshot();
-            onClose = () -> deletionPolicy.release(indexCommit);
+        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+            this.indexCommit = indexCommit;
+            this.onClose = onClose;
         }
 
         @Override
@@ -1533,6 +1532,11 @@ public abstract class Engine implements Closeable {
      * This operation will close the engine if the recovery fails.
      */
     public abstract Engine recoverFromTranslog() throws IOException;
+
+    /**
+     * Do not replay translog operations, but make the engine be ready.
+     */
+    public abstract void skipTranslogRecovery();
 
     /**
      * Returns <code>true</code> iff this engine is currently recovering from translog.

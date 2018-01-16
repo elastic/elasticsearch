@@ -78,6 +78,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -167,6 +168,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1820,8 +1822,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.DEBUG);
+        ServerLoggers.addAppender(rootLogger, mockAppender);
+        ServerLoggers.setLevel(rootLogger, Level.DEBUG);
         rootLogger = LogManager.getRootLogger();
 
         try {
@@ -1832,15 +1834,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            Loggers.setLevel(rootLogger, Level.TRACE);
+            ServerLoggers.setLevel(rootLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
+            ServerLoggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
+            ServerLoggers.setLevel(rootLogger, savedLevel);
         }
     }
 
@@ -2012,7 +2014,7 @@ public class InternalEngineTests extends EngineTestCase {
             boolean doneIndexing;
             do {
                 doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
-                commits.add(engine.acquireIndexCommit(true));
+                commits.add(engine.acquireIndexCommit(false, true));
                 if (commits.size() > commitLimit) { // don't keep on piling up too many commits
                     IOUtils.close(commits.remove(randomIntBetween(0, commits.size()-1)));
                     // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
@@ -2110,8 +2112,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
-        Loggers.addAppender(iwIFDLogger, mockAppender);
-        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
+        ServerLoggers.addAppender(iwIFDLogger, mockAppender);
+        ServerLoggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2122,16 +2124,16 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
-            Loggers.setLevel(iwIFDLogger, Level.TRACE);
+            ServerLoggers.setLevel(iwIFDLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            Loggers.removeAppender(iwIFDLogger, mockAppender);
+            ServerLoggers.removeAppender(iwIFDLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(iwIFDLogger, (Level) null);
+            ServerLoggers.setLevel(iwIFDLogger, (Level) null);
         }
     }
 
@@ -4199,6 +4201,40 @@ public class InternalEngineTests extends EngineTestCase {
             }
             int totalNumDocs = numDocs - numDeletes.get();
             assertEquals(totalNumDocs, searcher.reader().numDocs());
+        }
+    }
+
+    public void testAcquireIndexCommit() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            int numDocs = between(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+            }
+            final boolean inSync = randomBoolean();
+            if (inSync) {
+                globalCheckpoint.set(numDocs - 1);
+            }
+            final boolean flushFirst = randomBoolean();
+            final boolean safeCommit = randomBoolean();
+            Engine.IndexCommitRef commit = engine.acquireIndexCommit(safeCommit, flushFirst);
+            int moreDocs = between(1, 20);
+            for (int i = 0; i < moreDocs; i++) {
+                index(engine, numDocs + i);
+            }
+            globalCheckpoint.set(numDocs + moreDocs - 1);
+            engine.flush();
+            // check that we can still read the commit that we captured
+            try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(flushFirst && (safeCommit == false || inSync) ? numDocs : 0));
+            }
+            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
+            commit.close();
+            // check it's clean up
+            engine.flush(true, true);
+            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
         }
     }
 }

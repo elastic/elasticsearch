@@ -401,7 +401,7 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 }
                 if (indexShouldExists) {
-                    indexShard.openIndexAndTranslog();
+                    indexShard.openIndexAndRecoveryFromTranslog();
                     indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
                 } else {
                     indexShard.createIndexAndTranslog();

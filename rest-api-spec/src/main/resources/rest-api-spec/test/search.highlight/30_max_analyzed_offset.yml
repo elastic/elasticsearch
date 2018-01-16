@@ -33,27 +33,24 @@ setup:
   - skip:
       version: " - 6.1.99"
       reason: index.highlight.max_analyzed_offset setting has been added in 6.2
-      features: "warnings"
   - do:
+      catch: bad_request
       search:
           index: test1
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
-      warnings:
-          - Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [10]. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. For large texts, indexing with offsets or term vectors is recommended!
-
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
   - skip:
       version: " - 6.1.99"
       reason: index.highlight.max_analyzed_offset setting has been added in 6.2
-      features: "warnings"
   - do:
+      catch: bad_request
       search:
           index: test1
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}}}
-      warnings:
-          - Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [10]. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. For large texts, indexing with offsets or term vectors, and highlighting with unified or fvh highlighter is recommended!
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
 ---
 "Unified highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should SUCCEED":
@@ -72,10 +69,9 @@ setup:
   - skip:
       version: " - 6.1.99"
       reason: index.highlight.max_analyzed_offset setting has been added in 6.2
-      features: "warnings"
   - do:
+      catch: bad_request
       search:
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}}}
-      warnings:
-          - Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [10]. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. For large texts, indexing with offsets or term vectors, and highlighting with unified or fvh highlighter is recommended!
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }

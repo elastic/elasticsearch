@@ -110,17 +110,26 @@ public class PlainHighlighter implements Highlighter {
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
-
+            final int defaultMaxAnalyzedOffset7 = 10000;
             for (Object textToHighlight : textsToHighlight) {
                 String text = convertFieldValue(mapper.fieldType(), textToHighlight);
-                if (text.length() > maxAnalyzedOffset) {
+
+                // Issue deprecation warning if maxAnalyzedOffset is not set, and text length > default setting for 7.0
+                if ((maxAnalyzedOffset == -1) && (text.length() > defaultMaxAnalyzedOffset7)) {
                     DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(PlainHighlighter.class));
                     deprecationLogger.deprecated(
-                        "Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [" +
-                            maxAnalyzedOffset + "]. " + "This maximum can be set by changing the [" +
+                        "The length of text to be analyzed for highlighting [" + text.length() + "] exceeded the allowed maximum of [" +
+                            defaultMaxAnalyzedOffset7 + "] set for the next major Elastic version. " +
+                            "For large texts, indexing with offsets or term vectors is recommended!");
+                }
+                // Throw an error if maxAnalyzedOffset is explicitly set by the user, and text length > maxAnalyzedOffset
+                if ((maxAnalyzedOffset > 0) && (text.length() > maxAnalyzedOffset)) {
+                    // maxAnalyzedOffset is not set by user
+                    throw new IllegalArgumentException(
+                        "The length of text to be analyzed for highlighting [" + text.length() +
+                            "] exceeded the allowed maximum of [" + maxAnalyzedOffset + "]. This maximum can be set by changing the [" +
                             IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
-                            "For large texts, indexing with offsets or term vectors, and highlighting with unified or " +
-                            "fvh highlighter is recommended!");
+                            "For large texts, indexing with offsets or term vectors is recommended!");
                 }
 
                 try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {

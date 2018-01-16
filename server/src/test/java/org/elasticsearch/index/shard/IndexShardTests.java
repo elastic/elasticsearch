@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -1043,41 +1042,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm + Math.max(firstIncrement, secondIncrement)));
 
         closeShards(indexShard);
-    }
-
-    public void testAcquireIndexCommit() throws Exception {
-        boolean isPrimary = randomBoolean();
-        final IndexShard shard = newStartedShard(isPrimary);
-        int numDocs = randomInt(20);
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "type", "id_" + i);
-        }
-        final boolean flushFirst = randomBoolean();
-        Engine.IndexCommitRef commit = shard.acquireIndexCommit(flushFirst);
-        int moreDocs = randomInt(20);
-        for (int i = 0; i < moreDocs; i++) {
-            indexDoc(shard, "type", "id_" + numDocs + i);
-        }
-        flushShard(shard);
-        // check that we can still read the commit that we captured
-        try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
-            assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
-        }
-        commit.close();
-        // Make the global checkpoint in sync with the local checkpoint.
-        if (isPrimary) {
-            final String allocationId = shard.shardRouting.allocationId().getId();
-            shard.updateLocalCheckpointForShard(allocationId, numDocs + moreDocs - 1);
-            shard.updateGlobalCheckpointForShard(allocationId, shard.getLocalCheckpoint());
-        } else {
-            shard.updateGlobalCheckpointOnReplica(numDocs + moreDocs - 1, "test");
-        }
-        flushShard(shard, true);
-
-        // check it's clean up
-        assertThat(DirectoryReader.listCommits(shard.store().directory()), hasSize(1));
-
-        closeShards(shard);
     }
 
     /***
@@ -2144,7 +2108,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.openIndexAndTranslog();
+        shard.openIndexAndRecoveryFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2172,8 +2136,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
                     // Shard is still inactive since we haven't started recovering yet
                     assertFalse(replica.isActive());
 
@@ -2221,8 +2185,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(totalTranslogOps);
+                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
                     assertListenerCalled.accept(replica);
                 }
 

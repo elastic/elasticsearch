@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -27,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,11 +39,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -48,6 +54,7 @@ import java.util.concurrent.Future;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RecoveryTests extends ESIndexLevelReplicationTestCase {
@@ -241,4 +248,62 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(numDocs - 1));
         }
     }
+
+    public void testPeerRecoverySendSafeCommitInFileBased() throws Exception {
+        IndexShard primaryShard = newStartedShard(true);
+        int numDocs = between(1, 100);
+        long globalCheckpoint = 0;
+        for (int i = 0; i < numDocs; i++) {
+            primaryShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+                SourceToParse.source(primaryShard.shardId().getIndexName(), "test", Integer.toString(i), new BytesArray("{}"),
+                    XContentType.JSON), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(primaryShard, "test"));
+            if (randomBoolean()) {
+                globalCheckpoint = randomLongBetween(globalCheckpoint, i);
+                primaryShard.updateLocalCheckpointForShard(primaryShard.routingEntry().allocationId().getId(), globalCheckpoint);
+                primaryShard.updateGlobalCheckpointForShard(primaryShard.routingEntry().allocationId().getId(), globalCheckpoint);
+                primaryShard.flush(new FlushRequest());
+            }
+        }
+        IndexShard replicaShard = newShard(primaryShard.shardId(), false);
+        updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
+        recoverReplica(replicaShard, primaryShard);
+        List<IndexCommit> commits = DirectoryReader.listCommits(replicaShard.store().directory());
+        long maxSeqNo = Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        assertThat(maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
+        closeShards(primaryShard, replicaShard);
+    }
+
+    public void testSequenceBasedRecoveryKeepsTranslog() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final int initDocs = scaledRandomIntBetween(0, 20);
+            int uncommittedDocs = 0;
+            for (int i = 0; i < initDocs; i++) {
+                shards.indexDocs(1);
+                uncommittedDocs++;
+                if (randomBoolean()) {
+                    shards.syncGlobalCheckpoint();
+                    shards.flush();
+                    uncommittedDocs = 0;
+                }
+            }
+            shards.removeReplica(replica);
+            final int moreDocs = shards.indexDocs(scaledRandomIntBetween(0, 20));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            replica.close("test", randomBoolean());
+            replica.store().close();
+            final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+            shards.recoverReplica(newReplica);
+
+            try (Translog.Snapshot snapshot = newReplica.getTranslog().newSnapshot()) {
+                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+            }
+            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
+            assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
+        }
+    }
+
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
@@ -34,14 +34,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.engine.EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
 import static org.elasticsearch.index.engine.EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.doAnswer;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -88,29 +90,64 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
     }
 
-    public void testIgnoreSnapshottingCommits() throws Exception {
+    public void testAcquireIndexCommit() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final UUID translogUUID = UUID.randomUUID();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
-
-        long firstMaxSeqNo = randomLongBetween(0, Long.MAX_VALUE - 1);
-        long secondMaxSeqNo = randomLongBetween(firstMaxSeqNo + 1, Long.MAX_VALUE);
-
-        long lastTranslogGen = randomNonNegativeLong();
-        final IndexCommit firstCommit = mockIndexCommit(firstMaxSeqNo, translogUUID, randomLongBetween(0, lastTranslogGen));
-        final IndexCommit secondCommit = mockIndexCommit(secondMaxSeqNo, translogUUID, lastTranslogGen);
-        SnapshotDeletionPolicy snapshotDeletionPolicy = new SnapshotDeletionPolicy(indexPolicy);
-
-        snapshotDeletionPolicy.onInit(Arrays.asList(firstCommit));
-        snapshotDeletionPolicy.snapshot();
-        assertThat(snapshotDeletionPolicy.getSnapshots(), contains(firstCommit));
-
-        // SnapshotPolicy prevents the first commit from deleting, but CombinedPolicy does not retain its translog.
-        globalCheckpoint.set(randomLongBetween(secondMaxSeqNo, Long.MAX_VALUE));
-        snapshotDeletionPolicy.onCommit(Arrays.asList(firstCommit, secondCommit));
-        verify(firstCommit, never()).delete();
-        verify(secondCommit, never()).delete();
+        long lastMaxSeqNo = between(1, 1000);
+        long lastTranslogGen = between(1, 20);
+        int safeIndex = 0;
+        List<IndexCommit> commitList = new ArrayList<>();
+        List<IndexCommit> snapshottingCommits = new ArrayList<>();
+        final int iters = between(10, 100);
+        for (int i = 0; i < iters; i++) {
+            int newCommits = between(1, 10);
+            for (int n = 0; n < newCommits; n++) {
+                lastMaxSeqNo += between(1, 1000);
+                lastTranslogGen += between(1, 20);
+                commitList.add(mockIndexCommit(lastMaxSeqNo, translogUUID, lastTranslogGen));
+            }
+            // Advance the global checkpoint to between [safeIndex, safeIndex + 1)
+            safeIndex = randomIntBetween(safeIndex, commitList.size() - 1);
+            long lower = Math.max(globalCheckpoint.get(),
+                Long.parseLong(commitList.get(safeIndex).getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+            long upper = safeIndex == commitList.size() - 1 ? lastMaxSeqNo :
+                Long.parseLong(commitList.get(safeIndex + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO)) - 1;
+            globalCheckpoint.set(randomLongBetween(lower, upper));
+            indexPolicy.onCommit(commitList);
+            // Captures and releases some commits
+            int captures = between(0, 5);
+            for (int n = 0; n < captures; n++) {
+                boolean safe = randomBoolean();
+                final IndexCommit snapshot = indexPolicy.acquireIndexCommit(safe);
+                expectThrows(UnsupportedOperationException.class, snapshot::delete);
+                snapshottingCommits.add(snapshot);
+                if (safe) {
+                    assertThat(snapshot.getUserData(), equalTo(commitList.get(safeIndex).getUserData()));
+                } else {
+                    assertThat(snapshot.getUserData(), equalTo(commitList.get(commitList.size() - 1).getUserData()));
+                }
+            }
+            randomSubsetOf(snapshottingCommits).forEach(snapshot -> {
+                snapshottingCommits.remove(snapshot);
+                indexPolicy.releaseCommit(snapshot);
+            });
+            // Snapshotting commits must not be deleted.
+            snapshottingCommits.forEach(snapshot -> assertThat(snapshot.isDeleted(), equalTo(false)));
+            // We don't need to retain translog for snapshotting commits.
+            assertThat(translogPolicy.getMinTranslogGenerationForRecovery(),
+                equalTo(Long.parseLong(commitList.get(safeIndex).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+            assertThat(translogPolicy.getTranslogGenerationOfLastCommit(),
+                equalTo(Long.parseLong(commitList.get(commitList.size() - 1).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+        }
+        snapshottingCommits.forEach(indexPolicy::releaseCommit);
+        globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
+        indexPolicy.onCommit(commitList);
+        for (int i = 0; i < commitList.size() - 1; i++) {
+            assertThat(commitList.get(i).isDeleted(), equalTo(true));
+        }
+        assertThat(commitList.get(commitList.size() - 1).isDeleted(), equalTo(false));
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
     }
@@ -149,6 +186,54 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
     }
 
+    public void testKeepSingleNoOpsCommits() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(randomLong());
+        final UUID translogUUID = UUID.randomUUID();
+        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
+
+        final List<IndexCommit> commitList = new ArrayList<>();
+        final int numOfNoOpsCommits = between(1, 10);
+        long lastNoopTranslogGen = 0;
+        for (int i = 0; i < numOfNoOpsCommits; i++) {
+            lastNoopTranslogGen += between(1, 20);
+            commitList.add(mockIndexCommit(SequenceNumbers.NO_OPS_PERFORMED, translogUUID, lastNoopTranslogGen));
+        }
+        // Keep only one no_ops commit.
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastNoopTranslogGen));
+        for (int i = 0; i < numOfNoOpsCommits - 1; i++) {
+            verify(commitList.get(i), times(1)).delete();
+        }
+        verify(commitList.get(commitList.size() - 1), never()).delete();
+        // Add a some good commits.
+        final int numOfGoodCommits = between(1, 5);
+        long maxSeqNo = 0;
+        long lastTranslogGen = lastNoopTranslogGen;
+        for (int i = 0; i < numOfGoodCommits; i++) {
+            maxSeqNo += between(1, 1000);
+            lastTranslogGen += between(1, 20);
+            commitList.add(mockIndexCommit(maxSeqNo, translogUUID, lastTranslogGen));
+        }
+        // If the global checkpoint is still unassigned, we should still keep one NO_OPS_PERFORMED commit.
+        globalCheckpoint.set(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+        for (int i = 0; i < numOfNoOpsCommits - 1; i++) {
+            verify(commitList.get(i), times(2)).delete();
+        }
+        verify(commitList.get(numOfNoOpsCommits - 1), never()).delete();
+        // Delete no-ops commit if global checkpoint advanced enough.
+        final long lower = Long.parseLong(commitList.get(numOfNoOpsCommits).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        globalCheckpoint.set(randomLongBetween(lower, Long.MAX_VALUE));
+        indexPolicy.onCommit(commitList);
+        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), greaterThan(lastNoopTranslogGen));
+        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+        verify(commitList.get(numOfNoOpsCommits - 1), times(1)).delete();
+    }
+
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
@@ -180,8 +265,16 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID.toString());
         userData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGen));
+        final AtomicBoolean deleted = new AtomicBoolean();
         final IndexCommit commit = mock(IndexCommit.class);
+        final Directory directory = mock(Directory.class);
         when(commit.getUserData()).thenReturn(userData);
+        when(commit.getDirectory()).thenReturn(directory);
+        when(commit.isDeleted()).thenAnswer(args -> deleted.get());
+        doAnswer(arg -> {
+            deleted.set(true);
+            return null;
+        }).when(commit).delete();
         return commit;
     }
 

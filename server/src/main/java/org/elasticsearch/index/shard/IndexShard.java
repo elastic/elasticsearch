@@ -1100,13 +1100,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
+     * @param safeCommit <code>true</code> capture the most recent safe commit point; otherwise the most recent commit point.
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public Engine.IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException {
+    public Engine.IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireIndexCommit(flushFirst);
+            return getEngine().acquireIndexCommit(safeCommit, flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
@@ -1140,7 +1141,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return store.getMetadata(null, true);
                 }
             }
-            indexCommit = engine.acquireIndexCommit(false);
+            indexCommit = engine.acquireIndexCommit(false, false);
             return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
             store.decRef();
@@ -1296,6 +1297,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         translogStats.totalOperationsOnStart(0);
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
+        assertSequenceNumbersInCommit();
     }
 
     /** opens the engine on top of the existing lucene engine but creates an empty translog **/
@@ -1308,15 +1310,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + globalCheckpoint + "]";
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
+        assertSequenceNumbersInCommit();
     }
 
     /**
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openIndexAndTranslog() throws IOException {
+    public void openIndexAndRecoveryFromTranslog() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+        getEngine().recoverFromTranslog();
+        assertSequenceNumbersInCommit();
+    }
+
+    /**
+     * Opens the engine on top of the existing lucene engine and translog.
+     * The translog is kept but its operations won't be replayed.
+     */
+    public void openIndexAndSkipTranslogRecovery() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+        getEngine().skipTranslogRecovery();
+        assertSequenceNumbersInCommit();
     }
 
     private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
@@ -1348,15 +1364,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             globalCheckpointTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
                 "read from translog checkpoint");
         }
-        Engine newEngine = createNewEngine(config);
+        createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
-            newEngine.recoverFromTranslog();
         }
-        assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 

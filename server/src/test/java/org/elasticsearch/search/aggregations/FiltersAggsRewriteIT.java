@@ -32,6 +32,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
@@ -58,10 +60,14 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("titles", new FiltersAggregator.KeyedFilter("titleterms",
                 new WrapperQueryBuilder(bytesReference)));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        builder.setMetaData(metadata);
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
         assertEquals(3, searchResponse.getHits().getTotalHits());
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());
         assertEquals(2, filters.getBuckets().get(0).getDocCount());
+        assertEquals(metadata, filters.getMetaData());
     }
 }

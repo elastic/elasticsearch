@@ -128,11 +128,21 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     @Override
     protected List<CharSequence[]> loadFieldValues(String[] fields, DocIdSetIterator docIter,
                                                    int cacheCharsThreshold) throws IOException {
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
+        // Issue deprecation warning if maxAnalyzedOffset is not set, and field length > default setting for 7.0
+        final int defaultMaxAnalyzedOffset7 = 10000;
+        if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset == -1) && (fieldValue.length() > defaultMaxAnalyzedOffset7)) {
             DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(CustomUnifiedHighlighter.class));
             deprecationLogger.deprecated(
-                "Deprecated large text to be analyzed for highlighting! The length has exceeded the allowed maximum of [" +
-                    maxAnalyzedOffset + "]. " + "This maximum can be set by changing the [" +
+                "The length of text to be analyzed for highlighting [" + fieldValue.length() +
+                    "] exceeded the allowed maximum of [" + defaultMaxAnalyzedOffset7 + "] set for the next major Elastic version. " +
+                    "For large texts, indexing with offsets or term vectors is recommended!");
+        }
+        // Throw an error if maxAnalyzedOffset is explicitly set by the user, and field length > maxAnalyzedOffset
+        if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset > 0) && (fieldValue.length() > maxAnalyzedOffset)) {
+            // maxAnalyzedOffset is not set by user
+            throw new IllegalArgumentException(
+                "The length of text to be analyzed for highlighting [" + fieldValue.length() +
+                    "] exceeded the allowed maximum of [" + maxAnalyzedOffset + "]. This maximum can be set by changing the [" +
                     IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
                     "For large texts, indexing with offsets or term vectors is recommended!");
         }

@@ -163,7 +163,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             }, (addr) -> {
                 assert addr == null : "boundAddress: " + addr;
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
-            }, null);
+            }, null, Collections.emptySet());
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =

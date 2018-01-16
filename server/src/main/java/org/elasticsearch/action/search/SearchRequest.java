@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -382,9 +383,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // generating description in a lazy way since source can be quite big
-        return new SearchTask(id, type, action, null, parentTaskId) {
+        return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public String getDescription() {
                 StringBuilder sb = new StringBuilder();

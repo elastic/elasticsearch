@@ -2343,7 +2343,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         translogSyncProcessor.put(location, syncListener);
     }
 
-    public final void sync() throws IOException {
+    public void sync() throws IOException {
         verifyNotClosed();
         getEngine().getTranslog().sync();
         getEngine().onTranslogSynced();

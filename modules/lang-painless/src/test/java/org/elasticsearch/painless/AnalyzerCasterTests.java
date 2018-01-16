@@ -21,16 +21,12 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
-
-import static org.elasticsearch.painless.Definition.DEFINITION_FILES;
 
 public class AnalyzerCasterTests extends ESTestCase {
 
-    private static final Definition definition = new Definition(
-        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES)));
+    private static final Definition definition = new Definition(Whitelist.BASE_WHITELISTS);
 
     private static void assertCast(Type actual, Type expected, boolean mustBeExplicit) {
         Location location = new Location("dummy", 0);

@@ -120,7 +120,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     /**
      * Set the field to be used for random number generation. This parameter is compulsory
      * when a {@link #seed(int) seed} is set and ignored otherwise. Note that documents that
-     * have the same value for a field will get the same score. 
+     * have the same value for a field will get the same score.
      */
     public RandomScoreFunctionBuilder setField(String field) {
         this.field = field;

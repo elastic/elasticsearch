@@ -25,10 +25,10 @@ import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -143,6 +143,10 @@ public class MultiMatchQuery extends MatchQuery {
         public Query termQuery(MappedFieldType fieldType, BytesRef value) {
             return MultiMatchQuery.this.termQuery(fieldType, value, lenient);
         }
+
+        public Query blendPhrase(PhraseQuery query, MappedFieldType type) {
+            return MultiMatchQuery.super.blendPhraseQuery(query, type);
+        }
     }
 
     final class CrossFieldsQueryBuilder extends QueryBuilder {
@@ -226,6 +230,17 @@ public class MultiMatchQuery extends MatchQuery {
              */
             return blendTerm(new Term(fieldType.name(), value.utf8ToString()), fieldType);
         }
+
+        @Override
+        public Query blendPhrase(PhraseQuery query, MappedFieldType type) {
+            if (blendedFields == null) {
+                return super.blendPhrase(query, type);
+            }
+            /**
+             * We build phrase queries for multi-word synonyms when {@link QueryBuilder#autoGenerateSynonymsPhraseQuery} is true.
+             */
+            return MultiMatchQuery.blendPhrase(query, blendedFields);
+        }
     }
 
     static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
@@ -288,6 +303,28 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
+    /**
+     * Expand a {@link PhraseQuery} to multiple fields that share the same analyzer.
+     * Returns a {@link DisjunctionMaxQuery} with a disjunction for each expanded field.
+     */
+    static Query blendPhrase(PhraseQuery query, FieldAndFieldType... fields) {
+        List<Query> disjunctions = new ArrayList<>();
+        for (FieldAndFieldType field : fields) {
+            int[] positions = query.getPositions();
+            Term[] terms = query.getTerms();
+            PhraseQuery.Builder builder = new PhraseQuery.Builder();
+            for (int i = 0; i < terms.length; i++) {
+                builder.add(new Term(field.fieldType.name(), terms[i].bytes()), positions[i]);
+            }
+            Query q = builder.build();
+            if (field.boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+                q = new BoostQuery(q, field.boost);
+            }
+            disjunctions.add(q);
+        }
+        return new DisjunctionMaxQuery(disjunctions, 0.0f);
+    }
+
     @Override
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (queryBuilder == null) {
@@ -302,6 +339,14 @@ public class MultiMatchQuery extends MatchQuery {
             return super.blendTermsQuery(terms, fieldType);
         }
         return queryBuilder.blendTerms(terms, fieldType);
+    }
+
+    @Override
+    protected Query blendPhraseQuery(PhraseQuery query, MappedFieldType fieldType) {
+        if (queryBuilder == null) {
+            return super.blendPhraseQuery(query, fieldType);
+        }
+        return queryBuilder.blendPhrase(query, fieldType);
     }
 
     static final class FieldAndFieldType {

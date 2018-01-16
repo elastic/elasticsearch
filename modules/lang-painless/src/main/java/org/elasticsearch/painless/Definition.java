@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.painless.spi.Whitelist;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -45,29 +46,6 @@ public final class Definition {
     private static final Map<String, Field> fieldCache = new HashMap<>();
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
-
-    public static final String[] DEFINITION_FILES = new String[] {
-            "org.elasticsearch.txt",
-            "java.lang.txt",
-            "java.math.txt",
-            "java.text.txt",
-            "java.time.txt",
-            "java.time.chrono.txt",
-            "java.time.format.txt",
-            "java.time.temporal.txt",
-            "java.time.zone.txt",
-            "java.util.txt",
-            "java.util.function.txt",
-            "java.util.regex.txt",
-            "java.util.stream.txt",
-            "joda.time.txt"
-    };
-
-    /**
-     * Whitelist that is "built in" to Painless and required by all scripts.
-     */
-    public static final Definition DEFINITION = new Definition(
-        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES)));
 
     /** Some native types as constants: */
     public final Type voidType;

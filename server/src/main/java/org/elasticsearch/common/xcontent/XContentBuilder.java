@@ -773,32 +773,23 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     public XContentBuilder array(String name, Object... values) throws IOException {
-        return field(name).values(values);
+        return field(name).values(values, true);
     }
 
-    XContentBuilder values(Object[] values) throws IOException {
+    private XContentBuilder values(Object[] values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
 
-        // checks that the array of object does not contain references to itself because
-        // iterating over entries will cause a stackoverflow error
-        ensureNoSelfReferences(values);
-
-        startArray();
-        for (Object o : values) {
-            value(o);
-        }
-        endArray();
-        return this;
+        return value(Arrays.asList(values), ensureNoSelfReferences);
     }
 
     public XContentBuilder value(Object value) throws IOException {
-        unknownValue(value);
+        unknownValue(value, true);
         return this;
     }
 
-    private void unknownValue(Object value) throws IOException {
+    private void unknownValue(Object value, boolean ensureNoSelfReferences) throws IOException {
         if (value == null) {
             nullValue();
             return;
@@ -810,11 +801,11 @@ public final class XContentBuilder implements Releasable, Flushable {
             //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             value((Path) value);
         } else if (value instanceof Map) {
-            map((Map) value);
+            map((Map<String,?>) value, ensureNoSelfReferences);
         } else if (value instanceof Iterable) {
-            value((Iterable<?>) value);
+            value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
-            values((Object[]) value);
+            values((Object[]) value, ensureNoSelfReferences);
         } else if (value instanceof Calendar) {
             value((Calendar) value);
         } else if (value instanceof ReadableInstant) {
@@ -863,18 +854,25 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
+        return map(values, true);
+    }
+
+    private XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
 
         // checks that the map does not contain references to itself because
         // iterating over map entries will cause a stackoverflow error
-        ensureNoSelfReferences(values);
+        if (ensureNoSelfReferences) {
+            ensureNoSelfReferences(values);
+        }
 
         startObject();
         for (Map.Entry<String, ?> value : values.entrySet()) {
             field(value.getKey());
-            unknownValue(value.getValue());
+            // pass ensureNoSelfReferences=false as we already performed the check at a higher level
+            unknownValue(value.getValue(), false);
         }
         endObject();
         return this;
@@ -884,7 +882,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).value(values);
     }
 
-    private XContentBuilder value(Iterable<?> values) throws IOException {
+    private XContentBuilder value(Iterable<?> values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -895,11 +893,14 @@ public final class XContentBuilder implements Releasable, Flushable {
         } else {
             // checks that the iterable does not contain references to itself because
             // iterating over entries will cause a stackoverflow error
-            ensureNoSelfReferences(values);
+            if (ensureNoSelfReferences) {
+                ensureNoSelfReferences(values);
+            }
 
             startArray();
             for (Object value : values) {
-                unknownValue(value);
+                // pass ensureNoSelfReferences=false as we already performed the check at a higher level
+                unknownValue(value, false);
             }
             endArray();
         }
@@ -1076,9 +1077,9 @@ public final class XContentBuilder implements Releasable, Flushable {
 
             Iterable<?> it;
             if (value instanceof Map) {
-                it = ((Map) value).values();
+                it = ((Map<?,?>) value).values();
             } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-                it = (Iterable) value;
+                it = (Iterable<?>) value;
             } else if (value instanceof Object[]) {
                 it = Arrays.asList((Object[]) value);
             } else {

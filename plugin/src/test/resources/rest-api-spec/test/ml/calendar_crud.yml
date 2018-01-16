@@ -93,6 +93,13 @@
           }
 
 ---
+"Test get calendar given missing":
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.get_calendars:
+        calendar_id: "unknown"
+
+---
 "Test PageParams":
   - do:
       xpack.ml.put_calendar:

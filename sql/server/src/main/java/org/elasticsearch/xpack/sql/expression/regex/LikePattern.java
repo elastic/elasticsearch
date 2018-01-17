@@ -70,17 +70,6 @@ public class LikePattern extends LeafExpression {
     }
 
     @Override
-    public boolean foldable() {
-        return false;
-    }
-
-    @Override
-    public Object fold() {
-        // being in Java, the Java regex is returned
-        return asJavaRegex();
-    }
-
-    @Override
     public boolean nullable() {
         return false;
     }

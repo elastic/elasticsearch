@@ -25,8 +25,13 @@ public class Like extends BinaryExpression {
     }
 
     @Override
+    public boolean foldable() {
+        return left().foldable();
+    }
+
+    @Override
     public Object fold() {
-        Pattern p = Pattern.compile(right().fold().toString());
+        Pattern p = Pattern.compile(right().asJavaRegex());
         return p.matcher(left().fold().toString()).matches();
     }
 

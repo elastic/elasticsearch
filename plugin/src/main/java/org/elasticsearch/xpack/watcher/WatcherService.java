@@ -151,7 +151,7 @@ public class WatcherService extends AbstractComponent {
         } else {
             try {
                 if (state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING)) {
-                    logger.debug("stopping watch service, reason [{}]", reason);
+                    logger.info("stopping watch service, reason [{}]", reason);
                     triggerService.stop();
                     executionService.stop();
                     state.set(WatcherState.STOPPED);
@@ -189,7 +189,7 @@ public class WatcherService extends AbstractComponent {
     public void pauseExecution(String reason) {
         int cancelledTaskCount = executionService.pauseExecution();
         triggerService.pauseExecution();
-        logger.debug("paused execution service, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+        logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 
     /**

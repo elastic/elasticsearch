@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +34,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1);
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
-    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
 
     public void testGetFirstPhase() {
         Map<String, Phase> phases = new HashMap<>();

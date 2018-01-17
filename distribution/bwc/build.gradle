@@ -20,6 +20,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+
 import java.util.regex.Matcher
 
 /**
@@ -118,29 +119,31 @@ if (project.hasProperty('bwcVersion')) {
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
+    if (project.rootProject.ext.runtimeJavaVersion == JavaVersion.VERSION_1_8 && ["5.6", "6.0", "6.1"].contains(bwcBranch)) {
+      /*
+       * If runtime Java home is set to JDK 8 and we are building branches that are officially built with JDK 8, push this to JAVA_HOME for
+       * these builds.
+       */
+      environment('JAVA_HOME', System.getenv('RUNTIME_JAVA_HOME'))
+    }
     if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable 'cmd'
       args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
     } else {
-      executable = new File(checkoutDir, 'gradlew').toString()
+      executable new File(checkoutDir, 'gradlew').toString()
     }
-    final ArrayList<String> commandLineArgs = [
-            ":distribution:deb:assemble",
-            ":distribution:rpm:assemble",
-            ":distribution:zip:assemble",
-            "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"]
+    args ":distribution:deb:assemble", ":distribution:rpm:assemble", ":distribution:zip:assemble", "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
-      commandLineArgs << "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+      args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
     }
     final String showStacktraceName = gradle.startParameter.showStacktrace.name()
     assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
     if (showStacktraceName.equals("ALWAYS")) {
-      commandLineArgs << "--stacktrace"
+      args "--stacktrace"
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-      commandLineArgs << "--full-stacktrace"
+      args "--full-stacktrace"
     }
-    args commandLineArgs
     doLast {
       List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
         false == file.exists()

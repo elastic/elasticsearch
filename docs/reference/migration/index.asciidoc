@@ -21,4 +21,6 @@ See <<setup-upgrade>> for more info.
 --
 include::migrate_6_0.asciidoc[]
 
+include::migrate_6_1.asciidoc[]
+
 include::migrate_6_2.asciidoc[]

@@ -1,0 +1,40 @@
+[[release-notes-6.1.2]]
+== 6.1.2 Release Notes
+
+Also see <<breaking-changes-6.1>>.
+
+[[enhancement-6.1.2]]
+[float]
+=== Enhancements
+
+Internal::
+* Make AbstractQueryBuilder.declareStandardFields to be protected (#27865) {pull}27894[#27894] (issue: {issue}27865[#27865])
+
+[[bug-6.1.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix incorrect results for aggregations nested under a nested aggregation {pull}27946[#27946] (issue: {issue}27912[#27912])
+* Fix composite aggregation when after term is missing in the shard {pull}27936[#27936]
+* Fix preserving FiltersAggregationBuilder#keyed field on rewrite {pull}27900[#27900] (issue: {issue}27841[#27841])
+
+Engine::
+* Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
+* Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
+
+Network::
+* Only bind loopback addresses when binding to local {pull}28029[#28029]
+
+Recovery::
+* Allow shrinking of indices from a previous major {pull}28076[#28076] (issue: {issue}28061[#28061])
+
+Search::
+* Use the underlying connection version for CCS connections  {pull}28093[#28093]
+* Carry forward weights, etc on rescore rewrite {pull}27981[#27981] (issue: {issue}27979[#27979])
+
+Snapshot/Restore::
+* Fail restore when the shard allocations max retries count is reached {pull}27493[#27493] (issue: {issue}26865[#26865])
+
+Translog::
+* Only sync translog when global checkpoint increased {pull}27973[#27973] (issues: {issue}27837[#27837], {issue}27970[#27970])

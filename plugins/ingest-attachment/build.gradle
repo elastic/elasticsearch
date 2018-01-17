@@ -2104,8 +2104,6 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext',
     'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.Marshaller',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.helpers.DefaultValidationEventHandler',
+    'javax.xml.bind.Unmarshaller'
   ]
 }

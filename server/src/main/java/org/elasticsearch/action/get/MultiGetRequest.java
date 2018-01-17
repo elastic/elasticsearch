@@ -35,7 +35,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -47,8 +50,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
+public class MultiGetRequest extends ActionRequest
+        implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest, ToXContentObject {
 
+    private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
@@ -63,7 +68,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
     /**
      * A single get item.
      */
-    public static class Item implements Streamable, IndicesRequest {
+    public static class Item implements Streamable, IndicesRequest, ToXContentObject {
+
         private String index;
         private String type;
         private String id;
@@ -221,6 +227,22 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         }
 
         @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(INDEX.getPreferredName(), index);
+            builder.field(TYPE.getPreferredName(), type);
+            builder.field(ID.getPreferredName(), id);
+            builder.field(ROUTING.getPreferredName(), routing);
+            builder.field(PARENT.getPreferredName(), parent);
+            builder.field(STORED_FIELDS.getPreferredName(), storedFields);
+            builder.field(VERSION.getPreferredName(), version);
+            builder.field(VERSION_TYPE.getPreferredName(), VersionType.toString(versionType));
+            builder.field(SOURCE.getPreferredName(), fetchSourceContext);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof Item)) return false;
@@ -254,6 +276,11 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
             result = 31 * result + (fetchSourceContext != null ? fetchSourceContext.hashCode() : 0);
             return result;
         }
+
+        public String toString() {
+            return Strings.toString(this);
+        }
+
     }
 
     String preference;
@@ -330,20 +357,20 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
     public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields,
             @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, XContentParser parser,
             boolean allowExplicitIndex) throws IOException {
-        XContentParser.Token token;
+        Token token;
         String currentFieldName = null;
-        if ((token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
+        if ((token = parser.nextToken()) != Token.START_OBJECT) {
             final String message = String.format(
                     Locale.ROOT,
                     "unexpected token [%s], expected [%s]",
                     token,
-                    XContentParser.Token.START_OBJECT);
+                    Token.START_OBJECT);
             throw new ParsingException(parser.getTokenLocation(), message);
         }
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
+        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+            if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
+            } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
                     parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
@@ -361,19 +388,19 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                         Locale.ROOT,
                         "unexpected token [%s], expected [%s] or [%s]",
                         token,
-                        XContentParser.Token.FIELD_NAME,
-                        XContentParser.Token.START_ARRAY);
+                        Token.FIELD_NAME,
+                        Token.START_ARRAY);
                 throw new ParsingException(parser.getTokenLocation(), message);
             }
         }
         return this;
     }
 
-    public static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
+    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
         String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token != XContentParser.Token.START_OBJECT) {
+        Token token;
+        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+            if (token != Token.START_OBJECT) {
                 throw new IllegalArgumentException("docs array element should include an object");
             }
             String index = defaultIndex;
@@ -387,8 +414,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
 
             FetchSourceContext fetchSourceContext = FetchSourceContext.FETCH_SOURCE;
 
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if (INDEX.match(currentFieldName)) {
@@ -419,7 +446,7 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                         if (parser.isBooleanValueLenient()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                        } else if (token == Token.VALUE_STRING) {
                             fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
                                 new String[]{parser.text()}, fetchSourceContext.excludes());
                         } else {
@@ -428,30 +455,30 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     } else {
                         throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
                     }
-                } else if (token == XContentParser.Token.START_ARRAY) {
+                } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName)) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
                     } else if (STORED_FIELDS.match(currentFieldName)) {
                         storedFields = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             storedFields.add(parser.text());
                         }
                     } else if (SOURCE.match(currentFieldName)) {
                         ArrayList<String> includes = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             includes.add(parser.text());
                         }
                         fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes.toArray(Strings.EMPTY_ARRAY)
                             , fetchSourceContext.excludes());
                     }
 
-                } else if (token == XContentParser.Token.START_OBJECT) {
+                } else if (token == Token.START_OBJECT) {
                     if (SOURCE.match(currentFieldName)) {
                         List<String> currentList = null, includes = null, excludes = null;
 
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
+                        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                            if (token == Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
                                     currentList = includes != null ? includes : (includes = new ArrayList<>(2));
@@ -460,8 +487,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                                 } else {
                                     throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
                                 }
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            } else if (token == Token.START_ARRAY) {
+                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                     currentList.add(parser.text());
                                 }
                             } else if (token.isValue()) {
@@ -488,13 +515,9 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         }
     }
 
-    public static void parseDocuments(XContentParser parser, List<Item> items) throws IOException {
-        parseDocuments(parser, items, null, null, null, null, null, true);
-    }
-
     public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting) throws IOException {
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        Token token;
+        while ((token = parser.nextToken()) != Token.END_ARRAY) {
             if (!token.isValue()) {
                 throw new IllegalArgumentException("ids array element should only contain ids");
             }
@@ -537,4 +560,17 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
             item.writeTo(out);
         }
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startArray(DOCS.getPreferredName());
+        for (Item item : items) {
+            builder.value(item);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+
 }

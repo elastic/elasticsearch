@@ -174,9 +174,10 @@ echo "Running in $PWD"
 set -xuf
 
 # clean
-./gradlew --stacktrace clean
+./gradlew --stacktrace clean -Dorg.gradle.java.home=${RUNTIME_JAVA_HOME:-$JAVA_HOME}
 
 # Actually run the tests
+GRADLE_CLI_ARGS+=("-Dorg.gradle.java.home=${RUNTIME_JAVA_HOME:-$JAVA_HOME}")
 ./gradlew "${GRADLE_CLI_ARGS[@]}"
 
 # write the ES hash we checked out to build metadata

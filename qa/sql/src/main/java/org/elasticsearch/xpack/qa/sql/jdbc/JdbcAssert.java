@@ -32,14 +32,13 @@ public class JdbcAssert {
     }
 
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
-        assertResultSetMetadata(expected, actual, logger);
-        assertResultSetData(expected, actual, logger);
+        try (ResultSet ex = expected; ResultSet ac = actual) {
+            assertResultSetMetadata(ex, ac, logger);
+            assertResultSetData(ex, ac, logger);
+        }
     }
 
-    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual) throws SQLException {
-        assertResultSetMetadata(expected, actual, null);
-    }
-
+    // metadata doesn't consume a ResultSet thus it shouldn't close it
     public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
@@ -98,7 +97,14 @@ public class JdbcAssert {
         }
     }
 
+    // The ResultSet is consumed and thus it should be closed
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
+        try (ResultSet ex = expected; ResultSet ac = actual) {
+            doAssertResultSetData(ex, ac, logger);
+        }
+    }
+    
+    private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
 

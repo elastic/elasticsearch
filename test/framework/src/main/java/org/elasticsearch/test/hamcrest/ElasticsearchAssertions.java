@@ -143,7 +143,7 @@ public class ElasticsearchAssertions {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
         assertTrue(response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
-            response.isShardsAcked());
+            response.isShardsAcknowledged());
     }
 
     /**

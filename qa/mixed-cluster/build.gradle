@@ -65,8 +65,10 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  for (final def version : versionCollection.basicIntegrationTestVersions) {
-    dependsOn "v${version}#bwcTest"
+  if (project.bwc_tests_enabled) {
+    for (final def version : versionCollection.basicIntegrationTestVersions) {
+      dependsOn "v${version}#bwcTest"
+    }
   }
 }
 

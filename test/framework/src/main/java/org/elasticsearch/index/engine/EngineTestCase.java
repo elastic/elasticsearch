@@ -60,9 +60,9 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -84,6 +84,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
 
 import static java.util.Collections.emptyList;
@@ -158,13 +159,22 @@ public abstract class EngineTestCase extends ESTestCase {
         return copy(config, openMode, config.getAnalyzer());
     }
 
+    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, LongSupplier globalCheckpointSupplier) {
+        return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+            config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getCircuitBreakerService(), globalCheckpointSupplier);
+    }
+
     public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, Analyzer analyzer) {
         return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-                config.getCircuitBreakerService());
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier());
     }
 
     @Override
@@ -250,20 +260,24 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
     }
 
-    protected InternalEngine createEngine(
-            Store store,
-            Path translogPath,
-            BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, sequenceNumbersServiceSupplier);
+    protected InternalEngine createEngine(Store store, Path translogPath, LongSupplier globalCheckpointSupplier) throws IOException {
+        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 
     protected InternalEngine createEngine(
             Store store,
             Path translogPath,
-            BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
+            BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
+        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, localCheckpointTrackerSupplier, null);
+    }
+
+    protected InternalEngine createEngine(
+            Store store,
+            Path translogPath,
+            BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation) throws IOException {
         return createEngine(
-                defaultSettings, store, translogPath, newMergePolicy(), null, sequenceNumbersServiceSupplier, seqNoForOperation, null);
+                defaultSettings, store, translogPath, newMergePolicy(), null, localCheckpointTrackerSupplier, null, seqNoForOperation);
     }
 
     protected InternalEngine createEngine(
@@ -274,7 +288,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                           @Nullable IndexWriterFactory indexWriterFactory) throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, null);
+        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, null, null);
     }
 
     protected InternalEngine createEngine(
@@ -283,9 +297,11 @@ public abstract class EngineTestCase extends ESTestCase {
             Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
-            @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
+            @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+            @Nullable LongSupplier globalCheckpointSupplier) throws IOException {
         return createEngine(
-                indexSettings, store, translogPath, mergePolicy, indexWriterFactory, sequenceNumbersServiceSupplier, null, null);
+                indexSettings, store, translogPath, mergePolicy, indexWriterFactory, localCheckpointTrackerSupplier, null, null,
+                globalCheckpointSupplier);
     }
 
     protected InternalEngine createEngine(
@@ -294,7 +310,8 @@ public abstract class EngineTestCase extends ESTestCase {
             Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
-            @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
+            @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+            @Nullable LongSupplier globalCheckpointSupplier,
             @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation) throws IOException {
         return createEngine(
                 indexSettings,
@@ -302,9 +319,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogPath,
                 mergePolicy,
                 indexWriterFactory,
-                sequenceNumbersServiceSupplier,
+                localCheckpointTrackerSupplier,
                 seqNoForOperation,
-                null);
+                null,
+                globalCheckpointSupplier);
     }
 
     protected InternalEngine createEngine(
@@ -313,11 +331,12 @@ public abstract class EngineTestCase extends ESTestCase {
             Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
-            @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
+            @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
-            @Nullable Sort indexSort) throws IOException {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort);
-        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, sequenceNumbersServiceSupplier, seqNoForOperation, config);
+            @Nullable Sort indexSort,
+            @Nullable LongSupplier globalCheckpointSupplier) throws IOException {
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort, globalCheckpointSupplier);
+        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
         if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             internalEngine.recoverFromTranslog();
         }
@@ -332,10 +351,10 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static InternalEngine createInternalEngine(
             @Nullable final IndexWriterFactory indexWriterFactory,
-            @Nullable final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
+            @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
             final EngineConfig config) {
-        if (sequenceNumbersServiceSupplier == null) {
+        if (localCheckpointTrackerSupplier == null) {
             return new InternalEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
@@ -352,7 +371,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalEngine(config, sequenceNumbersServiceSupplier) {
+            return new InternalEngine(config, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -373,11 +392,11 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener) {
-        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null);
+        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
-                               ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
+                               ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final EngineConfig.OpenMode openMode;
@@ -404,7 +423,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
-                new NoneCircuitBreakerService());
+                new NoneCircuitBreakerService(),
+                globalCheckpointSupplier == null ?
+                    new GlobalCheckpointTracker(shardId, allocationId.getId(), indexSettings,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO) : globalCheckpointSupplier);
         return config;
     }
 

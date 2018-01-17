@@ -29,7 +29,7 @@ import java.util.regex.PatternSyntaxException;
  */
 public class Condition implements ToXContentObject, Writeable {
     public static final ParseField CONDITION_FIELD = new ParseField("condition");
-    public static final ParseField FILTER_VALUE_FIELD = new ParseField("value");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     public static final ConstructingObjectParser<Condition, Void> PARSER = new ConstructingObjectParser<>(
             CONDITION_FIELD.getPreferredName(), a -> new Condition((Operator) a[0], (String) a[1]));
@@ -49,45 +49,45 @@ public class Condition implements ToXContentObject, Writeable {
                 return null;
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, FILTER_VALUE_FIELD, ValueType.STRING_OR_NULL);
+        }, VALUE_FIELD, ValueType.STRING_OR_NULL);
     }
 
     private final Operator op;
-    private final String filterValue;
+    private final String value;
 
     public Condition(StreamInput in) throws IOException {
         op = Operator.readFromStream(in);
-        filterValue = in.readOptionalString();
+        value = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         op.writeTo(out);
-        out.writeOptionalString(filterValue);
+        out.writeOptionalString(value);
     }
 
-    public Condition(Operator op, String filterValue) {
-        if (filterValue == null) {
+    public Condition(Operator op, String value) {
+        if (value == null) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL));
         }
 
         if (op.expectsANumericArgument()) {
             try {
-                Double.parseDouble(filterValue);
+                Double.parseDouble(value);
             } catch (NumberFormatException nfe) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER, filterValue);
+                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER, value);
                 throw ExceptionsHelper.badRequestException(msg);
             }
         } else {
             try {
-                Pattern.compile(filterValue);
+                Pattern.compile(value);
             } catch (PatternSyntaxException e) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX, filterValue);
+                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX, value);
                 throw ExceptionsHelper.badRequestException(msg);
             }
         }
         this.op = op;
-        this.filterValue = filterValue;
+        this.value = value;
     }
 
     public Operator getOperator() {
@@ -95,21 +95,21 @@ public class Condition implements ToXContentObject, Writeable {
     }
 
     public String getValue() {
-        return filterValue;
+        return value;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Operator.OPERATOR_FIELD.getPreferredName(), op);
-        builder.field(FILTER_VALUE_FIELD.getPreferredName(), filterValue);
+        builder.field(VALUE_FIELD.getPreferredName(), value);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(op, filterValue);
+        return Objects.hash(op, value);
     }
 
     @Override
@@ -127,6 +127,6 @@ public class Condition implements ToXContentObject, Writeable {
 
         Condition other = (Condition) obj;
         return Objects.equals(this.op, other.op) &&
-                Objects.equals(this.filterValue, other.filterValue);
+                Objects.equals(this.value, other.value);
     }
 }

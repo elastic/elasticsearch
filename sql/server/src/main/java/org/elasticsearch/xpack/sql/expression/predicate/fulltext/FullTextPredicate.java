@@ -14,17 +14,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class FullTextPredicate extends Expression {
+public abstract class FullTextPredicate extends Expression {
 
     public enum Operator {
         AND,
         OR;
-        
+
         public org.elasticsearch.index.query.Operator toEs() {
             return org.elasticsearch.index.query.Operator.fromString(name());
         }
     }
-    
+
     private final String query;
     private final String options;
     private final Map<String, String> optionMap;
@@ -65,7 +65,7 @@ public class FullTextPredicate extends Expression {
     public DataType dataType() {
         return DataTypes.BOOLEAN;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(query, options);
@@ -76,11 +76,11 @@ public class FullTextPredicate extends Expression {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         FullTextPredicate other = (FullTextPredicate) obj;
         return Objects.equals(query, other.query)
                 && Objects.equals(options, other.options);

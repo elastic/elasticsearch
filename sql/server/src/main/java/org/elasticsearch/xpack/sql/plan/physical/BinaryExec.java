@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.physical;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -20,6 +21,15 @@ abstract class BinaryExec extends PhysicalPlan {
         this.right = right;
     }
 
+    @Override
+    public final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren.get(0), newChildren.get(1));
+    }
+    protected abstract BinaryExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight);
+
     public PhysicalPlan left() {
         return left;
     }
@@ -27,7 +37,7 @@ abstract class BinaryExec extends PhysicalPlan {
     public PhysicalPlan right() {
         return right;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left, right);
@@ -38,13 +48,13 @@ abstract class BinaryExec extends PhysicalPlan {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         BinaryExec other = (BinaryExec) obj;
-        return Objects.equals(left, other.left) 
+        return Objects.equals(left, other.left)
                 && Objects.equals(right, other.right);
     }
 }

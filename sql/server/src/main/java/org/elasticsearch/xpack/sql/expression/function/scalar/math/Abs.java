@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
@@ -17,6 +18,16 @@ import org.elasticsearch.xpack.sql.type.DataType;
 public class Abs extends MathFunction {
     public Abs(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Abs> info() {
+        return NodeInfo.create(this, Abs::new, field());
+    }
+
+    @Override
+    protected Abs replaceChild(Expression newChild) {
+        return new Abs(location(), newChild);
     }
 
     @Override

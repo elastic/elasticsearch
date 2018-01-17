@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -18,6 +19,15 @@ public class IsNotNull extends UnaryExpression {
     }
 
     @Override
+    protected NodeInfo<IsNotNull> info() {
+        return NodeInfo.create(this, IsNotNull::new, child());
+    }
+
+    @Override
+    protected IsNotNull replaceChild(Expression newChild) {
+        return new IsNotNull(location(), newChild);
+    }
+
     public Object fold() {
         return child().fold() != null && !DataTypes.NULL.same(child().dataType());
     }

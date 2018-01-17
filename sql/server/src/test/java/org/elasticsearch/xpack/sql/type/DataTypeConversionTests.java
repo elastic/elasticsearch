@@ -141,4 +141,40 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("cannot cast [nO] to [Boolean]", e.getMessage());
         }
     }
+
+    public void testConversionToInt() {
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new IntegerType(true));
+            assertNull(conversion.convert(null));
+            assertEquals(10, conversion.convert(10.0));
+            assertEquals(10, conversion.convert(10.1));
+            assertEquals(11, conversion.convert(10.6));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
+            assertEquals("[" + Long.MAX_VALUE + "] out of [Int] range", e.getMessage());
+        }
+    }
+
+    public void testConversionToShort() {
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new ShortType(true));
+            assertNull(conversion.convert(null));
+            assertEquals((short) 10, conversion.convert(10.0));
+            assertEquals((short) 10, conversion.convert(10.1));
+            assertEquals((short) 11, conversion.convert(10.6));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Integer.MAX_VALUE));
+            assertEquals("[" + Integer.MAX_VALUE + "] out of [Short] range", e.getMessage());
+        }
+    }
+
+    public void testConversionToByte() {
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new ByteType(true));
+            assertNull(conversion.convert(null));
+            assertEquals((byte) 10, conversion.convert(10.0));
+            assertEquals((byte) 10, conversion.convert(10.1));
+            assertEquals((byte) 11, conversion.convert(10.6));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
+            assertEquals("[" + Short.MAX_VALUE + "] out of [Byte] range", e.getMessage());
+        }
+    }
 }

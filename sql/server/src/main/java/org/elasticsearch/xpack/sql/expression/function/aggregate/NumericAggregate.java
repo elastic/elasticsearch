@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
 
-class NumericAggregate extends AggregateFunction {
+abstract class NumericAggregate extends AggregateFunction {
 
     NumericAggregate(Location location, Expression field, List<Expression> parameters) {
         super(location, field, parameters);

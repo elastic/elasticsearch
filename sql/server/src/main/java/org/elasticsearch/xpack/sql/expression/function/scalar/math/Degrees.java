@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * Convert from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Degrees extends MathFunction {
     public Degrees(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Degrees> info() {
+        return NodeInfo.create(this, Degrees::new, field());
+    }
+
+    @Override
+    protected Degrees replaceChild(Expression newChild) {
+        return new Degrees(location(), newChild);
     }
 
     @Override

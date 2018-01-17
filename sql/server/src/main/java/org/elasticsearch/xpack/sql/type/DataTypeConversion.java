@@ -264,21 +264,21 @@ public abstract class DataTypeConversion {
 
     public static byte safeToByte(long x) {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new SqlIllegalArgumentException("Numeric %d out of byte range", Long.toString(x));
+            throw new SqlIllegalArgumentException("[" + x + "] out of [Byte] range");
         }
         return (byte) x;
     }
 
     public static short safeToShort(long x) {
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new SqlIllegalArgumentException("Numeric %d out of short range", Long.toString(x));
+            throw new SqlIllegalArgumentException("[" + x + "] out of [Short] range");
         }
         return (short) x;
     }
 
     public static int safeToInt(long x) {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new SqlIllegalArgumentException("numeric %d out of int range", Long.toString(x));
+            throw new SqlIllegalArgumentException("[" + x + "] out of [Int] range");
         }
         return (int) x;
     }

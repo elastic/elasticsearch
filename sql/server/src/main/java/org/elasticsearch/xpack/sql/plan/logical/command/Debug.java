@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Graphviz;
@@ -49,6 +50,11 @@ public class Debug extends Command {
         this.plan = plan;
         this.format = format == null ? Format.TEXT : format;
         this.type = type == null ? Type.OPTIMIZED : type;
+    }
+
+    @Override
+    protected NodeInfo<Debug> info() {
+        return NodeInfo.create(this, Debug::new, plan, type, format);
     }
 
     public LogicalPlan plan() {

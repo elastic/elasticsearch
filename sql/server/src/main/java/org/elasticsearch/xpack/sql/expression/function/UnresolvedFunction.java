@@ -10,10 +10,12 @@ import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 public class UnresolvedFunction extends Function implements Unresolvable {
 
@@ -42,6 +44,17 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         this.distinct = distinct;
         this.analyzed = analyzed;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name, null) : unresolvedMessage;
+    }
+
+    @Override
+    protected NodeInfo<UnresolvedFunction> info() {
+        return NodeInfo.create(this, UnresolvedFunction::new,
+            name, distinct, children(), analyzed, unresolvedMsg);
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new UnresolvedFunction(location(), name, distinct, newChildren, analyzed, unresolvedMsg);
     }
 
     @Override
@@ -90,6 +103,24 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + functionName() + functionArgs();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        UnresolvedFunction other = (UnresolvedFunction) obj;
+        return name.equals(other.name)
+            && distinct == other.distinct
+            && children().equals(other.children())
+            && analyzed == other.analyzed
+            && unresolvedMsg.equals(other.unresolvedMsg);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, distinct, children(), analyzed, unresolvedMsg);
     }
 
     public static String errorMessage(String name, List<String> potentialMatches) {

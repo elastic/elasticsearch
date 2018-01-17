@@ -9,6 +9,7 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Limit extends UnaryPlan {
 
@@ -17,6 +18,16 @@ public class Limit extends UnaryPlan {
     public Limit(Location location, Expression limit, LogicalPlan child) {
         super(location, child);
         this.limit = limit;
+    }
+
+    @Override
+    protected NodeInfo<Limit> info() {
+        return NodeInfo.create(this, Limit::new, limit, child());
+    }
+
+    @Override
+    protected Limit replaceChild(LogicalPlan newChild) {
+        return new Limit(location(), limit, newChild);
     }
 
     public Expression limit() {
@@ -43,7 +54,7 @@ public class Limit extends UnaryPlan {
         }
 
         Limit other = (Limit) obj;
-        
+
         return Objects.equals(limit, other.limit)
                 && Objects.equals(child(), other.child());
     }

@@ -10,7 +10,8 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.MatrixFieldProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.SuppliedProcessor;
-
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -19,10 +20,15 @@ public class AggValueInput extends LeafInput<Supplier<Object>> {
     private final String innerKey;
     private final Processor matrixProcessor;
 
-    public AggValueInput(Expression expression, Supplier<Object> context, String innerKey) {
-        super(expression, context);
+    public AggValueInput(Location location, Expression expression, Supplier<Object> context, String innerKey) {
+        super(location, expression, context);
         this.innerKey = innerKey;
         this.matrixProcessor = innerKey != null ? new MatrixFieldProcessor(innerKey) : null;
+    }
+
+    @Override
+    protected NodeInfo<AggValueInput> info() {
+        return NodeInfo.create(this, AggValueInput::new, expression(), context(), innerKey);
     }
 
     public String innerKey() {

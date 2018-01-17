@@ -10,15 +10,25 @@ import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.tree.Location;
 
 abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
 
-    UnaryExec(PhysicalPlan child) {
-        super(child.location(), Collections.singletonList(child));
+    UnaryExec(Location location, PhysicalPlan child) {
+        super(location, Collections.singletonList(child));
         this.child = child;
     }
+
+    @Override
+    public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return replaceChild(newChildren.get(0));
+    }
+    protected abstract UnaryExec replaceChild(PhysicalPlan newChild);
 
     public PhysicalPlan child() {
         return child;

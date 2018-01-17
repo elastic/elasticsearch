@@ -6,11 +6,22 @@
 package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Distinct extends UnaryPlan {
 
     public Distinct(Location location, LogicalPlan child) {
         super(location, child);
+    }
+
+    @Override
+    protected NodeInfo<Distinct> info() {
+        return NodeInfo.create(this, Distinct::new, child());
+    }
+
+    @Override
+    protected Distinct replaceChild(LogicalPlan newChild) {
+        return new Distinct(location(), newChild);
     }
 
     @Override

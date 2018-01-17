@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
@@ -15,6 +16,16 @@ import java.time.temporal.ChronoField;
 public class MonthOfYear extends DateTimeFunction {
     public MonthOfYear(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);
+    }
+
+    @Override
+    protected NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo() {
+        return MonthOfYear::new;
+    }
+
+    @Override
+    protected MonthOfYear replaceChild(Expression newChild) {
+        return new MonthOfYear(location(), newChild, timeZone());
     }
 
     @Override

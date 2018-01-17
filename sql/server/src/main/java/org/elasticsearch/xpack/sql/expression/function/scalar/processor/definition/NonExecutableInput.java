@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
 
 public abstract class NonExecutableInput<T> extends LeafInput<T> {
-
-    NonExecutableInput(Expression expression, T context) {
-        super(expression, context);
+    NonExecutableInput(Location location, Expression expression, T context) {
+        super(location, expression, context);
     }
 
     @Override

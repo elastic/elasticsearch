@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -36,6 +38,11 @@ public class ShowColumns extends Command {
 
     public String index() {
         return index;
+    }
+
+    @Override
+    protected NodeInfo<ShowColumns> info() {
+        return NodeInfo.create(this, ShowColumns::new, index);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Locale;
+import java.util.Objects;
 
 import static java.lang.String.format;
 
@@ -50,8 +51,23 @@ public abstract class MathFunction extends UnaryScalarFunction {
 
     @Override
     protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
+        return new UnaryProcessorDefinition(location(), this,
+            ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
     }
 
     protected abstract MathOperation operation();
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        MathFunction other = (MathFunction) obj;
+        return Objects.equals(other.field(), field());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field());
+    }
 }

@@ -56,11 +56,11 @@ public class AggFilter extends PipelineAgg {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         AggFilter other = (AggFilter) obj;
         return Objects.equals(name(), other.name())
                 && Objects.equals(scriptTemplate(), other.scriptTemplate());

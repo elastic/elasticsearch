@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public abstract class BinaryExpression extends Expression {
@@ -19,6 +20,15 @@ public abstract class BinaryExpression extends Expression {
         this.left = left;
         this.right = right;
     }
+
+    @Override
+    public final BinaryExpression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren.get(0), newChildren.get(1));
+    }
+    protected abstract BinaryExpression replaceChildren(Expression newLeft, Expression newRight);
 
     public Expression left() {
         return left;
@@ -42,13 +52,13 @@ public abstract class BinaryExpression extends Expression {
     public int hashCode() {
         return Objects.hash(left, right);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (!super.equals(obj)) {
             return false;
         }
-        
+
         BinaryExpression other = (BinaryExpression) obj;
         return Objects.equals(left, other.left)
                 && Objects.equals(right, other.right);

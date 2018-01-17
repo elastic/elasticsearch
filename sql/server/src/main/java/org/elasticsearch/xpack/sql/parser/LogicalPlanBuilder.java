@@ -113,7 +113,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // SELECT a, b, c ...
         if (!ctx.selectItem().isEmpty()) {
             selectTarget = expressions(ctx.selectItem()).stream()
-                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e))
+                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.location(), e))
                     .collect(toList());
         }
 

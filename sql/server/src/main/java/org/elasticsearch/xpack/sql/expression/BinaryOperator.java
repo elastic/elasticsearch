@@ -28,7 +28,7 @@ public abstract class BinaryOperator extends BinaryExpression {
         }
         DataType l = left().dataType();
         DataType r = right().dataType();
-        
+
         TypeResolution resolution = resolveInputType(l);
 
         if (resolution == TypeResolution.TYPE_RESOLVED) {

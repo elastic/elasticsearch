@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
 
@@ -20,6 +21,16 @@ public class Order extends UnaryExpression {
     public Order(Location location, Expression child, OrderDirection direction) {
         super(location, child);
         this.direction = direction;
+    }
+
+    @Override
+    protected NodeInfo<Order> info() {
+        return NodeInfo.create(this, Order::new, child(), direction);
+    }
+
+    @Override
+    protected UnaryExpression replaceChild(Expression newChild) {
+        return new Order(location(), newChild, direction);
     }
 
     public OrderDirection direction() {

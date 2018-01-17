@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -28,6 +29,11 @@ public class EsRelation extends LeafPlan {
         super(location);
         this.index = index;
         attrs = flatten(location, index.mapping());
+    }
+
+    @Override
+    protected NodeInfo<EsRelation> info() {
+        return NodeInfo.create(this, EsRelation::new, index);
     }
 
     private static List<Attribute> flatten(Location location, Map<String, DataType> mapping) {

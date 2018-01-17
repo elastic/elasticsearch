@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#cosine">Cosine</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Cos extends MathFunction {
     public Cos(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Cos> info() {
+        return NodeInfo.create(this, Cos::new, field());
+    }
+
+    @Override
+    protected Cos replaceChild(Expression newChild) {
+        return new Cos(location(), newChild);
     }
 
     @Override

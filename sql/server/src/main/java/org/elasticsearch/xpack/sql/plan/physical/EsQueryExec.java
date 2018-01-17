@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +30,11 @@ public class EsQueryExec extends LeafExec {
         this.index = index;
         this.output = output;
         this.queryContainer = queryContainer;
+    }
+
+    @Override
+    protected NodeInfo<EsQueryExec> info() {
+        return NodeInfo.create(this, EsQueryExec::new, index, output, queryContainer);
     }
 
     public EsQueryExec with(QueryContainer queryContainer) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.regex;
 import org.elasticsearch.xpack.sql.expression.BinaryExpression;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -20,12 +21,22 @@ public class Like extends BinaryExpression {
     }
 
     @Override
+    protected NodeInfo<Like> info() {
+        return NodeInfo.create(this, Like::new, left(), right());
+    }
+
+    @Override
+    protected BinaryExpression replaceChildren(Expression newLeft, Expression newRight) {
+        return new Like(location(), newLeft, (LikePattern) newRight);
+    }
+
     public LikePattern right() {
         return (LikePattern) super.right();
     }
 
     @Override
     public boolean foldable() {
+        // right() is not directly foldable in any context but Like can fold it.
         return left().foldable();
     }
 

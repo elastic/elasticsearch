@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,6 +25,16 @@ public class LocalRelation extends LogicalPlan implements Executable {
     public LocalRelation(Location location, Executable executable) {
         super(location, emptyList());
         this.executable = executable;
+    }
+
+    @Override
+    protected NodeInfo<LocalRelation> info() {
+        return NodeInfo.create(this, LocalRelation::new, executable);
+    }
+
+    @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     public Executable executable() {

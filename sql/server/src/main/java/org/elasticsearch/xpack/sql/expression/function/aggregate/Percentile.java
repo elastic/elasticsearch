@@ -9,8 +9,11 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 
@@ -21,6 +24,19 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
     public Percentile(Location location, Expression field, Expression percent) {
         super(location, field, singletonList(percent));
         this.percent = percent;
+    }
+
+    @Override
+    protected NodeInfo<Percentile> info() {
+        return NodeInfo.create(this, Percentile::new, field(), percent);
+    }
+
+    @Override
+    public Percentile replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return new Percentile(location(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

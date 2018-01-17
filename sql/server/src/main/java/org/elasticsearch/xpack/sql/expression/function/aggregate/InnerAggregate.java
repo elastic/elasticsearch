@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class InnerAggregate extends AggregateFunction {
@@ -19,15 +22,29 @@ public class InnerAggregate extends AggregateFunction {
     private final Expression innerKey;
 
     public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer) {
-        this(inner, outer, null);
+        this(inner.location(), inner, outer, null);
     }
 
-    public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
-        super(inner.location(), outer.field(), outer.arguments());
+    public InnerAggregate(Location location, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
+        super(location, outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
         this.innerId = ((EnclosedAgg) inner).innerName();
         this.innerKey = innerKey;
+    }
+
+    @Override
+    protected NodeInfo<InnerAggregate> info() {
+        return NodeInfo.create(this, InnerAggregate::new, inner, outer, innerKey);
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        /* I can't figure out how rewriting this one's children ever worked because its
+         * are all twisted up in `outer`. Refusing to rewrite it doesn't break anything
+         * that I can see right now so lets just go with it and hope for the best.
+         * Maybe someone will make this make sense one day! */
+        throw new UnsupportedOperationException("can't be rewritten");
     }
 
     public AggregateFunction inner() {

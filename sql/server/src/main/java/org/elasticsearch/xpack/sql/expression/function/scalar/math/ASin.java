@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc sine</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class ASin extends MathFunction {
     public ASin(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<ASin> info() {
+        return NodeInfo.create(this, ASin::new, field());
+    }
+
+    @Override
+    protected ASin replaceChild(Expression newChild) {
+        return new ASin(location(), newChild);
     }
 
     @Override

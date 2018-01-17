@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class ScalarSubquery extends SubQueryExpression {
@@ -17,6 +18,11 @@ public class ScalarSubquery extends SubQueryExpression {
 
     public ScalarSubquery(Location location, LogicalPlan query, ExpressionId id) {
         super(location, query, id);
+    }
+
+    @Override
+    protected NodeInfo<ScalarSubquery> info() {
+        return NodeInfo.create(this, ScalarSubquery::new, query(), id());
     }
 
     @Override

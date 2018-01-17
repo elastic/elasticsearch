@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#sine">Sine</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Sin extends MathFunction {
     public Sin(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Sin> info() {
+        return NodeInfo.create(this, Sin::new, field());
+    }
+
+    @Override
+    protected Sin replaceChild(Expression newChild) {
+        return new Sin(location(), newChild);
     }
 
     @Override

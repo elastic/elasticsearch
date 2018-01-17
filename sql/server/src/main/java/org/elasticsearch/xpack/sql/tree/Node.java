@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -18,23 +19,21 @@ import static java.util.Collections.emptyList;
  * Immutable tree structure.
  * The traversal is done depth-first, pre-order (first the node then its children), that is seeks up and then goes down.
  * Alternative method for post-order (children first, then node) is also offered, that is seeks down and then goes up.
- * 
+ *
  * Allows transformation which returns the same tree (if no change has been performed) or a new tree otherwise.
- * 
+ *
  * While it tries as much as possible to use functional Java, due to lack of parallelism,
  * the use of streams and iterators is not really useful and brings too much baggage which
- * might be used incorrectly. 
- * 
+ * might be used incorrectly.
+ *
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> {
+    private static final int TO_STRING_MAX_PROP = 10;
+    private static final int TO_STRING_MAX_WIDTH = 110;
 
     private final Location location;
     private final List<T> children;
-
-    public Node(List<T> children) {
-        this(Location.EMPTY, children);
-    }
 
     public Node(Location location, List<T> children) {
         this.location = (location != null ? location : Location.EMPTY);
@@ -58,8 +57,8 @@ public abstract class Node<T extends Node<T>> {
     @SuppressWarnings("unchecked")
     public <E extends T> void forEachDown(Consumer<? super E> action, final Class<E> typeToken) {
         forEachDown(t -> {
-            if (typeToken.isInstance(t))  { 
-                action.accept((E) t); 
+            if (typeToken.isInstance(t))  {
+                action.accept((E) t);
             }
         });
     }
@@ -93,7 +92,7 @@ public abstract class Node<T extends Node<T>> {
 
     @SuppressWarnings("unchecked")
     protected <E> void forEachProperty(Consumer<? super E> rule, Class<E> typeToken) {
-        for (Object prop : NodeUtils.properties(this)) {
+        for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
             if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {
                 rule.accept((E) prop);
@@ -147,7 +146,7 @@ public abstract class Node<T extends Node<T>> {
         }
     }
 
-    // TODO: maybe add a flatMap (need to double check the Stream bit) 
+    // TODO: maybe add a flatMap (need to double check the Stream bit)
 
     //
     // Transform methods
@@ -189,7 +188,7 @@ public abstract class Node<T extends Node<T>> {
         boolean childrenChanged = false;
 
         // stream() could be used but the code is just as complicated without any advantages
-        // further more, it would include bring in all the associated stream/collector object creation even though in 
+        // further more, it would include bring in all the associated stream/collector object creation even though in
         // most cases the immediate tree would be quite small (0,1,2 elements)
         List<T> transformedChildren = new ArrayList<>(children().size());
 
@@ -208,9 +207,10 @@ public abstract class Node<T extends Node<T>> {
         return (childrenChanged ? replaceChildren(transformedChildren) : (T) this);
     }
 
-    public T replaceChildren(List<T> newChildren) {
-        return NodeUtils.copyTree(this, newChildren);
-    }
+    /**
+     * Replace the children of this node.
+     */
+    public abstract T replaceChildren(List<T> newChildren);
 
     //
     // transform the node properties and use the tree only for navigation
@@ -228,26 +228,22 @@ public abstract class Node<T extends Node<T>> {
         return transformUp(t -> t.transformNodeProps(rule, typeToken));
     }
 
-    @SuppressWarnings("unchecked")
-    protected <E> T transformNodeProps(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        Object[] props = NodeUtils.properties(this);
-        boolean changed = false;
-
-        for (int i = 0; i < props.length; i++) {
-            Object prop = props[i];
-            // skip children (only properties are interesting)
-            if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {
-                Object transformed = rule.apply((E) prop);
-                if (!prop.equals(transformed)) {
-                    changed = true;
-                    props[i] = transformed;
-                }
-            }
-        }
-
-        return changed ? NodeUtils.cloneNode(this, props) : (T) this;
+    /**
+     * Transform this node's properties.
+     * <p>
+     * This always returns something of the same type as the current
+     * node but since {@link Node} doesn't have a {@code SelfT} parameter
+     * we return the closest thing we do have: {@code T}, which is the
+     * root of the hierarchy for the this node.
+     */
+    protected final <E> T transformNodeProps(Function<? super E, ? extends E> rule, Class<E> typeToken) {
+        return info().transform(rule, typeToken);
     }
 
+    /**
+     * Return the information about this node.
+     */
+    protected abstract NodeInfo<? extends T> info();
 
     @Override
     public int hashCode() {
@@ -273,11 +269,118 @@ public abstract class Node<T extends Node<T>> {
     }
 
     public String nodeString() {
-        return NodeUtils.nodeString(this);
+        StringBuilder sb = new StringBuilder();
+        sb.append(nodeName());
+        sb.append("[");
+        sb.append(propertiesToString(true));
+        sb.append("]");
+        return sb.toString();
     }
 
     @Override
     public String toString() {
-        return NodeUtils.toString(this);
+        return treeString(new StringBuilder(), 0, new BitSet()).toString();
+    }
+
+    /**
+     * Render this {@link Node} as a tree like
+     * <pre>
+     * {@code
+     * Project[[i{f}#0]]
+     * \_Filter[i{f}#1]
+     *   \_SubQueryAlias[test]
+     *     \_EsRelation[test][i{f}#2]
+     * }
+     * </pre>
+     */
+    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth) {
+        if (depth > 0) {
+            // draw children
+            for (int column = 0; column < depth; column++) {
+                if (hasParentPerDepth.get(column)) {
+                    sb.append("|");
+                    // if not the last elder, adding padding (since each column has two chars ("|_" or "\_")
+                    if (column < depth - 1) {
+                        sb.append(" ");
+                    }
+                }
+                else {
+                    // if the child has no parent (elder on the previous level), it means its the last sibling
+                    sb.append((column == depth - 1) ? "\\" : "  ");
+                }
+            }
+
+            sb.append("_");
+        }
+
+        sb.append(nodeString());
+
+        List<T> children = children();
+        if (!children.isEmpty()) {
+            sb.append("\n");
+        }
+        for (int i = 0; i < children.size(); i++) {
+            T t = children.get(i);
+            hasParentPerDepth.set(depth, i < children.size() - 1);
+            t.treeString(sb, depth + 1, hasParentPerDepth);
+            if (i < children.size() - 1) {
+                sb.append("\n");
+            }
+        }
+        return sb;
+    }
+
+    /**
+     * Render the properties of this {@link Node} one by
+     * one like {@code foo bar baz}. These go inside the
+     * {@code [} and {@code ]} of the output of {@link #treeString}.
+     */
+    public String propertiesToString(boolean skipIfChild) {
+        NodeInfo<? extends Node<T>> info = info();
+        StringBuilder sb = new StringBuilder();
+
+        List<?> children = children();
+        // eliminate children (they are rendered as part of the tree)
+        int remainingProperties = TO_STRING_MAX_PROP;
+        int maxWidth = 0;
+        boolean needsComma = false;
+
+        List<Object> props = info.properties();
+        for (Object prop : props) {
+            // consider a property if it is not ignored AND
+            // it's not a child (optional)
+            if (!(skipIfChild && (children.contains(prop) || children.equals(prop)))) {
+                if (remainingProperties-- < 0) {
+                    sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
+                    break;
+                }
+
+                if (needsComma) {
+                    sb.append(",");
+                }
+                String stringValue = Objects.toString(prop);
+                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
+                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
+                    sb.append(stringValue.substring(0, cutoff));
+                    sb.append("\n");
+                    stringValue = stringValue.substring(cutoff);
+                    maxWidth = 0;
+                }
+                maxWidth += stringValue.length();
+                sb.append(stringValue);
+
+                needsComma = true;
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * The values of all the properties that are important
+     * to this {@link Node}.
+     */
+    public List<Object> properties() {
+        return info().properties();
     }
 }

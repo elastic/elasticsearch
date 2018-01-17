@@ -9,14 +9,15 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
 
 /**
  * Implementation common to most subclasses of
  * {@link NonExecutableInput} but not shared by all.
  */
 abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
-    CommonNonExecutableInput(Expression expression, T context) {
-        super(expression, context);
+    CommonNonExecutableInput(Location location, Expression expression, T context) {
+        super(location, expression, context);
     }
 
     @Override

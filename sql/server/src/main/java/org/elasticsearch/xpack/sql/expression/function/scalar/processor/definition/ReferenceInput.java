@@ -8,10 +8,17 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
-    public ReferenceInput(Expression expression, FieldExtraction context) {
-        super(expression, context);
+    public ReferenceInput(Location location, Expression expression, FieldExtraction context) {
+        super(location, expression, context);
+    }
+
+    @Override
+    protected NodeInfo<? extends ProcessorDefinition> info() {
+        return NodeInfo.create(this, ReferenceInput::new, expression(), context());
     }
 
     @Override

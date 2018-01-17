@@ -11,6 +11,7 @@ import java.util.Objects;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import static java.util.stream.Collectors.toList;
@@ -29,11 +30,24 @@ public class Join extends BinaryPlan {
         FULL, // OUTER
         IMPLICIT,
     }
-    
+
     public Join(Location location, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
         super(location, left, right);
         this.type = type;
         this.condition = condition;
+    }
+
+    @Override
+    protected NodeInfo<Join> info() {
+        return NodeInfo.create(this, Join::new, left(), right(), type, condition);
+    }
+
+    @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return new Join(location(), newChildren.get(0), newChildren.get(1), type, condition);
     }
 
     public JoinType type() {
@@ -86,7 +100,7 @@ public class Join extends BinaryPlan {
         return childrenResolved() &&
                 duplicatesResolved() &&
                 expressionsResolved() &&
-                (condition == null || DataTypes.BOOLEAN.equals(condition.dataType())); 
+                (condition == null || DataTypes.BOOLEAN.equals(condition.dataType()));
     }
 
     @Override
@@ -104,7 +118,7 @@ public class Join extends BinaryPlan {
         }
 
         Join other = (Join) obj;
-        
+
         return Objects.equals(type, other.type)
                 && Objects.equals(condition, other.condition)
                 && Objects.equals(left(), other.left())

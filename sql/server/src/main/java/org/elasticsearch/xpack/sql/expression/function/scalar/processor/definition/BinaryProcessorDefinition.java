@@ -7,17 +7,26 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-
+import org.elasticsearch.xpack.sql.tree.Location;
 import java.util.Arrays;
+import java.util.List;
 
 public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
 
     private final ProcessorDefinition left, right;
 
-    public BinaryProcessorDefinition(Expression expression, ProcessorDefinition left, ProcessorDefinition right) {
-        super(expression, Arrays.asList(left, right));
+    public BinaryProcessorDefinition(Location location, Expression expression, ProcessorDefinition left, ProcessorDefinition right) {
+        super(location, expression, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
+    }
+
+    @Override
+    public final ProcessorDefinition replaceChildren(List<ProcessorDefinition> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
 
     public ProcessorDefinition left() {

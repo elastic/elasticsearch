@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -20,12 +21,21 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.Objects;
 
 public class Cast extends UnaryScalarFunction {
-
     private final DataType dataType;
 
     public Cast(Location location, Expression field, DataType dataType) {
         super(location, field);
         this.dataType = dataType;
+    }
+
+    @Override
+    protected NodeInfo<Cast> info() {
+        return NodeInfo.create(this, Cast::new, field(), dataType);
+    }
+
+    @Override
+    protected UnaryScalarFunction replaceChild(Expression newChild) {
+        return new Cast(location(), newChild, dataType);
     }
 
     public DataType from() {
@@ -75,7 +85,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
                 new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
     }
 
@@ -86,7 +96,15 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((Cast) obj).dataType());
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        Cast other = (Cast) obj;
+        return Objects.equals(dataType, other.dataType())
+            && Objects.equals(field(), other.field());
     }
 
     @Override

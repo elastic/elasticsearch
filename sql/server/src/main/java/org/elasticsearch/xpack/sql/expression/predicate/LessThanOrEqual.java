@@ -8,11 +8,22 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class LessThanOrEqual extends BinaryComparison implements Negateable {
 
     public LessThanOrEqual(Location location, Expression left, Expression right) {
         super(location, left, right);
+    }
+
+    @Override
+    protected NodeInfo<LessThanOrEqual> info() {
+        return NodeInfo.create(this, LessThanOrEqual::new, left(), right());
+    }
+
+    @Override
+    protected LessThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
+        return new LessThanOrEqual(location(), newLeft, newRight);
     }
 
     @Override

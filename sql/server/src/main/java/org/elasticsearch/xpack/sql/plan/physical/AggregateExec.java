@@ -9,7 +9,8 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.List;
 import java.util.Objects;
 
@@ -18,10 +19,21 @@ public class AggregateExec extends UnaryExec implements Unexecutable {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public AggregateExec(PhysicalPlan child, List<? extends Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(child);
+    public AggregateExec(Location location, PhysicalPlan child,
+            List<? extends Expression> groupings, List<? extends NamedExpression> aggregates) {
+        super(location, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
+    }
+
+    @Override
+    protected NodeInfo<AggregateExec> info() {
+        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates);
+    }
+
+    @Override
+    protected AggregateExec replaceChild(PhysicalPlan newChild) {
+        return new AggregateExec(location(), newChild, groupings, aggregates);
     }
 
     public List<? extends Expression> groupings() {

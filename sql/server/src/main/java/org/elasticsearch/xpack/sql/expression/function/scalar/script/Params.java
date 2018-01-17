@@ -16,24 +16,24 @@ import static java.util.Collections.emptyList;
 
 /**
  * Parameters for a script
- * 
+ *
  * This class mainly exists to handle the different aggregation cases.
  * While aggs can appear in scripts like regular parameters, they are not passed
  * as parameters but rather as bucket_path.
  * However in some cases (like count), it's not the agg path that is relevant but rather
- * its property (_count). 
+ * its property (_count).
  * As the agg name still needs to be remembered to properly associate the script with.
- * 
+ *
  * Hence why this class supports aggRef (which always returns the agg names) and aggPaths
  * (which returns the agg property if it exists or the agg name/reference).
- * 
+ *
  * Also the parameter names support late binding/evaluation since the agg reference (like function id)
  * can be changed during the optimization phase (for example min agg -&gt; stats.min).
  */
 public class Params {
 
     public static final Params EMPTY = new Params(emptyList());
-    
+
     private final List<Param<?>> params;
 
     Params(List<Param<?>> params) {
@@ -49,7 +49,7 @@ public class Params {
 
         List<String> names = new ArrayList<>(params.size());
         int aggs = 0, vars = 0;
-        
+
         for (Param<?> p : params) {
             names.add(p.prefix() + (p instanceof Agg ? aggs++ : vars++));
         }
@@ -63,13 +63,13 @@ public class Params {
         Map<String, Object> map = new LinkedHashMap<>(params.size());
 
         int count = 0;
-        
+
         for (Param<?> p : params) {
             if (p instanceof Var) {
                 map.put(p.prefix() + count++, p.value());
             }
         }
-        
+
         return map;
     }
 

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
-
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.List;
 
 public class PercentileRanks extends CompoundNumericAggregate {
@@ -17,6 +17,19 @@ public class PercentileRanks extends CompoundNumericAggregate {
     public PercentileRanks(Location location, Expression field, List<Expression> values) {
         super(location, field, values);
         this.values = values;
+    }
+
+    @Override
+    protected NodeInfo<PercentileRanks> info() {
+        return NodeInfo.create(this, PercentileRanks::new, field(), values);
+    }
+
+    @Override
+    public PercentileRanks replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
+        }
+        return new PercentileRanks(location(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 
     public List<Expression> values() {

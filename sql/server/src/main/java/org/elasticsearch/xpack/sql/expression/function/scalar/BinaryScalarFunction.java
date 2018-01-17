@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTempl
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Arrays;
+import java.util.List;
 
 public abstract class BinaryScalarFunction extends ScalarFunction {
 
@@ -20,6 +21,16 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
         this.left = left;
         this.right = right;
     }
+
+    @Override
+    public final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren.get(0), newChildren.get(1));
+    }
+
+    protected abstract BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight);
 
     public Expression left() {
         return left;

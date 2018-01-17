@@ -15,17 +15,17 @@ public abstract class ProcessorDefinitions {
 
     public static ProcessorDefinition toProcessorDefinition(Expression ex) {
         if (ex.foldable()) {
-            return new ConstantInput(ex, ex.fold());
+            return new ConstantInput(ex.location(), ex, ex.fold());
         }
         if (ex instanceof ScalarFunction) {
             return ((ScalarFunction) ex).asProcessorDefinition();
         }
         if (ex instanceof AggregateFunction) {
             // unresolved AggNameInput (should always get replaced by the folder)
-            return new AggNameInput(ex, ((AggregateFunction) ex).name());
+            return new AggNameInput(ex.location(), ex, ((AggregateFunction) ex).name());
         }
         if (ex instanceof NamedExpression) {
-            return new AttributeInput(ex, ((NamedExpression) ex).toAttribute());
+            return new AttributeInput(ex.location(), ex, ((NamedExpression) ex).toAttribute());
         }
         throw new SqlIllegalArgumentException("Cannot extract processor from %s", ex);
     }

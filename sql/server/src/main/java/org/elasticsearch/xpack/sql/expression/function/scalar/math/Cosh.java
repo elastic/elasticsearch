@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Hyperbolic_function">Hyperbolic cosine</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Cosh extends MathFunction {
     public Cosh(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Cosh> info() {
+        return NodeInfo.create(this, Cosh::new, field());
+    }
+
+    @Override
+    protected Cosh replaceChild(Expression newChild) {
+        return new Cosh(location(), newChild);
     }
 
     @Override

@@ -58,7 +58,13 @@ public abstract class NamedExpression extends Expression {
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
                 && Objects.equals(id, other.id)
-                && Objects.equals(name(), other.name())
+                /*
+                 * It is important that the line below be `name`
+                 * and not `name()` because subclasses might override
+                 * `name()` in ways that are not compatible with
+                 * equality. Specifically the `Unresolved` subclasses.
+                 */
+                && Objects.equals(name, other.name)
                 && Objects.equals(children(), other.children());
     }
 }

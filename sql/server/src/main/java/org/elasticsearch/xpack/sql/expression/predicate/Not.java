@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -22,6 +23,15 @@ public class Not extends UnaryExpression {
     }
 
     @Override
+    protected NodeInfo<Not> info() {
+        return NodeInfo.create(this, Not::new, child());
+    }
+
+    @Override
+    protected Not replaceChild(Expression newChild) {
+        return new Not(location(), newChild);
+    }
+
     protected TypeResolution resolveType() {
         if (DataTypes.BOOLEAN.same(child().dataType())) {
             return TypeResolution.TYPE_RESOLVED;

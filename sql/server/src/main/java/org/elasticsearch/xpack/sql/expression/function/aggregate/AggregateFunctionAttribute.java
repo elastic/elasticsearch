@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
@@ -23,10 +24,16 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
         this(location, name, dataType, null, false, id, false, functionId, propertyPath);
     }
 
-    AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
+    public AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
             boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
+    }
+
+    @Override
+    protected NodeInfo<AggregateFunctionAttribute> info() {
+        return NodeInfo.create(this, AggregateFunctionAttribute::new,
+            name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId(), propertyPath);
     }
 
     public String propertyPath() {

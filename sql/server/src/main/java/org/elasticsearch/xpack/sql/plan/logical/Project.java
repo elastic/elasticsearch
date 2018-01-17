@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Project extends UnaryPlan {
 
@@ -22,6 +23,16 @@ public class Project extends UnaryPlan {
     public Project(Location location, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(location, child);
         this.projections = projections;
+    }
+
+    @Override
+    protected NodeInfo<Project> info() {
+        return NodeInfo.create(this, Project::new, child(), projections);
+    }
+
+    @Override
+    protected Project replaceChild(LogicalPlan newChild) {
+        return new Project(location(), newChild, projections);
     }
 
     public List<? extends NamedExpression> projections() {
@@ -58,7 +69,7 @@ public class Project extends UnaryPlan {
         }
 
         Project other = (Project) obj;
-        
+
         return Objects.equals(projections, other.projections)
                 && Objects.equals(child(), other.child());
     }

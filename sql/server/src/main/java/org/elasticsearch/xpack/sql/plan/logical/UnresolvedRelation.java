@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +30,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         this.table = table;
         this.alias = alias;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
+    }
+
+    @Override
+    protected NodeInfo<UnresolvedRelation> info() {
+        return NodeInfo.create(this, UnresolvedRelation::new, table, alias, unresolvedMsg);
     }
 
     public TableIdentifier table() {

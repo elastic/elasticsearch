@@ -281,7 +281,7 @@ public class QueryContainer {
             return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asProcessorDefinition()));
         }
         if (attr instanceof ScoreAttribute) {
-            return new Tuple<>(this, new ComputedRef(new ScoreProcessorDefinition(attr)));
+            return new Tuple<>(this, new ComputedRef(new ScoreProcessorDefinition(attr.location(), attr)));
         }
 
         throw new SqlIllegalArgumentException("Unknown output attribute %s", attr);

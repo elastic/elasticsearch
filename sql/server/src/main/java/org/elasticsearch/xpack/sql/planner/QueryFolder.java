@@ -196,8 +196,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
 
                     if (groupAgg == null) {
+                        // Weird ctor call to make sure we don't interpret the message as a pattern
                         throw new FoldingException(fexec, "Cannot find group for agg " + refId
-                                + " referrenced by agg filter " + filter.name() + "(" + filter + ")");
+                                + " referrenced by agg filter " + filter.name() + "(" + filter + ")", (Exception) null);
                     }
 
                     String path = groupAgg.asParentPath();
@@ -322,7 +323,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryProcessorDefinition) p).action();
                                         }
-                                        return new AggPathInput(exp, matchingGroup.propertyPath(), null, action);
+                                        return new AggPathInput(exp.location(), exp, matchingGroup.propertyPath(), null, action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)

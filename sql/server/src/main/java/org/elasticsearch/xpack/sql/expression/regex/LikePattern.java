@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.regex;
 
 import org.elasticsearch.xpack.sql.expression.LeafExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -18,7 +19,7 @@ import java.util.Objects;
  * Similar to basic regex, supporting '_' instead of '?' and '%' instead of '*'.
  * <p>
  * Allows escaping based on a regular char.
- * 
+ *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
 public class LikePattern extends LeafExpression {
@@ -38,6 +39,11 @@ public class LikePattern extends LeafExpression {
         this.regex = StringUtils.likeToJavaPattern(pattern, escape);
         this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
         this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
+    }
+
+    @Override
+    protected NodeInfo<LikePattern> info() {
+        return NodeInfo.create(this, LikePattern::new, pattern, escape);
     }
 
     public String pattern() {
@@ -96,11 +102,6 @@ public class LikePattern extends LeafExpression {
 
         LikePattern other = (LikePattern) obj;
         return Objects.equals(pattern, other.pattern)
-                && Objects.equals(escape, other.escape);
-    }
-
-    @Override
-    public String toString() {
-        return pattern;
+                && escape == other.escape;
     }
 }

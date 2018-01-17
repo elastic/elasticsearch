@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -19,7 +20,7 @@ public class ScoreAttribute extends FunctionAttribute {
     /**
      * Constructor for normal use.
      */
-    ScoreAttribute(Location location) {
+    public ScoreAttribute(Location location) {
         this(location, "SCORE()", DataTypes.FLOAT, null, false, null, false);
     }
 
@@ -29,6 +30,11 @@ public class ScoreAttribute extends FunctionAttribute {
     private ScoreAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
             boolean synthetic) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, "SCORE");
+    }
+
+    @Override
+    protected NodeInfo<ScoreAttribute> info() {
+        return NodeInfo.create(this);
     }
 
     @Override

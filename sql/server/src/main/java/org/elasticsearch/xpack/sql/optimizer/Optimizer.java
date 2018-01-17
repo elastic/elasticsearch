@@ -291,7 +291,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     seen.put(argument, matrixStats);
                 }
 
-                InnerAggregate ia = new InnerAggregate(f, matrixStats, f.field());
+                InnerAggregate ia = new InnerAggregate(f.location(), f, matrixStats, f.field());
                 promotedIds.putIfAbsent(f.functionId(), ia.toAttribute());
                 return ia;
             }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ConstantInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class LiteralAttribute extends TypedAttribute {
@@ -29,13 +30,19 @@ public class LiteralAttribute extends TypedAttribute {
     }
 
     @Override
+    protected NodeInfo<LiteralAttribute> info() {
+        return NodeInfo.create(this, LiteralAttribute::new,
+            name(), qualifier(), nullable(), id(), synthetic(), dataType(), literal);
+    }
+
+    @Override
     protected LiteralAttribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
             ExpressionId id, boolean synthetic) {
         return new LiteralAttribute(location, name, qualifier, nullable, id, synthetic, dataType, literal);
     }
 
     public ProcessorDefinition asProcessorDefinition() {
-        return new ConstantInput(literal, literal.value());
+        return new ConstantInput(location(), literal, literal.value());
     }
 
     @Override

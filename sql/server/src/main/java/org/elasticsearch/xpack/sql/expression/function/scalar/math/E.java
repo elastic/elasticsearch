@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 
+import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -20,6 +22,16 @@ public class E extends MathFunction {
 
     public E(Location location) {
         super(location, new Literal(location, Math.E, DataTypes.DOUBLE));
+    }
+
+    @Override
+    protected NodeInfo<E> info() {
+        return NodeInfo.create(this);
+    }
+
+    @Override
+    protected E replaceChild(Expression field) {
+        throw new UnsupportedOperationException("this node doesn't have any children");
     }
 
     @Override

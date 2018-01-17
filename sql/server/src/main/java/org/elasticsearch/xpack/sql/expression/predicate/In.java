@@ -10,6 +10,7 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
@@ -27,6 +28,19 @@ public class In extends Expression {
 
         this.nullable = children().stream().anyMatch(Expression::nullable);
         this.foldable = children().stream().allMatch(Expression::foldable);
+    }
+
+    @Override
+    protected NodeInfo<In> info() {
+        return NodeInfo.create(this, In::new, value(), list());
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected more than one child but received [" + newChildren.size() + "]");
+        }
+        return new In(location(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }
 
     public Expression value() {
@@ -62,11 +76,11 @@ public class In extends Expression {
         if (this == obj) {
             return true;
         }
-        
-        if (!this.equals(obj) || getClass() != obj.getClass()) {
+
+        if (!super.equals(obj) || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         In other = (In) obj;
         return Objects.equals(value, other.value)
                 && Objects.equals(list, other.list);

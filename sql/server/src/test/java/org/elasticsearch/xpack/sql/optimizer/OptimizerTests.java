@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -62,15 +63,25 @@ public class OptimizerTests extends ESTestCase {
 
     private static final Expression DUMMY_EXPRESSION = new DummyBooleanExpression(EMPTY, 0);
 
-    private static class DummyBooleanExpression extends Expression {
-        
+    public static class DummyBooleanExpression extends Expression {
+
         private final int id;
-        
-        DummyBooleanExpression(Location location, int id) {
+
+        public DummyBooleanExpression(Location location, int id) {
             super(location, Collections.emptyList());
             this.id = id;
         }
-        
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, DummyBooleanExpression::new, id);
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            throw new UnsupportedOperationException("this type of node doesn't have any children");
+        }
+
         @Override
         public boolean nullable() {
             return false;
@@ -133,7 +144,7 @@ public class OptimizerTests extends ESTestCase {
         Alias b = new Alias(EMPTY, "b", L(10));
         // x -> a
         Alias x = new Alias(EMPTY, "x", a);
-        
+
         Project lowerP = new Project(EMPTY, FROM(), asList(a, b));
         Project upperP = new Project(EMPTY, lowerP, singletonList(x));
 
@@ -266,7 +277,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testBoolSimplifyOr() {
         BooleanSimplification simplification = new BooleanSimplification();
-        
+
         assertEquals(Literal.TRUE, simplification.rule(new Or(EMPTY, Literal.TRUE, Literal.TRUE)));
         assertEquals(Literal.TRUE, simplification.rule(new Or(EMPTY, Literal.TRUE, DUMMY_EXPRESSION)));
         assertEquals(Literal.TRUE, simplification.rule(new Or(EMPTY, DUMMY_EXPRESSION, Literal.TRUE)));
@@ -278,7 +289,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testBoolSimplifyAnd() {
         BooleanSimplification simplification = new BooleanSimplification();
-        
+
         assertEquals(Literal.TRUE, simplification.rule(new And(EMPTY, Literal.TRUE, Literal.TRUE)));
         assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, Literal.TRUE, DUMMY_EXPRESSION)));
         assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, DUMMY_EXPRESSION, Literal.TRUE)));

@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static java.util.Collections.singletonList;
+
+import java.util.List;
 
 public class Alias extends NamedExpression {
 
@@ -37,6 +40,19 @@ public class Alias extends NamedExpression {
         super(location, name, singletonList(child), id, synthetic);
         this.child = child;
         this.qualifier = qualifier;
+    }
+
+    @Override
+    protected NodeInfo<Alias> info() {
+        return NodeInfo.create(this, Alias::new, name(), qualifier, child, id(), synthetic());
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new Alias(location(), name(), qualifier, newChildren.get(0), id(), synthetic());
     }
 
     public Expression child() {

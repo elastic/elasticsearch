@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
@@ -17,8 +18,8 @@ public abstract class ProcessorDefinition extends Node<ProcessorDefinition> impl
 
     private final Expression expression;
 
-    public ProcessorDefinition(Expression expression, List<ProcessorDefinition> children) {
-        super(children);
+    public ProcessorDefinition(Location location, Expression expression, List<ProcessorDefinition> children) {
+        super(location, children);
         this.expression = expression;
     }
 

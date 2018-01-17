@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.DummyProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.dummyWithDepth;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinitionTests.tracksScores;
@@ -64,6 +65,6 @@ public class UnaryProcessorDefinitionTests extends ESTestCase {
     }
 
     private ProcessorDefinition newUnaryProcessor(ProcessorDefinition child) {
-        return new UnaryProcessorDefinition(null, child, null);
+        return new UnaryProcessorDefinition(Location.EMPTY, null, child, null);
     }
 }

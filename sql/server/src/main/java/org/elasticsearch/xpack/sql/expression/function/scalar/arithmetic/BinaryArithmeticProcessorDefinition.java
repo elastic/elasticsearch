@@ -9,17 +9,24 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.BinaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 public class BinaryArithmeticProcessorDefinition extends BinaryProcessorDefinition {
 
     private final BinaryArithmeticOperation operation;
 
-    public BinaryArithmeticProcessorDefinition(Expression expression, ProcessorDefinition left,
+    public BinaryArithmeticProcessorDefinition(Location location, Expression expression, ProcessorDefinition left,
             ProcessorDefinition right, BinaryArithmeticOperation operation) {
-        super(expression, left, right);
+        super(location, expression, left, right);
         this.operation = operation;
+    }
+
+    @Override
+    protected NodeInfo<BinaryArithmeticProcessorDefinition> info() {
+        return NodeInfo.create(this, BinaryArithmeticProcessorDefinition::new,
+            expression(), left(), right(), operation);
     }
 
     public BinaryArithmeticOperation operation() {
@@ -28,7 +35,7 @@ public class BinaryArithmeticProcessorDefinition extends BinaryProcessorDefiniti
 
     @Override
     protected BinaryProcessorDefinition replaceChildren(ProcessorDefinition left, ProcessorDefinition right) {
-        return new BinaryArithmeticProcessorDefinition(expression(), left, right, operation);
+        return new BinaryArithmeticProcessorDefinition(location(), expression(), left, right, operation);
     }
 
     @Override

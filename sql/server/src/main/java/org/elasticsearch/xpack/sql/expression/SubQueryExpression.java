@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -24,6 +25,11 @@ public abstract class SubQueryExpression extends Expression {
         super(location, Collections.emptyList());
         this.query = query;
         this.id = id == null ? new ExpressionId() : id;
+    }
+
+    @Override
+    public final Expression replaceChildren(List<Expression> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     public LogicalPlan query() {
@@ -60,7 +66,7 @@ public abstract class SubQueryExpression extends Expression {
             return false;
         }
 
-        Exists other = (Exists) obj;
+        SubQueryExpression other = (SubQueryExpression) obj;
         return Objects.equals(query(), other.query());
     }
 }

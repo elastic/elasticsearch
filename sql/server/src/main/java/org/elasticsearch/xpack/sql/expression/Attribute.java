@@ -12,6 +12,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
+import java.util.List;
+
 /**
  * {@link Expression}s that can be converted into Elasticsearch
  * sorts, aggregations, or queries. They can also be extracted
@@ -38,6 +40,11 @@ public abstract class Attribute extends NamedExpression {
         super(location, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
         this.nullable = nullable;
+    }
+
+    @Override
+    public final Expression replaceChildren(List<Expression> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     public String qualifier() {

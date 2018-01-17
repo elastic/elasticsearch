@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.tree.Location;
-
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+
+import java.util.List;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
@@ -20,6 +22,16 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     public UnresolvedStar(Location location, UnresolvedAttribute qualifier) {
         super(location, emptyList());
         this.qualifier = qualifier;
+    }
+
+    @Override
+    protected NodeInfo<UnresolvedStar> info() {
+        return NodeInfo.create(this, UnresolvedStar::new, qualifier);
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     @Override
@@ -33,17 +45,24 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier);
+        return Objects.hash(qualifier);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedStar other = (UnresolvedStar) obj;
-            return Objects.equals(qualifier, other.qualifier);
+        /*
+         * Intentionally not calling the superclass
+         * equals because it uses id which we always
+         * mutate when we make a clone. So we need
+         * to ignore it in equals for the transform
+         * tests to pass.
+         */
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
         }
 
-        return false;
+        UnresolvedStar other = (UnresolvedStar) obj;
+        return Objects.equals(qualifier, other.qualifier);
     }
 
     private String message() {

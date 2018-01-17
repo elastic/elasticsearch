@@ -6,10 +6,17 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class AggNameInput extends CommonNonExecutableInput<String> {
-    public AggNameInput(Expression expression, String context) {
-        super(expression, context);
+    public AggNameInput(Location location, Expression expression, String context) {
+        super(location, expression, context);
+    }
+
+    @Override
+    protected NodeInfo<AggNameInput> info() {
+        return NodeInfo.create(this, AggNameInput::new, expression(), context());
     }
 
     @Override

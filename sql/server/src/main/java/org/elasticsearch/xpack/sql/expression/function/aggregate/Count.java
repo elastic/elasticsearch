@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import java.util.List;
+
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -18,6 +21,19 @@ public class Count extends AggregateFunction {
     public Count(Location location, Expression field, boolean distinct) {
         super(location, field);
         this.distinct = distinct;
+    }
+
+    @Override
+    protected NodeInfo<Count> info() {
+        return NodeInfo.create(this, Count::new, field(), distinct);
+    }
+
+    @Override
+    public Count replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new Count(location(), newChildren.get(0), distinct);
     }
 
     public boolean distinct() {

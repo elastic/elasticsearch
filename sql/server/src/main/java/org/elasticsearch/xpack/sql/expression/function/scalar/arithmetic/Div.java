@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
@@ -18,6 +20,16 @@ public class Div extends ArithmeticFunction {
 
     public Div(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryArithmeticOperation.DIV);
+    }
+
+    @Override
+    protected NodeInfo<Div> info() {
+        return NodeInfo.create(this, Div::new, left(), right());
+    }
+
+    @Override
+    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+        return new Div(location(), newLeft, newRight);
     }
 
     @Override

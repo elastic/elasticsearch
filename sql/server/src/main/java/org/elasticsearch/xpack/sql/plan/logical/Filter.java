@@ -9,6 +9,7 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Filter extends UnaryPlan {
 
@@ -17,6 +18,16 @@ public class Filter extends UnaryPlan {
     public Filter(Location location, LogicalPlan child, Expression condition) {
         super(location, child);
         this.condition = condition;
+    }
+
+    @Override
+    protected NodeInfo<Filter> info() {
+        return NodeInfo.create(this, Filter::new, child(), condition);
+    }
+
+    @Override
+    protected Filter replaceChild(LogicalPlan newChild) {
+        return new Filter(location(), newChild, condition);
     }
 
     public Expression condition() {
@@ -43,7 +54,7 @@ public class Filter extends UnaryPlan {
         }
 
         Filter other = (Filter) obj;
-        
+
         return Objects.equals(condition, other.condition)
                 && Objects.equals(child(), other.child());
     }

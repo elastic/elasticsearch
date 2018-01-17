@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.Locale;
+import java.util.Objects;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
@@ -74,7 +75,7 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     @Override
     protected final BinaryArithmeticProcessorDefinition makeProcessorDefinition() {
-        return new BinaryArithmeticProcessorDefinition(this,
+        return new BinaryArithmeticProcessorDefinition(location(), this,
                 ProcessorDefinitions.toProcessorDefinition(left()),
                 ProcessorDefinitions.toProcessorDefinition(right()), operation);
     }
@@ -109,5 +110,21 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     protected boolean useParanthesis() {
         return !(left() instanceof Literal) || !(right() instanceof Literal);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        ArithmeticFunction other = (ArithmeticFunction) obj;
+        return Objects.equals(other.left(), left())
+            && Objects.equals(other.right(), right())
+            && Objects.equals(other.operation, operation);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(left(), right(), operation);
     }
 }

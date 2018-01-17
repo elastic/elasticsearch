@@ -6,18 +6,25 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-
+import org.elasticsearch.xpack.sql.tree.Location;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+
+import java.util.List;
 
 public abstract class LeafInput<T> extends ProcessorDefinition {
 
     private T context;
 
-    public LeafInput(Expression expression, T context) {
-        super(expression, emptyList());
+    public LeafInput(Location location, Expression expression, T context) {
+        super(location, expression, emptyList());
         this.context = context;
+    }
+
+    @Override
+    public final ProcessorDefinition replaceChildren(List<ProcessorDefinition> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     public T context() {

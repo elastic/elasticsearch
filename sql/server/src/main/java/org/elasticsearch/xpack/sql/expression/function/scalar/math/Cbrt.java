@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Cube_root">Cube root</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Cbrt extends MathFunction {
     public Cbrt(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Cbrt> info() {
+        return NodeInfo.create(this, Cbrt::new, field());
+    }
+
+    @Override
+    protected Cbrt replaceChild(Expression newChild) {
+        return new Cbrt(location(), newChild);
     }
 
     @Override

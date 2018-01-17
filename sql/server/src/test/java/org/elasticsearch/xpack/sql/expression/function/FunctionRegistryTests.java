@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTimeZone;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.def;
 import static org.hamcrest.Matchers.endsWith;
@@ -143,11 +145,20 @@ public class FunctionRegistryTests extends ESTestCase {
         return new UnresolvedFunction(LocationTests.randomLocation(), "dummy", distinct, Arrays.asList(children));
     }
 
-    private static class Dummy extends ScalarFunction {
-        private Dummy(Location location) {
+    public static class Dummy extends ScalarFunction {
+        public Dummy(Location location) {
             super(location, emptyList());
         }
 
+        @Override
+        protected NodeInfo<Dummy> info() {
+            return NodeInfo.create(this);
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
+        }
 
         @Override
         public DataType dataType() {

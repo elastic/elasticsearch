@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
@@ -28,6 +29,11 @@ public class ShowTables extends Command {
     public ShowTables(Location location, LikePattern pattern) {
         super(location);
         this.pattern = pattern;
+    }
+
+    @Override
+    protected NodeInfo<ShowTables> info() {
+        return NodeInfo.create(this, ShowTables::new, pattern);
     }
 
     public LikePattern pattern() {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.KeywordType;
 import org.elasticsearch.xpack.sql.type.NestedType;
@@ -55,6 +56,12 @@ public class FieldAttribute extends TypedAttribute {
             }
         }
         this.nestedParent = nestedPar;
+    }
+
+    @Override
+    protected NodeInfo<FieldAttribute> info() {
+        return NodeInfo.create(this, FieldAttribute::new,
+            parent, name(), dataType(), qualifier(), nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {

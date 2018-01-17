@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -122,6 +121,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     @Override
     public String toString() {
-        return nodeName() + "[" + NodeUtils.propertiesToString(this, false) + "]";
+        return nodeName() + "[" + propertiesToString(false) + "]";
     }
 }

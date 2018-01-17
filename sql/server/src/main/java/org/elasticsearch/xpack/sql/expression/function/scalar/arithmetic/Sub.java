@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * Subtraction function ({@code a - b}).
@@ -16,6 +18,16 @@ public class Sub extends ArithmeticFunction {
 
     public Sub(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryArithmeticOperation.SUB);
+    }
+
+    @Override
+    protected NodeInfo<Sub> info() {
+        return NodeInfo.create(this, Sub::new, left(), right());
+    }
+
+    @Override
+    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+        return new Sub(location(), newLeft, newRight);
     }
 
     @Override

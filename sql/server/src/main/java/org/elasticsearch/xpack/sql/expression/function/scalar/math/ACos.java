@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 
 /**
@@ -17,6 +18,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class ACos extends MathFunction {
     public ACos(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<ACos> info() {
+        return NodeInfo.create(this, ACos::new, field());
+    }
+
+    @Override
+    protected ACos replaceChild(Expression newChild) {
+        return new ACos(location(), newChild);
     }
 
     @Override

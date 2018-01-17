@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
@@ -16,6 +17,16 @@ public class MinuteOfDay extends DateTimeFunction {
 
     public MinuteOfDay(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);
+    }
+
+    @Override
+    protected NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo() {
+        return MinuteOfDay::new;
+    }
+
+    @Override
+    protected MinuteOfDay replaceChild(Expression newChild) {
+        return new MinuteOfDay(location(), newChild, timeZone());
     }
 
     @Override

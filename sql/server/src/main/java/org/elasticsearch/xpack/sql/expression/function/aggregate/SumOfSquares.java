@@ -5,13 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class SumOfSquares extends NumericAggregate implements ExtendedStatsEnclosed {
 
     public SumOfSquares(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<SumOfSquares> info() {
+        return NodeInfo.create(this, SumOfSquares::new, field());
+    }
+
+    @Override
+    public SumOfSquares replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new SumOfSquares(location(), newChildren.get(0));
     }
 
     @Override

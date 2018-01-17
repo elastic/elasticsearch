@@ -7,14 +7,12 @@ package org.elasticsearch.xpack.sql.util;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.tree.NodeUtils;
 
 // use the awesome http://mdaines.github.io/viz.js/ to visualize and play around with the various options
 public abstract class Graphviz {
@@ -47,7 +45,7 @@ public abstract class Graphviz {
                 + "node[shape=plaintext, color=azure1];\n "
                 + "edge[color=black];\n "
                 + "graph[compound=true];\n\n");
-        
+
 
         int clusterNodeStart = 1;
         int clusterId = 0;
@@ -79,9 +77,9 @@ public abstract class Graphviz {
             sb.append(" -> ");
             sb.append("c" + clusterId);
             sb.append(" [style=invis];\n");
-            
+
             handleNode(sb, entry.getValue(), nodeCounter, CLUSTER_INDENT, drawSubTrees);
-            
+
             int clusterNodeStop = nodeCounter.get();
 
             indent(sb, INDENT);
@@ -103,7 +101,7 @@ public abstract class Graphviz {
         }
 
         sb.append("\n");
-        
+
         // connecting the clusters arranges them in a weird position
         // so don't
         //sb.append(clusterEdges.toString());
@@ -133,22 +131,20 @@ public abstract class Graphviz {
                 + n.nodeName()
                 + "</b></td></th>\n");
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
-        
-        Map<String, Object> props = NodeUtils.propertiesMap(n);
-        Map<String, String> parsed = new LinkedHashMap<>(props.size());
+
+        List<Object> props = n.properties();
+        List<String> parsed = new ArrayList<>(props.size());
         List<Node<?>> subTrees = new ArrayList<>();
 
-        for (Entry<String, Object> entry : props.entrySet()) {
-            Object v = entry.getValue();
-
+        for (Object v : props) {
             // skip null values, children and location
-            if (v != null && !n.children().contains(v) && !"location".equals(entry.getKey())) {
+            if (v != null && !n.children().contains(v)) {
                 if (v instanceof Collection) {
                     Collection<?> c = (Collection<?>) v;
                         StringBuilder colS = new StringBuilder();
                         for (Object o : c) {
                             if (drawSubTrees && isAnotherTree(o)) {
-                                subTrees.add((Node) o);
+                                subTrees.add((Node<?>) o);
                             }
                             else {
                                 colS.append(o);
@@ -156,39 +152,27 @@ public abstract class Graphviz {
                             }
                         }
                         if (colS.length() > 0) {
-                            parsed.put(entry.getKey(), colS.toString());
+                            parsed.add(colS.toString());
                         }
                 }
                 else {
-                    if (drawSubTrees && isAnotherTree(entry.getValue())) {
-                        subTrees.add((Node) entry.getValue());
+                    if (drawSubTrees && isAnotherTree(v)) {
+                        subTrees.add((Node<?>) v);
                     }
                     else {
-                        parsed.put(entry.getKey(), entry.getValue().toString());
+                        parsed.add(v.toString());
                     }
                 }
             }
         }
-        
-        // remove the field name if only one prop is specified
-        if (parsed.size() == 1) {
-            nodeInfo.append("<tr><td colspan=\"2\" bgcolor=\"azure2\">");
-            nodeInfo.append(escapeHtml(parsed.values().iterator().next()));
+
+        for (String line : parsed) {
+            nodeInfo.append("<tr><td align=\"left\" bgcolor=\"azure2\">");
+            nodeInfo.append(escapeHtml(line));
             nodeInfo.append("</td></tr>\n");
             indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
         }
-        // add the name and include a border
-        else {
-            for (Entry<String, String> entry : parsed.entrySet()) {
-                nodeInfo.append("<tr><td align=\"right\" bgcolor=\"azure2\">");
-                nodeInfo.append(entry.getKey());
-                nodeInfo.append("</td><td align=\"left\" bgcolor=\"azure2\">");
-                nodeInfo.append(escapeHtml(entry.getValue()));
-                nodeInfo.append("</td></tr>\n");
-                indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
-            }
-        }
-        
+
         nodeInfo.append("</table>\n");
 
         // check any subtrees
@@ -249,7 +233,7 @@ public abstract class Graphviz {
         indent(output, currentIndent);
         //output.append("}\n");
     }
-    
+
     private static void drawNodeTree(StringBuilder sb, Node<?> node, String prefix, int counter) {
         String nodeName = prefix + counter;
         prefix = nodeName;
@@ -275,7 +259,7 @@ public abstract class Graphviz {
             sb.append(prefix + (i + 1) + " -> " + nodeName + ";\n");
         }
 
-        // draw the child 
+        // draw the child
         counter = saveId;
         for (Node<?> child : node.children()) {
             drawNodeTree(sb, child, prefix, ++counter);
@@ -316,10 +300,10 @@ public abstract class Graphviz {
         if (value.contains("<")) {
             return "<" + value + ">";
         }
-        
+
         return "\"" + value + "\"";
     }
-    
+
     private static String escapeGraphviz(String value) {
         return value
                 .replace("<", "\\<")

@@ -11,10 +11,17 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 import static java.util.Collections.emptyList;
 
+import java.util.List;
+
 public abstract class Command extends LogicalPlan implements Executable {
 
     public Command(Location location) {
         super(location, emptyList());
+    }
+
+    @Override
+    public final LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     @Override

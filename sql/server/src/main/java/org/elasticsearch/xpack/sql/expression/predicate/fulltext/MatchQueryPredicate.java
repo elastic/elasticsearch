@@ -9,8 +9,11 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import static java.util.Collections.singletonList;
+
+import java.util.List;
 
 public class MatchQueryPredicate extends FullTextPredicate {
 
@@ -19,6 +22,19 @@ public class MatchQueryPredicate extends FullTextPredicate {
     public MatchQueryPredicate(Location location, Expression field, String query, String options) {
         super(location, query, options, singletonList(field));
         this.field = field;
+    }
+
+    @Override
+    protected NodeInfo<MatchQueryPredicate> info() {
+        return NodeInfo.create(this, MatchQueryPredicate::new, field, query(), options());
+    }
+
+    @Override
+    public MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new MatchQueryPredicate(location(), newChildren.get(0), query(), options());
     }
 
     public Expression field() {

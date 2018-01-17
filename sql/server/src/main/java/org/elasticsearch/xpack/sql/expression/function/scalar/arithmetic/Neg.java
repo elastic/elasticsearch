@@ -13,15 +13,25 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
  * Negation function (@{code -x}).
  */
 public class Neg extends UnaryScalarFunction {
-
     public Neg(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Neg> info() {
+        return NodeInfo.create(this, Neg::new, field());
+    }
+
+    @Override
+    protected UnaryScalarFunction replaceChild(Expression newChild) {
+        return new Neg(location(), newChild);
     }
 
     @Override
@@ -47,7 +57,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
                 new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE));
     }
 }

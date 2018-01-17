@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 import static java.util.Collections.singletonList;
 
+import java.util.List;
+
 public abstract class UnaryScalarFunction extends ScalarFunction {
 
     private final Expression field;
@@ -24,6 +26,15 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         super(location, singletonList(field));
         this.field = field;
     }
+
+    @Override
+    public final UnaryScalarFunction replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return replaceChild(newChildren.get(0));
+    }
+    protected abstract UnaryScalarFunction replaceChild(Expression newChild);
 
     public Expression field() {
         return field;

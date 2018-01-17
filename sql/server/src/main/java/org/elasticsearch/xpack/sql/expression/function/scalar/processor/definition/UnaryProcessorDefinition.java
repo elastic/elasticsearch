@@ -9,20 +9,36 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+
+import java.util.List;
 
 public final class UnaryProcessorDefinition extends ProcessorDefinition {
 
     private final ProcessorDefinition child;
     private final Processor action;
 
-    public UnaryProcessorDefinition(Expression expression, ProcessorDefinition child, Processor action) {
-        super(expression, singletonList(child));
+    public UnaryProcessorDefinition(Location location, Expression expression, ProcessorDefinition child, Processor action) {
+        super(location, expression, singletonList(child));
         this.child = child;
         this.action = action;
+    }
+
+    @Override
+    protected NodeInfo<UnaryProcessorDefinition> info() {
+        return NodeInfo.create(this, UnaryProcessorDefinition::new, expression(), child, action);
+    }
+
+    @Override
+    public ProcessorDefinition replaceChildren(List<ProcessorDefinition> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new UnaryProcessorDefinition(location(), expression(), newChildren.get(0), action);
     }
 
     public ProcessorDefinition child() {
@@ -54,7 +70,7 @@ public final class UnaryProcessorDefinition extends ProcessorDefinition {
         if (newChild == child) {
             return this;
         }
-        return new UnaryProcessorDefinition(expression(), newChild, action);
+        return new UnaryProcessorDefinition(location(), expression(), newChild, action);
     }
 
     @Override

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class With extends UnaryPlan {
     private final Map<String, SubQueryAlias> subQueries;
@@ -16,6 +17,16 @@ public class With extends UnaryPlan {
     public With(Location location, LogicalPlan child, Map<String, SubQueryAlias> subQueries) {
         super(location, child);
         this.subQueries = subQueries;
+    }
+
+    @Override
+    protected NodeInfo<With> info() {
+        return NodeInfo.create(this, With::new, child(), subQueries);
+    }
+
+    @Override
+    protected With replaceChild(LogicalPlan newChild) {
+        return new With(location(), newChild, subQueries);
     }
 
     public Map<String, SubQueryAlias> subQueries() {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Graphviz;
 
@@ -56,6 +57,11 @@ public class Explain extends Command {
         this.verify = verify;
         this.format = format == null ? Format.TEXT : format;
         this.type = type == null ? Type.ANALYZED : type;
+    }
+
+    @Override
+    protected NodeInfo<Explain> info() {
+        return NodeInfo.create(this, Explain::new, plan, type, format, verify);
     }
 
     public LogicalPlan plan() {

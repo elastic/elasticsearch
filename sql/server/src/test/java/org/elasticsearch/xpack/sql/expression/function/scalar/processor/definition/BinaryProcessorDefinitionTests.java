@@ -10,8 +10,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import static java.util.Collections.emptyList;
+
+import java.util.List;
 
 public class BinaryProcessorDefinitionTests extends ESTestCase {
     public void testSupportedByAggsOnlyQuery() {
@@ -95,7 +99,16 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
 
     public static final class DummyBinaryProcessorDefinition extends BinaryProcessorDefinition {
         public DummyBinaryProcessorDefinition(ProcessorDefinition left, ProcessorDefinition right) {
-            super(null, left, right);
+            this(Location.EMPTY, left, right);
+        }
+
+        public DummyBinaryProcessorDefinition(Location location, ProcessorDefinition left, ProcessorDefinition right) {
+            super(location, null, left, right);
+        }
+
+        @Override
+        protected NodeInfo<BinaryProcessorDefinition> info() {
+            return NodeInfo.create(this, DummyBinaryProcessorDefinition::new, left(), right());
         }
 
         @Override
@@ -105,7 +118,7 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
 
         @Override
         protected BinaryProcessorDefinition replaceChildren(ProcessorDefinition left, ProcessorDefinition right) {
-            return new DummyBinaryProcessorDefinition(left, right);
+            return new DummyBinaryProcessorDefinition(location(), left, right);
         }
     }
 
@@ -113,8 +126,22 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         private final boolean supportedByAggsOnlyQuery;
 
         public DummyProcessorDefinition(boolean supportedByAggsOnlyQuery) {
-            super(null, emptyList());
+            this(Location.EMPTY, supportedByAggsOnlyQuery);
+        }
+
+        public DummyProcessorDefinition(Location location, boolean supportedByAggsOnlyQuery) {
+            super(location, null, emptyList());
             this.supportedByAggsOnlyQuery = supportedByAggsOnlyQuery;
+        }
+
+        @Override
+        protected NodeInfo<DummyProcessorDefinition> info() {
+            return NodeInfo.create(this, DummyProcessorDefinition::new, supportedByAggsOnlyQuery);
+        }
+
+        @Override
+        public ProcessorDefinition replaceChildren(List<ProcessorDefinition> newChildren) {
+            throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
         }
 
         @Override

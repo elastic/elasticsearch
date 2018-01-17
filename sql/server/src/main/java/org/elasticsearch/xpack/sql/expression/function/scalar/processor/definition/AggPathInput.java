@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 public class AggPathInput extends CommonNonExecutableInput<String> {
@@ -18,17 +18,22 @@ public class AggPathInput extends CommonNonExecutableInput<String> {
     private final Processor action;
 
     public AggPathInput(Expression expression, String context) {
-        this(expression, context, null, null);
+        this(Location.EMPTY, expression, context, null, null);
     }
 
     public AggPathInput(Expression expression, String context, String innerKey) {
-        this(expression, context, innerKey, null);
+        this(Location.EMPTY, expression, context, innerKey, null);
     }
 
-    public AggPathInput(Expression expression, String context, String innerKey, Processor action) {
-        super(expression, context);
+    public AggPathInput(Location location, Expression expression, String context, String innerKey, Processor action) {
+        super(location, expression, context);
         this.innerKey = innerKey;
         this.action = action;
+    }
+
+    @Override
+    protected NodeInfo<AggPathInput> info() {
+        return NodeInfo.create(this, AggPathInput::new, expression(), context(), innerKey, action);
     }
 
     public String innerKey() {

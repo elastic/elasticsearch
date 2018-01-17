@@ -10,6 +10,8 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class FilterExec extends UnaryExec implements Unexecutable {
 
@@ -18,14 +20,24 @@ public class FilterExec extends UnaryExec implements Unexecutable {
     // gets setup automatically and then copied over during cloning
     private final boolean isHaving;
 
-    public FilterExec(PhysicalPlan child, Expression condition) {
-        this(child, condition, child instanceof AggregateExec);
+    public FilterExec(Location location, PhysicalPlan child, Expression condition) {
+        this(location, child, condition, child instanceof AggregateExec);
     }
 
-    public FilterExec(PhysicalPlan child, Expression condition, boolean isHaving) {
-        super(child);
+    public FilterExec(Location location, PhysicalPlan child, Expression condition, boolean isHaving) {
+        super(location, child);
         this.condition = condition;
         this.isHaving = isHaving;
+    }
+
+    @Override
+    protected NodeInfo<FilterExec> info() {
+        return NodeInfo.create(this, FilterExec::new, child(), condition, isHaving);
+    }
+
+    @Override
+    protected FilterExec replaceChild(PhysicalPlan newChild) {
+        return new FilterExec(location(), newChild, condition, isHaving);
     }
 
     public Expression condition() {
@@ -51,11 +63,11 @@ public class FilterExec extends UnaryExec implements Unexecutable {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         FilterExec other = (FilterExec) obj;
         return Objects.equals(condition, other.condition)
                 && Objects.equals(child(), other.child());

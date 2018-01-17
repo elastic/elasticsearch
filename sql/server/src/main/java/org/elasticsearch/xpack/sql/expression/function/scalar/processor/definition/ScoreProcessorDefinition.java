@@ -9,14 +9,27 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 
 import static java.util.Collections.emptyList;
 
-public class ScoreProcessorDefinition extends ProcessorDefinition {
+import java.util.List;
 
-    public ScoreProcessorDefinition(Expression expression) {
-        super(expression, emptyList());
+public class ScoreProcessorDefinition extends ProcessorDefinition {
+    public ScoreProcessorDefinition(Location location, Expression expression) {
+        super(location, expression, emptyList());
+    }
+
+    @Override
+    protected NodeInfo<ScoreProcessorDefinition> info() {
+        return NodeInfo.create(this, ScoreProcessorDefinition::new, expression());
+    }
+
+    @Override
+    public final ProcessorDefinition replaceChildren(List<ProcessorDefinition> newChildren) {
+        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     @Override

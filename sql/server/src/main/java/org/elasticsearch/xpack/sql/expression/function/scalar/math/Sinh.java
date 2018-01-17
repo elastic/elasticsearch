@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Hyperbolic_function">Hyperbolic sine</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Sinh extends MathFunction {
     public Sinh(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Sinh> info() {
+        return NodeInfo.create(this, Sinh::new, field());
+    }
+
+    @Override
+    protected Sinh replaceChild(Expression newChild) {
+        return new Sinh(location(), newChild);
     }
 
     @Override

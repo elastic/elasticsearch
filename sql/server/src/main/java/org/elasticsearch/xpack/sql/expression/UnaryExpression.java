@@ -12,6 +12,8 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
+import java.util.List;
+
 public abstract class UnaryExpression extends Expression {
 
     private final Expression child;
@@ -20,6 +22,15 @@ public abstract class UnaryExpression extends Expression {
         super(location, singletonList(child));
         this.child = child;
     }
+
+    @Override
+    public final UnaryExpression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return replaceChild(newChildren.get(0));
+    }
+    protected abstract UnaryExpression replaceChild(Expression newChild);
 
     public Expression child() {
         return child;

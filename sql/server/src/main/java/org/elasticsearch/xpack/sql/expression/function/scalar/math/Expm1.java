@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-">e<sup>x</sup> + 1</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Expm1 extends MathFunction {
     public Expm1(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Expm1> info() {
+        return NodeInfo.create(this, Expm1::new, field());
+    }
+
+    @Override
+    protected Expm1 replaceChild(Expression newChild) {
+        return new Expm1(location(), newChild);
     }
 
     @Override

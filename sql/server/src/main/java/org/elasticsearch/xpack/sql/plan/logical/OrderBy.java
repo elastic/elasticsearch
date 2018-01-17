@@ -11,6 +11,7 @@ import java.util.Objects;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class OrderBy extends UnaryPlan {
 
@@ -19,6 +20,16 @@ public class OrderBy extends UnaryPlan {
     public OrderBy(Location location, LogicalPlan child, List<Order> order) {
         super(location, child);
         this.order = order;
+    }
+
+    @Override
+    protected NodeInfo<OrderBy> info() {
+        return NodeInfo.create(this, OrderBy::new, child(), order);
+    }
+
+    @Override
+    protected OrderBy replaceChild(LogicalPlan newChild) {
+        return new OrderBy(location(), newChild, order);
     }
 
     public List<Order> order() {

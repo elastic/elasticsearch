@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -18,6 +19,11 @@ public class Exists extends SubQueryExpression {
 
     public Exists(Location location, LogicalPlan query, ExpressionId id) {
         super(location, query, id);
+    }
+
+    @Override
+    protected NodeInfo<Exists> info() {
+        return NodeInfo.create(this, Exists::new, query(), id());
     }
 
     @Override

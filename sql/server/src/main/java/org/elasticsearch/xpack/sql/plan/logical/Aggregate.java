@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,6 +25,16 @@ public class Aggregate extends UnaryPlan {
         super(location, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
+    }
+
+    @Override
+    protected NodeInfo<Aggregate> info() {
+        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates);
+    }
+
+    @Override
+    protected Aggregate replaceChild(LogicalPlan newChild) {
+        return new Aggregate(location(), newChild, groupings, aggregates);
     }
 
     public List<Expression> groupings() {
@@ -54,11 +65,11 @@ public class Aggregate extends UnaryPlan {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Aggregate other = (Aggregate) obj;
         return Objects.equals(groupings, other.groupings)
                 && Objects.equals(aggregates, other.aggregates)

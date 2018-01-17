@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class GreaterThanOrEqual extends BinaryComparison implements Negateable {
 
@@ -16,6 +17,15 @@ public class GreaterThanOrEqual extends BinaryComparison implements Negateable {
     }
 
     @Override
+    protected NodeInfo<GreaterThanOrEqual> info() {
+        return NodeInfo.create(this, GreaterThanOrEqual::new, left(), right());
+    }
+
+    @Override
+    protected GreaterThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
+        return new GreaterThanOrEqual(location(), newLeft, newRight);
+    }
+
     public Object fold() {
         Integer compare = compare(left().fold(), right().fold());
         return compare != null && compare.intValue() >= 0;

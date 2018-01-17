@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
@@ -21,6 +22,16 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 public class Round extends MathFunction {
     public Round(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Round> info() {
+        return NodeInfo.create(this, Round::new, field());
+    }
+
+    @Override
+    protected Round replaceChild(Expression newChild) {
+        return new Round(location(), newChild);
     }
 
     @Override

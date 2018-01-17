@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
@@ -41,6 +43,12 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
         this.name = sb.toString();
     }
+
+    @Override
+    protected final NodeInfo<DateTimeFunction> info() {
+        return NodeInfo.create(this, ctorForInfo(), field(), timeZone());
+    }
+    protected abstract NodeInfo.NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo();
 
     public DateTimeZone timeZone() {
         return timeZone;
@@ -112,7 +120,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()),
+        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
                 new DateTimeProcessor(extractor(), timeZone));
     }
 
@@ -130,5 +138,20 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     @Override
     public String name() {
         return name;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        DateTimeFunction other = (DateTimeFunction) obj;
+        return Objects.equals(other.field(), field())
+            && Objects.equals(other.timeZone, timeZone);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), timeZone);
     }
 }

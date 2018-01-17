@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -47,5 +48,20 @@ public abstract class AggregateFunction extends Function {
             lazyAttribute = new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
         }
         return lazyAttribute;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+        AggregateFunction other = (AggregateFunction) obj;
+        return Objects.equals(other.field(), field())
+            && Objects.equals(other.parameters(), parameters());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), parameters());
     }
 }

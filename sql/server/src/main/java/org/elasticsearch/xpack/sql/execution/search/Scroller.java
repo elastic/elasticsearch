@@ -135,7 +135,7 @@ public class Scroller {
                         else {
                             action = () -> aggValues.column(aggPosition);
                         }
-                        return new AggValueInput(a.expression(), action, a.innerKey());
+                        return new AggValueInput(a.location(), a.expression(), action, a.innerKey());
                     }, AggPathInput.class).asProcessor();
                     // the input is provided through the value input above
                     supplier = () -> processor.process(null);
@@ -288,7 +288,7 @@ public class Scroller {
                         throw new SqlIllegalArgumentException("Multi-level nested fields [%s] not supported yet", hitNames);
                     }
 
-                    return new HitExtractorInput(l.expression(), he);
+                    return new HitExtractorInput(l.location(), l.expression(), he);
                 }, ReferenceInput.class);
                 String hitName = null;
                 if (hitNames.size() == 1) {

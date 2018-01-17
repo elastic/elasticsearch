@@ -8,15 +8,28 @@ package org.elasticsearch.xpack.sql.plan.physical;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class OrderExec extends UnaryExec implements Unexecutable {
 
     private final List<Order> order;
 
-    public OrderExec(PhysicalPlan child, List<Order> order) {
-        super(child);
+    public OrderExec(Location location, PhysicalPlan child, List<Order> order) {
+        super(location, child);
         this.order = order;
+    }
+
+    @Override
+    protected NodeInfo<OrderExec> info() {
+        return NodeInfo.create(this, OrderExec::new, child(), order);
+    }
+
+    @Override
+    protected OrderExec replaceChild(PhysicalPlan newChild) {
+        return new OrderExec(location(), newChild, order);
     }
 
     public List<Order> order() {
@@ -38,7 +51,7 @@ public class OrderExec extends UnaryExec implements Unexecutable {
         }
 
         OrderExec other = (OrderExec) obj;
-        
+
         return Objects.equals(order, other.order)
                 && Objects.equals(child(), other.child());
     }

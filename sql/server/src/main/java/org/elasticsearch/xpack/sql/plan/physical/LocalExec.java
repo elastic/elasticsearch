@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,6 +24,11 @@ public class LocalExec extends LeafExec {
     public LocalExec(Location location, Executable executable) {
         super(location);
         this.executable = executable;
+    }
+
+    @Override
+    protected NodeInfo<LocalExec> info() {
+        return NodeInfo.create(this, LocalExec::new, executable);
     }
 
     public Executable executable() {

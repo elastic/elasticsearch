@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Logarithm">Logarithm</a>
@@ -16,6 +17,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 public class Log10 extends MathFunction {
     public Log10(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Log10> info() {
+        return NodeInfo.create(this, Log10::new, field());
+    }
+
+    @Override
+    protected Log10 replaceChild(Expression newChild) {
+        return new Log10(location(), newChild);
     }
 
     @Override

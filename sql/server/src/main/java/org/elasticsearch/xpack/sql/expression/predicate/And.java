@@ -6,19 +6,30 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.BinaryLogic;
+import org.elasticsearch.xpack.sql.expression.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
 
 public class And extends BinaryLogic implements Negateable {
-    
+
     public And(Location location, Expression left, Expression right) {
         super(location, left, right);
     }
 
     @Override
+    protected NodeInfo<And> info() {
+        return NodeInfo.create(this, And::new, left(), right());
+    }
+
+    @Override
+    protected BinaryOperator replaceChildren(Expression newLeft, Expression newRight) {
+        return new And(location(), newLeft, newRight);
+    }
+
     public Object fold() {
         return Objects.equals(left().fold(), Boolean.TRUE) && Objects.equals(right().fold(), Boolean.TRUE);
     }

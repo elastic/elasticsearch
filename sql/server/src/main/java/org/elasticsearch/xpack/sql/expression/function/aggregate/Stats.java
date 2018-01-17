@@ -5,13 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Stats extends CompoundNumericAggregate {
 
     public Stats(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected NodeInfo<Stats> info() {
+        return NodeInfo.create(this, Stats::new, field());
+    }
+
+    @Override
+    public Stats replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new Stats(location(), newChildren.get(0));
     }
 
     public static boolean isTypeCompatible(Expression e) {

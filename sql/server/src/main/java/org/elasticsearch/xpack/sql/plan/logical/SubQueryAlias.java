@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,13 +23,23 @@ public class SubQueryAlias extends UnaryPlan {
         this.alias = alias;
     }
 
+    @Override
+    protected NodeInfo<SubQueryAlias> info() {
+        return NodeInfo.create(this, SubQueryAlias::new, child(), alias);
+    }
+
+    @Override
+    protected SubQueryAlias replaceChild(LogicalPlan newChild) {
+        return new SubQueryAlias(location(), newChild, alias);
+    }
+
     public String alias() {
         return alias;
     }
 
     @Override
     public List<Attribute> output() {
-        return (alias == null ? child().output() : 
+        return (alias == null ? child().output() :
                 child().output().stream()
                 .map(e -> e.withQualifier(alias))
                 .collect(toList())
@@ -42,7 +53,7 @@ public class SubQueryAlias extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(alias, child());
+        return Objects.hash(alias, super.hashCode());
     }
 
     @Override
@@ -50,7 +61,7 @@ public class SubQueryAlias extends UnaryPlan {
         if (!super.equals(obj)) {
             return false;
         }
-        
+
         SubQueryAlias other = (SubQueryAlias) obj;
         return Objects.equals(alias, other.alias);
     }

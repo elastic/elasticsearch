@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
@@ -22,6 +23,11 @@ public class ShowSchemas extends Command {
 
     public ShowSchemas(Location location) {
         super(location);
+    }
+
+    @Override
+    protected NodeInfo<ShowSchemas> info() {
+        return NodeInfo.create(this);
     }
 
     @Override

@@ -34,9 +34,9 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ShardFieldData implements IndexFieldDataCache.Listener {
 
-    final CounterMetric evictionsMetric = new CounterMetric();
-    final CounterMetric totalMetric = new CounterMetric();
-    final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
+    private final CounterMetric evictionsMetric = new CounterMetric();
+    private final CounterMetric totalMetric = new CounterMetric();
+    private final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
 
     public FieldDataStats stats(String... fields) {
         ObjectLongHashMap<String> fieldTotals = null;

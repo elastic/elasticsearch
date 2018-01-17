@@ -11,6 +11,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.plugin.SqlTranslateResponse;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -28,7 +29,7 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
 
         boolean columnOrder = randomBoolean();
         String columns = columnOrder ? "data, count" : "count, data";
-        SqlTranslateAction.Response response = client().prepareExecute(SqlTranslateAction.INSTANCE)
+        SqlTranslateResponse response = client().prepareExecute(SqlTranslateAction.INSTANCE)
                 .query("SELECT " + columns + " FROM test ORDER BY count").get();
         SearchSourceBuilder source = response.source();
         FetchSourceContext fetch = source.fetchSource();

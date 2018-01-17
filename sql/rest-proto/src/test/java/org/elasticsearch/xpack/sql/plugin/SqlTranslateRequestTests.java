@@ -20,10 +20,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilter;
-import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilterOrNull;
+import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilter;
+import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilterOrNull;
 
-public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateAction.Request> {
+public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateRequest> {
 
     public AbstractSqlRequest.Mode testMode;
 
@@ -33,14 +33,14 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateAction.Request createTestInstance() {
-        return new SqlTranslateAction.Request(testMode, randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
+    protected SqlTranslateRequest createTestInstance() {
+        return new SqlTranslateRequest(testMode, randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
                 between(1, Integer.MAX_VALUE), randomTV(), randomTV());
     }
 
     @Override
-    protected Writeable.Reader<SqlTranslateAction.Request> instanceReader() {
-        return SqlTranslateAction.Request::new;
+    protected Writeable.Reader<SqlTranslateRequest> instanceReader() {
+        return SqlTranslateRequest::new;
     }
 
     private TimeValue randomTV() {
@@ -60,14 +60,14 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateAction.Request doParseInstance(XContentParser parser) {
-        return SqlTranslateAction.Request.fromXContent(parser, testMode);
+    protected SqlTranslateRequest doParseInstance(XContentParser parser) {
+        return SqlTranslateRequest.fromXContent(parser, testMode);
     }
 
     @Override
-    protected SqlTranslateAction.Request mutateInstance(SqlTranslateAction.Request instance) throws IOException {
+    protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
-        Consumer<SqlTranslateAction.Request> mutator = randomFrom(
+        Consumer<SqlTranslateRequest> mutator = randomFrom(
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
@@ -75,7 +75,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );
-        SqlTranslateAction.Request newRequest = new SqlTranslateAction.Request(instance.mode(), instance.query(), instance.filter(),
+        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.mode(), instance.query(), instance.filter(),
                 instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout());
         mutator.accept(newRequest);
         return newRequest;

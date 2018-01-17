@@ -9,10 +9,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
-public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTranslateAction.Response> {
+public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTranslateResponse> {
 
     @Override
-    protected SqlTranslateAction.Response createTestInstance() {
+    protected SqlTranslateResponse createTestInstance() {
         SearchSourceBuilder s = new SearchSourceBuilder();
         if (randomBoolean()) {
             long docValues = iterations(5, 10);
@@ -30,18 +30,18 @@ public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTra
 
         s.fetchSource(randomBoolean()).from(randomInt(256)).explain(randomBoolean()).size(randomInt(256));
 
-        return new SqlTranslateAction.Response(s);
+        return new SqlTranslateResponse(s);
     }
 
     @Override
-    protected SqlTranslateAction.Response createBlankInstance() {
-        return new SqlTranslateAction.Response();
+    protected SqlTranslateResponse createBlankInstance() {
+        return new SqlTranslateResponse();
     }
 
     @Override
-    protected MutateFunction<SqlTranslateAction.Response> getMutateFunction() {
+    protected MutateFunction<SqlTranslateResponse> getMutateFunction() {
         return response -> {
-            SqlTranslateAction.Response copy = getCopyFunction().copy(response);
+            SqlTranslateResponse copy = getCopyFunction().copy(response);
             copy.source().size(randomValueOtherThan(response.source().size(), () -> between(0, Integer.MAX_VALUE)));
             return copy;
         };

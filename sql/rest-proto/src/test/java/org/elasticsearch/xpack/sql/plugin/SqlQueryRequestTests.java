@@ -14,15 +14,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.test.SqlTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilter;
-import static org.elasticsearch.xpack.sql.test.SqlTestUtils.randomFilterOrNull;
+import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilter;
+import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilterOrNull;
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 

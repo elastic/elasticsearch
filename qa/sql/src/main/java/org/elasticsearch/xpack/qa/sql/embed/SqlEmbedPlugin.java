@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.plugin.RestSqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.RestSqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.RestSqlListTablesAction;
 import org.elasticsearch.xpack.sql.plugin.RestSqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.RestSqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.sql.plugin.TransportSqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlListTablesAction;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
+import org.elasticsearch.xpack.sql.plugin.TransportSqlTranslateAction;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
@@ -82,7 +84,7 @@ public class SqlEmbedPlugin extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
         return Arrays.asList(new RestSqlQueryAction(settings, restController),
-                new SqlTranslateAction.RestAction(settings, restController),
+                new RestSqlTranslateAction(settings, restController),
                 new RestSqlClearCursorAction(settings, restController),
                 new RestSqlListTablesAction(settings, restController),
                 new RestSqlListColumnsAction(settings, restController));
@@ -91,7 +93,7 @@ public class SqlEmbedPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
-                new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class),
+                new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
                 new ActionHandler<>(SqlListTablesAction.INSTANCE, TransportSqlListTablesAction.class),
                 new ActionHandler<>(SqlListColumnsAction.INSTANCE, TransportSqlListColumnsAction.class));

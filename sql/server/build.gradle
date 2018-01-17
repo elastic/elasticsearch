@@ -4,8 +4,6 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:rest-proto')
   compile 'org.antlr:antlr4-runtime:4.5.3'
   provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-
-  testCompile project(':x-pack-elasticsearch:sql:test-utils')
 }
 
 dependencyLicenses {

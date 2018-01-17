@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.plugin.SqlTranslateResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -180,7 +181,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlTranslateAction.Response response = client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get();
+        SqlTranslateResponse response = client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
         assertThat(source.docValueFields(), Matchers.contains("count"));
         FetchSourceContext fetchSource = source.fetchSource();

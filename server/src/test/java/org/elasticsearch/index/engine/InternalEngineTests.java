@@ -4423,10 +4423,6 @@ public class InternalEngineTests extends EngineTestCase {
             final int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
                 index(engine, docId);
-                if (rarely()) {
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
-                    engine.getTranslog().sync();
-                }
                 if (frequently()) {
                     engine.flush(randomBoolean(), randomBoolean());
                 }

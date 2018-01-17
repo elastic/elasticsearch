@@ -80,7 +80,7 @@ public class NamingConventionsTask extends LoggedExec {
         FileCollection classpath = project.sourceSets.test.runtimeClasspath
         inputs.files(classpath)
         description = "Tests that test classes aren't misnamed or misplaced"
-        executable = new File(project.javaHome, 'bin/java')
+        executable = new File(project.runtimeJavaHome, 'bin/java')
         if (false == checkForTestsInMain) {
             /* This task is created by default for all subprojects with this
              * setting and there is no point in running it if the files don't

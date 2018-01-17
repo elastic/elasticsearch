@@ -304,8 +304,52 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             replica.store().close();
             newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
-
             shards.assertAllEqual(totalDocs);
+            // Make sure that flushing on a recovering shard is ok.
+            shards.flush();
+            shards.assertAllEqual(totalDocs);
+        }
+    }
+
+    public void testReplicaRollbackStaleDocumentsInPeerRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            IndexShard oldPrimary = shards.getPrimary();
+            IndexShard newPrimary = shards.getReplicas().get(0);
+            IndexShard replica = shards.getReplicas().get(1);
+            int goodDocs = shards.indexDocs(scaledRandomIntBetween(1, 20));
+            shards.flush();
+            // simulate docs that were inflight when primary failed, these will be rolled back
+            int staleDocs = scaledRandomIntBetween(1, 10);
+            logger.info("--> indexing {} stale docs", staleDocs);
+            for (int i = 0; i < staleDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
+                    .source("{}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                indexOnReplica(bulkShardRequest, replica);
+            }
+            shards.flush();
+            shards.promoteReplicaToPrimary(newPrimary).get();
+            // Recover a replica should rollback the stale documents
+            shards.removeReplica(replica);
+            replica.close("recover replica - first time", false);
+            replica.store().close();
+            replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+            shards.recoverReplica(replica);
+            shards.assertAllEqual(goodDocs);
+            // Index more docs - move the global checkpoint >= seqno of the stale operations.
+            goodDocs += shards.indexDocs(scaledRandomIntBetween(staleDocs, staleDocs * 5));
+            shards.syncGlobalCheckpoint();
+            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
+            // Recover a replica again should also rollback the stale documents.
+            shards.removeReplica(replica);
+            replica.close("recover replica - second time", false);
+            replica.store().close();
+            IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+            shards.recoverReplica(anotherReplica);
+            shards.assertAllEqual(goodDocs);
+            shards.flush();
+            shards.assertAllEqual(goodDocs);
         }
     }
 

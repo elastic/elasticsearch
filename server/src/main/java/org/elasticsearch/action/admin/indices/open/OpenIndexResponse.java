@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A response for a open index action.
  */
-public class OpenIndexResponse extends AcknowledgedResponse implements ToXContentObject  {
+public class OpenIndexResponse extends AcknowledgedResponse implements ToXContentObject {
     private static final String SHARDS_ACKNOWLEDGED = "shards_acknowledged";
     private static final ParseField SHARDS_ACKNOWLEDGED_PARSER = new ParseField(SHARDS_ACKNOWLEDGED);
 

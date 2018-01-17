@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
@@ -29,14 +29,14 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return CollectionUtils.combine(
-                readScriptSpec("/select.sql-spec", parser),
-                readScriptSpec("/filter.sql-spec", parser),
-                readScriptSpec("/datetime.sql-spec", parser),
-                readScriptSpec("/math.sql-spec", parser),
-                readScriptSpec("/agg.sql-spec", parser),
-                readScriptSpec("/arithmetic.sql-spec", parser)
-                );
+        List<Object[]> tests = new ArrayList<>();
+        tests.addAll(readScriptSpec("/select.sql-spec", parser));
+        tests.addAll(readScriptSpec("/filter.sql-spec", parser));
+        tests.addAll(readScriptSpec("/datetime.sql-spec", parser));
+        tests.addAll(readScriptSpec("/math.sql-spec", parser));
+        tests.addAll(readScriptSpec("/agg.sql-spec", parser));
+        tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
+        return tests;
     }
 
     private static class SqlSpecParser implements Parser {
@@ -57,7 +57,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
-        try (Connection h2 = H2.get(); 
+        try (Connection h2 = H2.get();
              Connection es = esJdbc()) {
 
             ResultSet expected, elasticResults;

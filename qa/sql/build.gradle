@@ -16,19 +16,6 @@ dependencies {
 
   // There are *no* CLI testing dependencies because we
   // communicate fork a new CLI process when we need it.
-
-  // Used to support embedded testing mode
-  compile(project(':x-pack-elasticsearch:sql:server')) {
-    transitive = false
-  }
-  compile(project(':x-pack-elasticsearch:sql:rest-proto')) {
-    transitive = false
-  }
-  compile "org.elasticsearch.client:transport:${version}"
-
-  // Needed by embedded server
-  compile project(path: ':modules:lang-painless', configuration: 'runtime')
-
 }
 
 /* disable unit tests because these are all integration tests used
@@ -36,23 +23,6 @@ dependencies {
 test.enabled = false
 
 dependencyLicenses.enabled = false
-
-// Allow for com.sun.net.httpserver.* usage for embedded mode
-eclipse {
-  classpath.file {
-    whenMerged { cp ->
-      def con = entries.find { e ->
-        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-      }
-      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
-        "accessible", "com/sun/net/httpserver/*"))
-    }
-  }
-}
-forbiddenApisMain {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-}
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
@@ -94,13 +64,9 @@ subprojects {
     }
     testCompile "org.elasticsearch.test:framework:${versions.elasticsearch}"
 
-    // Needed by embedded server
-    testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
-
     // JDBC testing dependencies
     testRuntime(project(':x-pack-elasticsearch:sql:jdbc'))
     // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
-
     testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false
     }
@@ -112,12 +78,6 @@ subprojects {
     }
 
     cliFixture project(':x-pack-elasticsearch:test:sql-cli-fixture')
-
-    // Used to support embedded testing mode
-    testRuntime(project(':x-pack-elasticsearch:sql:server')) {
-      transitive = false
-    }
-    testRuntime "org.elasticsearch.client:transport:${version}"
   }
 
   if (project.name != 'security') {

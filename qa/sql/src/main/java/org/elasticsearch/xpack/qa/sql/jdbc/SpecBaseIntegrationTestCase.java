@@ -61,14 +61,12 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @AfterClass
     public static void wipeTestData() throws IOException {
-        if (false == EMBED_SQL) {
-            try {
-                adminClient().performRequest("DELETE", "/*");
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
+        try {
+            adminClient().performRequest("DELETE", "/*");
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
             }
         }
     }

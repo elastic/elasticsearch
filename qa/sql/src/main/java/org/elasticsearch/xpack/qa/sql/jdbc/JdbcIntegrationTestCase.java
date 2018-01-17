@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.qa.sql.embed.EmbeddedJdbcServer;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
@@ -39,15 +38,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
-    /**
-     * Starts an internal cluster instead of using external REST cluster. Useful for IDE debugging.
-     * Use: -Dtests.embed.sql=true -Dtests.security.manager=false
-     */
-    protected static final boolean EMBED_SQL = Booleans.parseBoolean(System.getProperty("tests.embed.sql", "false"));
-
-    @ClassRule
-    public static final EmbeddedJdbcServer EMBEDDED_SERVER = EMBED_SQL ? new EmbeddedJdbcServer() : null;
-
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
@@ -67,9 +57,6 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public Connection esJdbc() throws SQLException {
-        if (EMBED_SQL) {
-            return EMBEDDED_SERVER.connection(connectionProperties());
-        }
         return randomBoolean() ? useDriverManager() : useDataSource();
     }
 

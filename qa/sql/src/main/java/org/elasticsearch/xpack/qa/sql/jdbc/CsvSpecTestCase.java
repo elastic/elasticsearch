@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;
 
@@ -25,6 +24,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
@@ -41,16 +41,16 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return CollectionUtils.combine(
-                readScriptSpec("/command.csv-spec", parser),
-                readScriptSpec("/fulltext.csv-spec", parser),
-                readScriptSpec("/agg.csv-spec", parser),
-                readScriptSpec("/columns.csv-spec", parser),
-                readScriptSpec("/datetime.csv-spec", parser),
-                readScriptSpec("/alias.csv-spec", parser),
-                readScriptSpec("/nulls.csv-spec", parser),
-                readScriptSpec("/nested.csv-spec", parser)
-                );
+        List<Object[]> tests = new ArrayList<>();
+        tests.addAll(readScriptSpec("/command.csv-spec", parser));
+        tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
+        tests.addAll(readScriptSpec("/agg.csv-spec", parser));
+        tests.addAll(readScriptSpec("/columns.csv-spec", parser));
+        tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
+        tests.addAll(readScriptSpec("/alias.csv-spec", parser));
+        tests.addAll(readScriptSpec("/nulls.csv-spec", parser));
+        tests.addAll(readScriptSpec("/nested.csv-spec", parser));
+        return tests;
     }
 
     public CsvSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
@@ -142,7 +142,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         }
         return new Tuple<>(columns.toString(), types.toString());
     }
-    
+
     private String resolveColumnType(String type) {
         switch (type.toLowerCase(Locale.ROOT)) {
             case "s": return "string";

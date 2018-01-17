@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
     
-    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction();
+    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction(null, null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1);
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);

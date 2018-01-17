@@ -6,6 +6,12 @@ setup:
           index:  test1
           wait_for_active_shards: all
           body:
+              settings:
+                # Limit the number of shards so that shards are unlikely
+                # to be relocated or being initialized between the test
+                # set up and the test execution
+                index.number_of_shards: 3
+                index.number_of_replicas: 0
               mappings:
                   bar:
                       properties:
@@ -24,7 +30,6 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_active_shards: all
         wait_for_no_relocating_shards: true
 
   - do:

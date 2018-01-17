@@ -158,8 +158,10 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
+
         project.targetCompatibility = minimumRuntimeVersion
         project.sourceCompatibility = minimumRuntimeVersion
+
         // set java home for each project, so they dont have to find it in the root project
         project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
@@ -421,12 +423,12 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
-                File gradleJavaHome = Jvm.current().javaHome
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.forkOptions.memoryMaximumSize = "1g"
-                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
                     if (project.compactProfile != 'full') {
@@ -449,8 +451,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 options.encoding = 'UTF-8'
                 options.incremental = true
+
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                options.compilerArgs << '--release' << project.targetCompatibility.majorVersion
+                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
         }
     }

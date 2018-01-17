@@ -82,7 +82,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
 
         PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
         channel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
-        channel.close();
+        selector.queueChannelClose(channel);
         closeFuture.actionGet();
 
 

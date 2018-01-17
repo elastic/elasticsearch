@@ -148,7 +148,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
                             .map(a -> actions.getOrDefault(a, null))
                             .filter(Objects::nonNull).findFirst().orElse(null);
                     } else if (action instanceof ForceMergeAction) {
-                        return replicasAction;
+                        if (replicaActionFirst == false) {
+                            return replicasAction;
+                        }
                     }
                     return null;
                 };
@@ -156,17 +158,23 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 return (action) -> {
                     ReplicasAction replicasAction = (ReplicasAction) actions.getOrDefault(ReplicasAction.NAME, null);
                     LifecycleAction allocateAction = actions.getOrDefault(AllocateAction.NAME, null);
+                    boolean replicaActionFirst = replicasAction != null
+                        && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas();
                     if (action == null) {
-                        if (replicasAction != null && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas()) {
+                        if (replicaActionFirst) {
                             return replicasAction;
                         } else if (allocateAction != null) {
                             return allocateAction;
                         }
                         return replicasAction;
                     } else if (action instanceof ReplicasAction) {
-                        return allocateAction;
+                        if (replicaActionFirst) {
+                            return allocateAction;
+                        }
                     } else if (action instanceof AllocateAction) {
-                        return replicasAction;
+                        if (replicaActionFirst == false) {
+                            return replicasAction;
+                        }
                     }
                     return null;
                 };

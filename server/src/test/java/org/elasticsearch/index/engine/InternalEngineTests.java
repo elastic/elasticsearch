@@ -163,6 +163,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -4010,13 +4011,15 @@ public class InternalEngineTests extends EngineTestCase {
 
 
         boolean flushed = false;
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         Engine recoveringEngine = null;
         try {
             assertEquals(docs - 1, engine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(docs - 1, engine.getLocalCheckpointTracker().getCheckpoint());
             assertEquals(maxSeqIDOnReplica, replicaEngine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getLocalCheckpointTracker().getCheckpoint());
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine = new InternalEngine(copy(
+                replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
             assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().uncommittedOperations());
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
@@ -4038,6 +4041,8 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getCheckpoint());
                 if ((flushed = randomBoolean())) {
+                    globalCheckpoint.set(recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
+                    recoveringEngine.getTranslog().sync();
                     recoveringEngine.flush(true, true);
                 }
             }
@@ -4047,7 +4052,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine = new InternalEngine(
+                copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
             if (flushed) {
                 assertEquals(0, recoveringEngine.getTranslog().uncommittedOperations());
             }
@@ -4353,6 +4359,59 @@ public class InternalEngineTests extends EngineTestCase {
             // check it's clean up
             engine.flush(true, true);
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+        }
+    }
+
+    public void testOpenIndexAndTranslogKeepOnlySafeCommit() throws Exception {
+        IOUtils.close(engine);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get);
+        final IndexCommit safeCommit;
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+            final int numDocs = between(5, 50);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+                if (randomBoolean()) {
+                    engine.flush();
+                }
+            }
+            // Selects a starting commit and advances and persists the global checkpoint to that commit.
+            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
+            safeCommit = randomFrom(commits);
+            globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+            engine.getTranslog().sync();
+        }
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
+            assertThat("OPEN_INDEX_AND_TRANSLOG should keep only safe commit", existingCommits, contains(safeCommit));
+        }
+    }
+
+    public void testOpenIndexCreateTranslogKeepOnlyLastCommit() throws Exception {
+        IOUtils.close(engine);
+        final EngineConfig config = copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+        final Map<String, String> lastCommit;
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            engine.skipTranslogRecovery();
+            final int numDocs = between(5, 50);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+                if (randomBoolean()) {
+                    engine.flush();
+                }
+            }
+            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
+            lastCommit = commits.get(commits.size() - 1).getUserData();
+        }
+        try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
+            assertThat("OPEN_INDEX_CREATE_TRANSLOG should keep only last commit", existingCommits, hasSize(1));
+            final Map<String, String> userData = existingCommits.get(0).getUserData();
+            assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(lastCommit.get(SequenceNumbers.MAX_SEQ_NO)));
+            assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(lastCommit.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+            // Translog tags should be fresh.
+            assertThat(userData.get(Translog.TRANSLOG_UUID_KEY), not(equalTo(lastCommit.get(Translog.TRANSLOG_UUID_KEY))));
+            assertThat(userData.get(Translog.TRANSLOG_GENERATION_KEY), equalTo("1"));
         }
     }
 }

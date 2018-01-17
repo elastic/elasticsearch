@@ -31,12 +31,19 @@ import java.io.IOException;
  */
 public class RankEvalRequest extends ActionRequest {
 
-    private RankEvalSpec rankingEvaluation;
+    private RankEvalSpec rankingEvaluationSpec;
+
+    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec) {
+        this.rankingEvaluationSpec = rankingEvaluationSpec;
+    }
+
+    RankEvalRequest() {
+    }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = null;
-        if (rankingEvaluation == null) {
+        if (rankingEvaluationSpec == null) {
             e = new ActionRequestValidationException();
             e.addValidationError("missing ranking evaluation specification");
         }
@@ -47,26 +54,26 @@ public class RankEvalRequest extends ActionRequest {
      * Returns the specification of the ranking evaluation.
      */
     public RankEvalSpec getRankEvalSpec() {
-        return rankingEvaluation;
+        return rankingEvaluationSpec;
     }
 
     /**
      * Set the the specification of the ranking evaluation.
      */
     public void setRankEvalSpec(RankEvalSpec task) {
-        this.rankingEvaluation = task;
+        this.rankingEvaluationSpec = task;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        rankingEvaluation = new RankEvalSpec(in);
+        rankingEvaluationSpec = new RankEvalSpec(in);
 
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        rankingEvaluation.writeTo(out);
+        rankingEvaluationSpec.writeTo(out);
     }
 }

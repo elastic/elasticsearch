@@ -54,6 +54,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -542,7 +543,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         String id = get(Fields._ID, values, null);
         Text type = get(Fields._TYPE, values, null);
         NestedIdentity nestedIdentity = get(NestedIdentity._NESTED, values, null);
-        Map<String, DocumentField> fields = get(Fields.FIELDS, values, null);
+        Map<String, DocumentField> fields = get(Fields.FIELDS, values, Collections.emptyMap());
 
         SearchHit searchHit = new SearchHit(-1, id, type, nestedIdentity, fields);
         searchHit.index = get(Fields._INDEX, values, null);
@@ -562,7 +563,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (shardId != null && nodeId != null) {
             searchHit.shard(new SearchShardTarget(nodeId, shardId, null, OriginalIndices.NONE));
         }
-        searchHit.fields(fields);
         return searchHit;
     }
 

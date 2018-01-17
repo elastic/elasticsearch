@@ -21,6 +21,11 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
@@ -64,6 +69,17 @@ public class RatedSearchHitTests extends ESTestCase {
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
+    }
+
+    public void testXContentRoundtrip() throws IOException {
+        RatedSearchHit testItem = randomRatedSearchHit();
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
+            RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
+            assertNotSame(testItem, parsedItem);
+            assertEquals(testItem, parsedItem);
+            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
     }
 
     public void testEqualsAndHash() throws IOException {

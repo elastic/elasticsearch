@@ -74,10 +74,12 @@ seconds) that the token expires in, and the type:
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
-  "expires_in" : 1200
+  "expires_in" : 1200,
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
 The token returned by this API can be used by sending a request with a
 `Authorization` header with a value having the prefix `Bearer ` followed
@@ -87,6 +89,36 @@ by the value of the `access_token`.
 --------------------------------------------------
 curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
 --------------------------------------------------
+
+[[security-api-refresh-token]]
+To extend the life of an existing token, the token api may be called again with the refresh
+token within 24 hours of the token's creation.
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/oauth2/token
+{
+    "grant_type": "refresh_token",
+    "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+// TEST[continued]
+
+The API will return a new token and refresh token. Each refresh token may only be used one time.
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200,
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
 [[security-api-invalidate-token]]
 If a token must be invalidated immediately, you can do so by submitting a DELETE

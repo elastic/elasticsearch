@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
@@ -16,8 +17,9 @@ import org.elasticsearch.common.settings.SecureString;
 public final class CreateTokenRequestBuilder
         extends ActionRequestBuilder<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> {
 
-    public CreateTokenRequestBuilder(ElasticsearchClient client) {
-        super(client, CreateTokenAction.INSTANCE, new CreateTokenRequest());
+    public CreateTokenRequestBuilder(ElasticsearchClient client,
+                                     Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> action) {
+        super(client, action, new CreateTokenRequest());
     }
 
     /**
@@ -31,7 +33,7 @@ public final class CreateTokenRequestBuilder
     /**
      * Set the username to be used for authentication with a password grant
      */
-    public CreateTokenRequestBuilder setUsername(String username) {
+    public CreateTokenRequestBuilder setUsername(@Nullable String username) {
         request.setUsername(username);
         return this;
     }
@@ -40,7 +42,7 @@ public final class CreateTokenRequestBuilder
      * Set the password credentials associated with the user. These credentials will be used for
      * authentication and the resulting token will be for this user
      */
-    public CreateTokenRequestBuilder setPassword(SecureString password) {
+    public CreateTokenRequestBuilder setPassword(@Nullable SecureString password) {
         request.setPassword(password);
         return this;
     }
@@ -52,6 +54,11 @@ public final class CreateTokenRequestBuilder
      */
     public CreateTokenRequestBuilder setScope(@Nullable String scope) {
         request.setScope(scope);
+        return this;
+    }
+
+    public CreateTokenRequestBuilder setRefreshToken(@Nullable String refreshToken) {
+        request.setRefreshToken(refreshToken);
         return this;
     }
 }

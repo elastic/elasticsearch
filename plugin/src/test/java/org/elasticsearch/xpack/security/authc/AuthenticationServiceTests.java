@@ -10,16 +10,26 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -30,6 +40,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -141,9 +152,22 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
+        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
+                .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
+                .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
+        doAnswer(invocationOnMock -> {
+            ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
+            responseActionListener.onResponse(new IndexResponse());
+            return null;
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
         lifecycleService = mock(SecurityLifecycleService.class);
-        ClusterService clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings
-                .BUILT_IN_CLUSTER_SETTINGS), threadPool, Collections.emptyMap());
+        doAnswer(invocationOnMock -> {
+            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+            runnable.run();
+            return null;
+        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
@@ -806,7 +830,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         final AtomicBoolean completed = new AtomicBoolean(false);
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
+        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
+            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
+        }
+        String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             service.authenticate("_action", message, null, ActionListener.wrap(result -> {
@@ -863,20 +892,40 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
+        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
-        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
-        GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
-        when(client.prepareGet(eq(SecurityLifecycleService.SECURITY_INDEX_NAME), eq("doc"), any(String.class)))
-                .thenReturn(getRequestBuilder);
+        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
+            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
+        }
+        String token = tokenService.getUserTokenString(tokenFuture.get().v1());
+        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
-            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
-            GetResponse response = mock(GetResponse.class);
-            when(response.isExists()).thenReturn(true);
+            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
+            MultiGetResponse response = mock(MultiGetResponse.class);
+            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
+            when(response.getResponses()).thenReturn(responses);
+
+            final boolean newExpired = randomBoolean();
+            GetResponse oldGetResponse = mock(GetResponse.class);
+            when(oldGetResponse.isExists()).thenReturn(newExpired == false);
+            responses[0] = new MultiGetItemResponse(oldGetResponse, null);
+
+            GetResponse getResponse = mock(GetResponse.class);
+            responses[1] = new MultiGetItemResponse(getResponse, null);
+            when(getResponse.isExists()).thenReturn(newExpired);
+            if (newExpired) {
+                Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
+                        .put("access_token", Collections.singletonMap("invalidated", true))
+                        .immutableMap();
+                when(getResponse.getSource()).thenReturn(source);
+            }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();

@@ -26,4 +26,12 @@ public final class InvalidateTokenRequestBuilder
         request.setTokenString(token);
         return this;
     }
+
+    /**
+     * Sets the type of the token that should be invalidated
+     */
+    public InvalidateTokenRequestBuilder setType(InvalidateTokenRequest.Type type) {
+        request.setTokenType(type);
+        return this;
+    }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequestBuilder;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
@@ -270,7 +271,7 @@ public class SecurityClient {
     }
 
     public CreateTokenRequestBuilder prepareCreateToken() {
-        return new CreateTokenRequestBuilder(client);
+        return new CreateTokenRequestBuilder(client, CreateTokenAction.INSTANCE);
     }
 
     public void createToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
@@ -283,5 +284,15 @@ public class SecurityClient {
 
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
+    }
+
+    public CreateTokenRequestBuilder prepareRefreshToken(String refreshToken) {
+        return new CreateTokenRequestBuilder(client, RefreshTokenAction.INSTANCE)
+                .setRefreshToken(refreshToken)
+                .setGrantType("refresh_token");
+    }
+
+    public void refreshToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        client.execute(RefreshTokenAction.INSTANCE, request, listener);
     }
 }

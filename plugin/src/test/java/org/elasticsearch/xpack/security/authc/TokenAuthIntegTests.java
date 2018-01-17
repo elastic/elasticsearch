@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -23,14 +24,16 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -38,8 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
@@ -49,7 +52,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 // crank up the deletion interval and set timeout for delete requests
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
-                .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(2L))
+                .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .build();
     }
@@ -134,12 +137,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         Instant created = Instant.now();
 
-        InvalidateTokenResponse invalidateResponse = securityClient.prepareInvalidateToken(response.getTokenString()).get();
+        InvalidateTokenResponse invalidateResponse = securityClient
+                .prepareInvalidateToken(response.getTokenString())
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
         assertTrue(invalidateResponse.isCreated());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE)))
+                    .setSource(SearchSourceBuilder.searchSource()
+                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(1)
                     .setTerminateAfter(1)
                     .get();
@@ -157,18 +164,21 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
-            assertTrue(Instant.now().isAfter(created.plusSeconds(1L).plusMillis(500L)));
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
                 try {
-                    securityClient.prepareInvalidateToken("fooobar").execute().actionGet();
+                    securityClient.prepareInvalidateToken("fooobar")
+                            .setType(randomFrom(InvalidateTokenRequest.Type.values()))
+                            .execute()
+                            .actionGet();
                 } catch (ElasticsearchSecurityException e) {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
             client.admin().indices().prepareRefresh(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
             SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE)))
+                    .setSource(SearchSourceBuilder.searchSource()
+                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(0)
                     .setTerminateAfter(1)
                     .get();
@@ -176,30 +186,156 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testExpireMultipleTimes() throws Exception {
+    public void testExpireMultipleTimes() {
         CreateTokenResponse response = securityClient().prepareCreateToken()
                 .setGrantType("password")
                 .setUsername(SecuritySettingsSource.TEST_USER_NAME)
                 .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .get();
 
-        InvalidateTokenResponse invalidateResponse = securityClient().prepareInvalidateToken(response.getTokenString()).get();
-
-        // if the token is expired then the API will return false for created so we need to handle that
-        final boolean correctResponse = invalidateResponse.isCreated() || isTokenExpired(response.getTokenString());
-        assertTrue(correctResponse);
-        assertFalse(securityClient().prepareInvalidateToken(response.getTokenString()).get().isCreated());
+        InvalidateTokenResponse invalidateResponse = securityClient()
+                .prepareInvalidateToken(response.getTokenString())
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get();
+        assertTrue(invalidateResponse.isCreated());
+        assertFalse(securityClient()
+                .prepareInvalidateToken(response.getTokenString())
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .get()
+                .isCreated());
     }
 
-    private static boolean isTokenExpired(String token) {
-        try {
-            TokenService tokenService = internalCluster().getInstance(TokenService.class);
-            PlainActionFuture<UserToken> tokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(token, tokenFuture);
-            return tokenFuture.actionGet().getExpirationTime().isBefore(Instant.now());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    public void testRefreshingToken() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+        // get cluster health with token
+        assertNoTimeout(client()
+                .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+                .admin().cluster().prepareHealth().get());
+
+        CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
+        assertNotNull(refreshResponse.getRefreshToken());
+        assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
+        assertNotEquals(refreshResponse.getTokenString(), createTokenResponse.getTokenString());
+
+        assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
+                .admin().cluster().prepareHealth().get());
+    }
+
+    public void testRefreshingInvalidatedToken() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+        InvalidateTokenResponse invalidateResponse = securityClient
+                .prepareInvalidateToken(createTokenResponse.getRefreshToken())
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .get();
+        assertTrue(invalidateResponse.isCreated());
+
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+        assertEquals("invalid_grant", e.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals("token has been invalidated", e.getHeader("error_description").get(0));
+    }
+
+    public void testRefreshingMultipleTimes() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+        CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
+        assertNotNull(refreshResponse);
+
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+        assertEquals("invalid_grant", e.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals("token has already been refreshed", e.getHeader("error_description").get(0));
+    }
+
+    public void testRefreshAsDifferentUser() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> new SecurityClient(client()
+                        .filterWithHeader(Collections.singletonMap("Authorization",
+                                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING))))
+                        .prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
+        assertEquals("invalid_grant", e.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals("tokens must be refreshed by the creating client", e.getHeader("error_description").get(0));
+    }
+
+    public void testCreateThenRefreshAsDifferentUser() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+
+        CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
+        assertNotEquals(refreshResponse.getTokenString(), createTokenResponse.getTokenString());
+        assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
+
+        PlainActionFuture<AuthenticateResponse> authFuture = new PlainActionFuture<>();
+        AuthenticateRequest request = new AuthenticateRequest();
+        request.username(SecuritySettingsSource.TEST_SUPERUSER);
+        client.execute(AuthenticateAction.INSTANCE, request, authFuture);
+        AuthenticateResponse response = authFuture.actionGet();
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.user().principal());
+
+        authFuture = new PlainActionFuture<>();
+        request = new AuthenticateRequest();
+        request.username(SecuritySettingsSource.TEST_USER_NAME);
+        client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+                .execute(AuthenticateAction.INSTANCE, request, authFuture);
+        response = authFuture.actionGet();
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+
+        authFuture = new PlainActionFuture<>();
+        request = new AuthenticateRequest();
+        request.username(SecuritySettingsSource.TEST_USER_NAME);
+        client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
+                .execute(AuthenticateAction.INSTANCE, request, authFuture);
+        response = authFuture.actionGet();
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
     }
 
     @Before

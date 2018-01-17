@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -20,15 +21,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class InvalidateTokenRequest extends ActionRequest {
 
+    public enum Type {
+        ACCESS_TOKEN,
+        REFRESH_TOKEN
+    }
+
     private String tokenString;
+    private Type tokenType;
 
     InvalidateTokenRequest() {}
 
     /**
      * @param tokenString the string representation of the token
      */
-    public InvalidateTokenRequest(String tokenString) {
+    public InvalidateTokenRequest(String tokenString, Type type) {
         this.tokenString = tokenString;
+        this.tokenType = type;
     }
 
     @Override
@@ -36,6 +44,9 @@ public final class InvalidateTokenRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(tokenString)) {
             validationException = addValidationError("token string must be provided", null);
+        }
+        if (tokenType == null) {
+            validationException = addValidationError("token type must be provided", validationException);
         }
         return validationException;
     }
@@ -48,15 +59,34 @@ public final class InvalidateTokenRequest extends ActionRequest {
         this.tokenString = token;
     }
 
+    Type getTokenType() {
+        return tokenType;
+    }
+
+    void setTokenType(Type tokenType) {
+        this.tokenType = tokenType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(tokenString);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeVInt(tokenType.ordinal());
+        } else if (tokenType == Type.REFRESH_TOKEN) {
+            throw new UnsupportedOperationException("refresh token invalidation cannot be serialized with version [" + out.getVersion() +
+                    "]");
+        }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         tokenString = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            tokenType = Type.values()[in.readVInt()];
+        } else {
+            tokenType = Type.ACCESS_TOKEN;
+        }
     }
 }

@@ -10,14 +10,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.UserToken;
+
+import java.util.Collections;
 
 /**
  * Transport action responsible for creating a token based on a request. Requests provide user
@@ -43,32 +44,44 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
 
     @Override
     protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             authenticationService.authenticate(CreateTokenAction.NAME, request,
                     request.getUsername(), request.getPassword(),
                     ActionListener.wrap(authentication -> {
-                        try (SecureString ignore1 = request.getPassword()) {
-                            final UserToken token = tokenService.createUserToken(authentication);
-                            final String tokenStr = tokenService.getUserTokenString(token);
-                            final String scope;
-                            // the OAuth2.0 RFC requires the scope to be provided in the
-                            // response if it differs from the user provided scope. If the
-                            // scope was not provided then it does not need to be returned.
-                            // if the scope is not supported, the value of the scope that the
-                            // token is for must be returned
-                            if (request.getScope() != null) {
-                                scope = DEFAULT_SCOPE; // this is the only non-null value that is currently supported
-                            } else {
-                                scope = null;
-                            }
+                            request.getPassword().close();
+                            tokenService.createUserToken(authentication, originatingAuthentication, ActionListener.wrap(tuple -> {
+                                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
+                                final String scope = getResponseScopeValue(request.getScope());
 
-                            listener.onResponse(new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope));
-                        }
+                                final CreateTokenResponse response =
+                                        new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
+                                listener.onResponse(response);
+                            }, e -> {
+                                // clear the request password
+                                request.getPassword().close();
+                                listener.onFailure(e);
+                            }), Collections.emptyMap());
                     }, e -> {
                         // clear the request password
                         request.getPassword().close();
                         listener.onFailure(e);
                     }));
         }
+    }
+
+    static String getResponseScopeValue(String requestScope) {
+        final String scope;
+        // the OAuth2.0 RFC requires the scope to be provided in the
+        // response if it differs from the user provided scope. If the
+        // scope was not provided then it does not need to be returned.
+        // if the scope is not supported, the value of the scope that the
+        // token is for must be returned
+        if (requestScope != null) {
+            scope = DEFAULT_SCOPE; // this is the only non-null value that is currently supported
+        } else {
+            scope = null;
+        }
+        return scope;
     }
 }

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,10 +34,11 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
-    static final ConstructingObjectParser<String, Void> PARSER =
-            new ConstructingObjectParser<>("invalidate_token", a -> ((String) a[0]));
+    static final ConstructingObjectParser<Tuple<String, String>, Void> PARSER =
+            new ConstructingObjectParser<>("invalidate_token", a -> new Tuple<>((String) a[0], (String) a[1]));
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("token"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("token"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
     }
 
     public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
@@ -51,8 +54,26 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final String token = PARSER.parse(parser, null);
-            final InvalidateTokenRequest tokenRequest = new InvalidateTokenRequest(token);
+            final Tuple<String, String> tuple = PARSER.parse(parser, null);
+            final String token = tuple.v1();
+            final String refreshToken = tuple.v2();
+
+            final String tokenString;
+            final InvalidateTokenRequest.Type type;
+            if (Strings.hasLength(token) && Strings.hasLength(refreshToken)) {
+                throw new IllegalArgumentException("only one of [token, refresh_token] may be sent per request");
+            } else if (Strings.hasLength(token)) {
+                tokenString = token;
+                type = InvalidateTokenRequest.Type.ACCESS_TOKEN;
+            } else if (Strings.hasLength(refreshToken)) {
+                tokenString = refreshToken;
+                type = InvalidateTokenRequest.Type.REFRESH_TOKEN;
+            } else {
+                tokenString = null;
+                type = null;
+            }
+
+            final InvalidateTokenRequest tokenRequest = new InvalidateTokenRequest(tokenString, type);
             return channel -> client.execute(InvalidateTokenAction.INSTANCE, tokenRequest,
                     new RestBuilderListener<InvalidateTokenResponse>(channel) {
                         @Override

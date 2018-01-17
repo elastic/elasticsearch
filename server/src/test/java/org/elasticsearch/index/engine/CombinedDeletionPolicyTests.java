@@ -244,6 +244,33 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             equalTo(Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
     }
 
+    public void testCheckUnreferencedCommits() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final UUID translogUUID = UUID.randomUUID();
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            OPEN_INDEX_AND_TRANSLOG, createTranslogDeletionPolicy(), globalCheckpoint::get, null);
+        final List<IndexCommit> commitList = new ArrayList<>();
+        int totalCommits = between(2, 20);
+        long lastMaxSeqNo = between(1, 1000);
+        long lastTranslogGen = between(1, 50);
+        for (int i = 0; i < totalCommits; i++) {
+            lastMaxSeqNo += between(1, 10000);
+            lastTranslogGen += between(1, 100);
+            commitList.add(mockIndexCommit(lastMaxSeqNo, translogUUID, lastTranslogGen));
+        }
+        IndexCommit safeCommit = randomFrom(commitList);
+        globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+        indexPolicy.onCommit(commitList);
+        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), lastMaxSeqNo)); // Advanced not enough
+        assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
+        globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
+        if (safeCommit == commitList.get(commitList.size() - 1)) {
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false)); // Keeping a single commit
+        } else {
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(true));
+        }
+    }
+
     IndexCommit mockIndexCommit(long maxSeqNo, UUID translogUUID, long translogGen) throws IOException {
         final Map<String, String> userData = new HashMap<>();
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));

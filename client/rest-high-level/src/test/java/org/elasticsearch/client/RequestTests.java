@@ -32,6 +32,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -145,6 +146,59 @@ public class RequestTests extends ESTestCase {
 
     public void testGet() {
         getAndExistsTest(Request::get, "GET");
+    }
+
+    public void testMultiGet() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLength(4);
+            multiGetRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            multiGetRequest.realtime(randomBoolean());
+            if (multiGetRequest.realtime() == false) {
+                expectedParams.put("realtime", "false");
+            }
+        }
+        if (randomBoolean()) {
+            multiGetRequest.refresh(randomBoolean());
+            if (multiGetRequest.refresh()) {
+                expectedParams.put("refresh", "true");
+            }
+        }
+
+        int numberOfRequests = randomIntBetween(0, 32);
+        for (int i = 0; i < numberOfRequests; i++) {
+            MultiGetRequest.Item item =
+                    new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            if (randomBoolean()) {
+                item.routing(randomAlphaOfLength(4));
+            }
+            if (randomBoolean()) {
+                item.parent(randomAlphaOfLength(4));
+            }
+            if (randomBoolean()) {
+                item.storedFields(generateRandomStringArray(16, 8, false));
+            }
+            if (randomBoolean()) {
+                item.version(randomNonNegativeLong());
+            }
+            if (randomBoolean()) {
+                item.versionType(randomFrom(VersionType.values()));
+            }
+            if (randomBoolean()) {
+                randomizeFetchSourceContextParams(item::fetchSourceContext, new HashMap<>());
+            }
+            multiGetRequest.add(item);
+        }
+
+        Request request = Request.multiGet(multiGetRequest);
+        assertEquals("GET", request.getMethod());
+        assertEquals("/_mget", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(multiGetRequest, request.getEntity());
     }
 
     public void testDelete() {

@@ -655,7 +655,7 @@ class ClusterFormationTasks {
                 String pid = node.pidFile.getText('UTF-8')
                 ByteArrayOutputStream output = new ByteArrayOutputStream()
                 project.exec {
-                    commandLine = ["${project.javaHome}/bin/jstack", pid]
+                    commandLine = ["${project.runtimeJavaHome}/bin/jstack", pid]
                     standardOutput = output
                 }
                 output.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
@@ -699,7 +699,7 @@ class ClusterFormationTasks {
     }
 
     private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
-        return Paths.get(project.javaHome.toString(), "bin/" + jpsExecutableName).toFile()
+        return Paths.get(project.runtimeJavaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -21,10 +23,7 @@ import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.mockito.exceptions.base.MockitoException;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -39,7 +38,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -47,9 +45,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.mockito.Mockito.mock;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.mockito.Mockito.mock;
 
 /**
  * Looks for all subclasses of {@link Node} and verifies that they
@@ -534,11 +532,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             return lookup;
         }
         List<Class<? extends T>> results = new ArrayList<>();
-        String[] paths = System.getProperty("java.class.path").split(":");
+        String[] paths = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
         for (String path: paths) {
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
             Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
@@ -547,6 +546,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                         className = className.substring(rootLength, className.length() - ".class".length());
                         // Go from "path" style to class style
                         className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
+
+                        // filter the class that are not interested
+                        // (and IDE folders like eclipse)
+                        if (!className.startsWith("org.elasticsearch.xpack.sql")) {
+                            return FileVisitResult.CONTINUE;
+                        }
 
                         Class<?> c;
                         try {
@@ -562,7 +567,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                             results.add(s);
                         }
                     }
-                    return super.visitFile(file, attrs);
+                    return FileVisitResult.CONTINUE;
                 }
             });
         }

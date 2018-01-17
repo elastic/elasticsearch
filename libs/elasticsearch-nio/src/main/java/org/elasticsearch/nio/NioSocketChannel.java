@@ -32,7 +32,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private final InetSocketAddress remoteAddress;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
-    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
+    private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private SocketChannelContext context;
     private Exception connectException;
 
@@ -72,8 +72,9 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public void setContext(SocketChannelContext context) {
-        if (contextsSet.compareAndSet(false, true)) {
+        if (contextSet.compareAndSet(false, true)) {
             this.context = context;
+            super.setContext(context);
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }

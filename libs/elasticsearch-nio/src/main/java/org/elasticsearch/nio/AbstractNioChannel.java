@@ -52,6 +52,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
+    private ChannelContext context;
 
     AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
         this.socketChannel = socketChannel;
@@ -79,7 +80,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         selector.assertOnSelectorThread();
         if (closeContext.isDone() == false) {
             try {
-                closeRawChannel();
+                socketChannel.close();
                 closeContext.complete(null);
             } catch (IOException e) {
                 closeContext.completeExceptionally(e);
@@ -119,13 +120,17 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         closeContext.whenComplete(listener);
     }
 
+    @Override
+    public void close() {
+        context.closeChannel();
+    }
+
+    void setContext(ChannelContext context) {
+        this.context = context;
+    }
+
     // Package visibility for testing
     void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
-    }
-    // Package visibility for testing
-
-    void closeRawChannel() throws IOException {
-        socketChannel.close();
     }
 }

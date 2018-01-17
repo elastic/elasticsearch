@@ -21,11 +21,13 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
 
     private final ChannelFactory<?, ?> channelFactory;
     private ServerChannelContext context;
+    private final AtomicBoolean contextSet = new AtomicBoolean(false);
 
     public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
         throws IOException {
@@ -44,7 +46,12 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
      * @param context to call
      */
     public void setContext(ServerChannelContext context) {
-        this.context = context;
+        if (contextSet.compareAndSet(false, true)) {
+            this.context = context;
+            super.setContext(context);
+        } else {
+            throw new IllegalStateException("Context on this channel were already set. It should only be once.");
+        }
     }
 
     @Override

@@ -62,19 +62,6 @@ public abstract class SocketChannelContext implements ChannelContext {
     public abstract boolean hasQueuedWriteOps();
 
     /**
-     * Schedules a channel to be closed by the selector event loop with which it is registered.
-     * <p>
-     * If the channel is open and the state can be transitioned to closed, the close operation will
-     * be scheduled with the event loop.
-     * <p>
-     * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
-     * <p>
-     * Depending on the underlying protocol of the channel, a close operation might simply close the socket
-     * channel or may involve reading and writing messages.
-     */
-    public abstract void closeChannel();
-
-    /**
      * This method indicates if a selector should close this channel.
      *
      * @return a boolean indicating if the selector should close

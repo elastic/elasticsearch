@@ -30,5 +30,16 @@ public interface ChannelContext {
      */
     void closeFromSelector() throws IOException;
 
-    default void handleException(Exception e) {}
+    /**
+     * Schedules a channel to be closed by the selector event loop with which it is registered.
+     *
+     * If the channel is open and the state can be transitioned to closed, the close operation will
+     * be scheduled with the event loop.
+     *
+     * Depending on the underlying protocol of the channel, a close operation might simply close the socket
+     * channel or may involve reading and writing messages.
+     */
+    void closeChannel();
+
+    void handleException(Exception e);
 }

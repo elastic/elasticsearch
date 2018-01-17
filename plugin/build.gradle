@@ -33,7 +33,7 @@ dependencyLicenses {
   mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /server.*/, to: 'elasticsearch'
   mapping from: /rest-proto.*/, to: 'elasticsearch'
-  mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
+  mapping from: /x-pack-sql.*/, to: 'elasticsearch'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   ignoreSha 'elasticsearch-rest-client'
@@ -42,8 +42,8 @@ dependencyLicenses {
   ignoreSha 'server'
   ignoreSha 'rest-proto'
   ignoreSha 'elasticsearch-rest-client-sniffer'
-  ignoreSha 'aggs-matrix-stats'
   ignoreSha 'x-pack-core'
+  ignoreSha 'x-pack-sql'
 }
 
 licenseHeaders {
@@ -99,8 +99,8 @@ dependencies {
   nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
   testCompile 'org.ini4j:ini4j:0.5.2'
 
-  // sql's server components and its transitive dependencies
-  compile project(':x-pack-elasticsearch:sql:server')
+  // sql's plugin and its cli
+  compile project(':x-pack-elasticsearch:plugin:sql')
   bundledBin(project(':x-pack-elasticsearch:sql:cli')) {
     transitive = false
   }

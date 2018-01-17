@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.test.RunTask
 
 description = 'Integration tests for SQL'
 apply plugin: 'elasticsearch.build'
+archivesBaseName = 'qa-sql'
 
 dependencies {
   compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
@@ -14,8 +15,9 @@ dependencies {
   // used for running debug tests
   runtime 'org.antlr:antlr4-runtime:4.5.3'
 
-  // There are *no* CLI testing dependencies because we
-  // communicate fork a new CLI process when we need it.
+  /* There are *no* CLI testing dependencies because we
+   * communicate with a fixture to fork a new CLI process
+   * when we need it. */
 }
 
 /* disable unit tests because these are all integration tests used
@@ -81,7 +83,7 @@ subprojects {
   }
 
   if (project.name != 'security') {
-    // The security project just configures it subprojects
+    // The security project just configures its subprojects
     apply plugin: 'elasticsearch.rest-test'
 
     task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {

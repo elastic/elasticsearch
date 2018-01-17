@@ -76,6 +76,7 @@ public class TextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
+        private PrefixFieldMapper prefixFieldMapper;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -121,7 +122,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
-            fieldType().setIndexPrefixes(minChars, maxChars);
+            prefixFieldMapper = new PrefixFieldMapper(minChars, maxChars);
             return builder;
         }
 
@@ -138,7 +139,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             return new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap,
+                    name, fieldType, defaultFieldType, positionIncrementGap, prefixFieldMapper.setIndexAnalyzer(fieldType.indexAnalyzer()),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -186,6 +187,18 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
+    private static class PrefixFieldBuilder extends FieldMapper.Builder<Builder, TextFieldMapper> {
+
+        PrefixFieldBuilder(String name) {
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+        }
+
+        @Override
+        public TextFieldMapper build(BuilderContext context) {
+            return null;
+        }
+    }
+
     private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
 
         static final String SUBFIELD = "..prefix";
@@ -221,6 +234,47 @@ public class TextFieldMapper extends FieldMapper {
             builder.field("min_chars", minChars);
             builder.field("max_chars", maxChars);
             builder.endObject();
+        }
+    }
+
+    private static final class PrefixFieldMapper extends FieldMapper {
+
+        protected PrefixFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+            super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+
+        }
+
+        @Override
+        protected String contentType() {
+            return null;
+        }
+    }
+
+    private static final class PrefixFieldType extends StringFieldType {
+
+        PrefixFieldType() { }
+
+        PrefixFieldType(PrefixFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new PrefixFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return "text_prefix";
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -383,7 +437,7 @@ public class TextFieldMapper extends FieldMapper {
     private int positionIncrementGap;
 
     protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap,
+                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();

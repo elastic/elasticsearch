@@ -91,6 +91,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 public abstract class Engine implements Closeable {
 
@@ -174,13 +175,6 @@ public abstract class Engine implements Closeable {
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
-
-    /**
-     * This method should be called after the translog has been synced.
-     */
-    public void onTranslogSynced() throws IOException {
-
-    }
 
     /**
      * A throttling class that can be activated, causing the
@@ -555,6 +549,13 @@ public abstract class Engine implements Closeable {
 
     /** returns the translog for this engine */
     public abstract Translog getTranslog();
+
+    /**
+     * Ensures that all locations in the given stream have been written to the underlying storage.
+     */
+    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+
+    public abstract void syncTranslog() throws IOException;
 
     protected void ensureOpen() {
         if (isClosed.get()) {

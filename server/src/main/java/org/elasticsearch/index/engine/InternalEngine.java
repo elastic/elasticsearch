@@ -94,6 +94,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
 
@@ -518,6 +519,27 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        final boolean synced = translog.ensureSynced(locations);
+        if (synced) {
+            revisitIndexDeletionPolicy();
+        }
+        return synced;
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translog.sync();
+        revisitIndexDeletionPolicy();
+    }
+
+    private void revisitIndexDeletionPolicy() throws IOException {
+        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     @Override
@@ -1594,15 +1616,6 @@ public class InternalEngine extends Engine {
     // testing
     void clearDeletedTombstones() {
         versionMap.clearTombstones();
-    }
-
-    @Override
-    public void onTranslogSynced() throws IOException {
-        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-            // This will revisit the index deletion policy with the existing index commits.
-            // We can clean up unneeded index commits without having a new index commit.
-            indexWriter.deleteUnusedFiles();
-        }
     }
 
     @Override

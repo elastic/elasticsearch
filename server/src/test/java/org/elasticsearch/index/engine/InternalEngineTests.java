@@ -4415,7 +4415,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testCleanUpCommitsWhenNewGlobalCheckpointPersisted() throws Exception {
+    public void testCleanUpCommitsWhenGlobalCheckpointAdvanced() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -4432,21 +4432,15 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             engine.flush(false, randomBoolean());
-            // Advancing the global checkpoint (without flushing) can clean up unreferenced commits.
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
-            engine.getTranslog().sync();
-            engine.onTranslogSynced();
-            final long lastSyncedGlobalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
-            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            for (int i = 1; i < commits.size(); i++) {
-                assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    greaterThan(lastSyncedGlobalCheckpoint));
-            }
-            // When the global checkpoint is in-sync with the max_seqno, we should keep one commit.
-            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
-            engine.getTranslog().sync();
-            engine.onTranslogSynced();
-            assertThat(DirectoryReader.listCommits(store.directory()), Matchers.hasSize(1));
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            // Global checkpoint advanced but not enough - all commits are kept.
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getMaxSeqNo() - 1));
+            engine.syncTranslog();
+            assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits));
+            // Global checkpoint advanced enough - only the last commit is kept.
+            globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getMaxSeqNo(), Long.MAX_VALUE));
+            engine.syncTranslog();
+            assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
         }
     }
 }

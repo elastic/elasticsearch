@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -483,6 +484,28 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
         verify(watcherService, times(0)).start(any(ClusterState.class));
+    }
+
+    public void testWatcherStopsWhenMasterNodeIsMissing() {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .localNodeId("node_1")
+                .add(newNode("node_1"))
+                .build();
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
+        verify(watcherService, times(1)).stop(eq("no master node"));
+    }
+
+    public void testWatcherStopsOnClusterLevelBlock() {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .localNodeId("node_1")
+                .masterNodeId("node_1")
+                .add(newNode("node_1"))
+                .build();
+        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).blocks(clusterBlocks).build();
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
+        verify(watcherService, times(1)).stop(eq("write level cluster block"));
     }
 
     private List<String> randomIndexPatterns() {

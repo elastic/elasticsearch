@@ -192,6 +192,38 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNull(provider.next(TEST_ROLLOVER_ACTION));
     }
 
+    public void testWarmActionProviderWithAllActionsAndReplicasFirst() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = VALID_WARM_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
+        MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(warmPhase, phase);
+                return true;
+            }
+        };
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, warmPhase);
+        if (actions.size() > 1) {
+            int actionCount = 1;
+            LifecycleAction current = provider.next(null);
+            assertThat(current, equalTo(TEST_REPLICAS_ACTION));
+            while (actionCount++ < actions.size()) {
+                current = provider.next(current);
+            }
+            assertNull(provider.next(current));
+            assertThat(current, equalTo(TEST_FORCE_MERGE_ACTION));
+        } else {
+            assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        }
+
+    }
+
     public void testWarmActionProviderReplicasActionSortOrder() {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
@@ -229,6 +261,50 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             }
             assertNull(provider.next(current));
             assertThat(current, equalTo(TEST_REPLICAS_ACTION));
+        } else {
+            assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        }
+    }
+
+    public void testColdActionProviderAllActions() {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, LifecycleAction> actions = VALID_COLD_ACTIONS
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
+        MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(coldPhase, phase);
+                return true;
+            }
+        };
+        TimeseriesLifecycleType policy = TimeseriesLifecycleType.INSTANCE;
+        LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, coldPhase);
+        if (actions.size() > 1) {
+            LifecycleAction current = provider.next(null);
+            assertThat(current, equalTo(TEST_ALLOCATE_ACTION));
+            assertThat(provider.next(current), equalTo(TEST_REPLICAS_ACTION));
+        } else {
+            assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
+        }
+
+        context = new MockIndexLifecycleContext(indexName, "", "",
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                assertSame(coldPhase, phase);
+                return true;
+            }
+        };
+        provider = policy.getActionProvider(context, coldPhase);
+        if (actions.size() > 1) {
+            LifecycleAction current = provider.next(null);
+            assertThat(current, equalTo(TEST_REPLICAS_ACTION));
+            assertThat(provider.next(current), equalTo(TEST_ALLOCATE_ACTION));
         } else {
             assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         }

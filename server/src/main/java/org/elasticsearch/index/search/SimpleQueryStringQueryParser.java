@@ -87,7 +87,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     /**
-     * Rethrow the runtime exception, unless the lenient flag has been set, returns null
+     * Rethrow the runtime exception, unless the lenient flag has been set, returns {@link MatchNoDocsQuery}
      */
     private Query rethrowUnlessLenient(RuntimeException e) {
         if (settings.lenient()) {
@@ -157,7 +157,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             return queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, phraseWeights, text, null);
         } catch (IOException e) {
-            throw new IllegalStateException(e.getMessage());
+            return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         } finally {
             queryBuilder.setPhraseSlop(0);
         }

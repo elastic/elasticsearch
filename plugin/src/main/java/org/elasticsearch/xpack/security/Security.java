@@ -106,8 +106,10 @@ import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappi
 import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
+import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.DeleteUserAction;
@@ -609,7 +611,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
                 new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
-                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class)
+                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
+                new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class)
         );
     }
 

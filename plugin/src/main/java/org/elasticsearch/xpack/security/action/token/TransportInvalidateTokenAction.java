@@ -32,10 +32,14 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
     }
 
     @Override
-    protected void doExecute(InvalidateTokenRequest request,
-                             ActionListener<InvalidateTokenResponse> listener) {
-        tokenService.invalidateToken(request.getTokenString(), ActionListener.wrap(
-                created -> listener.onResponse(new InvalidateTokenResponse(created)),
-                listener::onFailure));
+    protected void doExecute(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
+        final ActionListener<Boolean> invalidateListener =
+                ActionListener.wrap(created -> listener.onResponse(new InvalidateTokenResponse(created)), listener::onFailure);
+        if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
+            tokenService.invalidateAccessToken(request.getTokenString(), invalidateListener);
+        } else {
+            assert request.getTokenType() == InvalidateTokenRequest.Type.REFRESH_TOKEN;
+            tokenService.invalidateRefreshToken(request.getTokenString(), invalidateListener);
+        }
     }
 }

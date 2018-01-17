@@ -8,15 +8,12 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * Action for creating a new token
- */
-public final class CreateTokenAction extends Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> {
+public final class RefreshTokenAction extends Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> {
 
-    public static final String NAME = "cluster:admin/xpack/security/token/create";
-    public static final CreateTokenAction INSTANCE = new CreateTokenAction();
+    public static final String NAME = "cluster:admin/xpack/security/token/refresh";
+    public static final RefreshTokenAction INSTANCE = new RefreshTokenAction();
 
-    private CreateTokenAction() {
+    private RefreshTokenAction() {
         super(NAME);
     }
 

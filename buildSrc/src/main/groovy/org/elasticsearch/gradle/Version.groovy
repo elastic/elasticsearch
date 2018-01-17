@@ -97,6 +97,16 @@ public class Version {
         return otherVersion.suffix == '' || suffix < otherVersion.suffix
     }
 
+    /**
+     * Elasticsearch versions 5.1.1 through 5.3.0 fail to start on versions of Linux that support cgroups v2 (kernel >= 4.5). This is a
+     * convenience method for checking if the current version falls into that range.
+     *
+     * @return true if the version is one impacted by the cgroups v2 bug, otherwise false
+     */
+    public boolean isVersionBrokenIfCgroupsV2Enabled() {
+        return onOrAfter("5.1.1") && onOrBefore("5.3.0")
+    }
+
     boolean equals(o) {
         if (this.is(o)) return true
         if (getClass() != o.class) return false

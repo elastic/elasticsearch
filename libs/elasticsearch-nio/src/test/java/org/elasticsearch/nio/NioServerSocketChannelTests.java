@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -56,11 +58,14 @@ public class NioServerSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
+    @SuppressWarnings("unchecked")
     public void testClose() throws Exception {
         AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioChannel channel = new DoNotCloseServerChannel(mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
+        ServerSocketChannel rawChannel = mock(ServerSocketChannel.class);
+        NioServerSocketChannel channel = new DoNotCloseServerChannel(rawChannel, mock(ChannelFactory.class), selector);
+        channel.setContext(new ServerChannelContext(channel, mock(Consumer.class), mock(BiConsumer.class)));
 
         channel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
             @Override

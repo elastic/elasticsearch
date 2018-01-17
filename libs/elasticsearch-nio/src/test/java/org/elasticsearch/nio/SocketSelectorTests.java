@@ -49,7 +49,7 @@ public class SocketSelectorTests extends ESTestCase {
     private SocketEventHandler eventHandler;
     private NioSocketChannel channel;
     private TestSelectionKey selectionKey;
-    private ChannelContext channelContext;
+    private SocketChannelContext channelContext;
     private BiConsumer<Void, Throwable> listener;
     private ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
     private Selector rawSelector;
@@ -60,7 +60,7 @@ public class SocketSelectorTests extends ESTestCase {
         super.setUp();
         eventHandler = mock(SocketEventHandler.class);
         channel = mock(NioSocketChannel.class);
-        channelContext = mock(ChannelContext.class);
+        channelContext = mock(SocketChannelContext.class);
         listener = mock(BiConsumer.class);
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(channel);

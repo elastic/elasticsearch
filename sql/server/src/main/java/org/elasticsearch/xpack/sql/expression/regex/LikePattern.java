@@ -71,7 +71,7 @@ public class LikePattern extends LeafExpression {
 
     @Override
     public boolean foldable() {
-        return true;
+        return false;
     }
 
     @Override

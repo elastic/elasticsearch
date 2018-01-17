@@ -21,6 +21,11 @@ public class RLike extends BinaryExpression {
     }
 
     @Override
+    public Literal right() {
+        return (Literal) super.right();
+    }
+
+    @Override
     public Object fold() {
         Pattern p = Pattern.compile(right().fold().toString());
         return p.matcher(left().fold().toString()).matches();

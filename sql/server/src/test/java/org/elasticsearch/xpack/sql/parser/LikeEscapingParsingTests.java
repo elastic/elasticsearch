@@ -31,7 +31,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE %s", pattern));
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;
-        return (LikePattern) l.right();
+        return l.right();
     }
 
     public void testNoEscaping() {

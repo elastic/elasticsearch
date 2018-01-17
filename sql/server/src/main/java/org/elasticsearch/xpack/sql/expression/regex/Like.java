@@ -20,6 +20,11 @@ public class Like extends BinaryExpression {
     }
 
     @Override
+    public LikePattern right() {
+        return (LikePattern) super.right();
+    }
+
+    @Override
     public Object fold() {
         Pattern p = Pattern.compile(right().fold().toString());
         return p.matcher(left().fold().toString()).matches();

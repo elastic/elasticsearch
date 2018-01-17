@@ -43,8 +43,10 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.function.Consumer;
 
+import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -99,8 +101,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testAttachAndGetToken() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);
@@ -117,7 +118,7 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own salt can also verify
-            TokenService anotherService = new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService
+            TokenService anotherService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService
                     , clusterService);
             anotherService.refreshMetaData(tokenService.getTokenMetaData());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -128,8 +129,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testRotateKey() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);
@@ -175,13 +175,12 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testKeyExchange() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         int numRotations = 0;randomIntBetween(1, 5);
         for (int i = 0; i < numRotations; i++) {
             rotateKeys(tokenService);
         }
-        TokenService otherTokenService = new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService,
+        TokenService otherTokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService,
                 clusterService);
         otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
@@ -210,8 +209,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testPruneKeys() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);
@@ -267,8 +265,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testPassphraseWorks() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);
@@ -285,7 +282,7 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own passphrase cannot verify
-            TokenService anotherService = new TokenService(Settings.EMPTY, Clock.systemUTC(), client, lifecycleService,
+            TokenService anotherService = new TokenService(Settings.EMPTY, systemUTC(), client, lifecycleService,
                     clusterService);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
@@ -293,10 +290,21 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetTokenWhenKeyCacheHasExpired() throws Exception {
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
+        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+
+        UserToken token = tokenService.createUserToken(authentication);
+        assertThat(tokenService.getUserTokenString(token), notNullValue());
+
+        tokenService.clearActiveKeyCache();
+        assertThat(tokenService.getUserTokenString(token), notNullValue());
+    }
+
     public void testInvalidatedToken() throws Exception {
         when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
         TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+            new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);
@@ -382,7 +390,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(Settings.builder()
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
                 .build(),
-                Clock.systemUTC(), client, lifecycleService, clusterService);
+                systemUTC(), client, lifecycleService, clusterService);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> tokenService.createUserToken(null));
         assertEquals("tokens are not enabled", e.getMessage());
 
@@ -424,7 +432,7 @@ public class TokenServiceTests extends ESTestCase {
         final int numBytes = randomIntBetween(1, TokenService.MINIMUM_BYTES + 32);
         final byte[] randomBytes = new byte[numBytes];
         random().nextBytes(randomBytes);
-        TokenService tokenService = new TokenService(Settings.EMPTY, Clock.systemUTC(), client, lifecycleService, clusterService);
+        TokenService tokenService = new TokenService(Settings.EMPTY, systemUTC(), client, lifecycleService, clusterService);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
@@ -438,7 +446,7 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testIndexNotAvailable() throws Exception {
         TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+            new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final UserToken token = tokenService.createUserToken(authentication);
         assertNotNull(token);

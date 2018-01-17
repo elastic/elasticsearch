@@ -427,7 +427,11 @@ public final class TokenService extends AbstractComponent {
     private Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         BytesKey salt = keyAndCache.getSalt();
-        cipher.init(Cipher.ENCRYPT_MODE, keyAndCache.getKey(salt), new GCMParameterSpec(128, iv), secureRandom);
+        try {
+            cipher.init(Cipher.ENCRYPT_MODE, keyAndCache.getOrComputeKey(salt), new GCMParameterSpec(128, iv), secureRandom);
+        } catch (ExecutionException e) {
+            throw new ElasticsearchSecurityException("Failed to compute secret key for active salt", e);
+        }
         cipher.updateAAD(currentVersionBytes);
         cipher.updateAAD(salt.bytes);
         return cipher;
@@ -774,6 +778,13 @@ public final class TokenService extends AbstractComponent {
                 logger.info("refreshed keys");
             }
         });
+    }
+
+    /**
+     * For testing
+     */
+    void clearActiveKeyCache() {
+        this.keyCache.activeKeyCache.keyCache.invalidateAll();
     }
 
     static final class KeyAndTimestamp implements Writeable {

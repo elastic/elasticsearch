@@ -208,6 +208,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
@@ -312,7 +313,6 @@ import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
@@ -327,6 +327,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -344,6 +345,7 @@ public class ActionModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
+    private final List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> clientActions;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -351,8 +353,8 @@ public class ActionModule extends AbstractModule {
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
-                        ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-            CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        ThreadPool threadPool, List<ActionPlugin> actionPlugins, List<ClientActionPlugin> clientActionPlugins,
+                        NodeClient nodeClient, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -361,6 +363,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
+        clientActions = setupClientActions(clientActionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
@@ -386,28 +389,70 @@ public class ActionModule extends AbstractModule {
         }
     }
 
-
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
     }
+    public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+        return clientActions;
+    }
 
-    static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
-        // Subclass NamedRegistry for easy registration
-        class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
-            ActionRegistry() {
-                super("action");
-            }
+    // Subclass NamedRegistry for easy registration
+    private static class ClientActionRegistry extends NamedRegistry<GenericAction<? extends ActionRequest, ? extends ActionResponse>> {
+        ClientActionRegistry() {
+            super("clientAction");
+        }
 
-            public void register(ActionHandler<?, ?> handler) {
-                register(handler.getAction().name(), handler);
-            }
+        public <Request extends ActionRequest, Response extends ActionResponse> void register(
+            GenericAction<Request, Response> action) {
+            register(action.name(), action);
+        }
+    }
 
-            public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                    GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                    Class<?>... supportTransportActions) {
-                register(new ActionHandler<>(action, transportAction, supportTransportActions));
+    private static class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
+        ActionRegistry() {
+            super("action");
+        }
+
+        public void register(ActionHandler<?, ?> handler) {
+            register(handler.getAction().name(), handler);
+        }
+
+        public <Request extends ActionRequest, Response extends ActionResponse> void register(
+            GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+            Class<?>... supportTransportActions) {
+            register(new ActionHandler<>(action, transportAction, supportTransportActions));
+        }
+    }
+
+    static List<GenericAction<? extends ActionRequest, ? extends ActionResponse>>
+            setupClientActions(List<ClientActionPlugin> clientActionPlugins) {
+        ClientActionRegistry clientActionRegistry = new ClientActionRegistry();
+        // Add the core actions in to the client registry
+        for (ActionHandler<?,?> action: createBaseActionRegistry().getRegistry().values()) {
+            clientActionRegistry.register(action.getAction());
+        }
+
+        for (ClientActionPlugin plugin: clientActionPlugins) {
+            for (GenericAction<?, ?> action: plugin.getClientActions()) {
+                clientActionRegistry.register(action);
             }
         }
+
+        return unmodifiableList(clientActionRegistry.getRegistry().values().stream().collect(Collectors.toList()));
+    }
+
+    static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
+        ActionRegistry actionRegistry = createBaseActionRegistry();
+        for (ActionPlugin plugin: actionPlugins) {
+            for (ActionHandler<?, ?> action: plugin.getActions()) {
+                actionRegistry.register(action);
+            }
+        }
+
+        return unmodifiableMap(actionRegistry.getRegistry());
+    }
+        // Subclass NamedRegistry for easy registration
+    private static ActionRegistry createBaseActionRegistry() {
         ActionRegistry actions = new ActionRegistry();
 
         actions.register(MainAction.INSTANCE, TransportMainAction.class);
@@ -505,9 +550,7 @@ public class ActionModule extends AbstractModule {
         actions.register(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
         actions.register(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
 
-        actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
-
-        return unmodifiableMap(actions.getRegistry());
+        return actions;
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {

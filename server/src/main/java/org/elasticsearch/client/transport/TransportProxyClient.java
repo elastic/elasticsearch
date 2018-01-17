@@ -41,7 +41,8 @@ final class TransportProxyClient {
     private final Map<Action, TransportActionNodeProxy> proxies;
 
     TransportProxyClient(Settings settings, TransportService transportService,
-                                TransportClientNodesService nodesService, List<GenericAction> actions) {
+                                TransportClientNodesService nodesService,
+                                List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> actions) {
         this.nodesService = nodesService;
         Map<Action, TransportActionNodeProxy> proxies = new HashMap<>();
         for (GenericAction action : actions) {

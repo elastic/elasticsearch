@@ -44,6 +44,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -123,7 +124,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
                 .build();
     }
 
-    public static class TestCustomMetaDataPlugin extends Plugin {
+    public static class TestCustomMetaDataPlugin extends Plugin implements ClientActionPlugin {
 
         private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
 

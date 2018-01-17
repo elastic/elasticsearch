@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugin.noop;
 
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.RestNoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction;

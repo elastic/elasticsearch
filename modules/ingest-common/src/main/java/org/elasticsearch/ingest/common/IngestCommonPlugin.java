@@ -34,6 +34,7 @@ import java.util.function.Supplier;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -97,7 +98,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
+        return Collections.singletonList(new ActionHandler<>(GrokProcessorGetAction.INSTANCE,
+                                                             GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override
@@ -105,7 +107,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
+        return Collections.singletonList(new GrokProcessorGetAction.RestAction(settings, restController));
     }
 
 

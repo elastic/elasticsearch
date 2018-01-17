@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -53,12 +54,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
@@ -72,5 +67,14 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return singletonList(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return singletonList(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByScrollTask.Status.NAME,
+                BulkByScrollTask.Status::new));
     }
 }

@@ -49,6 +49,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -164,7 +165,7 @@ public abstract class TransportClient extends AbstractClient {
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
-                    pluginsService.filterPlugins(ActionPlugin.class), null, null, null);
+                pluginsService.filterPlugins(ActionPlugin.class), pluginsService.filterPlugins(ClientActionPlugin.class), null, null, null);
             modules.add(actionModule);
 
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
@@ -195,8 +196,7 @@ public abstract class TransportClient extends AbstractClient {
             final TransportClientNodesService nodesService =
                 new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
                     ? (t, e) -> {} : failureListner);
-            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
-                actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
+            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, actionModule.getClientActions());
 
             List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));

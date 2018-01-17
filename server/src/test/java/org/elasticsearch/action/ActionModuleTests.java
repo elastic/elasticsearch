@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -46,15 +47,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ActionModuleTests extends ESTestCase {
+
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(ActionModule.setupActions(emptyList()),
                 hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class)));
@@ -67,7 +72,11 @@ public class ActionModuleTests extends ESTestCase {
                 return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
             }
         };
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupClientActions(singletonList(dupsMainAction)));
+        assertEquals("clientAction for name [" + MainAction.NAME + "] already registered", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
         assertEquals("action for name [" + MainAction.NAME + "] already registered", e.getMessage());
     }
 
@@ -80,7 +89,7 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
-                    IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                                          IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
                 super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager);
             }
 
@@ -105,16 +114,17 @@ public class ActionModuleTests extends ESTestCase {
                 return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
             }
         };
+
         assertThat(ActionModule.setupActions(singletonList(registersFakeAction)),
-                hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class)));
+            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class)));
     }
 
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService(settings.getSettings());
         ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
-                settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null, usageService);
+                settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(),
+                emptyList(), null, null, usageService);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -137,7 +147,7 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null, usageService);
+                    singletonList(dupsMainAction), singletonList(dupsMainAction), null, null, usageService);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -169,7 +179,7 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null, usageService);
+                    singletonList(registersFakeHandler), singletonList(registersFakeHandler), null, null, usageService);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -178,5 +188,81 @@ public class ActionModuleTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    /**
+     * This test ensures that no Actions are added to core without also adding an associated Client Action. If you find this
+     * test failing, it is likely because the {@link ActionPlugin#getActions()} and {@link ClientActionPlugin#getClientActions()}
+     * are not returning the same list of {@link GenericAction}. Consult your {@link ActionPlugin} to ensure both methods
+     * are overridden and contain the same {@link GenericAction}'s.
+     */
+    public void testDefaultActionsAndClientActionsContainTheSameKeys() {
+        // Do not add any extra actions to assert they are the same
+        List<GenericAction> genericActionsFromActions = ActionModule.setupActions(emptyList()).values()
+            .stream()
+            .map(a->a.getAction())
+            .collect(Collectors.toList());
+        // we aren't checking 2 empty lists
+        assertNotEquals(genericActionsFromActions.size(), 0);
+        // the client action list is the same as the generic action list
+        assertThat(genericActionsFromActions,
+            containsInAnyOrder(ActionModule.setupClientActions(emptyList()).toArray(new GenericAction[0])));
+    }
+
+    /**
+     * This test ensures that the generation of additional actions and client actions above the base set included in core
+     * will always contain the same set of items. This ensures that the client can bind to {@link ActionModule#getClientActions()}
+     * and know that the same associated actions are registered for routing on the server.
+     */
+    public void testAddedActionsAndClientActionsContainTheSameKeys() {
+
+        class FakeAction extends GenericAction<ActionRequest, ActionResponse> {
+            private FakeAction() {
+                super("fake");
+            }
+
+            @Override
+            public ActionResponse newResponse() {
+                return null;
+            }
+        }
+
+        class FakeTransportAction extends TransportAction<ActionRequest, ActionResponse> {
+            protected FakeTransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager);
+            }
+
+            @Override
+            protected void doExecute(ActionRequest request, ActionListener<ActionResponse> listener) {
+            }
+        }
+        FakeAction genericAction = new FakeAction();
+        ActionPlugin fakeActionPlugin = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(genericAction, FakeTransportAction.class));
+            }
+        };
+
+        ClientActionPlugin fakeClientActionPlugin = new ClientActionPlugin() {
+            @Override
+            public List<GenericAction<? extends ActionRequest, ? extends ActionResponse>> getClientActions() {
+                return Collections.singletonList(genericAction);
+            }
+        };
+
+        // Add the actions in to make sure they are the same coming out
+        List<GenericAction> genericActionsFromActions = ActionModule.setupActions(singletonList(fakeActionPlugin)).values()
+            .stream()
+            .map(a->a.getAction())
+            .collect(Collectors.toList());
+        // we aren't checking 2 empty lists
+        assertNotEquals(genericActionsFromActions.size(), 0);
+        // the actions size is not the same as a default action list, which should have 1 less
+        assertEquals(genericActionsFromActions.size(), ActionModule.setupActions(emptyList()).size() + 1);
+        // the client action list is the same as the generic action list
+        assertThat(genericActionsFromActions,
+            containsInAnyOrder(ActionModule.setupClientActions(singletonList(fakeClientActionPlugin)).toArray(new GenericAction[0])));
     }
 }

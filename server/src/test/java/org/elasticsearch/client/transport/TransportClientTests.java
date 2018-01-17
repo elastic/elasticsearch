@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ClientActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.MockTransportClient;
@@ -63,7 +64,7 @@ public class TransportClientTests extends ESTestCase {
         }
     }
 
-    public static class MockPlugin extends Plugin {
+    public static class MockPlugin extends Plugin implements ClientActionPlugin {
 
         @Override
         public List<Entry> getNamedWriteables() {

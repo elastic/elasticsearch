@@ -247,8 +247,9 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testCheckUnreferencedCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final UUID translogUUID = UUID.randomUUID();
+        final TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
-            OPEN_INDEX_AND_TRANSLOG, createTranslogDeletionPolicy(), globalCheckpoint::get, null);
+            OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get, null);
         final List<IndexCommit> commitList = new ArrayList<>();
         int totalCommits = between(2, 20);
         long lastMaxSeqNo = between(1, 1000);
@@ -261,13 +262,23 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         IndexCommit safeCommit = randomFrom(commitList);
         globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
         indexPolicy.onCommit(commitList);
-        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), lastMaxSeqNo)); // Advanced not enough
-        assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
-        globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
         if (safeCommit == commitList.get(commitList.size() - 1)) {
-            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false)); // Keeping a single commit
+            // Safe commit is the last commit - no need to clean up
+            assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
+            assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
         } else {
+            // Advanced but not enough
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), lastMaxSeqNo - 1));
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
+            // Advanced enough
+            globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(true));
+            indexPolicy.onCommit(commitList);
+            // Safe commit is the last commit - no need to clean up
+            assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
+            assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
         }
     }
 

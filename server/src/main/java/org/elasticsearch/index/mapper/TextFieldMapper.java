@@ -126,6 +126,10 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
+            if (minChars > maxChars)
+                throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
+            if (minChars < 1)
+                throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
             this.prefixFieldType = new PrefixFieldType(name() + "..prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
@@ -183,7 +187,7 @@ public class TextFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (propName.equals("index_prefix")) {
                     Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
-                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 0);
+                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 1);
                     int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"), 10);
                     builder.indexPrefixes(minChars, maxChars);
                     DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
@@ -491,7 +495,7 @@ public class TextFieldMapper extends FieldMapper {
     public Iterator<Mapper> iterator() {
         if (prefixFieldMapper == null)
             return super.iterator();
-        return Iterators.concat(multiFields.iterator(), Collections.singleton(prefixFieldMapper).iterator());
+        return Iterators.concat(super.iterator(), Collections.singleton(prefixFieldMapper).iterator());
     }
 
     @Override

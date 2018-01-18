@@ -624,23 +624,59 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field..prefix");
         assertEquals(1, fields.length);
 
-        String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", "text")
-            .field("analyzer", "english")
-            .startObject("index_prefix")
-            .field("min_chars", 1)
-            .field("max_chars", 10)
-            .endObject()
-            .startObject("fields")
-            .startObject(".prefix").field("type", "text").endObject()
-            .endObject()
-            .endObject().endObject()
-            .endObject().endObject().string();
+        {
+            String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix")
+                .field("min_chars", 1)
+                .field("max_chars", 10)
+                .endObject()
+                .startObject("fields")
+                .startObject(".prefix").field("type", "text").endObject()
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> parser.parse("type", new CompressedXContent(illegalMapping))
-        );
-        assertThat(e.getMessage(), containsString("cannot contain '.'"));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> parser.parse("type", new CompressedXContent(illegalMapping))
+            );
+            assertThat(e.getMessage(), containsString("cannot contain '.'"));
+        }
+
+        {
+            String badConfigMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix")
+                .field("min_chars", 11)
+                .field("max_chars", 10)
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("min_chars [11] must be less than max_chars [10]"));
+        }
+
+        {
+            String badConfigMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix")
+                .field("min_chars", 0)
+                .field("max_chars", 10)
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("min_chars [0] must be greater than zero"));
+        }
     }
 }

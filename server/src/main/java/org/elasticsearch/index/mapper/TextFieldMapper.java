@@ -130,7 +130,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
             if (minChars < 1)
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
-            this.prefixFieldType = new PrefixFieldType(name() + "..prefix", minChars, maxChars);
+            this.prefixFieldType = new PrefixFieldType(name() + ".prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
         }

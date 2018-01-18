@@ -34,9 +34,9 @@
           "metric" : { "precision": { "ignore_unlabeled" : true }}
         }
 
-  - match: { rank_eval.quality_level: 1}
-  - match: { rank_eval.details.amsterdam_query.quality_level: 1.0}
-  - match: { rank_eval.details.amsterdam_query.unknown_docs:  [ ]}
-  - match: { rank_eval.details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
+  - match: { quality_level: 1}
+  - match: { details.amsterdam_query.quality_level: 1.0}
+  - match: { details.amsterdam_query.unknown_docs:  [ ]}
+  - match: { details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
 
-  - is_true: rank_eval.failures.invalid_query
+  - is_true: failures.invalid_query

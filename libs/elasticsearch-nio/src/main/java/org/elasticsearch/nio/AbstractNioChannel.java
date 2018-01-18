@@ -52,7 +52,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
-    private ChannelContext context;
 
     AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
         this.socketChannel = socketChannel;
@@ -122,11 +121,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public void close() {
-        context.closeChannel();
-    }
-
-    void setContext(ChannelContext context) {
-        this.context = context;
+        getContext().closeChannel();
     }
 
     // Package visibility for testing

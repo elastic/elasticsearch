@@ -48,7 +48,6 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
     public void setContext(ServerChannelContext context) {
         if (contextSet.compareAndSet(false, true)) {
             this.context = context;
-            super.setContext(context);
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }

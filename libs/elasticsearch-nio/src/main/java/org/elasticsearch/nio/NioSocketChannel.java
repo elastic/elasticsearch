@@ -74,12 +74,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     public void setContext(SocketChannelContext context) {
         if (contextSet.compareAndSet(false, true)) {
             this.context = context;
-            super.setContext(context);
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
     }
 
+    @Override
     public SocketChannelContext getContext() {
         return context;
     }

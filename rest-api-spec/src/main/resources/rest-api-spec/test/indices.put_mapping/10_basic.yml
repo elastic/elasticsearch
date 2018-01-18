@@ -84,6 +84,10 @@
 ---
 "POST _default_ mappings":
 
+  - skip:
+      version: " - 6.99.99"
+      reason:  _default_ mapping was removed in 7.0
+
   - do:
       indices.create:
         index: test_index

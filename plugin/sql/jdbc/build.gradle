@@ -1,0 +1,35 @@
+apply plugin: 'elasticsearch.build'
+
+description = 'JDBC driver for Elasticsearch'
+
+forbiddenApisMain {
+    // does not depend on core, so only jdk and http signatures should be checked
+    signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+dependencies {
+    /* We want to limit these dependencies so we don't have a huge jar.
+     * Since we shade these dependencies we don't have to be super careful
+     * but we have to be *somewhat* careful because things like commons logging
+     * don't shadow properly.
+     *
+     * Note: we've temporarily disabled shading. */
+    compile project(':x-pack-elasticsearch:sql:shared-client')
+    compile project(':x-pack-elasticsearch:sql:rest-proto')
+    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+dependencyLicenses {
+    mapping from: /shared-client.*/, to: 'elasticsearch'
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /rest-proto.*/, to: 'elasticsearch'
+    mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+    ignoreSha 'rest-proto'
+    ignoreSha 'shared-client'
+    ignoreSha 'elasticsearch'
+    ignoreSha 'elasticsearch-core'
+}
+
+// TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in

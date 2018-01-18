@@ -6,10 +6,10 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'qa-sql'
 
 dependencies {
-  compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+  compile "org.elasticsearch.test:framework:${version}"
 
 // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
-  compile(project(':x-pack-elasticsearch:sql:jdbc'))
+  compile(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
   runtime "com.h2database:h2:1.4.194"
   // used for running debug tests
@@ -65,10 +65,10 @@ subprojects {
     testCompile(project(':x-pack-elasticsearch:qa:sql')) {
       transitive = false
     }
-    testCompile "org.elasticsearch.test:framework:${versions.elasticsearch}"
+    testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime(project(':x-pack-elasticsearch:sql:jdbc'))
+    testRuntime(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
     // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
     testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false

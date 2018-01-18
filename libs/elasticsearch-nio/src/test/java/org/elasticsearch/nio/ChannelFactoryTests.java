@@ -139,7 +139,7 @@ public class ChannelFactoryTests extends ESTestCase {
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel, selector);
-            nioSocketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
+            nioSocketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
             return nioSocketChannel;
         }
 

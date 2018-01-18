@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,7 +47,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -61,7 +58,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /**
  * This is a socket based blocking TcpTransport implementation that is used for tests
@@ -164,28 +160,32 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     @Override
-    protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
-        throws IOException {
-        InetSocketAddress address = node.getAddress().address();
+    protected MockChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
         final MockSocket socket = new MockSocket();
+        final MockChannel channel = new MockChannel(socket, address, "none");
+
         boolean success = false;
         try {
             configureSocket(socket);
-            try {
-                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-            } catch (SocketTimeoutException ex) {
-                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
-            }
-            MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
-            channel.loopRead(executor);
             success = true;
-            connectListener.onResponse(null);
-            return channel;
         } finally {
             if (success == false) {
                 IOUtils.close(socket);
             }
+
         }
+
+        executor.submit(() -> {
+            try {
+                socket.connect(address);
+                channel.loopRead(executor);
+                connectListener.onResponse(null);
+            } catch (Exception ex) {
+                connectListener.onFailure(ex);
+            }
+        });
+
+        return channel;
     }
 
     @Override
@@ -218,7 +218,6 @@ public class MockTcpTransport extends TcpTransport {
         private final Socket activeChannel;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
-        private final Closeable onClose;
         private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
 
         /**
@@ -227,14 +226,12 @@ public class MockTcpTransport extends TcpTransport {
          * @param socket The client socket. Mut not be null.
          * @param localAddress Address associated with the corresponding local server socket. Must not be null.
          * @param profile The associated profile name.
-         * @param onClose Callback to execute when this channel is closed.
          */
-        public MockChannel(Socket socket, InetSocketAddress localAddress, String profile, Consumer<MockChannel> onClose) {
+        public MockChannel(Socket socket, InetSocketAddress localAddress, String profile) {
             this.localAddress = localAddress;
             this.activeChannel = socket;
             this.serverSocket = null;
             this.profile = profile;
-            this.onClose = () -> onClose.accept(this);
             synchronized (openChannels) {
                 openChannels.add(this);
             }
@@ -246,12 +243,11 @@ public class MockTcpTransport extends TcpTransport {
          * @param serverSocket The associated server socket. Must not be null.
          * @param profile The associated profile name.
          */
-        public MockChannel(ServerSocket serverSocket, String profile) {
+        MockChannel(ServerSocket serverSocket, String profile) {
             this.localAddress = (InetSocketAddress) serverSocket.getLocalSocketAddress();
             this.serverSocket = serverSocket;
             this.profile = profile;
             this.activeChannel = null;
-            this.onClose = null;
             synchronized (openChannels) {
                 openChannels.add(this);
             }
@@ -266,8 +262,19 @@ public class MockTcpTransport extends TcpTransport {
                     synchronized (this) {
                         if (isOpen.get()) {
                             incomingChannel = new MockChannel(incomingSocket,
-                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile,
-                                workerChannels::remove);
+                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile);
+                            MockChannel finalIncomingChannel = incomingChannel;
+                            incomingChannel.addCloseListener(new ActionListener<Void>() {
+                                @Override
+                                public void onResponse(Void aVoid) {
+                                    workerChannels.remove(finalIncomingChannel);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    workerChannels.remove(finalIncomingChannel);
+                                }
+                            });
                             serverAcceptedChannel(incomingChannel);
                             //establish a happens-before edge between closing and accepting a new connection
                             workerChannels.add(incomingChannel);
@@ -287,7 +294,7 @@ public class MockTcpTransport extends TcpTransport {
             }
         }
 
-        public void loopRead(Executor executor) {
+        void loopRead(Executor executor) {
             executor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -312,7 +319,7 @@ public class MockTcpTransport extends TcpTransport {
             });
         }
 
-        public synchronized void close0() throws IOException {
+        synchronized void close0() throws IOException {
             // establish a happens-before edge between closing and accepting a new connection
             // we have to sync this entire block to ensure that our openChannels checks work correctly.
             // The close block below will close all worker channels but if one of the worker channels runs into an exception
@@ -325,7 +332,7 @@ public class MockTcpTransport extends TcpTransport {
                     removedChannel = openChannels.remove(this);
                 }
                 IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels),
-                    () -> cancellableThreads.cancel("channel closed"), onClose);
+                    () -> cancellableThreads.cancel("channel closed"));
                 assert removedChannel: "Channel was not removed or removed twice?";
             }
         }

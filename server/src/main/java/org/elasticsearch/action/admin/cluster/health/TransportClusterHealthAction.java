@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -125,7 +126,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     @Override
                     public void onNoLongerMaster(String source) {
                         logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
-                        doExecute(task, request, listener);
+                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
                     }
 
                     @Override

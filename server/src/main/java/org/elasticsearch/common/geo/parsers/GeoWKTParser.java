@@ -63,6 +63,12 @@ public class GeoWKTParser {
 
     public static ShapeBuilder parse(XContentParser parser)
             throws IOException, ElasticsearchParseException {
+        return parseExpectedType(parser, null);
+    }
+
+    /** throws an exception if the parsed geometry type does not match the expected shape type */
+    public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType)
+            throws IOException, ElasticsearchParseException {
         FastStringReader reader = new FastStringReader(parser.text());
         try {
             // setup the tokenizer; configured to read words w/o numbers
@@ -77,7 +83,7 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer);
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType);
             checkEOF(tokenizer);
             return builder;
         } finally {
@@ -86,8 +92,14 @@ public class GeoWKTParser {
     }
 
     /** parse geometry from the stream tokenizer */
-    private static ShapeBuilder parseGeometry(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static ShapeBuilder parseGeometry(StreamTokenizer stream, GeoShapeType shapeType)
+            throws IOException, ElasticsearchParseException {
         final GeoShapeType type = GeoShapeType.forName(nextWord(stream));
+        if (shapeType != null && shapeType != GeoShapeType.GEOMETRYCOLLECTION) {
+            if (type.wktName().equals(shapeType.wktName()) == false) {
+                throw new ElasticsearchParseException("Expected geometry type [{}] but found [{}]", shapeType, type);
+            }
+        }
         switch (type) {
             case POINT:
                 return parsePoint(stream);
@@ -228,9 +240,10 @@ public class GeoWKTParser {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(parseGeometry(stream));
+        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(
+            parseGeometry(stream, GeoShapeType.GEOMETRYCOLLECTION));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.shape(parseGeometry(stream));
+            builder.shape(parseGeometry(stream, null));
         }
         return builder;
     }

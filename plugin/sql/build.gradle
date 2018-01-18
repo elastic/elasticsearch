@@ -6,7 +6,7 @@ archivesBaseName = 'x-pack-sql'
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
-    compile project(':x-pack-elasticsearch:sql:rest-proto')
+    compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
     compile "org.elasticsearch.plugin:x-pack-core:${version}"
     compile 'org.antlr:antlr4-runtime:4.5.3'
     testCompile "org.elasticsearch.test:framework:${version}"
@@ -14,11 +14,11 @@ dependencies {
 
 dependencyLicenses {
     mapping from: /server.*/, to: 'elasticsearch'
-    mapping from: /rest-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
     mapping from: /x-pack-core.*/, to: 'elasticsearch'
 
     ignoreSha 'x-pack-core'
-    ignoreSha 'rest-proto'
+    ignoreSha 'sql-proto'
 }
 
 /**********************************************

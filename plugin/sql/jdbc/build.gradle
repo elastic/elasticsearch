@@ -14,20 +14,20 @@ dependencies {
      * don't shadow properly.
      *
      * Note: we've temporarily disabled shading. */
-    compile project(':x-pack-elasticsearch:sql:shared-client')
-    compile project(':x-pack-elasticsearch:sql:rest-proto')
+    compile project(':x-pack-elasticsearch:plugin:sql:sql-shared-client')
+    compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     testCompile "org.elasticsearch.test:framework:${version}"
 }
 
 dependencyLicenses {
-    mapping from: /shared-client.*/, to: 'elasticsearch'
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
     mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /rest-proto.*/, to: 'elasticsearch'
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    ignoreSha 'rest-proto'
-    ignoreSha 'shared-client'
+    ignoreSha 'sql-proto'
+    ignoreSha 'sql-shared-client'
     ignoreSha 'elasticsearch'
     ignoreSha 'elasticsearch-core'
 }

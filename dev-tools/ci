@@ -60,12 +60,9 @@ case $key in
     smokeTestSql)  # TODO remove this once we are ready to merge sql down
         GRADLE_CLI_ARGS=(
             "--info"
-            "-psql"
+            "-ppluin/sql"
             "check"
             ":x-pack-elasticsearch:plugin:precommit"
-            ":x-pack-elasticsearch:plugin:sql:check"
-            ":x-pack-elasticsearch:plugin:sql:sql-cli:check"
-            ":x-pack-elasticsearch:plugin:sql:jdbc:check"
             ":x-pack-elasticsearch:qa:sql:check"
             ":x-pack-elasticsearch:qa:sql:multinode:check"
             ":x-pack-elasticsearch:qa:sql:no-security:check"

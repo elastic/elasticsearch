@@ -20,7 +20,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,10 +29,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 
 public class SqlPlugin implements ActionPlugin {
-
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Cursor.getNamedWriteables();
-    }
 
     private final boolean enabled;
     private final SqlLicenseChecker sqlLicenseChecker;

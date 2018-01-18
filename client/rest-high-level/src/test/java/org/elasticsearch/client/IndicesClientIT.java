@@ -55,7 +55,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
 
             CreateIndexResponse createIndexResponse =
-                execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
+                execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
             assertTrue(indexExists(indexName));
@@ -83,7 +83,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndexRequest.mapping("type_name", mappingBuilder);
 
             CreateIndexResponse createIndexResponse =
-                execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
+                execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
             Map<String, Object> indexMetaData = getIndexMetadata(indexName);
@@ -116,7 +116,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
             DeleteIndexResponse deleteIndexResponse =
-                execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync);
+                execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync);
             assertTrue(deleteIndexResponse.isAcknowledged());
 
             assertFalse(indexExists(indexName));
@@ -129,7 +129,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(nonExistentIndex);
 
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync));
+                () -> execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }
@@ -143,8 +143,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.getMessage().contains(index), equalTo(true));
 
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(index);
-        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::openIndex,
-                highLevelClient().indices()::openIndexAsync);
+        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::open,
+                highLevelClient().indices()::openAsync);
         assertTrue(openIndexResponse.isAcknowledged());
 
         Response response = client().performRequest("GET", index + "/_search");
@@ -157,19 +157,19 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
 
         OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::openIndex,
-                highLevelClient().indices()::openIndexAsync);
+        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
+                highLevelClient().indices()::openAsync);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
@@ -180,8 +180,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
-        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::closeIndex,
-                highLevelClient().indices()::closeIndexAsync);
+        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
+                highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
 
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
@@ -195,7 +195,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(closeIndexRequest, highLevelClient().indices()::closeIndex, highLevelClient().indices()::closeIndexAsync));
+                () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 

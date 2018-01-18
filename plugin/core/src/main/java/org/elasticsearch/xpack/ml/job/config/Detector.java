@@ -767,8 +767,7 @@ public class Detector implements ToXContentObject, Writeable {
         }
 
         public List<String> extractAnalysisFields() {
-            List<String> analysisFields = Arrays.asList(byFieldName,
-                    overFieldName, partitionFieldName);
+            List<String> analysisFields = Arrays.asList(byFieldName, overFieldName, partitionFieldName);
             return analysisFields.stream().filter(item -> item != null).collect(Collectors.toList());
         }
 
@@ -800,8 +799,21 @@ public class Detector implements ToXContentObject, Writeable {
         private void checkScoping(DetectionRule rule) throws ElasticsearchParseException {
             String targetFieldName = rule.getTargetFieldName();
             checkTargetFieldNameIsValid(extractAnalysisFields(), targetFieldName);
-            List<String> validOptions = getValidFieldNameOptions(rule);
             for (RuleCondition condition : rule.getConditions()) {
+                List<String> validOptions = Collections.emptyList();
+                switch (condition.getType()) {
+                    case CATEGORICAL:
+                        validOptions = extractAnalysisFields();
+                        break;
+                    case NUMERICAL_ACTUAL:
+                    case NUMERICAL_TYPICAL:
+                    case NUMERICAL_DIFF_ABS:
+                        validOptions = getValidFieldNameOptionsForNumeric(rule);
+                        break;
+                    case TIME:
+                    default:
+                        break;
+                }
                 if (!validOptions.contains(condition.getFieldName())) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME, validOptions,
                             condition.getFieldName());
@@ -819,7 +831,7 @@ public class Detector implements ToXContentObject, Writeable {
             }
         }
 
-        private List<String> getValidFieldNameOptions(DetectionRule rule) {
+        private List<String> getValidFieldNameOptionsForNumeric(DetectionRule rule) {
             List<String> result = new ArrayList<>();
             if (overFieldName != null) {
                 result.add(byFieldName == null ? overFieldName : byFieldName);

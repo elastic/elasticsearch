@@ -535,6 +535,38 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         detector.build();
     }
 
+    public void testVerify_GivenCategoricalRuleOnAllPartitioningFields() {
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setPartitionFieldName("my_partition");
+        detector.setOverFieldName("my_over");
+        detector.setByFieldName("my_by");
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
+                RuleCondition.createCategorical("my_partition", "my_filter_id"),
+                RuleCondition.createCategorical("my_over", "my_filter_id"),
+                RuleCondition.createCategorical("my_by", "my_filter_id")
+        )).build();
+        detector.setRules(Collections.singletonList(rule));
+
+        detector.build();
+    }
+
+    public void testVerify_GivenCategoricalRuleOnInvalidField() {
+        Detector.Builder detector = new Detector.Builder("mean", "my_metric");
+        detector.setPartitionFieldName("my_partition");
+        detector.setOverFieldName("my_over");
+        detector.setByFieldName("my_by");
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
+                RuleCondition.createCategorical("my_metric", "my_filter_id")
+        )).build();
+        detector.setRules(Collections.singletonList(rule));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME,
+                "[my_by, my_over, my_partition]", "my_metric"),
+                e.getMessage());
+    }
+
     public void testVerify_GivenSameByAndPartition() {
         Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("x");

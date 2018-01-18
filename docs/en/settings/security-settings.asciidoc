@@ -9,8 +9,9 @@ You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>
 and perform message authentication,
 <<field-document-security-settings, set up document and field level security>>,
-<<realm-settings, configure realms>>, and
-<<ssl-tls-settings, encrypt communications with SSL>>.
+<<realm-settings, configure realms>>,
+<<ssl-tls-settings, encrypt communications with SSL>>, and
+<<auditing-settings, audit security events>>.
 
 All of these settings can be added to the `elasticsearch.yml` configuration file,
 with the exception of the secure settings, which you add to the {es} keystore.

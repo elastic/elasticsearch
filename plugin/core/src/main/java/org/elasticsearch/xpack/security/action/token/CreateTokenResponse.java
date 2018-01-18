@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,13 +26,15 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     private String tokenString;
     private TimeValue expiresIn;
     private String scope;
+    private String refreshToken;
 
     CreateTokenResponse() {}
 
-    public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope) {
+    public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken) {
         this.tokenString = Objects.requireNonNull(tokenString);
         this.expiresIn = Objects.requireNonNull(expiresIn);
         this.scope = scope;
+        this.refreshToken = refreshToken;
     }
 
     public String getTokenString() {
@@ -46,12 +49,19 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         return expiresIn;
     }
 
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(tokenString);
         expiresIn.writeTo(out);
         out.writeOptionalString(scope);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+            out.writeString(refreshToken);
+        }
     }
 
     @Override
@@ -60,6 +70,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         tokenString = in.readString();
         expiresIn = new TimeValue(in);
         scope = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            refreshToken = in.readString();
+        }
     }
 
     @Override
@@ -68,6 +81,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
             .field("access_token", tokenString)
             .field("type", "Bearer")
             .field("expires_in", expiresIn.seconds());
+        if (refreshToken != null) {
+            builder.field("refresh_token", refreshToken);
+        }
         // only show the scope if it is not null
         if (scope != null) {
             builder.field("scope", scope);

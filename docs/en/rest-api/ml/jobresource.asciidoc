@@ -105,24 +105,23 @@ An analysis configuration object has the following properties:
   (array of strings) If `categorization_field_name` is specified,
   you can also define optional filters. This property expects an array of
   regular expressions. The expressions are used to filter out matching sequences
-  off the categorization field values. This functionality is useful to fine tune
-  categorization by excluding sequences that should not be taken into
-  consideration for defining categories. For example, you can exclude SQL
-  statements that appear in your log files. For more information, see
+  from the categorization field values. You can use this functionality to fine
+  tune the categorization by excluding sequences from consideration when
+  categories are defined. For example, you can exclude SQL statements that
+  appear in your log files. For more information, see
   {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
   This property cannot be used at the same time as `categorization_analyzer`.
-  If you only want to define simple regular expression filters to be applied
-  prior to tokenization then it is easiest to specify them using this property.
-  If you also want to customize the tokenizer or post-tokenization filtering
-  then these filters must be included in the `categorization_analyzer` as
-  `pattern_replace` `char_filter`s. The effect is exactly the same.
-//<<ml-configuring-categories>>.
+  If you only want to define simple regular expression filters that are applied
+  prior to tokenization, setting this property is the easiest method.
+  If you also want to customize the tokenizer or post-tokenization filtering,
+  use the `categorization_analyzer` property instead and include the filters as
+  `pattern_replace` character filters. The effect is exactly the same.
 
 `categorization_analyzer`::
-  (object or string) If `categorization_field_name` is specified,
-  you can also define the analyzer that will be used to interpret the field
-  to be categorized. See <<ml-categorizationanalyzer,categorization analyzer>>.
-//<<ml-configuring-categories>>.
+  (object or string) If `categorization_field_name` is specified, you can also
+  define the analyzer that is used to interpret the categorization field. This
+  property cannot be used at the same time as `categorization_filters`. See
+  <<ml-categorizationanalyzer,categorization analyzer>>.
 
 `detectors`::
   (array) An array of detector configuration objects,
@@ -316,39 +315,40 @@ used to define the `analyzer` in the <<indices-analyze,Analyze endpoint>>.
 The `categorization_analyzer` field can be specified either as a string or as
 an object.
 
-If it is a string it must refer to a
-{ref}/analysis-analyzers.html[built-in analyzer] or one added by
-another plugin.
+If it is a string it must refer to a <<analysis-analyzers,built-in analyzer>> or
+one added by another plugin.
 
 If it is an object it has the following properties:
 
 `char_filter`::
   (array of strings or objects) One or more
-  {ref}/analysis-charfilters.html[character filters]. In addition
-  to the built-in character filters other plugins may provide more. This property
-  is optional. If not specified then there will be no character filters. If
-  you are customizing some other aspect of the analyzer and need to achieve
-  the equivalent of `categorization_filters` (which are not permitted when some
-  other aspect of the analyzer is customized), add them here as
-  {ref}/analysis-pattern-replace-charfilter.html[pattern replace character filters].
+  <<analysis-charfilters,character filters>>. In addition to the built-in
+  character filters, other plugins can provide more character filters. This
+  property is optional. If it is not specified, no character filters are applied
+  prior to categorization. If you are customizing some other aspect of the
+  analyzer and you need to achieve the equivalent of `categorization_filters`
+  (which are not permitted when some other aspect of the analyzer is customized),
+  add them here as
+  <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 
 `tokenizer`::
   (string or object) The name or definition of the
-  {ref}/analysis-tokenizers.html[tokenizer] to use after character
-  filters have been applied. This property is compulsory if `categorization_analyzer`
-  is specified as an object. Machine learning provides a tokenizer called `ml_classic`
-  that tokenizes in the same way as the non-customizable tokenizer in older versions of
-  the product. If you would like to stick with this but change the character or token
-  filters then specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+  <<analysis-tokenizers,tokenizer>> to use after character filters are applied.
+  This property is compulsory if `categorization_analyzer` is specified as an
+  object. Machine learning provides a tokenizer called `ml_classic` that
+  tokenizes in the same way as the non-customizable tokenizer in older versions
+  of the product. If you want to use that tokenizer but change the character or
+  token filters, specify `"tokenizer": "ml_classic"` in your
+  `categorization_analyzer`.
 
 `filter`::
   (array of strings or objects) One or more
-  {ref}/analysis-tokenfilters.html[token filters]. In addition to the built-in token
-  filters other plugins may provide more. This property is optional. If not specified
-  then there will be no token filters.
+  <<analysis-tokenfilters,token filters>>. In addition to the built-in token
+  filters, other plugins can provide more token filters. This property is
+  optional. If it is not specified, no token filters are applied prior to
+  categorization.
 
-If you omit `categorization_analyzer` entirely then the default that will be used is
-the one from the following job:
+If you omit the `categorization_analyzer`, the following default values are used:
 
 [source,js]
 --------------------------------------------------
@@ -379,27 +379,28 @@ POST _xpack/ml/anomaly_detectors/_validate
 --------------------------------------------------
 // CONSOLE
 
-However, if you specify any part of `categorization_analyzer` then any omitted
-sub-properties are _not_ defaulted.
+If you specify any part of the `categorization_analyzer`, however, any omitted
+sub-properties are _not_ set to default values.
 
-If you are categorizing non-English messages in a language where words are separated
-by spaces you may get better results if you change the day/month words in the stop
-token filter to those from your language. If you are categorizing messages in a language
-where words are not separated by spaces then you will need to use a different tokenizer
-as well in order to get sensible categorization results.
+If you are categorizing non-English messages in a language where words are
+separated by spaces, you might get better results if you change the day or month
+words in the stop token filter to the appropriate words in your language. If you
+are categorizing messages in a language where words are not separated by spaces,
+you must use a different tokenizer as well in order to get sensible
+categorization results.
 
-It is important to be aware that analyzing for categorization of machine generated
-log messages is a little different to tokenizing for search. Features that work well
-for search, such as stemming, synonym substitution and lowercasing are likely to make
-the results of categorization worse. However, in order for drilldown from machine
-learning results to work correctly, the tokens that the categorization analyzer
-produces need to be sufficiently similar to those produced by the search analyzer
-that if you search for the tokens that the categorization analyzer produces you will
-find the original document that the field to be categorized came from.
+It is important to be aware that analyzing for categorization of machine
+generated log messages is a little different from tokenizing for search.
+Features that work well for search, such as stemming, synonym substitution, and
+lowercasing are likely to make the results of categorization worse. However, in
+order for drill down from {ml} results to work correctly, the tokens that the
+categorization analyzer produces must be similar to those produced by the search
+analyzer. If they are sufficiently similar, when you search for the tokens that
+the categorization analyzer produces then you find the original document that
+the categorization field value came from.
 
-For more information, see {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
-//<<ml-configuring-categories>>.
-
+For more information, see
+{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
 
 [float]
 [[ml-apilimits]]

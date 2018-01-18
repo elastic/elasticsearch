@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +54,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop("stopping before shutting down");
+                stop("shutdown initiated");
             }
         });
         watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("xpack.watcher.start_immediately", true));
@@ -111,6 +113,16 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
+        if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId())) {
+            executor.execute(() -> this.stop("no master node"));
+            return;
+        }
+
+        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+            executor.execute(() -> this.stop("write level cluster block"));
+            return;
+        }
+
         // find out if watcher was stopped or started manually due to this cluster state change
         WatcherMetaData watcherMetaData = event.state().getMetaData().custom(WatcherMetaData.TYPE);
 
@@ -120,7 +132,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
         boolean currentWatcherStopped = watcherMetaData != null && watcherMetaData.manuallyStopped() == true;
         if (currentWatcherStopped) {
-            executor.execute(() -> this.stop("watcher manually marked to shutdown in cluster state update, shutting down"));
+            executor.execute(() -> this.stop("watcher manually marked to shutdown by cluster state update"));
         } else {
             if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
@@ -156,7 +168,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
                 if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
                     previousAllocationIds.set(currentAllocationIds);
-                    executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
+                    executor.execute(() -> watcherService.reload(event.state(), "different shards allocated on this node"));
                 }
             } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
                 IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());

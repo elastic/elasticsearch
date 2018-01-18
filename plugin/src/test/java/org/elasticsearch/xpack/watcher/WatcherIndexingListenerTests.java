@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -25,18 +26,19 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
@@ -667,6 +669,30 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         assertThat(listener.getConfiguration(), is(INACTIVE));
     }
 
+    public void testThatIndexingListenerBecomesInactiveWithoutMasterNode() {
+        ClusterState clusterStateWithMaster = mockClusterState(Watch.INDEX);
+        ClusterState clusterStateWithoutMaster = mockClusterState(Watch.INDEX);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node_1").add(newNode("node_1")).build();
+        when(clusterStateWithoutMaster.nodes()).thenReturn(nodes);
+
+        assertThat(listener.getConfiguration(), is(not(INACTIVE)));
+        listener.clusterChanged(new ClusterChangedEvent("something", clusterStateWithoutMaster, clusterStateWithMaster));
+
+        assertThat(listener.getConfiguration(), is(INACTIVE));
+    }
+
+    public void testThatIndexingListenerBecomesInactiveOnClusterBlock() {
+        ClusterState clusterState = mockClusterState(Watch.INDEX);
+        ClusterState clusterStateWriteBlock = mockClusterState(Watch.INDEX);
+        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+        when(clusterStateWriteBlock.getBlocks()).thenReturn(clusterBlocks);
+
+        assertThat(listener.getConfiguration(), is(not(INACTIVE)));
+        listener.clusterChanged(new ClusterChangedEvent("something", clusterStateWriteBlock, clusterState));
+
+        assertThat(listener.getConfiguration(), is(INACTIVE));
+    }
+
     //
     // helper methods
     //
@@ -699,6 +725,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node_1").masterNodeId("node_1").add(newNode("node_1")).build();
         when(clusterState.nodes()).thenReturn(nodes);
+        when(clusterState.getBlocks()).thenReturn(ClusterBlocks.EMPTY_CLUSTER_BLOCK);
 
         return clusterState;
     }

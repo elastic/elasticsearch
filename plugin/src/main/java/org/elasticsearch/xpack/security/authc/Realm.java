@@ -53,7 +53,12 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public int compareTo(Realm other) {
-        return Integer.compare(config.order, other.config.order);
+        int result = Integer.compare(config.order, other.config.order);
+        if (result == 0) {
+            // If same order, compare based on the realm name
+            result = config.name.compareTo(other.config.name);
+        }
+        return result;
     }
 
     /**

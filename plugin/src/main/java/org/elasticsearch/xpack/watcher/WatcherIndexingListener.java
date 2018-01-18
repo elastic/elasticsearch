@@ -9,12 +9,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -99,10 +101,8 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
         if (isWatchDocument(shardId.getIndexName(), operation.type())) {
             DateTime now = new DateTime(clock.millis(), UTC);
             try {
-                Watch watch = parser.parseWithSecrets(operation.id(), true,
-                        operation.source(), now, XContentType.JSON);
-                ShardAllocationConfiguration shardAllocationConfiguration =
-                        configuration.localShards.get(shardId);
+                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON);
+                ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
                             watch.id(), shardId, configuration.localShards.keySet());
@@ -193,6 +193,14 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // if there is no master node configured in the current state, this node should not try to trigger anything, but consider itself
+        // inactive. the same applies, if there is a cluster block that does not allow writes
+        if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId()) ||
+                event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+            configuration = INACTIVE;
+            return;
+        }
+
         if (event.state().nodes().getLocalNode().isDataNode() && event.metaDataChanged()) {
             try {
                 IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
@@ -211,7 +219,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     private void checkWatchIndexHasChanged(IndexMetaData metaData, ClusterChangedEvent event) {
         String watchIndex = metaData.getIndex().getName();
         ClusterState state = event.state();
-        String localNodeId = state.getNodes().getLocalNode().getId();
+        String localNodeId = state.nodes().getLocalNode().getId();
         RoutingNode routingNode = state.getRoutingNodes().node(localNodeId);
 
         // no local shards, exit early

@@ -14,7 +14,6 @@ dependencies {
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
-
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
 
@@ -62,11 +61,15 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 
 Project mainProject = project
 
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
  */
 subprojects {
+  // TODO remove after backport
+  ext.bwc_tests_enabled = false
   Matcher m = project.name =~ /with(out)?-system-key/
   if (false == m.matches()) {
     throw new InvalidUserDataException("Invalid project name [${project.name}]")
@@ -267,6 +270,8 @@ subprojects {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   }
+
+  compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
   // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
   task copyXPackRestSpec(type: Copy) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -92,6 +94,45 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.type(), equalTo("type_" + index));
             assertThat(realm.name(), equalTo("realm_" + index));
             i++;
+        }
+    }
+
+    public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir());
+        List<Integer> randomSeq = new ArrayList<>(factories.size() - 2);
+        for (int i = 0; i < factories.size() - 2; i++) {
+            randomSeq.add(i);
+        }
+        Collections.shuffle(randomSeq, random());
+
+        TreeMap<String, Integer> nameToRealmId = new TreeMap<>();
+        for (int i = 0; i < factories.size() - 2; i++) {
+            int randomizedRealmId = randomSeq.get(i);
+            String randomizedRealmName = randomAlphaOfLengthBetween(12,32);
+            nameToRealmId.put("realm_" + randomizedRealmName, randomizedRealmId);
+            builder.put("xpack.security.authc.realms.realm_" + randomizedRealmName + ".type", "type_" + randomizedRealmId);
+            // set same order for all realms
+            builder.put("xpack.security.authc.realms.realm_" + randomizedRealmName + ".order", 1);
+        }
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+
+        Iterator<Realm> iterator = realms.iterator();
+        assertThat(iterator.hasNext(), is(true));
+        Realm realm = iterator.next();
+        assertThat(realm, is(reservedRealm));
+
+        // As order is same for all realms, it should fall back secondary comparison on name
+        // Verify that realms are iterated in order based on name
+        Iterator<String> expectedSortedOrderNames = nameToRealmId.keySet().iterator();
+        while (iterator.hasNext()) {
+            realm = iterator.next();
+            String expectedRealmName = expectedSortedOrderNames.next();
+            assertThat(realm.order(), equalTo(1));
+            assertThat(realm.type(), equalTo("type_" + nameToRealmId.get(expectedRealmName)));
+            assertThat(realm.name(), equalTo(expectedRealmName));
         }
     }
 

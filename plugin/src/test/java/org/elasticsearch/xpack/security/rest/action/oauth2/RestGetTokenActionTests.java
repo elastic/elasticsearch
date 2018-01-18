@@ -42,7 +42,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
 
-        ActionRequestValidationException ve = new CreateTokenRequest(null, null, null, null).validate();
+        ActionRequestValidationException ve = new CreateTokenRequest(null, null, null, null, null).validate();
         listener.onFailure(ve);
         RestResponse response = responseSetOnce.get();
         assertNotNull(response);
@@ -66,7 +66,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
         CreateTokenResponse createTokenResponse =
-                new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null);
+                new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null, randomAlphaOfLength(4));
         listener.onResponse(createTokenResponse);
 
         RestResponse response = responseSetOnce.get();
@@ -78,7 +78,8 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("type", "Bearer"));
         assertThat(map, hasEntry("access_token", createTokenResponse.getTokenString()));
         assertThat(map, hasEntry("expires_in", Math.toIntExact(createTokenResponse.getExpiresIn().seconds())));
-        assertEquals(3, map.size());
+        assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
+        assertEquals(4, map.size());
     }
 
     public void testParser() throws Exception {
@@ -94,6 +95,23 @@ public class RestGetTokenActionTests extends ESTestCase {
             assertEquals("user1", createTokenRequest.getUsername());
             assertEquals("FULL", createTokenRequest.getScope());
             assertTrue(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.equals(createTokenRequest.getPassword()));
+        }
+    }
+
+    public void testParserRefreshRequest() throws Exception {
+        final String token = randomAlphaOfLengthBetween(4, 32);
+        final String request = "{" +
+                "\"grant_type\": \"refresh_token\"," +
+                "\"refresh_token\": \"" + token + "\"," +
+                "\"scope\": \"FULL\"" +
+                "}";
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, request)) {
+            CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
+            assertEquals("refresh_token", createTokenRequest.getGrantType());
+            assertEquals(token, createTokenRequest.getRefreshToken());
+            assertEquals("FULL", createTokenRequest.getScope());
+            assertNull(createTokenRequest.getUsername());
+            assertNull(createTokenRequest.getPassword());
         }
     }
 }

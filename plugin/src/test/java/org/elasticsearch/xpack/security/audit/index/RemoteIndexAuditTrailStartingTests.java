@@ -28,7 +28,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +73,11 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         return Sets.newHashSet(SecurityLifecycleService.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
+    @Override
+    protected int numberOfShards() {
+        return 1; // limit ourselves to a single shard in order to avoid timeout issues with large numbers of shards in tests
+    }
+
     @Before
     public void startRemoteCluster() throws IOException, InterruptedException {
         final List<String> addresses = new ArrayList<>();
@@ -102,7 +106,9 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
                         .putList("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
                         .put("xpack.security.audit.index.client.cluster.name", clusterName)
-                        .put("xpack.security.audit.index.client.xpack.security.user", TEST_USER_NAME + ":" + TEST_PASSWORD);
+                        .put("xpack.security.audit.index.client.xpack.security.user", TEST_USER_NAME + ":" + TEST_PASSWORD)
+                        .put("xpack.security.audit.index.settings.index.number_of_shards", 1)
+                        .put("xpack.security.audit.index.settings.index.number_of_replicas", 0);
 
                 addClientSSLSettings(builder, "xpack.security.audit.index.client.");
                 builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", sslEnabled);

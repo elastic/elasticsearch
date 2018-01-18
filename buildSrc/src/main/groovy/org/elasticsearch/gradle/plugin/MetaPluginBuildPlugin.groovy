@@ -40,8 +40,7 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
             distribution = 'zip'
-            setupCommand 'installMetaPlugin',
-                    'bin/elasticsearch-plugin', 'install', 'file:' + project.bundlePlugin.archivePath
+            setupCommand('installMetaPlugin', 'bin/elasticsearch-plugin', 'install', 'file:' + project.bundlePlugin.archivePath)
         }
     }
 
@@ -57,6 +56,9 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
                     include(buildProperties.descriptorOutput.name)
                 }
             }
+            // due to how the renames work for each bundled plugin, we must exclude empty dirs or every subdir
+            // within bundled plugin zips will show up at the root as an empty dir
+            includeEmptyDirs = false
 
         }
         project.assemble.dependsOn(bundle)
@@ -71,7 +73,10 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {
                             eachFile { FileCopyDetails details ->
-                                details.relativePath = new RelativePath(true, 'elasticsearch', bundledPluginProjectName, details.name)
+                                // paths in the individual plugins begin with elasticsearch, and we want to add in the
+                                // bundled plugin name between that and each filename
+                                details.relativePath = new RelativePath(true, 'elasticsearch', bundledPluginProjectName,
+                                                                        details.relativePath.toString().replace('elasticsearch/', ''))
                             }
                         }
                     }

@@ -459,6 +459,8 @@ class BuildPlugin implements Plugin<Project> {
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
+                options.fork = true
+                options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
         }

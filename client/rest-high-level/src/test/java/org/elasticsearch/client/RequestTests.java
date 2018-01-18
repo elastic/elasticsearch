@@ -310,14 +310,6 @@ public class RequestTests extends ESTestCase {
         setRandomMasterTimeout(createIndexRequest, expectedParams);
         setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
 
-        if (randomBoolean()) {
-            boolean updateAllTypes = randomBoolean();
-            createIndexRequest.updateAllTypes(updateAllTypes);
-            if (updateAllTypes) {
-                expectedParams.put("update_all_types", Boolean.TRUE.toString());
-            }
-        }
-
         Request request = Request.createIndex(createIndexRequest);
         assertEquals("/" + indexName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());

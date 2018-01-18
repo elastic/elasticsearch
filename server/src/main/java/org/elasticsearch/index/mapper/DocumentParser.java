@@ -218,7 +218,7 @@ final class DocumentParser {
                 // We can see the same mapper more than once, for example, if we had foo.bar and foo.baz, where
                 // foo did not yet exist. This will create 2 copies in dynamic mappings, which should be identical.
                 // Here we just skip over the duplicates, but we merge them to ensure there are no conflicts.
-                newMapper.merge(previousMapper, false);
+                newMapper.merge(previousMapper);
                 continue;
             }
             previousMapper = newMapper;
@@ -275,7 +275,7 @@ final class DocumentParser {
         int lastIndex = parentMappers.size() - 1;
         ObjectMapper withNewMapper = parentMappers.get(lastIndex).mappingUpdate(mapper);
         if (merge) {
-            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper, false);
+            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper);
         }
         parentMappers.set(lastIndex, withNewMapper);
     }

@@ -1,0 +1,41 @@
+---
+"search with index prefixes":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            test:
+              properties:
+                text:
+                  type: text
+                  index_prefix:
+                    min_chars: 1
+                    max_chars: 10
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { text: some short words and a stupendously long one }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        index: test
+        q: shor*
+        df: text
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        index: test
+        q: stupendousl*
+        df: text
+
+  - match: {hits.total: 1}

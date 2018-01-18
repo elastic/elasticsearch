@@ -4,6 +4,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.S3Object
+import com.amazonaws.services.s3.model.ObjectMetadata
 import com.bettercloud.vault.Vault
 import com.bettercloud.vault.VaultConfig
 import com.bettercloud.vault.response.LogicalResponse
@@ -87,7 +88,7 @@ void setupVaultAuthMethod() {
   project.ext.vaultUrl = vaultUrl
 }
 
-S3Object getZip() {
+void getZip(File snapshotZip) {
   HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
   vaultConn.setRequestProperty('Content-Type', 'application/json')
   vaultConn.setRequestMethod('PUT')
@@ -108,7 +109,28 @@ S3Object getZip() {
   int retries = 120
   while (retries > 0) {
     try {
-      return client.getObject('prelert-artifacts', key)
+      File snapshotMd5 = new File(snapshotZip.toString() + '.md5')
+      // do a HEAD first to check the zip hash against the local file
+      ObjectMetadata metadata = client.getObjectMetadata('prelert-artifacts', key)
+      String remoteMd5 = metadata.getETag()
+      if (snapshotZip.exists()) {
+        // do a HEAD first to check the zip hash against the local file
+        String localMd5 = snapshotMd5.getText('UTF-8')
+        if (remoteMd5.equals(localMd5)) {
+          logger.info('Using cached ML snapshot')
+          return
+        }
+      }
+      S3Object zip = client.getObject('prelert-artifacts', key)
+      InputStream zipStream = zip.getObjectContent()
+      try {
+        project.delete(snapshotZip, snapshotZip)
+        Files.copy(zipStream, snapshotZip.toPath())    
+      } finally {
+        zipStream.close()
+      }
+      snapshotMd5.setText(remoteMd5, 'UTF-8')
+      return
     } catch (AmazonServiceException e) {
       if (e.getStatusCode() != 403) {
         throw new GradleException('Error while trying to get ml-cpp snapshot: ' + e.getMessage(), e)
@@ -120,7 +142,7 @@ S3Object getZip() {
   throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 seconds')
 }
 
-File snapshotZip = new File(buildDir, "download/ml-cpp-${version}.zip")
+File snapshotZip = new File(projectDir, ".cache/ml-cpp-${version}.zip")
 task downloadMachineLearningSnapshot {
   onlyIf {
     // skip if machine-learning-cpp is being built locally
@@ -130,15 +152,7 @@ task downloadMachineLearningSnapshot {
   }
   doFirst {
     snapshotZip.parentFile.mkdirs()
-    S3Object zip = getZip()
-    // TODO: skip if modification of s3 key is before last write to local zip file?
-    InputStream zipStream = zip.getObjectContent()
-    try {
-      project.delete(snapshotZip)
-      Files.copy(zipStream, snapshotZip.toPath())    
-    } finally {
-      zipStream.close()
-    }
+    getZip(snapshotZip)
   }
 }
 

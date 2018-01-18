@@ -44,7 +44,7 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was registered
      */
     protected void handleRegistration(NioSocketChannel channel) throws IOException {
-        ChannelContext context = channel.getContext();
+        SocketChannelContext context = channel.getContext();
         context.channelRegistered();
         if (context.hasQueuedWriteOps()) {
             SelectionKeyUtils.setConnectReadAndWriteInterested(channel);
@@ -61,7 +61,7 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void registrationException(NioSocketChannel channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
-        exceptionCaught(channel, exception);
+        channel.getContext().handleException(exception);
     }
 
     /**
@@ -82,7 +82,7 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void connectException(NioSocketChannel channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
-        exceptionCaught(channel, exception);
+        channel.getContext().handleException(exception);
     }
 
     /**
@@ -103,7 +103,7 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void readException(NioSocketChannel channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", channel), exception);
-        exceptionCaught(channel, exception);
+        channel.getContext().handleException(exception);
     }
 
     /**
@@ -113,7 +113,7 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that can be written to
      */
     protected void handleWrite(NioSocketChannel channel) throws IOException {
-        ChannelContext channelContext = channel.getContext();
+        SocketChannelContext channelContext = channel.getContext();
         channelContext.flushChannel();
     }
 
@@ -125,20 +125,7 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void writeException(NioSocketChannel channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", channel), exception);
-        exceptionCaught(channel, exception);
-    }
-
-    /**
-     * This method is called when handling an event from a channel fails due to an unexpected exception.
-     * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
-     * {@link java.nio.channels.CancelledKeyException}.
-     *
-     * @param channel that caused the exception
-     * @param exception that was thrown
-     */
-    protected void genericChannelException(NioChannel channel, Exception exception) {
-        super.genericChannelException(channel, exception);
-        exceptionCaught((NioSocketChannel) channel, exception);
+        channel.getContext().handleException(exception);
     }
 
     /**
@@ -166,9 +153,5 @@ public class SocketEventHandler extends EventHandler {
                 SelectionKeyUtils.removeWriteInterested(channel);
             }
         }
-    }
-
-    private void exceptionCaught(NioSocketChannel channel, Exception e) {
-        channel.getExceptionContext().accept(channel, e);
     }
 }

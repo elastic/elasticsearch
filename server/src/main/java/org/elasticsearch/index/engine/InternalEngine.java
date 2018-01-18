@@ -31,7 +31,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -94,6 +93,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
 
@@ -518,6 +518,27 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        final boolean synced = translog.ensureSynced(locations);
+        if (synced) {
+            revisitIndexDeletionPolicyOnTranslogSynced();
+        }
+        return synced;
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translog.sync();
+        revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
+        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     @Override

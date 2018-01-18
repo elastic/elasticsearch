@@ -700,7 +700,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     Translog translog = shard.getTranslog();
                     if (translog.syncNeeded()) {
-                        translog.sync();
+                        shard.sync();
                     }
                 } catch (AlreadyClosedException ex) {
                     // fine - continue;

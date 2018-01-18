@@ -381,11 +381,13 @@ public class KeyStoreWrapper implements SecureSettings {
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {
             // first read the setting types map
-            int numSettings = input.readInt();
-            for (int i = 0; i < numSettings; ++i) {
-                String key = input.readUTF();
-                String value = input.readUTF();
-                settingTypes.put(key, EntryType.valueOf(value));
+            if (formatVersion == 2) {
+                int numSettings = input.readInt();
+                for (int i = 0; i < numSettings; ++i) {
+                    String key = input.readUTF();
+                    String value = input.readUTF();
+                    settingTypes.put(key, EntryType.valueOf(value));
+                }
             }
             // then read the actual keystore
             keystore.load(input, "".toCharArray());

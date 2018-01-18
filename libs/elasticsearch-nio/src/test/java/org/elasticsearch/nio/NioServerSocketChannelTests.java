@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -56,52 +58,42 @@ public class NioServerSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
+    @SuppressWarnings("unchecked")
     public void testClose() throws Exception {
         AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioChannel channel = new DoNotCloseServerChannel(mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
+        try (ServerSocketChannel rawChannel = ServerSocketChannel.open()) {
+            NioServerSocketChannel channel = new NioServerSocketChannel(rawChannel, mock(ChannelFactory.class), selector);
+            channel.setContext(new ServerChannelContext(channel, mock(Consumer.class), mock(BiConsumer.class)));
+            channel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void o) {
+                    isClosed.set(true);
+                    latch.countDown();
+                }
 
-        channel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void o) {
-                isClosed.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    isClosed.set(true);
+                    latch.countDown();
+                }
+            }));
 
-            @Override
-            public void onFailure(Exception e) {
-                isClosed.set(true);
-                latch.countDown();
-            }
-        }));
+            assertTrue(channel.isOpen());
+            assertTrue(rawChannel.isOpen());
+            assertFalse(isClosed.get());
 
-        assertTrue(channel.isOpen());
-        assertFalse(closedRawChannel.get());
-        assertFalse(isClosed.get());
-
-        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-        channel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
-        selector.queueChannelClose(channel);
-        closeFuture.actionGet();
+            PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+            channel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
+            selector.queueChannelClose(channel);
+            closeFuture.actionGet();
 
 
-        assertTrue(closedRawChannel.get());
-        assertFalse(channel.isOpen());
-        latch.await();
-        assertTrue(isClosed.get());
-    }
-
-    private class DoNotCloseServerChannel extends DoNotRegisterServerChannel {
-
-        private DoNotCloseServerChannel(ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-            throws IOException {
-            super(channel, channelFactory, selector);
-        }
-
-        @Override
-        void closeRawChannel() throws IOException {
-            closedRawChannel.set(true);
+            assertFalse(rawChannel.isOpen());
+            assertFalse(channel.isOpen());
+            latch.await();
+            assertTrue(isClosed.get());
         }
     }
 }

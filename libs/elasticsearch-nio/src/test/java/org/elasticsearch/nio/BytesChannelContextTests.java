@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 public class BytesChannelContextTests extends ESTestCase {
 
-    private ChannelContext.ReadConsumer readConsumer;
+    private SocketChannelContext.ReadConsumer readConsumer;
     private NioSocketChannel channel;
     private BytesChannelContext context;
     private InboundChannelBuffer channelBuffer;
@@ -51,16 +51,14 @@ public class BytesChannelContextTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void init() {
-        readConsumer = mock(ChannelContext.ReadConsumer.class);
+        readConsumer = mock(SocketChannelContext.ReadConsumer.class);
 
         messageLength = randomInt(96) + 20;
         selector = mock(SocketSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
-        Supplier<InboundChannelBuffer.Page> pageSupplier = () ->
-            new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {});
-        channelBuffer = new InboundChannelBuffer(pageSupplier);
-        context = new BytesChannelContext(channel, readConsumer, channelBuffer);
+        channelBuffer = InboundChannelBuffer.allocatingInstance();
+        context = new BytesChannelContext(channel, null, readConsumer, channelBuffer);
 
         when(channel.getSelector()).thenReturn(selector);
         when(selector.isOnCurrentThread()).thenReturn(true);
@@ -153,11 +151,12 @@ public class BytesChannelContextTests extends ESTestCase {
     }
 
     public void testCloseClosesChannelBuffer() throws IOException {
+        when(channel.isOpen()).thenReturn(true);
         Runnable closer = mock(Runnable.class);
         Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
         InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
         buffer.ensureCapacity(1);
-        BytesChannelContext context = new BytesChannelContext(channel, readConsumer, buffer);
+        BytesChannelContext context = new BytesChannelContext(channel, null, readConsumer, buffer);
         context.closeFromSelector();
         verify(closer).run();
     }
@@ -218,6 +217,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         assertTrue(context.hasQueuedWriteOps());
 
+        when(channel.isOpen()).thenReturn(true);
         context.closeFromSelector();
 
         verify(selector).executeFailedListener(same(listener), any(ClosedChannelException.class));

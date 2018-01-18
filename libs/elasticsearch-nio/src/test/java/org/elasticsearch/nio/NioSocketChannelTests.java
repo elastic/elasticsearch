@@ -35,14 +35,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class NioSocketChannelTests extends ESTestCase {
 
     private SocketSelector selector;
-    private AtomicBoolean closedRawChannel;
     private Thread thread;
 
     @Before
@@ -50,7 +48,6 @@ public class NioSocketChannelTests extends ESTestCase {
     public void startSelector() throws IOException {
         selector = new SocketSelector(new SocketEventHandler(logger));
         thread = new Thread(selector::runLoop);
-        closedRawChannel = new AtomicBoolean(false);
         thread.start();
         FutureUtils.get(selector.isRunningFuture());
     }
@@ -66,80 +63,46 @@ public class NioSocketChannelTests extends ESTestCase {
         AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
-        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
-        socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void o) {
-                isClosed.set(true);
-                latch.countDown();
-            }
-            @Override
-            public void onFailure(Exception e) {
-                isClosed.set(true);
-                latch.countDown();
-            }
-        }));
+        try(SocketChannel rawChannel = SocketChannel.open()) {
+            NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
+            socketChannel.setContext(new BytesChannelContext(socketChannel, mock(BiConsumer.class),
+                mock(SocketChannelContext.ReadConsumer.class), InboundChannelBuffer.allocatingInstance()));
+            socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void o) {
+                    isClosed.set(true);
+                    latch.countDown();
+                }
 
-        assertTrue(socketChannel.isOpen());
-        assertFalse(closedRawChannel.get());
-        assertFalse(isClosed.get());
+                @Override
+                public void onFailure(Exception e) {
+                    isClosed.set(true);
+                    latch.countDown();
+                }
+            }));
 
-        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-        socketChannel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
-        selector.queueChannelClose(socketChannel);
-        closeFuture.actionGet();
+            assertTrue(socketChannel.isOpen());
+            assertTrue(rawChannel.isOpen());
+            assertFalse(isClosed.get());
 
-        assertTrue(closedRawChannel.get());
-        assertFalse(socketChannel.isOpen());
-        latch.await();
-        assertTrue(isClosed.get());
-    }
+            PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+            socketChannel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
+            selector.queueChannelClose(socketChannel);
+            closeFuture.actionGet();
 
-    @SuppressWarnings("unchecked")
-    public void testCloseContextExceptionDoesNotStopClose() throws Exception {
-        AtomicBoolean isClosed = new AtomicBoolean(false);
-        CountDownLatch latch = new CountDownLatch(1);
-
-        IOException ioException = new IOException();
-        NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
-        ChannelContext context = mock(ChannelContext.class);
-        doThrow(ioException).when(context).closeFromSelector();
-        socketChannel.setContexts(context, mock(BiConsumer.class));
-        socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void o) {
-                isClosed.set(true);
-                latch.countDown();
-            }
-            @Override
-            public void onFailure(Exception e) {
-                isClosed.set(true);
-                latch.countDown();
-            }
-        }));
-
-        assertTrue(socketChannel.isOpen());
-        assertFalse(closedRawChannel.get());
-        assertFalse(isClosed.get());
-
-        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-        socketChannel.addCloseListener(ActionListener.toBiConsumer(closeFuture));
-        selector.queueChannelClose(socketChannel);
-        closeFuture.actionGet();
-
-        assertTrue(closedRawChannel.get());
-        assertFalse(socketChannel.isOpen());
-        latch.await();
-        assertTrue(isClosed.get());
+            assertFalse(rawChannel.isOpen());
+            assertFalse(socketChannel.isOpen());
+            latch.await();
+            assertTrue(isClosed.get());
+        }
     }
 
     @SuppressWarnings("unchecked")
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
-        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
+        NioSocketChannel socketChannel = new DoNotRegisterChannel(rawChannel, selector);
+        socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -148,15 +111,14 @@ public class NioSocketChannelTests extends ESTestCase {
 
         assertTrue(socketChannel.isConnectComplete());
         assertTrue(socketChannel.isOpen());
-        assertFalse(closedRawChannel.get());
     }
 
     @SuppressWarnings("unchecked")
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
-        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
+        NioSocketChannel socketChannel = new DoNotRegisterChannel(rawChannel, selector);
+        socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -167,17 +129,5 @@ public class NioSocketChannelTests extends ESTestCase {
         assertFalse(socketChannel.isConnectComplete());
         // Even if connection fails the channel is 'open' until close() is called
         assertTrue(socketChannel.isOpen());
-    }
-
-    private class DoNotCloseChannel extends DoNotRegisterChannel {
-
-        private DoNotCloseChannel(SocketChannel channel, SocketSelector selector) throws IOException {
-            super(channel, selector);
-        }
-
-        @Override
-        void closeRawChannel() throws IOException {
-            closedRawChannel.set(true);
-        }
     }
 }

@@ -19,13 +19,10 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.nio.utils.ExceptionsHelper;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -35,34 +32,14 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private final InetSocketAddress remoteAddress;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
-    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
-    private ChannelContext context;
-    private BiConsumer<NioSocketChannel, Exception> exceptionContext;
+    private final AtomicBoolean contextSet = new AtomicBoolean(false);
+    private SocketChannelContext context;
     private Exception connectException;
 
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
-    }
-
-    @Override
-    public void closeFromSelector() throws IOException {
-        getSelector().assertOnSelectorThread();
-        if (isOpen()) {
-            ArrayList<IOException> closingExceptions = new ArrayList<>(2);
-            try {
-                super.closeFromSelector();
-            } catch (IOException e) {
-                closingExceptions.add(e);
-            }
-            try {
-                context.closeFromSelector();
-            } catch (IOException e) {
-                closingExceptions.add(e);
-            }
-            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
-        }
     }
 
     @Override
@@ -94,21 +71,17 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         }
     }
 
-    public void setContexts(ChannelContext context, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
-        if (contextsSet.compareAndSet(false, true)) {
+    public void setContext(SocketChannelContext context) {
+        if (contextSet.compareAndSet(false, true)) {
             this.context = context;
-            this.exceptionContext = exceptionContext;
         } else {
-            throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
+            throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
     }
 
-    public ChannelContext getContext() {
+    @Override
+    public SocketChannelContext getContext() {
         return context;
-    }
-
-    public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
-        return exceptionContext;
     }
 
     public InetSocketAddress getRemoteAddress() {

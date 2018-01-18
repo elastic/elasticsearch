@@ -62,7 +62,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("posts"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("posts"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -84,7 +84,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-index-request-indicesOptions
 
             // tag::delete-index-execute
-            DeleteIndexResponse deleteIndexResponse = client.indices().deleteIndex(request);
+            DeleteIndexResponse deleteIndexResponse = client.indices().delete(request);
             // end::delete-index-execute
 
             // tag::delete-index-response
@@ -97,7 +97,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::delete-index-notfound
             try {
                 DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
-                client.indices().deleteIndex(request);
+                client.indices().delete(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
@@ -111,7 +111,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("posts"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("posts"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -119,7 +119,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-async
-            client.indices().deleteIndexAsync(request, new ActionListener<DeleteIndexResponse>() {
+            client.indices().deleteAsync(request, new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -189,7 +189,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::create-index-request-waitForActiveShards
 
             // tag::create-index-execute
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(request);
+            CreateIndexResponse createIndexResponse = client.indices().create(request);
             // end::create-index-execute
 
             // tag::create-index-response
@@ -207,7 +207,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             CreateIndexRequest request = new CreateIndexRequest("twitter");
             // tag::create-index-execute-async
-            client.indices().createIndexAsync(request, new ActionListener<CreateIndexResponse>() {
+            client.indices().createAsync(request, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -232,7 +232,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("index"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -260,7 +260,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::open-index-request-indicesOptions
 
             // tag::open-index-execute
-            OpenIndexResponse openIndexResponse = client.indices().openIndex(request);
+            OpenIndexResponse openIndexResponse = client.indices().open(request);
             // end::open-index-execute
 
             // tag::open-index-response
@@ -271,7 +271,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(shardsAcked);
 
             // tag::open-index-execute-async
-            client.indices().openIndexAsync(request, new ActionListener<OpenIndexResponse>() {
+            client.indices().openAsync(request, new ActionListener<OpenIndexResponse>() {
                 @Override
                 public void onResponse(OpenIndexResponse openIndexResponse) {
                     // <1>
@@ -289,7 +289,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::open-index-notfound
             try {
                 OpenIndexRequest request = new OpenIndexRequest("does_not_exist");
-                client.indices().openIndex(request);
+                client.indices().open(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.BAD_REQUEST) {
                     // <1>
@@ -303,7 +303,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("index"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -326,7 +326,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-request-indicesOptions
 
             // tag::close-index-execute
-            CloseIndexResponse closeIndexResponse = client.indices().closeIndex(request);
+            CloseIndexResponse closeIndexResponse = client.indices().close(request);
             // end::close-index-execute
 
             // tag::close-index-response
@@ -335,7 +335,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-async
-            client.indices().closeIndexAsync(request, new ActionListener<CloseIndexResponse>() {
+            client.indices().closeAsync(request, new ActionListener<CloseIndexResponse>() {
                 @Override
                 public void onResponse(CloseIndexResponse closeIndexResponse) {
                     // <1>
@@ -353,7 +353,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::close-index-notfound
             try {
                 CloseIndexRequest request = new CloseIndexRequest("does_not_exist");
-                client.indices().closeIndex(request);
+                client.indices().close(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.BAD_REQUEST) {
                     // <1>

@@ -55,6 +55,7 @@ subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   configurations {
     cliFixture
+    cliJar
   }
   dependencies {
     /* Since we're a standalone rest test we actually get transitive
@@ -80,6 +81,10 @@ subprojects {
     }
 
     cliFixture project(':x-pack-elasticsearch:test:sql-cli-fixture')
+    cliJar(project(':x-pack-elasticsearch:plugin:sql:sql-cli')) {
+      // We only need the jar file because it bundles all of its dependencies
+      transitive = false
+    }
   }
 
   if (project.name != 'security') {
@@ -87,13 +92,13 @@ subprojects {
     apply plugin: 'elasticsearch.rest-test'
 
     task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-      Project cli = project(':x-pack-elasticsearch:sql:cli')
+      Project cli = project(':x-pack-elasticsearch:plugin:sql:sql-cli')
       dependsOn project.configurations.cliFixture
-      dependsOn cli.jar
+      dependsOn project.configurations.cliJar
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
       args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
-          baseDir, "${ -> cli.jar.outputs.files.singleFile}"
+          baseDir, "${ -> project.configurations.cliJar.singleFile}"
     }
 
     integTestCluster {

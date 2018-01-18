@@ -1,3 +1,11 @@
+
+/*
+ * This project is named sql-cli because it is in the org.elasticsearch.plugin
+ * group and it'd be super confusing for it to just be called "cli" there.
+ * Also, the jar we ultimately want to ship is sql-cli-VERSION.jar which is
+ * exactly what gradle makes by default when the project is named sql-cli.
+ */
+
 apply plugin: 'elasticsearch.build'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
@@ -8,10 +16,12 @@ dependencies {
   compile "org.jline:jline:3.3.1"
   compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:rest-proto')
-  compile project(':server:cli')
+  compile "org.elasticsearch:elasticsearch-cli:${version}"
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:${versions.jna}"
+
+  testCompile "org.elasticsearch.test:framework:${version}"
 }
 
 dependencyLicenses {
@@ -29,7 +39,6 @@ dependencyLicenses {
 }
 
 jar {
-  archivesBaseName = 'sql-cli'
   // Bundle all dependencies into the jar.
   from {
     configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }

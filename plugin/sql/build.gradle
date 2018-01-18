@@ -15,6 +15,7 @@ dependencies {
 dependencyLicenses {
     mapping from: /server.*/, to: 'elasticsearch'
     mapping from: /rest-proto.*/, to: 'elasticsearch'
+    mapping from: /x-pack-core.*/, to: 'elasticsearch'
 
     ignoreSha 'x-pack-core'
     ignoreSha 'rest-proto'

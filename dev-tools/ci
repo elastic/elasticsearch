@@ -63,6 +63,8 @@ case $key in
             "-psql"
             "check"
             ":x-pack-elasticsearch:plugin:precommit"
+            ":x-pack-elasticsearch:plugin:sql:check"
+            ":x-pack-elasticsearch:plugin:sql:cli:check"
             ":x-pack-elasticsearch:qa:sql:check"
             ":x-pack-elasticsearch:qa:sql:multinode:check"
             ":x-pack-elasticsearch:qa:sql:no-security:check"

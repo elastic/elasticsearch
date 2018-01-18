@@ -61,6 +61,7 @@ configurations {
       }
     }
   }
+  // Contains stuff to be copied to `bin`
   bundledBin
 }
 
@@ -101,7 +102,7 @@ dependencies {
 
   // sql's plugin and its cli
   compile project(':x-pack-elasticsearch:plugin:sql')
-  bundledBin(project(':x-pack-elasticsearch:sql:cli')) {
+  bundledBin(project(':x-pack-elasticsearch:plugin:sql:sql-cli')) {
     transitive = false
   }
 

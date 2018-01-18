@@ -26,7 +26,6 @@ import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
@@ -48,9 +47,6 @@ import java.util.function.BiConsumer;
 public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkChannel> implements NioChannel {
 
     final S socketChannel;
-    // This indicates if the channel has been scheduled to be closed. Read the closeFuture to determine if
-    // the channel close process has completed.
-    final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
@@ -74,29 +70,13 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     /**
-     * Schedules a channel to be closed by the selector event loop with which it is registered.
-     * <p>
-     * If the channel is open and the state can be transitioned to closed, the close operation will
-     * be scheduled with the event loop.
-     * <p>
-     * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
-     */
-    @Override
-    public void close() {
-        if (isClosing.compareAndSet(false, true)) {
-            selector.queueChannelClose(this);
-        }
-    }
-
-    /**
      * Closes the channel synchronously. This method should only be called from the selector thread.
      * <p>
      * Once this method returns, the channel will be closed.
      */
     @Override
     public void closeFromSelector() throws IOException {
-        assert selector.isOnCurrentThread() : "Should only call from selector thread";
-        isClosing.set(true);
+        selector.assertOnSelectorThread();
         if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();

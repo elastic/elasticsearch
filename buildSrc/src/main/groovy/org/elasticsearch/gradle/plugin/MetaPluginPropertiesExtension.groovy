@@ -17,21 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.gradle.plugin
 
-import java.io.IOException;
-import java.util.function.BiConsumer;
+import org.gradle.api.Project
+import org.gradle.api.tasks.Input
 
-public interface WriteContext {
+/**
+ * A container for meta plugin properties that will be written to the meta plugin descriptor, for easy
+ * manipulation in the gradle DSL.
+ */
+class MetaPluginPropertiesExtension {
+    @Input
+    String name
 
-    void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
+    @Input
+    String description
 
-    void queueWriteOperations(WriteOperation writeOperation);
+    /**
+     * The plugins this meta plugin wraps.
+     * Note this is not written to the plugin descriptor, but used to setup the final zip file task.
+     */
+    @Input
+    List<String> plugins
 
-    void flushChannel() throws IOException;
-
-    boolean hasQueuedWriteOps();
-
-    void clearQueuedWriteOps(Exception e);
-
+    MetaPluginPropertiesExtension(Project project) {
+        name = project.name
+    }
 }

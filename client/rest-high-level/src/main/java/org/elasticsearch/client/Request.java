@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -149,6 +150,18 @@ public final class Request {
         parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
         parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request closeIndex(CloseIndexRequest closeIndexRequest) {
+        String endpoint = endpoint(closeIndexRequest.indices(), Strings.EMPTY_ARRAY, "_close");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(closeIndexRequest.timeout());
+        parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
 
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }

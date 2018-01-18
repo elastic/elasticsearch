@@ -43,6 +43,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
@@ -453,6 +454,11 @@ class BuildPlugin implements Plugin<Project> {
                 options.incremental = true
 
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
+                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+            }
+            // also apply release flag to groovy, which is used in build-tools
+            project.tasks.withType(GroovyCompile) {
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
                 options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
         }

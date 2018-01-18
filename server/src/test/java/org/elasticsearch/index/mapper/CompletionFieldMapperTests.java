@@ -395,6 +395,16 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), containsString("[0x1e]"));
         }
+
+        // empty inputs are ignored
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("completion", "")
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+        assertThat(doc.docs().size(), equalTo(1));
+        assertNull(doc.docs().get(0).get("completion"));
     }
 
     public void testPrefixQueryType() throws Exception {

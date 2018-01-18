@@ -457,6 +457,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
                 input = input.substring(0, len);
             }
+            if (input.length() == 0) {
+                // Ignore empty inputs
+                continue;
+            }
             CompletionInputMetaData metaData = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
                 fieldType().getContextMappings().addField(context.doc(), fieldType().name(),

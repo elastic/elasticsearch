@@ -695,7 +695,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
 
-        installPluginSupportFiles(info, tmpRoot, env.binFile(), env.configFile(), deleteOnFailure);
+        installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
+                                  env.configFile().resolve(info.getName()), deleteOnFailure);
         movePlugin(tmpRoot, destination);
         if (info.requiresKeystore()) {
             createKeystoreIfNeeded(terminal, env, info);

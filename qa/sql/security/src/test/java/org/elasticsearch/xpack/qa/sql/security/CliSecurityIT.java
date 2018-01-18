@@ -134,10 +134,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 assertThat(tablesOutput, containsString("type"));
                 assertEquals("---------------+---------------", cli.readLine());
                 for (String table : tables) {
-                    String line = cli.readLine();
-                    if (!line.startsWith(".security")) {
-                        assertThat(line, containsString(table));
+                    String line = null;
+                    while (line == null || line.startsWith(".security")) {
+                        line = cli.readLine();
                     }
+                    assertThat(line, containsString(table));
                 }
                 assertEquals("", cli.readLine());
             }

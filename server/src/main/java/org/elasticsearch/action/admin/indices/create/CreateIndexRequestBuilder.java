@@ -239,7 +239,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         return this;
     }
 
-    /** True if all fields that span multiple types should be updated, false otherwise */
+    /** True if all fields that span multiple types should be updated, false otherwise
+     * @deprecated useless with 6.x indices which may only have one type */
+    @Deprecated
     public CreateIndexRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
         request.updateAllTypes(updateAllTypes);
         return this;

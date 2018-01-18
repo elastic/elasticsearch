@@ -32,6 +32,8 @@ public interface NioChannel {
 
     InetSocketAddress getLocalAddress();
 
+    void close();
+
     void closeFromSelector() throws IOException;
 
     void register() throws ClosedChannelException;

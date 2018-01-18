@@ -169,6 +169,11 @@ task verifyVersions {
  */
 allprojects {
   ext.bwc_tests_enabled = true
+  /*
+   * Versions of Elasticsearch 5.1.1 through 5.3.0 inclusive did not start on versions of Linux with cgroups v2 enabled (kernel >= 4.5).
+   * This property is provided to all projects that need to check conditionally if they should skip a BWC test task.
+   */
+  ext.cgroupsV2Enabled = Os.isFamily(Os.FAMILY_UNIX) && "mount".execute().text.readLines().any { it =~ /.*type cgroup2.*/ }
 }
 
 task verifyBwcTestsEnabled {

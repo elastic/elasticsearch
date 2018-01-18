@@ -10,7 +10,6 @@ import com.google.common.base.Strings;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.FormattedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -115,7 +114,7 @@ public class IndexLifecycleService extends AbstractComponent
                     } else {
                         try {
                             policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
-                        } catch (ElasticsearchException e) {
+                        } catch (Exception e) {
                             logger.error(new FormattedMessage("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
                                     idxMeta.getIndex().getName()), e);
                         }

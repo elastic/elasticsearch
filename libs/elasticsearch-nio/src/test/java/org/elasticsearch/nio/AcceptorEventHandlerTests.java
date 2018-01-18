@@ -80,7 +80,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
-        childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
+        childChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);

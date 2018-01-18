@@ -120,8 +120,14 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 10000;
 
-    /** The number of bits for the cipher key. */
-    private static final int CIPHER_KEY_BITS = 256;
+    /**
+     * The number of bits for the cipher key.
+     *
+     * Note: The Oracle JDK 8 ships with a limited JCE policy that restricts key length for AES to 128 bits.
+     * This can be increased to 256 bits once minimum java 9 is the minimum java version.
+     * See http://www.oracle.com/technetwork/java/javase/terms/readme/jdk9-readme-3852447.html#jce
+     * */
+    private static final int CIPHER_KEY_BITS = 128;
 
     /** The number of bits for the GCM tag. */
     private static final int GCM_TAG_BITS = 128;

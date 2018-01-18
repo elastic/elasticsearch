@@ -58,7 +58,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return Settings.builder()
+        Settings settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // client set up here
                 .put("transport.profiles.client.port", randomClientPortRange)
@@ -70,6 +70,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put("transport.profiles.no_client_auth.bind_host", "localhost")
                 .put("transport.profiles.no_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
                 .build();
+        logger.info("node {} settings:\n{}", nodeOrdinal, settings);
+        return settings;
     }
 
     @Override
@@ -85,6 +87,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put(additionalSettings)
                 .build();
+        logger.info("transport client settings:\n{}", settings);
         return new TestXPackTransportClient(settings);
     }
 

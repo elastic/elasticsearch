@@ -610,7 +610,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
         Query q = mapper.mappers().getMapper("field").fieldType().prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
-        assertEquals(new TermQuery(new Term("field.prefix", "goin")), q);
+        assertEquals(new TermQuery(new Term("field._index_prefix", "goin")), q);
         q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
@@ -621,7 +621,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes(),
             XContentType.JSON));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field.prefix");
+        IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
         assertEquals(1, fields.length);
 
         {
@@ -634,7 +634,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("max_chars", 10)
                 .endObject()
                 .startObject("fields")
-                .startObject("prefix").field("type", "text").endObject()
+                .startObject("_index_prefix").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject()
                 .endObject().endObject().string();
@@ -643,7 +643,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 indexService.mapperService()
                     .merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE, false);
             });
-            assertThat(e.getMessage(), containsString("Field [field.prefix] is defined twice in [type]"));
+            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice in [type]"));
 
         }
 

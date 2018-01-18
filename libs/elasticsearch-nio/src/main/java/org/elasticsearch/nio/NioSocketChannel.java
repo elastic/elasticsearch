@@ -19,11 +19,13 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.nio.utils.ExceptionsHelper;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -34,8 +36,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
     private final AtomicBoolean contextsSet = new AtomicBoolean(false);
-    private WriteContext writeContext;
-    private ReadContext readContext;
+    private ChannelContext context;
     private BiConsumer<NioSocketChannel, Exception> exceptionContext;
     private Exception connectException;
 
@@ -47,19 +48,30 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     @Override
     public void closeFromSelector() throws IOException {
-        assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
-        // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (writeContext.hasQueuedWriteOps()) {
-            writeContext.clearQueuedWriteOps(new ClosedChannelException());
+        getSelector().assertOnSelectorThread();
+        if (isOpen()) {
+            ArrayList<IOException> closingExceptions = new ArrayList<>(2);
+            try {
+                super.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            try {
+                context.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
-        readContext.close();
-
-        super.closeFromSelector();
     }
 
     @Override
     public SocketSelector getSelector() {
         return socketSelector;
+    }
+
+    public int write(ByteBuffer buffer) throws IOException {
+        return socketChannel.write(buffer);
     }
 
     public int write(ByteBuffer[] buffers) throws IOException {
@@ -82,33 +94,17 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         }
     }
 
-    public int read(InboundChannelBuffer buffer) throws IOException {
-        int bytesRead = (int) socketChannel.read(buffer.sliceBuffersFrom(buffer.getIndex()));
-
-        if (bytesRead == -1) {
-            return bytesRead;
-        }
-
-        buffer.incrementIndex(bytesRead);
-        return bytesRead;
-    }
-
-    public void setContexts(ReadContext readContext, WriteContext writeContext, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
+    public void setContexts(ChannelContext context, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
         if (contextsSet.compareAndSet(false, true)) {
-            this.readContext = readContext;
-            this.writeContext = writeContext;
+            this.context = context;
             this.exceptionContext = exceptionContext;
         } else {
             throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
         }
     }
 
-    public WriteContext getWriteContext() {
-        return writeContext;
-    }
-
-    public ReadContext getReadContext() {
-        return readContext;
+    public ChannelContext getContext() {
+        return context;
     }
 
     public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
@@ -121,14 +117,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public boolean isConnectComplete() {
         return isConnectComplete0();
-    }
-
-    public boolean isWritable() {
-        return isClosing.get() == false;
-    }
-
-    public boolean isReadable() {
-        return isClosing.get() == false;
     }
 
     /**

@@ -112,7 +112,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject("rank_eval");
         builder.field("quality_level", evaluationResult);
         builder.startObject("details");
         for (String key : details.keySet()) {
@@ -125,7 +124,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
             ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), false);
             builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         builder.endObject();
         return builder;

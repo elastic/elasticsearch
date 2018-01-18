@@ -17,19 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.monitor.jvm;
 
-import java.io.IOException;
+import java.lang.ProcessHandle;
 
-public interface ReadContext extends AutoCloseable {
+class JvmPid {
 
-    int read() throws IOException;
-
-    @Override
-    void close();
-
-    @FunctionalInterface
-    interface ReadConsumer {
-        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+    static long getPid() {
+        return ProcessHandle.current().pid();
     }
+
 }

@@ -1,0 +1,81 @@
+[[java-rest-high-open-index]]
+=== Open Index API
+
+[[java-rest-high-open-index-request]]
+==== Open Index Request
+
+An `OpenIndexRequest` requires an `index` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request]
+--------------------------------------------------
+<1> The index to open
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the open index API
+returns a response, as an `int`.
+<2> The number of active shard copies to wait for before  the open index API
+returns a response, as an `ActiveShardCount`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+[[java-rest-high-open-index-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-execute]
+--------------------------------------------------
+
+[[java-rest-high-open-index-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-open-index-response]]
+==== Open Index Response
+
+The returned `OpenIndexResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for
+each shard in the index before timing out

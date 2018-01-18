@@ -59,12 +59,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         this.statement = statement;
         this.cursor = cursor;
         // statement can be null so we have to extract the timeZone from the non-nullable cfg
-        // TODO: should we consider the locale as well? 
+        // TODO: should we consider the locale as well?
         this.defaultCalendar = Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
 
         List<ColumnInfo> columns = cursor.columns();
         for (int i = 0; i < columns.size(); i++) {
-            nameToIndex.put(columns.get(i).name, Integer.valueOf(i));
+            nameToIndex.put(columns.get(i).name, Integer.valueOf(i + 1));
         }
     }
 

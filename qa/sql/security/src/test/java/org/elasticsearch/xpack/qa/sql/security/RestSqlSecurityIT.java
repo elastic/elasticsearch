@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
 import static java.util.Collections.singletonList;
@@ -106,14 +107,27 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
+            List<Object> columns = new ArrayList<>();
+            columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 0));
+            columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0));
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", singletonList(columnInfo(mode, "table", "keyword", JDBCType.VARCHAR, 0)));
+            expected.put("columns", columns);
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
-                rows.add(singletonList(table));
+                List<String> fields = new ArrayList<>();
+                fields.add(table);
+                fields.add("INDEX");
+                rows.add(fields);
             }
             expected.put("rows", rows);
-            assertResponse(expected, runSql(user, mode, "SHOW TABLES"));
+
+            Map<String, Object> actual = runSql(user, mode, "SHOW TABLES");
+            List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows"))
+                    .stream()
+                    .filter(ls -> ls.get(0).startsWith(".security") == false)
+                    .collect(Collectors.toList());
+            actual.put("rows", rowsNoSecurity);
+            assertResponse(expected, actual);
         }
 
         @Override

@@ -334,9 +334,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             .assertLogs();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3423")
     public void testShowTablesWorksAsAdmin() throws Exception {
-        actions.expectShowTables(Arrays.asList(".security-6", "bort", "test"), null);
+        actions.expectShowTables(Arrays.asList("bort", "test"), null);
         new AuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .assertLogs();

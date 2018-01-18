@@ -10,6 +10,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
+
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +19,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -179,25 +181,22 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
-            try (Connection h2 = LocalH2.anonymousDb();
-                    Connection es = es(userProperties(user))) {
-                // h2 doesn't spit out the same columns we do so we emulate
-                h2.createStatement().executeUpdate("CREATE TABLE mock (table VARCHAR)");
-                StringBuilder insert = new StringBuilder();
-                insert.append("INSERT INTO mock (table) VALUES ");
-                boolean first = true;
-                for (String table : tables) {
-                    if (first) {
-                        first = false;
-                    } else {
-                        insert.append(", ");
-                    }
-                    insert.append("('").append(table).append("')");
-                }
-                h2.createStatement().executeUpdate(insert.toString());
+            try (Connection es = es(userProperties(user))) {
+                ResultSet actual = es.createStatement().executeQuery("SHOW TABLES");
 
-                ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY table");
-                assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
+                // depending on whether security is enabled and a test is run in isolation or suite
+                // .security or .security6 index can appear
+                // to filter these out, the result set is flatten to a list
+                List<String> actualList = new ArrayList<>();
+
+                while (actual.next()) {
+                    String name = actual.getString("name");
+                    if (!name.startsWith(".security")) {
+                        actualList.add(name);
+                    }
+                }
+
+                assertEquals(tables, actualList);
             }
         }
 

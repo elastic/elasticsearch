@@ -9,6 +9,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -128,10 +129,15 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
             try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
-                assertThat(cli.command("SHOW TABLES"), containsString("table"));
-                assertEquals("---------------", cli.readLine());
+                String tablesOutput = cli.command("SHOW TABLES");
+                assertThat(tablesOutput, containsString("name"));
+                assertThat(tablesOutput, containsString("type"));
+                assertEquals("---------------+---------------", cli.readLine());
                 for (String table : tables) {
-                    assertThat(cli.readLine(), containsString(table));
+                    String line = cli.readLine();
+                    if (!line.startsWith(".security")) {
+                        assertThat(line, containsString(table));
+                    }
                 }
                 assertEquals("", cli.readLine());
             }

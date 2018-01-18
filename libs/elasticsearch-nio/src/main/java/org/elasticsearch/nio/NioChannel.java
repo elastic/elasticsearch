@@ -26,7 +26,7 @@ import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectionKey;
 import java.util.function.BiConsumer;
 
-public interface NioChannel extends AutoCloseable {
+public interface NioChannel {
 
     boolean isOpen();
 

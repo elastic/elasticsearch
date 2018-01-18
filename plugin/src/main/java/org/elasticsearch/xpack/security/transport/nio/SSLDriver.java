@@ -72,9 +72,27 @@ public class SSLDriver implements AutoCloseable {
     public void init() throws SSLException {
         engine.setUseClientMode(isClientMode);
         if (currentMode.isHandshake()) {
+            engine.beginHandshake();
             ((HandshakeMode) currentMode).startHandshake();
         } else {
             throw new AssertionError("Attempted to init outside from non-handshaking mode: " + currentMode.modeName());
+        }
+    }
+
+    /**
+     * Requests a TLS renegotiation. This means the we will request that the peer performs another handshake
+     * prior to the continued exchange of application data. This can only be requested if we are currently in
+     * APPLICATION mode.
+     *
+     * @throws SSLException if the handshake cannot be initiated
+     */
+    public void renegotiate() throws SSLException {
+        if (currentMode.isApplication()) {
+            currentMode = new HandshakeMode();
+            engine.beginHandshake();
+            ((HandshakeMode) currentMode).startHandshake();
+        } else {
+            throw new IllegalStateException("Attempted to renegotiate while in invalid mode: " + currentMode.modeName());
         }
     }
 
@@ -223,15 +241,6 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
-    private boolean checkRenegotiation(SSLEngineResult.HandshakeStatus newStatus) {
-        if (isHandshaking() == false && newStatus != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING
-                && newStatus != SSLEngineResult.HandshakeStatus.FINISHED) {
-            // TODO: Iron out the specifics of renegotiation
-            throw new IllegalStateException("We do not support renegotiation");
-        }
-        return false;
-    }
-
     private void closingInternal() {
         // This check prevents us from attempting to send close_notify twice
         if (currentMode.isClose() == false) {
@@ -306,7 +315,6 @@ public class SSLDriver implements AutoCloseable {
         private SSLEngineResult.HandshakeStatus handshakeStatus;
 
         private void startHandshake() throws SSLException {
-            engine.beginHandshake();
             handshakeStatus = engine.getHandshakeStatus();
             if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_UNWRAP &&
                     handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_WRAP) {
@@ -434,7 +442,7 @@ public class SSLDriver implements AutoCloseable {
                 networkReadBuffer.flip();
                 SSLEngineResult result = unwrap(buffer);
                 boolean renegotiationRequested = result.getStatus() != SSLEngineResult.Status.CLOSED
-                        && checkRenegotiation(result.getHandshakeStatus());
+                        && maybeRenegotiation(result.getHandshakeStatus());
                 continueUnwrap = result.bytesProduced() > 0 && renegotiationRequested == false;
             }
         }
@@ -442,8 +450,17 @@ public class SSLDriver implements AutoCloseable {
         @Override
         public int write(ByteBuffer[] buffers) throws SSLException {
             SSLEngineResult result = wrap(buffers);
-            checkRenegotiation(result.getHandshakeStatus());
+            maybeRenegotiation(result.getHandshakeStatus());
             return result.bytesConsumed();
+        }
+
+        private boolean maybeRenegotiation(SSLEngineResult.HandshakeStatus newStatus) throws SSLException {
+            if (newStatus != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING && newStatus != SSLEngineResult.HandshakeStatus.FINISHED) {
+                renegotiate();
+                return true;
+            } else {
+                return false;
+            }
         }
 
         @Override

@@ -54,6 +54,40 @@ public class SSLDriverTests extends ESTestCase {
         normalClose(clientDriver, serverDriver);
     }
 
+    public void testRenegotiate() throws Exception {
+        SSLContext sslContext = getSSLContext();
+
+        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
+        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
+
+        handshake(clientDriver, serverDriver);
+
+        ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
+        sendAppData(clientDriver, serverDriver, buffers);
+        serverDriver.read(serverBuffer);
+        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
+
+        clientDriver.renegotiate();
+        assertTrue(clientDriver.isHandshaking());
+        assertFalse(clientDriver.readyForApplicationWrites());
+
+        // This tests that the client driver can still receive data based on the prior handshake
+        ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
+        sendAppData(serverDriver, clientDriver, buffers2);
+        clientDriver.read(clientBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+
+        handshake(clientDriver, serverDriver, true);
+        sendAppData(clientDriver, serverDriver, buffers);
+        serverDriver.read(serverBuffer);
+        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(serverDriver, clientDriver, buffers2);
+        clientDriver.read(clientBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+
+        normalClose(clientDriver, serverDriver);
+    }
+
     public void testBigAppData() throws Exception {
         SSLContext sslContext = getSSLContext();
 
@@ -220,10 +254,16 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void handshake(SSLDriver clientDriver, SSLDriver serverDriver) throws IOException {
-        clientDriver.init();
-        serverDriver.init();
+        handshake(clientDriver, serverDriver, false);
+    }
 
-        assertTrue(clientDriver.needsNonApplicationWrite());
+    private void handshake(SSLDriver clientDriver, SSLDriver serverDriver, boolean isRenegotiation) throws IOException {
+        if (isRenegotiation == false) {
+            clientDriver.init();
+            serverDriver.init();
+        }
+
+        assertTrue(clientDriver.needsNonApplicationWrite() || clientDriver.hasFlushPending());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
 

@@ -119,6 +119,11 @@ subprojects {
   }
 
   for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+    // the BWC version under test will fail to start in this situation so we skip creating the test task
+    if (project.cgroupsV2Enabled && version.isVersionBrokenIfCgroupsV2Enabled()) {
+      continue
+    }
+
     String baseName = "v${version}"
 
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {

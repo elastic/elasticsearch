@@ -628,8 +628,12 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("field")
             .field("type", "text")
             .field("analyzer", "english")
+            .startObject("index_prefix")
+            .field("min_chars", 1)
+            .field("max_chars", 10)
+            .endObject()
             .startObject("fields")
-            .startObject("field..prefix").field("type", "text").endObject()
+            .startObject(".prefix").field("type", "text").endObject()
             .endObject()
             .endObject().endObject()
             .endObject().endObject().string();

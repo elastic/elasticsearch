@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RestTestPlugin
+import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.test.StandaloneRestTestPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -41,6 +42,10 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             dependsOn(project.bundlePlugin)
             plugin(project.path)
         }
+
+        RunTask run = project.tasks.create('run', RunTask)
+        run.dependsOn(project.bundlePlugin)
+        run.clusterConfig.plugin(project.path)
     }
 
     private static void createBundleTask(Project project) {
@@ -61,6 +66,10 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
 
         }
         project.assemble.dependsOn(bundle)
+
+        // also make the zip available as a configuration (used when depending on this project)
+        project.configurations.create('zip')
+        project.artifacts.add('zip', bundle)
 
         // a super hacky way to inject code to run at the end of each of the bundled plugin's configuration
         // to add itself back to this meta plugin zip

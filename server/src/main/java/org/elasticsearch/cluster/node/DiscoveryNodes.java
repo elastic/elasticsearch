@@ -206,12 +206,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get the master node
-     *
-     * @return master node
+     * Returns the master node, or {@code null} if there is no master node
      */
+    @Nullable
     public DiscoveryNode getMasterNode() {
-        return nodes.get(masterNodeId);
+        if (masterNodeId != null) {
+            return nodes.get(masterNodeId);
+        }
+        return null;
     }
 
     /**
@@ -399,16 +401,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
         }
 
-        DiscoveryNode previousMasterNode = null;
-        if (other.masterNodeId != null) {
-            previousMasterNode = other.getMasterNode();
-        }
-        DiscoveryNode newMasterNode = null;
-        if (masterNodeId != null) {
-            newMasterNode = getMasterNode();
-        }
-
-        return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed),
+        return new Delta(other.getMasterNode(), getMasterNode(), localNodeId, Collections.unmodifiableList(removed),
             Collections.unmodifiableList(added));
     }
 
@@ -432,8 +425,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public static class Delta {
 
         private final String localNodeId;
-        private final DiscoveryNode previousMasterNode;
-        private final DiscoveryNode newMasterNode;
+        @Nullable private final DiscoveryNode previousMasterNode;
+        @Nullable private final DiscoveryNode newMasterNode;
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
@@ -451,15 +444,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            String newMasterId = (newMasterNode != null) ? newMasterNode.getEphemeralId() : null;
-            String previousMasterId = (previousMasterNode != null) ? previousMasterNode.getEphemeralId() : null;
-            return Objects.equals(newMasterId, previousMasterId) == false;
+            return Objects.equals(newMasterNode, previousMasterNode) == false;
         }
 
+        @Nullable
         public DiscoveryNode previousMasterNode() {
             return previousMasterNode;
         }
 
+        @Nullable
         public DiscoveryNode newMasterNode() {
             return newMasterNode;
         }
@@ -483,7 +476,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
-                summary.append("master node updated {previous [");
+                summary.append("master node changed {previous [");
                 summary.append(previousMasterNode());
                 summary.append("], current [");
                 summary.append(newMasterNode());

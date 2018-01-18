@@ -236,7 +236,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         PrefixFieldType setAnalyzer(NamedAnalyzer delegate) {
-            setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX, new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars)));
+            setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
+                new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars)));
             return this;
         }
 

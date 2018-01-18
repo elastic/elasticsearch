@@ -4414,4 +4414,29 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(userData.get(Translog.TRANSLOG_GENERATION_KEY), equalTo("1"));
         }
     }
+
+    public void testCleanUpCommitsWhenGlobalCheckpointAdvanced() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            final int numDocs = scaledRandomIntBetween(10, 100);
+            for (int docId = 0; docId < numDocs; docId++) {
+                index(engine, docId);
+                if (frequently()) {
+                    engine.flush(randomBoolean(), randomBoolean());
+                }
+            }
+            engine.flush(false, randomBoolean());
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            // Global checkpoint advanced but not enough - all commits are kept.
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint() - 1));
+            engine.syncTranslog();
+            assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits));
+            // Global checkpoint advanced enough - only the last commit is kept.
+            globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getCheckpoint(), Long.MAX_VALUE));
+            engine.syncTranslog();
+            assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
+        }
+    }
 }

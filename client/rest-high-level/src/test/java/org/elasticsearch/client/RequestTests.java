@@ -794,44 +794,47 @@ public class RequestTests extends ESTestCase {
 
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
-        SearchSourceBuilder searchSourceBuilder = null;
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        //rarely skip setting the search source completely
         if (frequently()) {
-            searchSourceBuilder = new SearchSourceBuilder();
-            if (randomBoolean()) {
-                searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.minScore(randomFloat());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.explain(randomBoolean());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.profile(randomBoolean());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
-                        .field(randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
-                        new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
-                        new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+            //frequently set the search source to have some content, otherwise leave it empty but still set it
+            if (frequently()) {
+                if (randomBoolean()) {
+                    searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.minScore(randomFloat());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.explain(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.profile(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                            .field(randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
+                            new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
+                            new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+                }
             }
             searchRequest.source(searchSourceBuilder);
         }
@@ -849,11 +852,7 @@ public class RequestTests extends ESTestCase {
         endpoint.add("_search");
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        if (searchSourceBuilder == null) {
-            assertNull(request.getEntity());
-        } else {
-            assertToXContentBody(searchSourceBuilder, request.getEntity());
-        }
+        assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
 
     public void testMultiSearch() throws IOException {

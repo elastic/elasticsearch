@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -753,9 +754,9 @@ class ClusterFormationTasks {
     }
 
     static void verifyProjectHasBuildPlugin(String name, String version, Project project, Project pluginProject) {
-        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin")
+                    "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
         }
     }
 }

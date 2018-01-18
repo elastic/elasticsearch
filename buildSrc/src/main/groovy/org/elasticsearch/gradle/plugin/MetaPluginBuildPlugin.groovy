@@ -40,8 +40,7 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
 
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
-            distribution = 'zip'
-            setupCommand('installMetaPlugin', 'bin/elasticsearch-plugin', 'install', 'file:' + project.bundlePlugin.archivePath)
+            plugin(project.path)
         }
 
         RunTask run = project.tasks.create('run', RunTask)

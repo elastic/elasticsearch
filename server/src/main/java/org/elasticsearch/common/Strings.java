@@ -474,6 +474,9 @@ public class Strings {
      * @see #delimitedListToStringArray
      */
     public static String[] tokenizeToStringArray(final String s, final String delimiters) {
+        if (s == null) {
+            return EMPTY_ARRAY;
+        }
         return toStringArray(tokenizeToCollection(s, delimiters, ArrayList::new));
     }
 
@@ -536,7 +539,7 @@ public class Strings {
      */
     public static String[] delimitedListToStringArray(String str, String delimiter, String charsToDelete) {
         if (str == null) {
-            return new String[0];
+            return EMPTY_ARRAY;
         }
         if (delimiter == null) {
             return new String[]{str};

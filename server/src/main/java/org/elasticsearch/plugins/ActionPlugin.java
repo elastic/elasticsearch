@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -62,6 +63,15 @@ public interface ActionPlugin {
     default List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Collections.emptyList();
     }
+
+    /**
+     * Client actions added by this plugin. This defaults to all of the {@linkplain GenericAction} in
+     * {@linkplain ActionPlugin#getActions()}.
+     */
+    default List<GenericAction> getClientActions() {
+        return getActions().stream().map(a -> a.action).collect(Collectors.toList());
+    }
+
     /**
      * Action filters added by this plugin.
      */

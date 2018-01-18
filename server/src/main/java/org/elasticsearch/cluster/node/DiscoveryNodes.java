@@ -477,9 +477,13 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
                 summary.append("master node changed {previous [");
-                summary.append(previousMasterNode());
+                if (previousMasterNode() != null) {
+                    summary.append(previousMasterNode());
+                }
                 summary.append("], current [");
-                summary.append(newMasterNode());
+                if (newMasterNode() != null) {
+                    summary.append(newMasterNode());
+                }
                 summary.append("]}");
             }
             if (removed()) {

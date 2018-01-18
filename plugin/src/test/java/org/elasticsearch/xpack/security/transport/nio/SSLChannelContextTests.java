@@ -6,9 +6,8 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.nio.BytesChannelContext;
+import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.BytesWriteOperation;
-import org.elasticsearch.nio.ChannelContext;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketSelector;
@@ -21,6 +20,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 public class SSLChannelContextTests extends ESTestCase {
 
-    private ChannelContext.ReadConsumer readConsumer;
+    private SocketChannelContext.ReadConsumer readConsumer;
     private NioSocketChannel channel;
     private SSLChannelContext context;
     private InboundChannelBuffer channelBuffer;
@@ -49,18 +49,15 @@ public class SSLChannelContextTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void init() {
-        readConsumer = mock(ChannelContext.ReadConsumer.class);
+        readConsumer = mock(SocketChannelContext.ReadConsumer.class);
 
         messageLength = randomInt(96) + 20;
         selector = mock(SocketSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         sslDriver = mock(SSLDriver.class);
-        Supplier<InboundChannelBuffer.Page> pageSupplier = () ->
-                new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {
-                });
-        channelBuffer = new InboundChannelBuffer(pageSupplier);
-        context = new SSLChannelContext(channel, sslDriver, readConsumer, channelBuffer);
+        channelBuffer = InboundChannelBuffer.allocatingInstance();
+        context = new SSLChannelContext(channel, mock(BiConsumer.class), sslDriver, readConsumer, channelBuffer);
 
         when(channel.getSelector()).thenReturn(selector);
         when(selector.isOnCurrentThread()).thenReturn(true);
@@ -145,14 +142,17 @@ public class SSLChannelContextTests extends ESTestCase {
         assertTrue(context.selectorShouldClose());
     }
 
+    @SuppressWarnings("unchecked")
     public void testCloseClosesChannelBuffer() throws IOException {
-        Runnable closer = mock(Runnable.class);
-        Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
+        AtomicInteger closeCount = new AtomicInteger(0);
+        Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14),
+                closeCount::incrementAndGet);
         InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
         buffer.ensureCapacity(1);
-        BytesChannelContext context = new BytesChannelContext(channel, readConsumer, buffer);
+        SSLChannelContext context = new SSLChannelContext(channel, mock(BiConsumer.class), sslDriver, readConsumer, buffer);
+        when(channel.isOpen()).thenReturn(true);
         context.closeFromSelector();
-        verify(closer).run();
+        assertEquals(1, closeCount.get());
     }
 
     public void testWriteOpsClearedOnClose() throws IOException {
@@ -164,6 +164,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
         assertTrue(context.hasQueuedWriteOps());
 
+        when(channel.isOpen()).thenReturn(true);
         context.closeFromSelector();
 
         verify(selector).executeFailedListener(same(listener), any(ClosedChannelException.class));
@@ -172,6 +173,7 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testSSLDriverClosedOnClose() throws IOException {
+        when(channel.isOpen()).thenReturn(true);
         context.closeFromSelector();
 
         verify(sslDriver).close();

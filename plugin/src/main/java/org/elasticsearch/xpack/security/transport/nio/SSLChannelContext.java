@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.BytesWriteOperation;
-import org.elasticsearch.nio.ChannelContext;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
+import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -22,22 +24,20 @@ import java.util.function.BiConsumer;
 /**
  * Provides a TLS/SSL read/write layer over a channel. This context will use a {@link SSLDriver} to handshake
  * with the peer channel. Once the handshake is complete, any data from the peer channel will be decrypted
- * before being passed to the {@link org.elasticsearch.nio.ChannelContext.ReadConsumer}. Outbound data will
+ * before being passed to the {@link ReadConsumer}. Outbound data will
  * be encrypted before being flushed to the channel.
  */
-public final class SSLChannelContext implements ChannelContext {
+public final class SSLChannelContext extends SocketChannelContext {
 
-    private final NioSocketChannel channel;
     private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
     private final SSLDriver sslDriver;
     private final ReadConsumer readConsumer;
     private final InboundChannelBuffer buffer;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
-    private boolean peerClosed = false;
-    private boolean ioException = false;
 
-    SSLChannelContext(NioSocketChannel channel, SSLDriver sslDriver, ReadConsumer readConsumer, InboundChannelBuffer buffer) {
-        this.channel = channel;
+    SSLChannelContext(NioSocketChannel channel, BiConsumer<NioSocketChannel, Exception> exceptionHandler, SSLDriver sslDriver,
+                      ReadConsumer readConsumer, InboundChannelBuffer buffer) {
+        super(channel, exceptionHandler);
         this.sslDriver = sslDriver;
         this.readConsumer = readConsumer;
         this.buffer = buffer;
@@ -64,7 +64,6 @@ public final class SSLChannelContext implements ChannelContext {
             return;
         }
 
-        // TODO: Eval if we will allow writes from sendMessage
         selector.queueWriteInChannelBuffer(writeOperation);
     }
 
@@ -80,14 +79,14 @@ public final class SSLChannelContext implements ChannelContext {
 
     @Override
     public void flushChannel() throws IOException {
-        if (ioException) {
+        if (hasIOException()) {
             return;
         }
         // If there is currently data in the outbound write buffer, flush the buffer.
         if (sslDriver.hasFlushPending()) {
-            internalFlush();
             // If the data is not completely flushed, exit. We cannot produce new write data until the
             // existing data has been fully flushed.
+            flushToChannel(sslDriver.getNetworkWriteBuffer());
             if (sslDriver.hasFlushPending()) {
                 return;
             }
@@ -113,7 +112,7 @@ public final class SSLChannelContext implements ChannelContext {
                         }
                         currentOperation.incrementIndex(bytesEncrypted);
                         // Flush the write buffer to the channel
-                        internalFlush();
+                        flushToChannel(sslDriver.getNetworkWriteBuffer());
                     } catch (IOException e) {
                         queued.removeFirst();
                         channel.getSelector().executeFailedListener(currentOperation.getListener(), e);
@@ -128,18 +127,9 @@ public final class SSLChannelContext implements ChannelContext {
                 sslDriver.nonApplicationWrite();
                 // If non-application writes were produced, flush the outbound write buffer.
                 if (sslDriver.hasFlushPending()) {
-                    internalFlush();
+                    flushToChannel(sslDriver.getNetworkWriteBuffer());
                 }
             }
-        }
-    }
-
-    private int internalFlush() throws IOException {
-        try {
-            return channel.write(sslDriver.getNetworkWriteBuffer());
-        } catch (IOException e) {
-            ioException = true;
-            throw e;
         }
     }
 
@@ -156,18 +146,12 @@ public final class SSLChannelContext implements ChannelContext {
     @Override
     public int read() throws IOException {
         int bytesRead = 0;
-        if (ioException) {
+        if (hasIOException()) {
             return bytesRead;
         }
-        try {
-            bytesRead = channel.read(sslDriver.getNetworkReadBuffer());
-        } catch (IOException e) {
-            ioException = true;
-            throw e;
-        }
-        if (bytesRead < 0) {
-            peerClosed = true;
-            return 0;
+        bytesRead = readFromChannel(sslDriver.getNetworkReadBuffer());
+        if (bytesRead == 0) {
+            return bytesRead;
         }
 
         sslDriver.read(buffer);
@@ -183,7 +167,7 @@ public final class SSLChannelContext implements ChannelContext {
 
     @Override
     public boolean selectorShouldClose() {
-        return peerClosed || ioException || sslDriver.isClosed();
+        return isPeerClosed() || hasIOException() || sslDriver.isClosed();
     }
 
     @Override
@@ -202,14 +186,27 @@ public final class SSLChannelContext implements ChannelContext {
     @Override
     public void closeFromSelector() throws IOException {
         channel.getSelector().assertOnSelectorThread();
-        // Set to true in order to reject new writes before queuing with selector
-        isClosing.set(true);
-        buffer.close();
-        for (BytesWriteOperation op : queued) {
-            channel.getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
+        if (channel.isOpen()) {
+            // Set to true in order to reject new writes before queuing with selector
+            isClosing.set(true);
+            ArrayList<IOException> closingExceptions = new ArrayList<>(2);
+            try {
+                channel.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            try {
+                buffer.close();
+                for (BytesWriteOperation op : queued) {
+                    channel.getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
+                }
+                queued.clear();
+                sslDriver.close();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
-        queued.clear();
-        sslDriver.close();
     }
 
     private static class CloseNotifyOperation implements WriteOperation {

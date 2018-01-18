@@ -37,8 +37,8 @@ public class In extends Expression {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected more than one child but received [" + newChildren.size() + "]");
+        if (newChildren.size() < 1) {
+            throw new IllegalArgumentException("expected one or more children but received [" + newChildren.size() + "]");
         }
         return new In(location(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }

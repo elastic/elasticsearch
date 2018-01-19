@@ -65,7 +65,7 @@ public final class MlStrings {
 
     /**
      * Checks if the given {@code id} has a valid length.
-     * We keep IDs in a length < {@link #ID_LENGTH_LIMIT}
+     * We keep IDs in a length shorter or equal than {@link #ID_LENGTH_LIMIT}
      * in order to avoid unfriendly errors when storing docs with
      * more than 512 bytes.
      *

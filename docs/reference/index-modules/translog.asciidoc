@@ -2,16 +2,18 @@
 == Translog
 
 Changes to Lucene are only persisted to disk during a Lucene commit, which is a
-relatively heavy operation and so cannot be performed after every index or
+relatively expensive operation and so cannot be performed after every index or
 delete operation. Changes that happen after one commit and before another will
-be lost in the event of process exit or hardware failure.
+be removed from the index by Lucene in the event of process exit or hardware
+failure.
 
-To prevent this data loss, each shard copy has a _transaction log_ known as its
-_translog_ associated with it. Any index or delete operation is written to the
-translog after being processed by the internal Lucene index.
-
-In the event of a crash, recent transactions can be replayed from the translog
-when the shard recovers.
+Because Lucene commits are too expensive to perform on every individual change,
+each shard copy also has a _transaction log_ known as its _translog_ associated
+with it. All index and delete operations are written to the translog after
+being processed by the internal Lucene index but before they are acknowledged.
+In the event of a crash, recent transactions that have been acknowledged but
+not yet included in the last Lucene commit can instead be recovered from the
+translog when the shard recovers.
 
 An Elasticsearch flush is the process of performing a Lucene commit and
 starting a new translog. Flushes are performed automatically in the background

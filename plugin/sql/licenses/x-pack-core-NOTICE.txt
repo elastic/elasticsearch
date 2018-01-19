@@ -1,2 +1,0 @@
-Elasticsearch X-Pack
-Copyright 2009-2017 Elasticsearch

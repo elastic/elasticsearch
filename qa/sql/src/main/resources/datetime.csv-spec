@@ -167,8 +167,8 @@ d:i                  | c:l                  | s:i
 constantYear
 // tag::year
 SELECT YEAR(CAST('2018-01-19T10:23:27Z' AS TIMESTAMP)) as year;
-
-  year
+     year
+---------------
 2018
 // end::year
 ;

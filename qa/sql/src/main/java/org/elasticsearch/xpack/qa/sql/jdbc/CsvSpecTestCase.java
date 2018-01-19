@@ -68,7 +68,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         csvProperties.setProperty("charset", "UTF-8");
         csvProperties.setProperty("separator", "|");
         csvProperties.setProperty("trimValues", "true");
-        Tuple<String,String> resultsAndTypes = extractColumnTypes(expectedResults);
+        Tuple<String,String> resultsAndTypes = extractColumnTypesAndStripCli(expectedResults);
         csvProperties.setProperty("columnTypes", resultsAndTypes.v2());
         Reader reader = new StringReader(resultsAndTypes.v1());
         TableReader tableReader = new TableReader() {
@@ -103,26 +103,37 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         return connectionProperties;
     }
 
-    private Tuple<String,String> extractColumnTypes(String expectedResults) throws IOException {
-        try (StringReader reader = new StringReader(expectedResults)){
-            try (BufferedReader bufferedReader = new BufferedReader(reader)){
-                String header = bufferedReader.readLine();
-                if (!header.contains(":")) {
-                    // No type information in headers, no need to parse columns - trigger auto-detection
-                    return new Tuple<>(expectedResults,"");
-                }
-                try (StringWriter writer = new StringWriter()) {
-                    try (BufferedWriter bufferedWriter = new BufferedWriter(writer)){
-                        Tuple<String, String> headerAndColumns = extractColumnTypesFromHeader(header);
-                        bufferedWriter.write(headerAndColumns.v1());
-                        bufferedWriter.newLine();
-                        bufferedWriter.flush();
-                        // Copy the rest of test
-                        Streams.copy(bufferedReader, bufferedWriter);
-                        return new Tuple<>(writer.toString(), headerAndColumns.v2());
-                    }
-                }
+    private Tuple<String,String> extractColumnTypesAndStripCli(String expectedResults) throws IOException {
+        try (StringReader reader = new StringReader(expectedResults);
+                BufferedReader bufferedReader = new BufferedReader(reader);
+                StringWriter writer = new StringWriter();
+                BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
+
+            String header = bufferedReader.readLine();
+            Tuple<String, String> headerAndTypes;
+
+            if (header.contains(":")) {
+                headerAndTypes = extractColumnTypesFromHeader(header);
+            } else {
+                // No type information in headers, no need to parse columns - trigger auto-detection
+                headerAndTypes = new Tuple<>(header, "");
             }
+            bufferedWriter.write(headerAndTypes.v1());
+            bufferedWriter.newLine();
+
+            /* Read the next line. It might be a separator designed to look like the cli.
+             * If it is, then throw it out. If it isn't then keep it.
+             */
+            String maybeSeparator = bufferedReader.readLine();
+            if (maybeSeparator != null && false == maybeSeparator.startsWith("----")) {
+                bufferedWriter.write(maybeSeparator);
+                bufferedWriter.newLine();
+            }
+
+            bufferedWriter.flush();
+            // Copy the rest of test
+            Streams.copy(bufferedReader, bufferedWriter);
+            return new Tuple<>(writer.toString(), headerAndTypes.v2());
         }
     }
 

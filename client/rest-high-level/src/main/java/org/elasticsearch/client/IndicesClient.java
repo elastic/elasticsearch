@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -36,6 +37,8 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -183,5 +186,27 @@ public final class IndicesClient {
     public void closeAsync(CloseIndexRequest closeIndexRequest, ActionListener<CloseIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest, Request::closeIndex, CloseIndexResponse::fromXContent,
                 listener, Collections.emptySet(), headers);
+    }
+
+    /**
+     * Checks if one or more aliases exist using the Aliases Exist API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * Indices Aliases API on elastic.co</a>
+     */
+    public boolean existsAlias(GetAliasesRequest getAliasesRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequest(getAliasesRequest, Request::existsAlias, RestHighLevelClient::convertExistsResponse,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously checks if one or more aliases exist using the Aliases Exist API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * Indices Aliases API on elastic.co</a>
+     */
+    public void existsAliasAsync(GetAliasesRequest getAliasesRequest, ActionListener<Boolean> listener, Header... headers) {
+        restHighLevelClient.performRequestAsync(getAliasesRequest, Request::existsAlias, RestHighLevelClient::convertExistsResponse,
+                listener, emptySet(), headers);
     }
 }

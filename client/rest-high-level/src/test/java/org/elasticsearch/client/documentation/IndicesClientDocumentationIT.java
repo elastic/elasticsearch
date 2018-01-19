@@ -22,6 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -433,18 +434,57 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
             // end::close-index-execute-async
         }
+    }
+
+    public void testExistsAlias() throws IOException {
+        RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::close-index-notfound
-            try {
-                CloseIndexRequest request = new CloseIndexRequest("does_not_exist");
-                client.indices().close(request);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.BAD_REQUEST) {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index")
+                    .alias(new Alias("alias")));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::exists-alias-request
+            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
+            GetAliasesRequest requestWithAliases = new GetAliasesRequest(new String[]{"alias1", "alias2"});
+            // end::exists-alias-request
+
+            // tag::exists-alias-request-alias
+            request.aliases("alias"); // <1>
+            // end::exists-alias-request-alias
+            // tag::exists-alias-request-indices
+            request.indices("index"); // <1>
+            // end::exists-alias-request-indices
+
+            // tag::exists-alias-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::exists-alias-request-indicesOptions
+
+            // tag::exists-alias-request-local
+            request.local(true); // <1>
+            // end::exists-alias-request-local
+
+            // tag::exists-alias-execute
+            boolean exists = client.indices().existsAlias(request);
+            // end::exists-alias-execute
+            assertTrue(exists);
+
+            // tag::exists-alias-execute-async
+            client.indices().existsAliasAsync(request, new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean exists) {
                     // <1>
                 }
-            }
-            // end::close-index-notfound
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::exists-alias-execute-async
         }
     }
 

@@ -113,11 +113,11 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
     public void testGetCalandarByJobId() throws Exception {
         List<Calendar> calendars = new ArrayList<>();
-        calendars.add(new Calendar("empty calendar", Collections.emptyList()));
-        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo")));
-        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar")));
-        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat")));
-        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo")));
+        calendars.add(new Calendar("empty calendar", Collections.emptyList(), null));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo"), null));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar"), null));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat"), null));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo"), null));
         indexCalendars(calendars);
 
         List<Calendar> queryResult = getCalendars("ted");
@@ -137,7 +137,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
     public void testUpdateCalendar() throws Exception {
         String calendarId = "empty calendar";
-        Calendar emptyCal = new Calendar(calendarId, Collections.emptyList());
+        Calendar emptyCal = new Calendar(calendarId, Collections.emptyList(), null);
         indexCalendars(Collections.singletonList(emptyCal));
 
         Set<String> addedIds = new HashSet<>();
@@ -161,11 +161,11 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
     public void testRemoveJobFromCalendar() throws Exception {
         List<Calendar> calendars = new ArrayList<>();
-        calendars.add(new Calendar("empty calendar", Collections.emptyList()));
-        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo")));
-        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar")));
-        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat")));
-        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo")));
+        calendars.add(new Calendar("empty calendar", Collections.emptyList(), null));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo"), null));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar"), null));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat"), null));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo"), null));
         indexCalendars(calendars);
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -289,7 +289,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         String calendarAId = "maintenance_a";
         List<Calendar> calendars = new ArrayList<>();
-        calendars.add(new Calendar(calendarAId, Collections.singletonList("job_a")));
+        calendars.add(new Calendar(calendarAId, Collections.singletonList("job_a"), null));
 
         ZonedDateTime now = ZonedDateTime.now();
         List<ScheduledEvent> events = new ArrayList<>();
@@ -298,7 +298,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         events.add(buildScheduledEvent("downtime_AAA", now.plusDays(15), now.plusDays(16), calendarAId));
 
         String calendarABId = "maintenance_a_and_b";
-        calendars.add(new Calendar(calendarABId, Arrays.asList("job_a", "job_b")));
+        calendars.add(new Calendar(calendarABId, Arrays.asList("job_a", "job_b"), null));
 
         events.add(buildScheduledEvent("downtime_AB", now.plusDays(12), now.plusDays(13), calendarABId));
 
@@ -339,14 +339,14 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
 
         String calendarAId = "calendar_a";
         List<Calendar> calendars = new ArrayList<>();
-        calendars.add(new Calendar(calendarAId, Collections.singletonList(groupA)));
+        calendars.add(new Calendar(calendarAId, Collections.singletonList(groupA), null));
 
         ZonedDateTime now = ZonedDateTime.now();
         List<ScheduledEvent> events = new ArrayList<>();
         events.add(buildScheduledEvent("downtime_A", now.plusDays(1), now.plusDays(2), calendarAId));
 
         String calendarBId = "calendar_b";
-        calendars.add(new Calendar(calendarBId, Arrays.asList(groupB)));
+        calendars.add(new Calendar(calendarBId, Arrays.asList(groupB), null));
         events.add(buildScheduledEvent("downtime_B", now.plusDays(12), now.plusDays(13), calendarBId));
 
         indexCalendars(calendars);
@@ -372,7 +372,7 @@ public class JobProviderIT extends XPackSingleNodeTestCase {
         Job.Builder job = createJob(jobId, Arrays.asList("fruit", "tea"));
 
         String calendarId = "downtime";
-        Calendar calendar = new Calendar(calendarId, Collections.singletonList(jobId));
+        Calendar calendar = new Calendar(calendarId, Collections.singletonList(jobId), null);
         indexCalendars(Collections.singletonList(calendar));
 
         // index the param docs

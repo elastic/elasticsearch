@@ -42,7 +42,7 @@ public class RestPutCalendarAction extends BaseRestHandler {
             XContentParser parser = restRequest.contentOrSourceParamParser();
             putCalendarRequest = PutCalendarAction.Request.parseRequest(calendarId, parser);
         } else {
-            putCalendarRequest = new PutCalendarAction.Request(new Calendar(calendarId, Collections.emptyList()));
+            putCalendarRequest = new PutCalendarAction.Request(new Calendar(calendarId, Collections.emptyList(), null));
         }
 
         return channel -> client.execute(PutCalendarAction.INSTANCE, putCalendarRequest, new RestToXContentListener<>(channel));

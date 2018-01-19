@@ -25,6 +25,8 @@ public final class MlStrings {
      */
     private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
 
+    public static final int ID_LENGTH_LIMIT = 64;
+
     private MlStrings() {
     }
 
@@ -59,6 +61,19 @@ public final class MlStrings {
 
     public static boolean isValidId(String id) {
         return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !MetaData.ALL.equals(id);
+    }
+
+    /**
+     * Checks if the given {@code id} has a valid length.
+     * We keep IDs in a length < {@link #ID_LENGTH_LIMIT}
+     * in order to avoid unfriendly errors when storing docs with
+     * more than 512 bytes.
+     *
+     * @param id the id
+     * @return {@code true} if the id has a valid length
+     */
+    public static boolean hasValidLengthForId(String id) {
+        return id.length() <= ID_LENGTH_LIMIT;
     }
 
     /**

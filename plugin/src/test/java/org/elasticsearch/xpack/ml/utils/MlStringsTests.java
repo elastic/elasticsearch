@@ -40,4 +40,9 @@ public class MlStringsTests extends ESTestCase {
         assertThat(MlStrings.getParentField("foo.bar"), equalTo("foo"));
         assertThat(MlStrings.getParentField("x.y.z"), equalTo("x.y"));
     }
+
+    public void testHasValidLengthForId() {
+        assertThat(MlStrings.hasValidLengthForId(randomAlphaOfLength(64)), is(true));
+        assertThat(MlStrings.hasValidLengthForId(randomAlphaOfLength(65)), is(false));
+    }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.calendars;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.ml.job.config.JobTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,12 +20,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
 
     public static Calendar testInstance() {
+        return testInstance(JobTests.randomValidJobId());
+    }
+
+    public static Calendar testInstance(String calendarId) {
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return new Calendar(randomAlphaOfLengthBetween(1, 20), items);
+        String description = null;
+        if (randomBoolean()) {
+            description = randomAlphaOfLength(20);
+        }
+        return new Calendar(calendarId, items, description);
     }
 
     @Override
@@ -43,7 +52,7 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new Calendar(null, Collections.emptyList()));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new Calendar(null, Collections.emptyList(), null));
         assertEquals(Calendar.ID.getPreferredName() + " must not be null", ex.getMessage());
     }
 

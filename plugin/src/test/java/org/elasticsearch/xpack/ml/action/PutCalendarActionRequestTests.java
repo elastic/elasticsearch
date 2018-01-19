@@ -7,24 +7,16 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.calendars.Calendar;
-
-import java.util.ArrayList;
-import java.util.List;
+import org.elasticsearch.xpack.ml.calendars.CalendarTests;
+import org.elasticsearch.xpack.ml.job.config.JobTests;
 
 public class PutCalendarActionRequestTests extends AbstractStreamableXContentTestCase<PutCalendarAction.Request> {
 
-    private final String calendarId = randomAlphaOfLengthBetween(1, 20);
+    private final String calendarId = JobTests.randomValidJobId();
 
     @Override
     protected PutCalendarAction.Request createTestInstance() {
-        int size = randomInt(10);
-        List<String> jobIds = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            jobIds.add(randomAlphaOfLengthBetween(1, 20));
-        }
-        Calendar calendar = new Calendar(calendarId, jobIds);
-        return new PutCalendarAction.Request(calendar);
+        return new PutCalendarAction.Request(CalendarTests.testInstance(calendarId));
     }
 
     @Override

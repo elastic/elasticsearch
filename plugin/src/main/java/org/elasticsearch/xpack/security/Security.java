@@ -179,6 +179,7 @@ import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
@@ -848,7 +849,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4Transport(settings, threadPool, networkService, bigArrays,
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService, bigArrays,
                 namedWriteableRegistry, circuitBreakerService, ipFilter.get(), sslService));
     }
 

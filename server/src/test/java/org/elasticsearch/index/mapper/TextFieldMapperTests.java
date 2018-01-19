@@ -618,7 +618,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             Query q = mapper.mappers().getMapper("field").fieldType().prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
-            q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
+            q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio",
+                CONSTANT_SCORE_REWRITE, queryShardContext);
             assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
@@ -644,13 +645,17 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             CompressedXContent json = new CompressedXContent(mapping);
             DocumentMapper mapper = parser.parse("type", json);
 
-            Query q1 = mapper.mappers().getMapper("field").fieldType().prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q1 = mapper.mappers().getMapper("field").fieldType().prefixQuery("g",
+                CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q1, instanceOf(PrefixQuery.class));
-            Query q2 = mapper.mappers().getMapper("field").fieldType().prefixQuery("go", CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q2 = mapper.mappers().getMapper("field").fieldType().prefixQuery("go",
+                CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q2, instanceOf(ConstantScoreQuery.class));
-            Query q5 = mapper.mappers().getMapper("field").fieldType().prefixQuery("going", CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q5 = mapper.mappers().getMapper("field").fieldType().prefixQuery("going",
+                CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q5, instanceOf(ConstantScoreQuery.class));
-            Query q6 = mapper.mappers().getMapper("field").fieldType().prefixQuery("goings", CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q6 = mapper.mappers().getMapper("field").fieldType().prefixQuery("goings",
+                CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q6, instanceOf(PrefixQuery.class));
 
             indexService.mapperService().merge("type", json, MergeReason.MAPPING_UPDATE, false);

@@ -64,6 +64,8 @@ public class TextFieldMapper extends FieldMapper {
         public static double FIELDDATA_MIN_FREQUENCY = 0;
         public static double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
         public static int FIELDDATA_MIN_SEGMENT_SIZE = 0;
+        public static final int INDEX_PREFIX_MIN_CHARS = 2;
+        public static final int INDEX_PREFIX_MAX_CHARS = 5;
 
         public static final MappedFieldType FIELD_TYPE = new TextFieldType();
 
@@ -192,11 +194,20 @@ public class TextFieldMapper extends FieldMapper {
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
                 } else if (propName.equals("index_prefix")) {
-                    Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
-                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 2);
-                    int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"), 5);
-                    builder.indexPrefixes(minChars, maxChars);
-                    DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+                    if (propNode instanceof Map) {
+                        Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
+                        int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"),
+                            Defaults.INDEX_PREFIX_MIN_CHARS);
+                        int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"),
+                            Defaults.INDEX_PREFIX_MAX_CHARS);
+                        builder.indexPrefixes(minChars, maxChars);
+                        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+                    }
+                    else {
+                        if (XContentMapValues.nodeBooleanValue(propNode, "index_prefix")) {
+                            builder.indexPrefixes(Defaults.INDEX_PREFIX_MIN_CHARS, Defaults.INDEX_PREFIX_MAX_CHARS);
+                        }
+                    }
                     iterator.remove();
                 }
             }

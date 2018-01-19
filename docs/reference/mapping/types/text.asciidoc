@@ -89,6 +89,13 @@ The following parameters are accepted by `text` fields:
     What information should be stored in the index, for search and highlighting purposes.
     Defaults to `positions`.
 
+<<index-prefix-config,`index_prefix`>>::
+
+    If enabled, term prefixes of between 2 and 5 characters are indexed into a
+    separate field.  This allows prefix searches to run more efficiently, at
+    the expense of a larger index. Accepts `true`, `false` (default) or an
+    <<index-prefix-config,`index-prefix configuration block`>>
+
 <<norms,`norms`>>::
 
     Whether field-length should be taken into account when scoring queries.
@@ -128,3 +135,31 @@ The following parameters are accepted by `text` fields:
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
 
+[[index-prefix-config]]
+==== Index Prefix configuration
+
+By default, the `index-prefix` option will index ngrams of tokens between 2 and 5
+characters wide.  To change this, use the following syntax:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "full_name": {
+          "type":  "text",
+          "index_prefix" : {
+            "min_chars" : 1,    <1>
+            "max_chars" : 10    <2>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+<1> `min_chars` must be greater than zero
+<2> `max_chars` must be greater than `min_chars` and less than 20

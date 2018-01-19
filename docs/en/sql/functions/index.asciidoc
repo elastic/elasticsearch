@@ -251,8 +251,16 @@ include-tagged::{sql-specs}/math.sql-spec[sinh]
 include-tagged::{sql-specs}/math.sql-spec[cosh]
 --------------------------------------------------
 
-// conversion
-// date time
+
+=== Date and Time Functions
+
+* Extract the year from a date (`YEAR`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/datetime.csv-spec[year]
+--------------------------------------------------
+
 // aggregate
 
 // geospatial

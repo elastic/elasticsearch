@@ -10,53 +10,53 @@
 dateTimeSecond
 SELECT SECOND(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
-d:i                  | l:s          
-0                    | Facello             
-0                    | Simmel              
-0                    | Bamford             
-0                    | Koblick             
-0                    | Maliniak            
-0                    | Preusig             
-0                    | Zielinski           
-0                    | Kalloufi            
-0                    | Peac 
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
 ;
 
 dateTimeMinute
 SELECT MINUTE(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
-d:i                  | l:s          
-0                    | Facello             
-0                    | Simmel              
-0                    | Bamford             
-0                    | Koblick             
-0                    | Maliniak            
-0                    | Preusig             
-0                    | Zielinski           
-0                    | Kalloufi            
-0                    | Peac 
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
 ;
 
 dateTimeHour
 SELECT HOUR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
-d:i                  | l:s          
-0                    | Facello             
-0                    | Simmel              
-0                    | Bamford             
-0                    | Koblick             
-0                    | Maliniak            
-0                    | Preusig             
-0                    | Zielinski           
-0                    | Kalloufi            
-0                    | Peac 
+d:i                  | l:s
+0                    | Facello
+0                    | Simmel
+0                    | Bamford
+0                    | Koblick
+0                    | Maliniak
+0                    | Preusig
+0                    | Zielinski
+0                    | Kalloufi
+0                    | Peac
 
 ;
 
 //
 // Date (in H2 these start at 0 instead of 1...)
 //
-dateTimeDayOfWeek 
+dateTimeDayOfWeek
 SELECT DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY DAY_OF_WEEK(birth_date);
 
 d:i                  | l:s
@@ -162,4 +162,13 @@ d:i                  | c:l                  | s:i
 3                    | 4                    | 40204
 2                    | 4                    | 40081
 1                    | 5                    | 50167
+;
+
+constantYear
+// tag::year
+SELECT YEAR(CAST('2018-01-19T10:23:27Z' AS TIMESTAMP)) as year;
+
+  year
+2018
+// end::year
 ;

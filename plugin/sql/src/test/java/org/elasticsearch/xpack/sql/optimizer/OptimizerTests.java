@@ -15,7 +15,13 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfWeekYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
@@ -49,7 +55,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-
+import org.joda.time.DateTimeZone;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -255,6 +261,23 @@ public class OptimizerTests extends ESTestCase {
                 new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0))));
         assertEquals(Literal.TRUE,
                 new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))));
+    }
+
+    public void testConstantFoldingDatetime() {
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataTypes.DATE);
+        assertEquals(2018, unwrapAlias(new ConstantFolding().rule(new Year(EMPTY, cast, DateTimeZone.UTC))));
+        assertEquals(1, unwrapAlias(new ConstantFolding().rule(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC))));
+        assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC))));
+        assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfYear(EMPTY, cast, DateTimeZone.UTC))));
+        assertEquals(3, unwrapAlias(new ConstantFolding().rule(new WeekOfWeekYear(EMPTY, cast, DateTimeZone.UTC))));
+        assertNull(unwrapAlias(new ConstantFolding().rule(
+            new WeekOfWeekYear(EMPTY, new Literal(EMPTY, null, DataTypes.NULL), DateTimeZone.UTC))));
+    }
+
+    private Object unwrapAlias(Expression e) {
+        Alias a = (Alias) e;
+        Literal l = (Literal) a.child();
+        return l.value();
     }
 
     public void testBinaryComparisonSimplification() {

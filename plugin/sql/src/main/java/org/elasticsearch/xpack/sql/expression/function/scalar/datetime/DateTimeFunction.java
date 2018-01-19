@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
 
@@ -61,7 +64,13 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return field().fold();
+        Long folded = (Long) field().fold();
+        if (folded == null) {
+            return null;
+        }
+        ZonedDateTime time = ZonedDateTime.ofInstant(
+            Instant.ofEpochMilli(folded), ZoneId.of(timeZone.getID()));
+        return time.get(chronoField());
     }
 
     @Override

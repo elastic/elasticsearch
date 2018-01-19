@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-public class SecurityNetty4TransportTests extends ESTestCase {
+public class SecurityNetty4ServerTransportTests extends ESTestCase {
 
     private Environment env;
     private SSLService sslService;
@@ -61,7 +61,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
                         .put("xpack.security.transport.ssl.enabled", true)
                         .put(additionalSettings)
                         .build();
-        return new SecurityNetty4Transport(
+        return new SecurityNetty4ServerTransport(
                 settings,
                 mock(ThreadPool.class),
                 new NetworkService(Collections.emptyList()),

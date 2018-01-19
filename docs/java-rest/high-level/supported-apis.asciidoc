@@ -6,6 +6,8 @@ The Java High Level REST Client supports the following APIs:
 Indices APIs::
 * <<java-rest-high-create-index>>
 * <<java-rest-high-delete-index>>
+* <<java-rest-high-open-index>>
+* <<java-rest-high-close-index>>
 
 Single document APIs::
 * <<java-rest-high-document-index>>

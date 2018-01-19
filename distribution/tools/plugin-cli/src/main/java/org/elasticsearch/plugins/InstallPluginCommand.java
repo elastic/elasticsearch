@@ -646,9 +646,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                                    Environment env, List<Path> deleteOnFailure) throws Exception {
         final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
         verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
+
         final Path destination = env.pluginsFile().resolve(metaInfo.getName());
         deleteOnFailure.add(destination);
         terminal.println(VERBOSE, metaInfo.toString());
+
         final List<Path> pluginPaths = new ArrayList<>();
         try (DirectoryStream<Path> paths = Files.newDirectoryStream(tmpRoot)) {
             // Extract bundled plugins path and validate plugin names
@@ -665,19 +667,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         for (Path plugin : pluginPaths) {
             final PluginInfo info = verify(terminal, plugin, isBatch, env);
             pluginInfos.add(info);
-            Path tmpBinDir = plugin.resolve("bin");
-            if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(metaInfo.getName());
-                deleteOnFailure.add(destBinDir);
-                installBin(info, tmpBinDir, destBinDir);
-            }
-
-            Path tmpConfigDir = plugin.resolve("config");
-            if (Files.exists(tmpConfigDir)) {
-                // some files may already exist, and we don't remove plugin config files on plugin removal,
-                // so any installed config files are left on failure too
-                Path destConfigDir = env.configFile().resolve(metaInfo.getName());
-                installConfig(info, tmpConfigDir, destConfigDir);
+            installPluginSupportFiles(info, plugin, env.binFile().resolve(metaInfo.getName()),
+                                      env.configFile().resolve(metaInfo.getName()), deleteOnFailure);
+            // ensure the plugin dir within the tmpRoot has the correct name
+            if (plugin.getFileName().toString().equals(info.getName()) == false) {
+                Files.move(plugin, plugin.getParent().resolve(info.getName()), StandardCopyOption.ATOMIC_MOVE);
             }
         }
         movePlugin(tmpRoot, destination);
@@ -693,7 +687,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
-     * If the plugin has a bin dir and/or a config dir, those are copied.
+     * If the plugin has a bin dir and/or a config dir, those are moved.
      */
     private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
@@ -701,9 +695,20 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
 
+        installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
+                                  env.configFile().resolve(info.getName()), deleteOnFailure);
+        movePlugin(tmpRoot, destination);
+        if (info.requiresKeystore()) {
+            createKeystoreIfNeeded(terminal, env, info);
+        }
+        terminal.println("-> Installed " + info.getName());
+    }
+
+    /** Moves bin and config directories from the plugin if they exist */
+    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot,
+                                           Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
-            Path destBinDir = env.binFile().resolve(info.getName());
             deleteOnFailure.add(destBinDir);
             installBin(info, tmpBinDir, destBinDir);
         }
@@ -712,14 +717,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(tmpConfigDir)) {
             // some files may already exist, and we don't remove plugin config files on plugin removal,
             // so any installed config files are left on failure too
-            Path destConfigDir = env.configFile().resolve(info.getName());
             installConfig(info, tmpConfigDir, destConfigDir);
         }
-        movePlugin(tmpRoot, destination);
-        if (info.requiresKeystore()) {
-            createKeystoreIfNeeded(terminal, env, info);
-        }
-        terminal.println("-> Installed " + info.getName());
     }
 
     /** Moves the plugin directory into its final destination. **/

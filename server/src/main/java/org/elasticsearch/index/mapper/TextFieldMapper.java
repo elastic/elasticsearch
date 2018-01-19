@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -130,6 +131,8 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
             if (minChars < 1)
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
+            if (maxChars >= 20)
+                throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             this.prefixFieldType = new PrefixFieldType(name() + "._index_prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
@@ -149,6 +152,9 @@ public class TextFieldMapper extends FieldMapper {
             setupFieldType(context);
             PrefixFieldMapper prefixMapper = prefixFieldType == null ? null
                 : new PrefixFieldMapper(prefixFieldType.setAnalyzer(fieldType.indexAnalyzer()), context.indexSettings());
+            if (prefixFieldType != null && fieldType().isSearchable() == false) {
+                throw new IllegalArgumentException("Cannot set index_prefix on unindexed field [" + name() + "]");
+            }
             return new TextFieldMapper(
                     name, fieldType, defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
@@ -187,8 +193,8 @@ public class TextFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (propName.equals("index_prefix")) {
                     Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
-                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 1);
-                    int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"), 10);
+                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 2);
+                    int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"), 5);
                     builder.indexPrefixes(minChars, maxChars);
                     DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
                     iterator.remove();
@@ -230,6 +236,8 @@ public class TextFieldMapper extends FieldMapper {
 
         PrefixFieldType(String name, int minChars, int maxChars) {
             setTokenized(true);
+            setOmitNorms(true);
+            setIndexOptions(IndexOptions.DOCS);
             setName(name);
             this.minChars = minChars;
             this.maxChars = maxChars;
@@ -260,6 +268,18 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return "prefix";
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(other, conflicts, strict);
+            PrefixFieldType otherFieldType = (PrefixFieldType) other;
+            if (otherFieldType.minChars != this.minChars) {
+                conflicts.add("mapper [" + name() + "] has different min_chars values");
+            }
+            if (otherFieldType.maxChars != this.maxChars) {
+                conflicts.add("mapper [" + name() + "] has different max_chars values");
+            }
         }
 
         @Override
@@ -411,7 +431,12 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            return prefixFieldType.termQuery(value, context);
+            Query tq = prefixFieldType.termQuery(value, context);
+            if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                return new ConstantScoreQuery(tq);
+            }
+            return tq;
         }
 
         @Override
@@ -494,8 +519,9 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        if (prefixFieldMapper == null)
+        if (prefixFieldMapper == null) {
             return super.iterator();
+        }
         return Iterators.concat(super.iterator(), Collections.singleton(prefixFieldMapper).iterator());
     }
 
@@ -507,6 +533,14 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
+        TextFieldMapper mw = (TextFieldMapper) mergeWith;
+        if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
+            this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper, updateAllTypes);
+        }
+        else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
+            throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
+                + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
+        }
     }
 
     @Override

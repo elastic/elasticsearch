@@ -31,6 +31,20 @@
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.hits.0._score: 1}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              default_field: text
+              query: shor*
+              boost: 2
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._score: 2}
 
   - do:
       search:
@@ -39,3 +53,4 @@
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.hits.0._score: 1}

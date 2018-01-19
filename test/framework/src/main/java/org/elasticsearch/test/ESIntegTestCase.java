@@ -32,7 +32,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -62,6 +61,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -1275,7 +1275,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final FlushResponse flush(String... indices) {
         waitForRelocation();
         FlushResponse actionGet = client().admin().indices().prepareFlush(indices).execute().actionGet();
-        for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
+        for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
         return actionGet;

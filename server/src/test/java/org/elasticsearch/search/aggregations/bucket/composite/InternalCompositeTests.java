@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -41,14 +42,14 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class InternalCompositeTests extends InternalMultiBucketAggregationTestCase<InternalComposite> {
     private List<String> sourceNames;
+    private List<DocValueFormat> formats;
     private int[] reverseMuls;
-    private int[] formats;
+    private int[] types;
     private int size;
 
     @Override
@@ -58,11 +59,12 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         size = randomNumberOfBuckets();
         sourceNames = new ArrayList<>();
         reverseMuls = new int[numFields];
-        formats = new int[numFields];
+        types = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             sourceNames.add("field_" + i);
+            formats.add(DocValueFormat.RAW);
             reverseMuls[i] = randomBoolean() ? 1 : -1;
-            formats[i] = randomIntBetween(0, 2);
+            types[i] = randomIntBetween(0, 2);
         }
     }
 
@@ -71,8 +73,9 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void tearDown() throws Exception {
         super.tearDown();
         sourceNames= null;
-        reverseMuls = null;
         formats = null;
+        reverseMuls = null;
+        types = null;
     }
 
     @Override
@@ -93,7 +96,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     private CompositeKey createCompositeKey() {
         Comparable<?>[] keys = new Comparable<?>[sourceNames.size()];
         for (int j = 0; j  < keys.length; j++) {
-            switch (formats[j]) {
+            switch (types[j]) {
                 case 0:
                     keys[j] = randomLong();
                     break;
@@ -123,19 +126,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         };
     }
 
-    @SuppressWarnings("unchecked")
-    private Comparator<InternalComposite.InternalBucket> getBucketComparator() {
-        return (o1, o2) -> {
-            for (int i = 0; i < o1.getRawKey().size(); i++) {
-                int cmp = ((Comparable) o1.getRawKey().get(i)).compareTo(o2.getRawKey().get(i)) * reverseMuls[i];
-                if (cmp != 0) {
-                    return cmp;
-                }
-            }
-            return 0;
-        };
-    }
-
     @Override
     protected InternalComposite createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metaData, InternalAggregations aggregations) {
@@ -149,11 +139,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             }
             keys.add(key);
             InternalComposite.InternalBucket bucket =
-                new InternalComposite.InternalBucket(sourceNames, key, reverseMuls, 1L, aggregations);
+                new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, 1L, aggregations);
             buckets.add(bucket);
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
-        return new InternalComposite(name, size, sourceNames, buckets, reverseMuls, Collections.emptyList(), metaData);
+        return new InternalComposite(name, size, sourceNames, formats, buckets, reverseMuls, Collections.emptyList(), metaData);
     }
 
     @Override
@@ -172,7 +162,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 break;
             case 1:
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalComposite.InternalBucket(sourceNames, createCompositeKey(), reverseMuls,
+                buckets.add(new InternalComposite.InternalBucket(sourceNames, formats, createCompositeKey(), reverseMuls,
                     randomLongBetween(1, 100), InternalAggregations.EMPTY)
                 );
                 break;
@@ -187,7 +177,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             default:
                 throw new AssertionError("illegal branch");
         }
-        return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, buckets, reverseMuls,
+        return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, reverseMuls,
             instance.pipelineAggregators(), metaData);
     }
 

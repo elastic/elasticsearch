@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.calendars;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,19 +32,20 @@ public class Calendar implements ToXContentObject, Writeable {
     public static final ParseField TYPE = new ParseField("type");
     public static final ParseField JOB_IDS = new ParseField("job_ids");
     public static final ParseField ID = new ParseField("calendar_id");
+    public static final ParseField DESCRIPTION = new ParseField("description");
 
     private static final String DOCUMENT_ID_PREFIX = "calendar_";
 
     // For QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("calendars");
 
-    public static final ObjectParser<Builder, Void> PARSER =
-            new ObjectParser<>(ID.getPreferredName(), Calendar.Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ID.getPreferredName(), Builder::new);
 
     static {
-        PARSER.declareString(Calendar.Builder::setId, ID);
-        PARSER.declareStringArray(Calendar.Builder::setJobIds, JOB_IDS);
+        PARSER.declareString(Builder::setId, ID);
+        PARSER.declareStringArray(Builder::setJobIds, JOB_IDS);
         PARSER.declareString((builder, s) -> {}, TYPE);
+        PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
     }
 
     public static String documentId(String calendarId) {
@@ -52,20 +54,24 @@ public class Calendar implements ToXContentObject, Writeable {
 
     private final String id;
     private final List<String> jobIds;
+    private final String description;
 
     /**
      * {@code jobIds} can be a mix of job groups and job Ids
      * @param id The calendar Id
-     * @param jobIds List of job Ids or job groups.
+     * @param jobIds List of job Ids or job groups
+     * @param description An optional description
      */
-    public Calendar(String id, List<String> jobIds) {
+    public Calendar(String id, List<String> jobIds, @Nullable String description) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.jobIds = Objects.requireNonNull(jobIds, JOB_IDS.getPreferredName() + " must not be null");
+        this.description = description;
     }
 
     public Calendar(StreamInput in) throws IOException {
         id = in.readString();
         jobIds = Arrays.asList(in.readStringArray());
+        description = in.readOptionalString();
     }
 
     public String getId() {
@@ -80,10 +86,16 @@ public class Calendar implements ToXContentObject, Writeable {
         return Collections.unmodifiableList(jobIds);
     }
 
+    @Nullable
+    public String getDescription() {
+        return description;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeStringArray(jobIds.toArray(new String[jobIds.size()]));
+        out.writeOptionalString(description);
     }
 
     @Override
@@ -91,6 +103,9 @@ public class Calendar implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(JOB_IDS.getPreferredName(), jobIds);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), CALENDAR_TYPE);
         }
@@ -109,12 +124,12 @@ public class Calendar implements ToXContentObject, Writeable {
         }
 
         Calendar other = (Calendar) obj;
-        return id.equals(other.id) && jobIds.equals(other.jobIds);
+        return id.equals(other.id) && jobIds.equals(other.jobIds) && Objects.equals(description, other.description);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobIds);
+        return Objects.hash(id, jobIds, description);
     }
 
     public static Builder builder() {
@@ -125,9 +140,10 @@ public class Calendar implements ToXContentObject, Writeable {
 
         private String calendarId;
         private List<String> jobIds = Collections.emptyList();
+        private String description;
 
         public String getId() {
-            return this.calendarId;
+            return calendarId;
         }
 
         public void setId(String calendarId) {
@@ -139,8 +155,13 @@ public class Calendar implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
         public Calendar build() {
-            return new Calendar(calendarId, jobIds);
+            return new Calendar(calendarId, jobIds, description);
         }
     }
 }

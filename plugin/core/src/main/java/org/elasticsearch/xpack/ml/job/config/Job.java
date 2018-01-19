@@ -90,7 +90,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("job_details", false, Builder::new);
     public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
 
-    public static final int MAX_JOB_ID_LENGTH = 64;
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(100, ByteSizeUnit.MB);
 
@@ -1050,8 +1049,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (!MlStrings.isValidId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
-            if (id.length() > MAX_JOB_ID_LENGTH) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
+            if (!MlStrings.hasValidLengthForId(id)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
 
             validateGroups();

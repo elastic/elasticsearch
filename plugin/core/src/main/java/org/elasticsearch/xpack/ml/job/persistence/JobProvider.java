@@ -1089,7 +1089,7 @@ public class JobProvider {
                     Set<String> currentJobs = new HashSet<>(calendar.getJobIds());
                     currentJobs.addAll(jobIdsToAdd);
                     currentJobs.removeAll(jobIdsToRemove);
-                    Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs));
+                    Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
                     UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1156,7 +1156,7 @@ public class JobProvider {
                             .map(c -> {
                                 Set<String> ids = new HashSet<>(c.getJobIds());
                                 ids.remove(jobId);
-                                return new Calendar(c.getId(), new ArrayList<>(ids));
+                                return new Calendar(c.getId(), new ArrayList<>(ids), c.getDescription());
                             }).forEach(c -> {
                                 UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE,
                                         c.documentId());

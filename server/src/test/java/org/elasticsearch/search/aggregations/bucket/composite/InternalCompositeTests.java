@@ -58,6 +58,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         int numFields = randomIntBetween(1, 10);
         size = randomNumberOfBuckets();
         sourceNames = new ArrayList<>();
+        formats = new ArrayList<>();
         reverseMuls = new int[numFields];
         types = new int[numFields];
         for (int i = 0; i < numFields; i++) {

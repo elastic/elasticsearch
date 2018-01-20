@@ -124,6 +124,18 @@ public class PutMappingRequestTests extends ESTestCase {
         assertEquals(expectedRequestBody, actualRequestBody);
     }
 
+    public void testToXContentWithEmptySource() throws IOException {
+        PutMappingRequest request = new PutMappingRequest("foo");
+
+        request.type("my_type");
+
+        String actualRequestBody = Strings.toString(request);
+
+        String expectedRequestBody = "{}";
+
+        assertEquals(expectedRequestBody, actualRequestBody);
+    }
+
     public void testToAndFromXContent() throws IOException {
 
         final PutMappingRequest putMappingRequest = createTestItem();

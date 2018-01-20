@@ -10,11 +10,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @Network
 @TestLogging("org.elasticsearch.xpack.watcher.common.http:TRACE")
-public class HipChatServiceTests extends XPackSingleNodeTestCase {
+public class HipChatServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -57,8 +56,6 @@ public class HipChatServiceTests extends XPackSingleNodeTestCase {
         return Settings.builder()
                 .put(super.nodeSettings())
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), true)
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
                 .put("xpack.notification.hipchat.account.integration_account.profile", "integration")

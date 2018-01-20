@@ -13,9 +13,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XPackSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -69,7 +68,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
+public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private static final String JOB_ID = "autodetect-result-processor-it-job";
 
     private JobProvider jobProvider;

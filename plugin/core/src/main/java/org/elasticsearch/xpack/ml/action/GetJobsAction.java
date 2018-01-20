@@ -56,7 +56,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
             local(true);
         }
 

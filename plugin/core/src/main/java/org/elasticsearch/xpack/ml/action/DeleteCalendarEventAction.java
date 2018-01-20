@@ -44,7 +44,7 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
         private String calendarId;
         private String eventId;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String calendarId, String eventId) {

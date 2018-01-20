@@ -52,7 +52,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        Request() {}
+        public Request() {}
 
         public String getJobId() {
             return jobId;
@@ -129,7 +129,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
             super(acknowledged);
         }
 
-        Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

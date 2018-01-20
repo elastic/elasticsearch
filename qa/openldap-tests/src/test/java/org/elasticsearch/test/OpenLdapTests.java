@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
@@ -164,7 +165,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("group_search.filter", "(objectClass=*)")
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
-                .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+                .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));

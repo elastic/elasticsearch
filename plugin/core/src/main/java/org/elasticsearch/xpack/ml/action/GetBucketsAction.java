@@ -94,7 +94,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         private String sort = Result.TIMESTAMP.getPreferredName();
         private boolean descending = false;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -305,10 +305,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         private QueryPage<Bucket> buckets;
 
-        Response() {
+        public Response() {
         }
 
-        Response(QueryPage<Bucket> buckets) {
+        public Response(QueryPage<Bucket> buckets) {
             this.buckets = buckets;
         }
 

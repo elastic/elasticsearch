@@ -89,18 +89,18 @@ public class StopDatafeedAction
             this.resolvedStartedDatafeedIds = new String[] { datafeedId };
         }
 
-        Request() {
+        public Request() {
         }
 
-        String getDatafeedId() {
+        public String getDatafeedId() {
             return datafeedId;
         }
 
-        String[] getResolvedStartedDatafeedIds() {
+        public String[] getResolvedStartedDatafeedIds() {
             return resolvedStartedDatafeedIds;
         }
 
-        void setResolvedStartedDatafeedIds(String[] resolvedStartedDatafeedIds) {
+        public void setResolvedStartedDatafeedIds(String[] resolvedStartedDatafeedIds) {
             this.resolvedStartedDatafeedIds = resolvedStartedDatafeedIds;
         }
 

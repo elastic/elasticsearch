@@ -59,7 +59,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
             local(true);
         }
 

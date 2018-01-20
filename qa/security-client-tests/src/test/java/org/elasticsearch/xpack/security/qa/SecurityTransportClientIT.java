@@ -15,10 +15,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.security.SecurityField;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,14 +40,14 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(Security.USER_SETTING.getKey(), ADMIN_USER_PW)
+                .put(SecurityField.USER_SETTING.getKey(), ADMIN_USER_PW)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(XPackPlugin.class);
+        return Collections.singletonList(XPackClientPlugin.class);
     }
 
     public void testThatTransportClientWithoutAuthenticationDoesNotWork() throws Exception {
@@ -61,7 +62,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
 
     public void testThatTransportClientAuthenticationWithTransportClientRole() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), TRANSPORT_USER_PW)
+                .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
             boolean connected = awaitBusy(() -> {
@@ -83,7 +84,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     public void testTransportClientWithAdminUser() throws Exception {
         final boolean useTransportUser = randomBoolean();
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
+                .put(SecurityField.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
             boolean connected = awaitBusy(() -> {

@@ -77,7 +77,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         private String jobId;
         private PageParams pageParams = PageParams.defaultParams();
 
-        Request() {
+        public Request() {
         }
 
         public Request(String calendarId) {
@@ -204,7 +204,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
 
         private QueryPage<ScheduledEvent> scheduledEvents;
 
-        Response() {
+        public Response() {
         }
 
         public Response(QueryPage<ScheduledEvent> scheduledEvents) {

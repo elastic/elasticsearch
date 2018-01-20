@@ -32,6 +32,7 @@ public class XSmokeTestPluginsClientYamlTestSuiteIT extends ESClientYamlSuiteTes
 
     @Override
     protected Settings restClientSettings() {
+
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)

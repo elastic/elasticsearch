@@ -76,7 +76,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         private String description;
         private Boolean retain;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId, String snapshotId) {
@@ -174,7 +174,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
 
         private ModelSnapshot model;
 
-        Response() {
+        public Response() {
 
         }
 

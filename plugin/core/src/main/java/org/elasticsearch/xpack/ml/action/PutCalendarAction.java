@@ -61,7 +61,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
         private Calendar calendar;
 
-        Request() {
+        public Request() {
 
         }
 
@@ -141,7 +141,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
         private Calendar calendar;
 
-        Response() {
+        public Response() {
         }
 
         public Response(Calendar calendar) {

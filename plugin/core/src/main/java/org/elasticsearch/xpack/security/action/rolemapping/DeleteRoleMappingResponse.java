@@ -24,9 +24,9 @@ public class DeleteRoleMappingResponse extends ActionResponse implements ToXCont
     /**
      * Package private for {@link DeleteRoleMappingAction#newResponse()}
      */
-    DeleteRoleMappingResponse() {}
+    public DeleteRoleMappingResponse() {}
 
-    DeleteRoleMappingResponse(boolean found) {
+    public DeleteRoleMappingResponse(boolean found) {
         this.found = found;
     }
 

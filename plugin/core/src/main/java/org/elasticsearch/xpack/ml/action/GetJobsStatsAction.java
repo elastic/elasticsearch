@@ -78,7 +78,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             this.expandedJobsIds = Collections.singletonList(jobId);
         }
 
-        Request() {}
+        public Request() {}
 
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
 
@@ -177,7 +177,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 this.openTime = opentime;
             }
 
-            JobStats(StreamInput in) throws IOException {
+            public JobStats(StreamInput in) throws IOException {
                 jobId = in.readString();
                 dataCounts = new DataCounts(in);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
@@ -297,7 +297,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             this.jobsStats = jobsStats;
         }
 
-        Response(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures,
+        public Response(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures,
                  QueryPage<JobStats> jobsStats) {
             super(taskFailures, nodeFailures);
             this.jobsStats = jobsStats;

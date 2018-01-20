@@ -54,7 +54,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
             this.datafeed = datafeed;
         }
 
-        Request() {
+        public Request() {
         }
 
         public DatafeedConfig getDatafeed() {
@@ -114,7 +114,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
             this.datafeed = datafeed;
         }
 
-        Response() {
+        public Response() {
         }
 
         public DatafeedConfig getResponse() {

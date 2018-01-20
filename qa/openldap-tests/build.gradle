@@ -2,8 +2,9 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.vagrantsupport'
 
 dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 }
 
 task openLdapFixture {

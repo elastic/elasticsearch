@@ -1,10 +1,20 @@
-apply plugin: 'elasticsearch.build'
-
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-ml'
+    description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+    classname 'org.elasticsearch.xpack.ml.MachineLearning'
+    hasNativeController true
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 archivesBaseName = 'x-pack-ml'
 
 // TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
 
 configurations {
     nativeBundle {
@@ -12,16 +22,33 @@ configurations {
             if (findProject(':machine-learning-cpp') != null) {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
             } else {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:ml-cpp-snapshot")
+                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.parent.path}:ml-cpp-snapshot")
             }
         }
     }
 }
 
+bundlePlugin {
+    dependsOn configurations.nativeBundle
+    from {
+        project.zipTree(configurations.nativeBundle.singleFile)
+    }
+
+    // We don't ship the individual nativeBundle licenses - instead
+    // they get combined into the top level NOTICES file we ship
+    exclude 'platform/licenses/**'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    // This should not be here
+    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
 
     // ml deps
     compile 'net.sf.supercsv:super-csv:2.4.0'
@@ -33,6 +60,6 @@ dependencyLicenses {
     ignoreSha 'x-pack-core'
 }
 
-parent.bundlePlugin {
-    from jar
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
 }

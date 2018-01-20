@@ -8,6 +8,8 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -28,16 +31,19 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
@@ -52,6 +58,22 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         }
         if (tribeNode == null) {
             tribeNode = buildExternalCluster(System.getProperty("tests.tribe"));
+        }
+    }
+
+    /**
+     * TODO: this entire class should be removed. SecurityIntegTestCase is meant for tests, but we run against real xpack
+     */
+    @Override
+    public void doAssertXPackIsInstalled() {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+            // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
+//            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
+            Collection<String> pluginNames =
+                nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
+            assertThat("plugin [" + Security.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
+                hasItem(Security.class.getName()));
         }
     }
 
@@ -89,7 +111,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.externalClusterClientSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         return builder.build();
     }
 

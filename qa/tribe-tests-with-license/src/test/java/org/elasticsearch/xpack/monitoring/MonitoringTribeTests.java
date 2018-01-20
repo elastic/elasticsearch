@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.TribeTransportTestCase;
+import org.elasticsearch.xpack.XPackField;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequest;
 
@@ -17,7 +18,7 @@ public class MonitoringTribeTests extends TribeTransportTestCase {
 
     @Override
     protected List<String> enabledFeatures() {
-        return Collections.singletonList(Monitoring.NAME);
+        return Collections.singletonList(XPackField.MONITORING);
     }
 
     @Override

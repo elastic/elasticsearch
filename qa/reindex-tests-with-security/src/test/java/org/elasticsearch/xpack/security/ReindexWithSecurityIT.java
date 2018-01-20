@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -16,19 +18,39 @@ import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.externalClusterClientSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "test_admin:x-pack-test-password");
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
+        builder.put(SecurityField.USER_SETTING.getKey(), "test_admin:x-pack-test-password");
         return builder.build();
+    }
+
+    /**
+     * TODO: this entire class should be removed. SecurityIntegTestCase is meant for tests, but we run against real xpack
+     */
+    @Override
+    public void doAssertXPackIsInstalled() {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+            // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
+//            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
+            Collection<String> pluginNames =
+                nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
+            assertThat("plugin [" + Security.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
+                hasItem(Security.class.getName()));
+        }
     }
 
     public void testDeleteByQuery() {

@@ -6,14 +6,12 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.xpack.test.rest.XPackRestIT;
-
 
 import java.util.Collections;
 import java.util.Map;
@@ -44,7 +42,7 @@ public class MlWithSecurityIT extends XPackRestIT {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
@@ -52,7 +50,7 @@ public class MlWithSecurityIT extends XPackRestIT {
 
     protected Map<String, String> getApiCallHeaders() {
         return Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_ADMIN_USERNAME,
-                SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING));
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
     }
 
     @Override

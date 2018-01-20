@@ -147,7 +147,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeMap(metadata);
     }
 
-    RoleDescriptor roleDescriptor() {
+    public RoleDescriptor roleDescriptor() {
         return new RoleDescriptor(name,
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),

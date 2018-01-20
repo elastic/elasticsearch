@@ -126,7 +126,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
             this.filters = filters;
         }
 
-        Response() {
+        public Response() {
         }
 
         public QueryPage<MlFilter> getFilters() {

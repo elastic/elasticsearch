@@ -49,7 +49,7 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
     public static class Response extends ActionResponse implements ToXContentObject {
         private Map<String, UpgradeActionRequired> actions;
 
-        protected Response() {
+        public Response() {
 
         }
 

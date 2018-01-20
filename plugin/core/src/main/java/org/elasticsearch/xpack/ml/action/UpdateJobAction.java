@@ -54,7 +54,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             this.update = update;
         }
 
-        Request() {
+        public Request() {
         }
 
         public String getJobId() {

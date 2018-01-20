@@ -20,7 +20,7 @@ public class PutWatchResponse extends ActionResponse {
     private long version;
     private boolean created;
 
-    PutWatchResponse() {
+    public PutWatchResponse() {
     }
 
     public PutWatchResponse(String id, long version, boolean created) {

@@ -121,7 +121,7 @@ public class GetOverallBucketsAction
         private Long end;
         private boolean allowNoJobs = true;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -291,11 +291,11 @@ public class GetOverallBucketsAction
 
         private QueryPage<OverallBucket> overallBuckets;
 
-        Response() {
+        public Response() {
             overallBuckets = new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD);
         }
 
-        Response(QueryPage<OverallBucket> overallBuckets) {
+        public Response(QueryPage<OverallBucket> overallBuckets) {
             this.overallBuckets = overallBuckets;
         }
 

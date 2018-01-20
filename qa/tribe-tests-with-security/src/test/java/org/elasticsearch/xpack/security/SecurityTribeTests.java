@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.tribe.TribeService;
@@ -142,12 +143,12 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     public void tearDownTribeNodeAndWipeCluster() throws Exception {
         if (cluster2 != null) {
             try {
-                cluster2.wipe(Collections.singleton(SecurityLifecycleService.SECURITY_TEMPLATE_NAME));
+                cluster2.wipe(Collections.singleton(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME));
                 try {
                     // this is a hack to clean up the .security index since only the XPackSecurity user or superusers can delete it
                     final Client cluster2Client = cluster2.client().filterWithHeader(Collections.singletonMap("Authorization",
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                                    SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+                                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
                     cluster2Client.admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...

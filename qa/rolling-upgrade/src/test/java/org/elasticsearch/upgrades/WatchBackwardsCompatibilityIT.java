@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -62,6 +62,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     @Before
     public void waitForSecuritySetup() throws Exception {
+
         String masterNode = null;
         String catNodesResponse = EntityUtils.toString(
                 client().performRequest("GET", "/_cat/nodes?h=id,master").getEntity(),

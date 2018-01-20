@@ -45,7 +45,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
         private String filterId;
 
-        Request() {
+        public Request() {
 
         }
 
@@ -102,7 +102,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
             super(acknowledged);
         }
 
-        private Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

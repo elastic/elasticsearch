@@ -54,7 +54,7 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
         }
 
         public String getDatafeedId() {
@@ -121,10 +121,10 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
     public static class Response extends AcknowledgedResponse {
 
-        Response() {
+        public Response() {
         }
 
-        Response(boolean acknowledged) {
+        public Response(boolean acknowledged) {
             super(acknowledged);
         }
 

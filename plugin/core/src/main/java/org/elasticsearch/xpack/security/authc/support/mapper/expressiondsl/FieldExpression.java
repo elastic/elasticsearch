@@ -28,7 +28,7 @@ import java.util.function.Predicate;
  */
 public final class FieldExpression implements RoleMapperExpression {
 
-    static final String NAME = "field";
+    public static final String NAME = "field";
 
     private final String field;
     private final List<FieldPredicate> values;
@@ -44,7 +44,7 @@ public final class FieldExpression implements RoleMapperExpression {
         this.values = values;
     }
 
-    FieldExpression(StreamInput in) throws IOException {
+    public FieldExpression(StreamInput in) throws IOException {
         this(in.readString(), in.readList(FieldPredicate::readFrom));
     }
 

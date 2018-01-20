@@ -22,7 +22,7 @@ public class GetWatchResponse extends ActionResponse {
     private boolean found = false;
     private XContentSource source;
 
-    GetWatchResponse() {
+    public GetWatchResponse() {
     }
 
     /**

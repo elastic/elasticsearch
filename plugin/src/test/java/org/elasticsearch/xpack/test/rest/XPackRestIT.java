@@ -13,15 +13,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetaDataUpgrader;
-import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.xpack.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.security.SecurityLifecycleServiceField;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,9 +47,8 @@ import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends ESClientYamlSuiteTestCase {
-
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -80,9 +80,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private void waitForTemplates() throws Exception {
         if (installTemplates()) {
             List<String> templates = new ArrayList<>();
-            templates.addAll(Arrays.asList(Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexName(),
+            templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+                    AnomalyDetectorsIndex.jobStateIndexName(),
                     AnomalyDetectorsIndex.jobResultsIndexPrefix()));
-            templates.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
+            templates.addAll(Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES));
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),

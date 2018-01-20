@@ -16,7 +16,7 @@ import java.util.Locale;
 
 public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceRequest> {
 
-    enum Command { START, STOP }
+    public enum Command { START, STOP }
 
     private Command command;
 
@@ -39,7 +39,7 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
         return this;
     }
 
-    Command getCommand() {
+    public Command getCommand() {
         return command;
     }
 

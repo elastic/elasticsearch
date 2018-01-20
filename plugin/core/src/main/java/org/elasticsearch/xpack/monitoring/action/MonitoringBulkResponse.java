@@ -24,7 +24,7 @@ public class MonitoringBulkResponse extends ActionResponse {
     private long tookInMillis;
     private Error error;
 
-    MonitoringBulkResponse() {
+    public MonitoringBulkResponse() {
     }
 
     public MonitoringBulkResponse(long tookInMillis) {
@@ -83,7 +83,7 @@ public class MonitoringBulkResponse extends ActionResponse {
             status = ExceptionsHelper.status(t);
         }
 
-        Error(StreamInput in) throws IOException {
+        public Error(StreamInput in) throws IOException {
             this(in.readException());
         }
 

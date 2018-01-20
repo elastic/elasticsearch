@@ -87,7 +87,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean descending = true;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -235,10 +235,10 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         private QueryPage<AnomalyRecord> records;
 
-        Response() {
+        public Response() {
         }
 
-        Response(QueryPage<AnomalyRecord> records) {
+        public Response(QueryPage<AnomalyRecord> records) {
             this.records = records;
         }
 

@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
+import org.elasticsearch.xpack.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTaskParams;
@@ -79,7 +79,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             readFrom(in);
         }
 
-        Request() {
+        public Request() {
         }
 
         public JobParams getJobParams() {
@@ -162,7 +162,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         private String jobId;
         // A big state can take a while to restore.  For symmetry with the _close endpoint any
         // changes here should be reflected there too.
-        private TimeValue timeout = MachineLearningClientActionPlugin.STATE_PERSIST_RESTORE_TIMEOUT;
+        private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
 
         JobParams() {
         }

@@ -1,0 +1,33 @@
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-logstash'
+    description 'Elasticsearch Expanded Pack Plugin - Logstash'
+    classname 'org.elasticsearch.xpack.logstash.Logstash'
+    hasNativeController true
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
+archivesBaseName = 'x-pack-logstash'
+
+// TODO: enable this once we have tests
+licenseHeaders.enabled = false
+
+integTest.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+
+}
+
+dependencyLicenses {
+    ignoreSha 'x-pack-core'
+}
+
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
+}

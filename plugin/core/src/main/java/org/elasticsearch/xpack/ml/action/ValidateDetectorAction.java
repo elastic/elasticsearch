@@ -58,7 +58,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
             return new Request(detector);
         }
 
-        Request() {
+        public Request() {
             this.detector = null;
         }
 

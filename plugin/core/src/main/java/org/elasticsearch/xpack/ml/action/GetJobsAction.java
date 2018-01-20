@@ -56,11 +56,11 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
             local(true);
         }
 
-        Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {

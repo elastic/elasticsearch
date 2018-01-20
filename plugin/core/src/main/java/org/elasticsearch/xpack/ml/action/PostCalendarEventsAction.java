@@ -76,7 +76,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         private String calendarId;
         private List<ScheduledEvent> scheduledEvents;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
@@ -144,7 +144,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
         private List<ScheduledEvent> scheduledEvents;
 
-        Response() {
+        public Response() {
         }
 
         public Response(List<ScheduledEvent> scheduledEvents) {

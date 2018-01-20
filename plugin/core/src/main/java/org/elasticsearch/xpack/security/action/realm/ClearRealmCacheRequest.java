@@ -83,17 +83,19 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
 
     public static class Node extends BaseNodeRequest {
 
-        String[] realms;
-        String[] usernames;
+        private String[] realms;
+        private String[] usernames;
 
         public Node() {
         }
 
-        Node(ClearRealmCacheRequest request, String nodeId) {
+        public Node(ClearRealmCacheRequest request, String nodeId) {
             super(nodeId);
             this.realms = request.realms;
             this.usernames = request.usernames;
         }
+        public String[] getRealms() { return realms; }
+        public String[] getUsernames() { return usernames; }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

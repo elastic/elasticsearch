@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.security.action.user.PutUserAction;
@@ -82,8 +82,8 @@ import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStoreField;
+import org.elasticsearch.xpack.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchAction;
@@ -110,22 +110,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
     public void testIsReserved() {
-        assertThat(ClientReservedRoles.isReserved("kibana_system"), is(true));
-        assertThat(ClientReservedRoles.isReserved("superuser"), is(true));
-        assertThat(ClientReservedRoles.isReserved("foobar"), is(false));
-        assertThat(ClientReservedRoles.isReserved(SystemUser.ROLE_NAME), is(true));
-        assertThat(ClientReservedRoles.isReserved("transport_client"), is(true));
-        assertThat(ClientReservedRoles.isReserved("kibana_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved("ingest_admin"), is(true));
-        assertThat(ClientReservedRoles.isReserved("remote_monitoring_agent"), is(true));
-        assertThat(ClientReservedRoles.isReserved("monitoring_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved("reporting_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved("machine_learning_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved("machine_learning_admin"), is(true));
-        assertThat(ClientReservedRoles.isReserved("watcher_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved("watcher_admin"), is(true));
-        assertThat(ClientReservedRoles.isReserved("kibana_dashboard_only_user"), is(true));
-        assertThat(ClientReservedRoles.isReserved(XPackUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
+        assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
+        assertThat(ReservedRolesStore.isReserved("foobar"), is(false));
+        assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
+        assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("ingest_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("remote_monitoring_agent"), is(true));
+        assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -508,7 +508,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, MlMetaIndex.INDEX_NAME);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
-        assertOnlyReadAllowed(role, Auditor.NOTIFICATIONS_INDEX);
+        assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
     }
 
     public void testMachineLearningUserRole() {
@@ -558,7 +558,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, MlMetaIndex.INDEX_NAME);
         assertNoAccessAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
-        assertOnlyReadAllowed(role, Auditor.NOTIFICATIONS_INDEX);
+        assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
     }
 
     public void testWatcherAdminRole() {
@@ -580,8 +580,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        String historyIndex = HistoryStore.getHistoryIndexNameForTime(now);
-        for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStore.INDEX_NAME }) {
+        String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
+        for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
         }
     }
@@ -603,10 +603,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStore.INDEX_NAME), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStoreField.INDEX_NAME), is(false));
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        String historyIndex = HistoryStore.getHistoryIndexNameForTime(now);
+        String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex }) {
             assertOnlyReadAllowed(role, index);
         }

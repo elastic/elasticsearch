@@ -16,10 +16,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.SecurityLifecycleServiceField;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,14 +28,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -82,7 +82,7 @@ public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
 
     @Before
     public void setupForTests() throws Exception {
-        final String template = SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
+        final String template = SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
         awaitBusy(() -> {
             try {
                 return adminClient().performRequest("HEAD", "_template/" + template).getStatusLine().getStatusCode() == 200;

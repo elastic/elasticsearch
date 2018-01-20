@@ -55,7 +55,7 @@ public class UpdateProcessAction extends
 
         private boolean isUpdated;
 
-        Response() {
+        public Response() {
             super(null, null);
             this.isUpdated = true;
         }
@@ -115,7 +115,7 @@ public class UpdateProcessAction extends
         private MlFilter filter;
         private boolean updateScheduledEvents = false;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,

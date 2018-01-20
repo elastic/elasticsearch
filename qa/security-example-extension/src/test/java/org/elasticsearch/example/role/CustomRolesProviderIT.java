@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
@@ -47,7 +47,7 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singleton(XPackPlugin.class);
+        return Collections.singleton(XPackClientPlugin.class);
     }
 
     public void setupTestUser(String role) {

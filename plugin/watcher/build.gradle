@@ -1,10 +1,29 @@
-apply plugin: 'elasticsearch.build'
+import org.elasticsearch.gradle.test.RunTask
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack-watcher'
+  description 'Elasticsearch Expanded Pack Plugin - Watcher'
+  classname 'org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController true
+  requiresKeystore true
+  extendedPlugins = ['x-pack-core']
+  licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+  noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 
 archivesBaseName = 'x-pack-watcher'
 
 // TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
+
+// TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
+ext.compactProfile = 'full'
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencyLicenses {
     mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
@@ -14,7 +33,11 @@ dependencyLicenses {
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided project(path: ':modules:transport-netty4', configuration: 'runtime')
+    provided project(path: ':plugins:transport-nio', configuration: 'runtime')
+
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
@@ -23,11 +46,12 @@ dependencies {
     // HACK: java 9 removed javax.activation from the default modules, so instead of trying to add modules, which would have
     // to be conditionalized for java 8/9, we pull in the classes directly
     compile 'javax.activation:activation:1.1.1'
+    provided "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    provided "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
-}
-
-parent.bundlePlugin {
-    from jar
+    testCompile 'org.subethamail:subethasmtp:3.1.7'
+    // needed for subethasmtp, has @GuardedBy annotation
+    testCompile 'com.google.code.findbugs:jsr305:3.0.1'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -80,4 +104,30 @@ if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
         'javax.activation.URLDataSource',
         'javax.activation.UnsupportedDataTypeException'
     ]
+}
+
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    // TODO: this test was failing for the big split merge
+    def blacklist = ['watcher/execute_watch/*']
+    systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

@@ -54,7 +54,7 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
             this.update = update;
         }
 
-        Request() {
+        public Request() {
         }
 
         public DatafeedUpdate getUpdate() {

@@ -46,7 +46,7 @@ public class Hop {
     List<VertexRequest> vertices = null;
     QueryBuilder guidingQuery = null;
 
-    Hop(Hop parent) {
+    public Hop(Hop parent) {
         this.parentHop = parent;
     }
 
@@ -132,11 +132,11 @@ public class Hop {
         return parentHop.getEffectiveVertexRequests();
     }
 
-    int getNumberVertexRequests() {
+    public int getNumberVertexRequests() {
         return getEffectiveVertexRequests().size();
     }
 
-    VertexRequest getVertexRequest(int requestNumber) {
+    public VertexRequest getVertexRequest(int requestNumber) {
         return getEffectiveVertexRequests().get(requestNumber);
     }
 }

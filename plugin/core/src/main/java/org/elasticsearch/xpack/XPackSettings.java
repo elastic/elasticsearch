@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.SecurityField;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.VerificationMode;
@@ -19,6 +23,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.security.SecurityField.USER_SETTING;
 
 /**
  * A container for xpack setting constants.
@@ -121,7 +128,7 @@ public class XPackSettings {
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
 
     /** Returns all settings created in {@link XPackSettings}. */
-    static List<Setting<?>> getAllSettings() {
+    public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(GLOBAL_SSL.getAllSettings());
         settings.addAll(HTTP_SSL.getAllSettings());
@@ -138,6 +145,8 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(USER_SETTING);
         return Collections.unmodifiableList(settings);
     }
+
 }

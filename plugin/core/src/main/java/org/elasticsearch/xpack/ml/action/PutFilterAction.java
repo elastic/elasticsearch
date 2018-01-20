@@ -60,7 +60,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
         private MlFilter filter;
 
-        Request() {
+        public Request() {
 
         }
 

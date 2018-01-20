@@ -35,7 +35,7 @@ public final class CreateTokenRequest extends ActionRequest {
     private String scope;
     private String refreshToken;
 
-    CreateTokenRequest() {}
+    public CreateTokenRequest() {}
 
     public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password, @Nullable String scope,
                               @Nullable String refreshToken) {

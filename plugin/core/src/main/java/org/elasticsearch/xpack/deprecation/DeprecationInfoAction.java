@@ -74,7 +74,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
         private List<DeprecationIssue> nodeSettingsIssues;
         private Map<String, List<DeprecationIssue>> indexSettingsIssues;
 
-        Response() {
+        public Response() {
         }
 
         public Response(List<DeprecationIssue> clusterSettingsIssues,
@@ -157,7 +157,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
          *                            concrete indices
          * @return The list of deprecation issues found in the cluster
          */
-        static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
+        public static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    String[] indices, IndicesOptions indicesOptions,
                                                    List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,

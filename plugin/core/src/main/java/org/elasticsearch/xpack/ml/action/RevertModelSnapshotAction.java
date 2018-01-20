@@ -76,7 +76,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         private String snapshotId;
         private boolean deleteInterveningResults;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId, String snapshotId) {
@@ -163,7 +163,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         private static final ParseField MODEL = new ParseField("model");
         private ModelSnapshot model;
 
-        Response() {
+        public Response() {
 
         }
 

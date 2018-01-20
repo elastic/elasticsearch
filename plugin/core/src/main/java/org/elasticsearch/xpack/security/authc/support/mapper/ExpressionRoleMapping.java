@@ -166,7 +166,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         return toXContent(builder, params, false);
     }
 
-    XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeDocType) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeDocType) throws IOException {
         builder.startObject();
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
         builder.startArray(Fields.ROLES.getPreferredName());

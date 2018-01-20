@@ -14,13 +14,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
 }
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
-  from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
+  from project(':x-pack-elasticsearch:plugin:core').file('src/main/plugin-metadata')
+  from project(':x-pack-elasticsearch:plugin:core').tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -84,6 +84,7 @@ task createClientKeyStore(type: LoggedExec) {
 // Export the node's certificate
 File nodeCertificate = new File(keystoreDir, 'test-node.cert')
 task exportNodeCertificate(type: LoggedExec) {
+  dependsOn createNodeKeyStore
   doFirst {
     if (nodeCertificate.parentFile.exists() == false) {
       nodeCertificate.parentFile.mkdirs()
@@ -115,6 +116,7 @@ task importNodeCertificateInClientKeyStore(type: LoggedExec) {
 // Export the client's certificate
 File clientCertificate = new File(keystoreDir, 'test-client.cert')
 task exportClientCertificate(type: LoggedExec) {
+  dependsOn createClientKeyStore
   doFirst {
     if (clientCertificate.parentFile.exists() == false) {
       clientCertificate.parentFile.mkdirs()
@@ -154,9 +156,16 @@ processTestResources.dependsOn(
         importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
 )
 
-integTestCluster.dependsOn(importClientCertificateInNodeKeyStore)
+integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCertificateInClientKeyStore)
 
-ext.pluginsCount = 1 // we install xpack explicitly
+
+ext.pluginsCount = 0
+project(':x-pack-elasticsearch:plugin').subprojects { Project p ->
+  // the meta plugin contains the individual xpack plugins
+  if (p.extensions.findByName('esplugin') != null) {
+    pluginsCount += 1
+  }
+}
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
   integTestCluster.plugin(subproj.path)

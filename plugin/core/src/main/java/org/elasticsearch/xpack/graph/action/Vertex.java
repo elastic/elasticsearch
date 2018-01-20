@@ -28,7 +28,7 @@ public class Vertex implements ToXContentFragment {
     final long bg;
     long fg;
 
-    Vertex(String field, String term, double weight, int depth, long bg, long fg) {
+    public Vertex(String field, String term, double weight, int depth, long bg, long fg) {
         super();
         this.field = field;
         this.term = term;

@@ -71,7 +71,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         private TimeValue duration;
         private TimeValue expiresIn;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -174,11 +174,11 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         private boolean acknowledged;
         private String forecastId;
 
-        Response() {
+        public Response() {
             super(null, null);
         }
 
-        Response(boolean acknowledged, String forecastId) {
+        public Response(boolean acknowledged, String forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
             this.forecastId = forecastId;

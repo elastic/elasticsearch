@@ -49,7 +49,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
     }
 
     public static class Node extends BaseNodeRequest {
-        String[] names;
+        private String[] names;
 
         public Node() {
         }
@@ -58,6 +58,8 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
             super(nodeId);
             this.names = request.names();
         }
+
+        public String[] getNames() { return names; }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

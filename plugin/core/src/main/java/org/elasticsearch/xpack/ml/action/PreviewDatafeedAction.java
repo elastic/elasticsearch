@@ -48,7 +48,7 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
 
         private String datafeedId;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String datafeedId) {
@@ -117,10 +117,10 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
 
         private BytesReference preview;
 
-        Response() {
+        public Response() {
         }
 
-        Response(BytesReference preview) {
+        public Response(BytesReference preview) {
             this.preview = preview;
         }
 

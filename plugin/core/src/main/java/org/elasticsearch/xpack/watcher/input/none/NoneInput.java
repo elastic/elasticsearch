@@ -49,7 +49,7 @@ public class NoneInput implements Input {
 
     public static class Result extends Input.Result {
 
-        static final Result INSTANCE = new Result();
+        public static final Result INSTANCE = new Result();
 
         private Result() {
             super(TYPE, Payload.EMPTY);

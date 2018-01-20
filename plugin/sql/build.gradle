@@ -15,13 +15,13 @@ dependencyLicenses {
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
 
     // sql's server components and its transitive dependencies
     // TODO: what to do about this dependency, is it still needed?
     // compile project(':x-pack-elasticsearch:sql:server')
 }
 
-parent.bundlePlugin {
-    from jar
-}
+//project(':x-pack-elasticsearch:plugin:core').bundlePlugin {
+//    from jar
+//}

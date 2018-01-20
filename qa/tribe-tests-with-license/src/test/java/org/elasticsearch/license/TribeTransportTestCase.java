@@ -33,10 +33,20 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
+import org.elasticsearch.xpack.CompositeTestingXPackPlugin;
+import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XpackField;
+import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.deprecation.Deprecation;
+import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningField;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.upgrade.Upgrade;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -64,12 +74,12 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("transport.type", getTestTransportType());
         List<String> enabledFeatures = enabledFeatures();
-        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XpackField.SECURITY));
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XpackField.MONITORING));
-        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), enabledFeatures.contains(XpackField.WATCHER));
-        builder.put(XPackSettings.GRAPH_ENABLED.getKey(), enabledFeatures.contains(XpackField.GRAPH));
-        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), enabledFeatures.contains(XpackField.MACHINE_LEARNING));
-        builder.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackField.SECURITY));
+        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XPackField.MONITORING));
+        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), enabledFeatures.contains(XPackField.WATCHER));
+        builder.put(XPackSettings.GRAPH_ENABLED.getKey(), enabledFeatures.contains(XPackField.GRAPH));
+        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), enabledFeatures.contains(XPackField.MACHINE_LEARNING));
+        builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         return builder.build();
     }
 
@@ -116,16 +126,20 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(MockTribePlugin.class);
         plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
-        plugins.add(XPackPlugin.class);
+        plugins.add(CompositeTestingXPackPlugin.class);
         plugins.add(CommonAnalysisPlugin.class);
         return plugins;
     }
 
     @Override
     protected final Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(MockTribePlugin.class);
+        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        plugins.add(XPackClientPlugin.class);
+        plugins.add(CommonAnalysisPlugin.class);
+        return plugins;
     }
-
     public void testTribeSetup() throws Exception {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
@@ -194,21 +208,22 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(internalCluster().getDefaultSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false) // otherwise it conflicts with mock transport
                 .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
+                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                 .put("tribe.t1." + XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put("tribe.t2." + XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put("tribe.t1." + XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("tribe.t2." + XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("tribe.t1." + XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 .put("tribe.t2." + XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                .put("tribe.t1." + MachineLearning.AUTODETECT_PROCESS.getKey(), false)
-                .put("tribe.t2." + MachineLearning.AUTODETECT_PROCESS.getKey(), false)
+                .put("tribe.t1." + MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                .put("tribe.t2." + MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .put("transport.type", getTestTransportType())
                 .build();
 
         final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTribePlugin.class, TribeAwareTestZenDiscoveryPlugin.class,
-                getTestTransportPlugin(), XPackPlugin.class);
+                getTestTransportPlugin(), Deprecation.class, Graph.class, Logstash.class, MachineLearning.class, Monitoring.class,
+                Security.class, Upgrade.class, Watcher.class, XPackPlugin.class);
         final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.messages;
 
-import org.elasticsearch.xpack.ml.MachineLearningClientActionPlugin;
+import org.elasticsearch.xpack.ml.MachineLearningField;
 
 import java.text.MessageFormat;
 import java.util.Locale;
@@ -116,7 +116,7 @@ public final class Messages {
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0,number}";
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX =
             "model_memory_limit [{0}] must be less than the value of the " +
-                    MachineLearningClientActionPlugin.MAX_MODEL_MEMORY_LIMIT.getKey() +
+                    MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey() +
                     " setting [{1}]";
     public static final String JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED =
             "The ''{0}'' function cannot be used in jobs that will take pre-summarized input";

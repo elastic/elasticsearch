@@ -18,6 +18,7 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearningField;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
 import java.nio.file.Path;
@@ -30,6 +31,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, transportClientRatio = 0, numClientNodes = 0, numDataNodes = 0)
 public class MonitoringPluginTests extends MonitoringIntegTestCase {
+
+    public MonitoringPluginTests() throws Exception {
+        super();
+    }
 
     @Override
     protected void startMonitoringService() {
@@ -87,6 +92,16 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringService.INTERVAL.getKey(), "-1")
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+                .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .build();
     }
 
@@ -130,7 +145,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
             for (PluginInfo plugin : nodeInfo.getPlugins().getPluginInfos()) {
                 assertNotNull(plugin);
 
-                if (XPackPlugin.class.getName().equals(plugin.getName())) {
+                if (LocalStateMonitoring.class.getName().equals(plugin.getName())) {
                     found = true;
                     break;
                 }

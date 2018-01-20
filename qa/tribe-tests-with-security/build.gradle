@@ -8,8 +8,9 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
     testCompile project(path: ':modules:tribe', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
@@ -17,7 +18,7 @@ namingConventions.skipIntegTestInDisguise = true
 
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
-String xpackPath = project(':x-pack-elasticsearch:plugin').projectDir.toPath().resolve('src/test/resources').toString()
+String xpackPath = project(':x-pack-elasticsearch:plugin:core').projectDir.toPath().resolve('src/test/resources').toString()
 sourceSets {
     test {
         resources {

@@ -162,7 +162,7 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
             this.calendars = calendars;
         }
 
-        Response() {
+        public Response() {
         }
 
         public QueryPage<Calendar> getCalendars() {

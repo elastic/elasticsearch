@@ -18,9 +18,9 @@ public final class InvalidateTokenResponse extends ActionResponse {
 
     private boolean created;
 
-    InvalidateTokenResponse() {}
+    public InvalidateTokenResponse() {}
 
-    InvalidateTokenResponse(boolean created) {
+    public InvalidateTokenResponse(boolean created) {
         this.created = created;
     }
 

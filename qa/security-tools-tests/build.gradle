@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile project(':x-pack-elasticsearch:plugin:security') 
+  testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts') 
+  testCompile 'com.google.jimfs:jimfs:1.1'
+  testCompile 'com.google.guava:guava:16.0.1'
+}
+
+// add test resources from security, so certificate tool tests can use example certs
+sourceSets.test.resources.srcDirs(project(':x-pack-elasticsearch:plugin:security').sourceSets.test.resources.srcDirs)
+
+// these are just tests, no need to audit
+thirdPartyAudit.enabled = false

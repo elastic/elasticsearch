@@ -1,23 +1,69 @@
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-security'
+    description 'Elasticsearch Expanded Pack Plugin - Security'
+    classname 'org.elasticsearch.xpack.security.Security'
+    hasNativeController true
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 
 archivesBaseName = 'x-pack-security'
 
 // TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
-    // security deps
-    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
+    provided project(path: ':plugins:transport-nio', configuration: 'runtime')
+
+    testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:watcher')
+
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+
+    //compile project(path: ':modules:transport-netty4')
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
     compile 'org.bouncycastle:bcprov-jdk15on:1.58'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
-    testCompile 'com.google.jimfs:jimfs:1.1'
+    testCompile 'org.elasticsearch:securemock:1.2'
+    testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+    testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
+    testCompile 'org.slf4j:slf4j-api:1.6.2'
+    //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
+
 }
 
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    archives jar
+    testArtifacts testJar
+}
+//testClasses {
+//    dependsOn project(":x-pack-elasticsearch:plugin:core").testJar
+//}
+// TestUtils creates things in core, and the cli thinks that it needs to read from the core testArtifacts
+// jar, so it fails with a zip file resource not found in getResource(Path)
+sourceSets.test.resources {
+    srcDir '../core/src/test/resources'
+}
 dependencyLicenses {
     mapping from: /netty-.*/, to: 'netty'
     mapping from: /bc.*/, to: 'bouncycastle'
@@ -26,6 +72,33 @@ dependencyLicenses {
     ignoreSha 'transport-netty4'
 }
 
-parent.bundlePlugin {
-    from jar
+forbiddenPatterns {
+    exclude '**/*.key'
+    exclude '**/*.p12'
+    exclude '**/*.der'
+    exclude '**/*.zip'
+}
+
+forbiddenApisMain {
+    signaturesURLs += file('forbidden/ldap-signatures.txt').toURI().toURL()
+}
+
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }

@@ -59,11 +59,11 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
             local(true);
         }
 
-        Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {

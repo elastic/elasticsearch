@@ -58,7 +58,7 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
         private Set<String> jobIdsToAdd;
         private Set<String> jobIdsToRemove;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove) {

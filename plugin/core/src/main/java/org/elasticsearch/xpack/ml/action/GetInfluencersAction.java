@@ -87,7 +87,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean descending = true;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -235,10 +235,10 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         private QueryPage<Influencer> influencers;
 
-        Response() {
+        public Response() {
         }
 
-        Response(QueryPage<Influencer> influencers) {
+        public Response(QueryPage<Influencer> influencers) {
             this.influencers = influencers;
         }
 

@@ -9,7 +9,7 @@ setlocal enableextensions
 
 call "%~dp0..\elasticsearch-env.bat" || exit /b 1
 
-call "%~dp0x-pack-env.bat" || exit /b 1
+call "%~dp0x-pack-security-env.bat" || exit /b 1
 
 %JAVA% ^
   %ES_JAVA_OPTS% ^

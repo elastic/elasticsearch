@@ -327,7 +327,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine, pagerDutyService));
-        final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, getClock(), getLicenseState());
+        final ActionRegistry registry =
+                new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, getClock(), getLicenseState());
 
         // inputs
         final Map<String, InputFactory> inputFactories = new HashMap<>();

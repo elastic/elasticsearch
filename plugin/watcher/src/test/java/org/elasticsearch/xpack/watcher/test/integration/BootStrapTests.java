@@ -218,7 +218,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             bulkRequestBuilder.add(
-                    client().prepareIndex(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, triggeredWatch.id().value())
+                    client().prepareIndex(
+                            TriggeredWatchStoreField.INDEX_NAME,
+                            TriggeredWatchStoreField.DOC_TYPE,
+                            triggeredWatch.id().value())
                             .setSource(jsonBuilder().value(triggeredWatch))
                             .request());
         }
@@ -334,7 +337,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             Wid wid = new Wid(watchId, triggeredTime);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             bulkRequestBuilder.add(
-                    client().prepareIndex(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, triggeredWatch.id().value())
+                    client().prepareIndex(
+                            TriggeredWatchStoreField.INDEX_NAME,
+                            TriggeredWatchStoreField.DOC_TYPE,
+                            triggeredWatch.id().value())
                             .setSource(jsonBuilder().value(triggeredWatch))
             );
 

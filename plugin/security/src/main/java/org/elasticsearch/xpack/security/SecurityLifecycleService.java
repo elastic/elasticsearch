@@ -30,6 +30,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
+
 /**
  * This class is used to provide a lifecycle for services that is based on the cluster's state
  * rather than the typical lifecycle that is used to start services as part of the node startup.
@@ -62,7 +64,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client, SecurityLifecycleServiceField.SECURITY_INDEX_NAME);
+        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -191,11 +193,11 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     private static boolean checkMappingVersions(ClusterState clusterState, Logger logger, Predicate<Version> versionPredicate) {
-        return IndexLifecycleManager.checkIndexMappingVersionMatches(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
+        return IndexLifecycleManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
     }
 
     public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     /**

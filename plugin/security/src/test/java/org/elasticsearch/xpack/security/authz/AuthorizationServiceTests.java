@@ -135,6 +135,7 @@ import org.mockito.Mockito;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -674,28 +675,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+            new DeleteRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(UpdateAction.NAME,
-            new UpdateRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+            new UpdateRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+            new IndexRequest(SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+                new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+                new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME))));
+                .addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME))));
         requests.add(
-                new Tuple<>(UpdateSettingsAction.NAME, new UpdateSettingsRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+                new Tuple<>(UpdateSettingsAction.NAME, new UpdateSettingsRequest().indices(SECURITY_INDEX_NAME)));
 
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
@@ -708,12 +709,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         // we should allow waiting for the health of the index or any index if the user has this permission
-        ClusterHealthRequest request = new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        ClusterHealthRequest request = new ClusterHealthRequest(SECURITY_INDEX_NAME);
         authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request, new String[] { role.getName() });
 
         // multiple indices
-        request = new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "foo", "bar");
+        request = new ClusterHealthRequest(SECURITY_INDEX_NAME, "foo", "bar");
         authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request, new String[] { role.getName() });
 
@@ -731,21 +732,20 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
 
         List<Tuple<String, ? extends TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(IndicesStatsAction.NAME, new IndicesStatsRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(IndicesSegmentsAction.NAME,
-                new IndicesSegmentsRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(GetSettingsAction.NAME, new GetSettingsRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesStatsAction.NAME, new IndicesStatsRequest().indices(SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesSegmentsAction.NAME, new IndicesSegmentsRequest().indices(SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(GetSettingsAction.NAME, new GetSettingsRequest().indices(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(IndicesShardStoresAction.NAME,
-                new IndicesShardStoresRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+                new IndicesShardStoresRequest().indices(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(UpgradeStatusAction.NAME,
-                new UpgradeStatusRequest().indices(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+                new UpgradeStatusRequest().indices(SECURITY_INDEX_NAME)));
 
         for (Tuple<String, ? extends TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
@@ -761,33 +761,33 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
         requests.add(new Tuple<>(DeleteAction.NAME,
-            new DeleteRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+            new DeleteRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-                createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, DeleteRequest::new)));
+                createBulkShardRequest(SECURITY_INDEX_NAME, DeleteRequest::new)));
         requests.add(new Tuple<>(UpdateAction.NAME,
-            new UpdateRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+            new UpdateRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(IndexAction.NAME,
-            new IndexRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+            new IndexRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-                createBulkShardRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, IndexRequest::new)));
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+                createBulkShardRequest(SECURITY_INDEX_NAME, IndexRequest::new)));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+                new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "type", "id")));
+                new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME))));
-        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+                .addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME))));
+        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(ClusterHealthAction.NAME,
-                new ClusterHealthRequest(SecurityLifecycleService.SECURITY_INDEX_NAME, "foo", "bar")));
+                new ClusterHealthRequest(SECURITY_INDEX_NAME, "foo", "bar")));
 
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
@@ -803,7 +803,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());

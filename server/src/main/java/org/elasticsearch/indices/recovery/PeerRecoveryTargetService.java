@@ -359,7 +359,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
-            final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
+            final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
             if (seqNoStats.maxSeqNo <= globalCheckpoint) {
                 assert seqNoStats.localCheckpoint <= globalCheckpoint;
                 /*

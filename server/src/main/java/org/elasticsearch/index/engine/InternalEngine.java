@@ -69,6 +69,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -229,7 +230,7 @@ public class InternalEngine extends Engine {
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier, IndexCommit startingCommit) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats = store.loadSeqNoInfo(startingCommit);
+        final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(startingCommit);
         maxSeqNo = seqNoStats.maxSeqNo;
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);

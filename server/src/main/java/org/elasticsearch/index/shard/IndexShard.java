@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -2279,8 +2280,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
             try {
-                final Engine engine = getEngine();
-                engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+                getEngine().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
             } catch (AlreadyClosedException ex) {
                 // that's fine since we already synced everything on engine close - this also is conform with the methods
                 // documentation
@@ -2305,9 +2305,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         translogSyncProcessor.put(location, syncListener);
     }
 
-    public final void sync() throws IOException {
+    public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().getTranslog().sync();
+        getEngine().syncTranslog();
     }
 
     /**

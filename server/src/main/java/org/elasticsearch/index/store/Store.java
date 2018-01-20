@@ -182,17 +182,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
-        return readCommittedSegmentsInfo(null);
-    }
-
-    /**
-     * Returns the committed segments info for the given commit point.
-     * If the commit point is not provided, this method will return the segments info of the last commit in the store.
-     */
-    public SegmentInfos readCommittedSegmentsInfo(final IndexCommit commit) throws IOException {
         failIfCorrupted();
         try {
-            return readSegmentsInfo(commit, directory());
+            return readSegmentsInfo(null, directory());
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -226,8 +218,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
-        final Map<String, String> userData = commit != null ? commit.getUserData() : SegmentInfos.readLatestCommit(directory).getUserData();
+    public static SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
+        final Map<String, String> userData = commit.getUserData();
         return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 

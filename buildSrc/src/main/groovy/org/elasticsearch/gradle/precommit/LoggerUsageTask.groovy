@@ -44,7 +44,7 @@ public class LoggerUsageTask extends LoggedExec {
         project.afterEvaluate {
             dependsOn(classpath)
             description = "Runs LoggerUsageCheck on ${classDirectories}"
-            executable = new File(project.javaHome, 'bin/java')
+            executable = new File(project.runtimeJavaHome, 'bin/java')
             if (classDirectories == null) {
                 // Default to main and test class files
                 List files = []

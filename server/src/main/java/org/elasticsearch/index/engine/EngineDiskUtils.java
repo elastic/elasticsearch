@@ -19,19 +19,24 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -72,6 +77,15 @@ public final class EngineDiskUtils {
 
     public static void createNewTranslog(final Directory dir, final Path translogPath, long initialGlobalCheckpoint, final ShardId shardId)
         throws IOException {
+        if (Assertions.ENABLED) {
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(dir);
+            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            SequenceNumbers.CommitInfo commitInfo = Store.loadSeqNoInfo(existingCommits.get(0));
+            assert commitInfo.localCheckpoint >= initialGlobalCheckpoint :
+                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+                + initialGlobalCheckpoint + "]";
+        }
+
         try (IndexWriter writer = newIndexWriter(false, dir)) {
             final String translogUuid = Translog.createEmptyTranslog(translogPath, initialGlobalCheckpoint, shardId);
             final Map<String, String> map = new HashMap<>();

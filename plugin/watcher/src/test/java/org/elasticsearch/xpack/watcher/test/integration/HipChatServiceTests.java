@@ -15,6 +15,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
@@ -49,7 +50,7 @@ public class HipChatServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(XPackPlugin.class, MockMustacheScriptEngine.TestPlugin.class);
+        return Arrays.asList(XPackPlugin.class, Watcher.class, MockMustacheScriptEngine.TestPlugin.class);
     }
 
     @Override

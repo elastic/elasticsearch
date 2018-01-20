@@ -109,7 +109,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
         CategoryDefinition category2 = categories.get(1);
         assertThat(category2.getRegex(), equalTo(".*?Failed.+?to.+?shutdown.+?error.+?" +
-                "org.aaaa.bbbb.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*"));
+                "org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*"));
         assertThat(category2.getExamples(), equalTo(Collections.singletonList(
                 "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused by foo exception]")));
 

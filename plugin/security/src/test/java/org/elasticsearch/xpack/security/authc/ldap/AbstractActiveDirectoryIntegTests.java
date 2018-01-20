@@ -39,7 +39,7 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
     @Before
     public void initializeSslSocketFactory() throws Exception {
         useGlobalSSL = randomBoolean();
-        Path truststore = getDataPath("../ldap/support/ldaptrust.jks");
+        Path truststore = getDataPath("../ldap/support/ADtrust.jks");
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -81,7 +81,7 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
             builder.put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
         }
         if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
                     .put("ssl.truststore.password", "changeit");
         }
         return builder.build();

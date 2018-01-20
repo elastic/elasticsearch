@@ -104,6 +104,14 @@ import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappingAction;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.SamlInvalidateSessionAction;
+import org.elasticsearch.xpack.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.action.saml.SamlLogoutAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessionAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.RefreshTokenAction;
@@ -171,6 +179,10 @@ import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
@@ -658,7 +670,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
                 new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
                 new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
-                new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class)
+                new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
+                new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
+                new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
+                new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
+                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class)
         );
     }
 
@@ -699,7 +715,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),
                 new RestGetTokenAction(settings, restController, getLicenseState()),
                 new RestInvalidateTokenAction(settings, restController, getLicenseState()),
-                new RestGetCertificateInfoAction(settings, restController)
+                new RestGetCertificateInfoAction(settings, restController),
+                new RestSamlPrepareAuthenticationAction(settings, restController, getLicenseState()),
+                new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
+                new RestSamlLogoutAction(settings, restController, getLicenseState()),
+                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState())
         );
     }
 

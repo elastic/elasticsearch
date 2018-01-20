@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.security.authc.saml.SamlRealmSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public final class InternalRealmsSettings {
         map.put(LdapRealmSettings.AD_TYPE, LdapRealmSettings.getSettings(LdapRealmSettings.AD_TYPE));
         map.put(LdapRealmSettings.LDAP_TYPE, LdapRealmSettings.getSettings(LdapRealmSettings.LDAP_TYPE));
         map.put(PkiRealmSettings.TYPE, PkiRealmSettings.getSettings());
+        map.put(SamlRealmSettings.TYPE, SamlRealmSettings.getSettings());
         return Collections.unmodifiableMap(map);
     }
 }

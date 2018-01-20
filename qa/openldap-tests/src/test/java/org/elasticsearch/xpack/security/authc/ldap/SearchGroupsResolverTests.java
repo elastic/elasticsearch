@@ -160,7 +160,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
     @Override
     protected String ldapUrl() {
-        return OpenLdapTests.OPEN_LDAP_URL;
+        return OpenLdapTests.OPEN_LDAP_DNS_URL;
     }
 
     @Override
@@ -171,5 +171,10 @@ import static org.hamcrest.Matchers.notNullValue;
     @Override
     protected String bindPassword() {
         return OpenLdapTests.PASSWORD;
+    }
+
+    @Override
+    protected String trustPath() {
+        return "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
     }
 }

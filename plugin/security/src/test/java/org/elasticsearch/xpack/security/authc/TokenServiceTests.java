@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -30,6 +31,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
@@ -51,8 +56,11 @@ import org.junit.BeforeClass;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -84,6 +92,13 @@ public class TokenServiceTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
+        doAnswer(invocationOnMock -> {
+            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            builder.setIndex((String) invocationOnMock.getArguments()[0])
+                    .setType((String) invocationOnMock.getArguments()[1])
+                    .setId((String) invocationOnMock.getArguments()[2]);
+            return builder;
+        }).when(client).prepareGet(anyString(), anyString(), anyString());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -141,6 +156,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -171,6 +187,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -198,6 +215,7 @@ public class TokenServiceTests extends ESTestCase {
 
         requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
+        mockGetTokenFromId(newToken);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -228,6 +246,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -257,6 +276,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -300,7 +320,7 @@ public class TokenServiceTests extends ESTestCase {
 
         requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
-
+        mockGetTokenFromId(newToken);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
@@ -317,6 +337,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -386,6 +407,7 @@ public class TokenServiceTests extends ESTestCase {
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        mockGetTokenFromId(token);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -412,6 +434,7 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -436,6 +459,7 @@ public class TokenServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // move to expiry
             clock.fastForwardSeconds(Math.toIntExact(defaultExpiration.getSeconds()) - fastForwardAmount);
+            clock.rewind(TimeValue.timeValueNanos(clock.instant().getNano())); // trim off nanoseconds since don't store them in the index
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertEquals(authentication, future.get().getAuthentication());
@@ -467,7 +491,7 @@ public class TokenServiceTests extends ESTestCase {
 
         e = expectThrows(IllegalStateException.class, () -> {
             PlainActionFuture<Boolean> invalidateFuture = new PlainActionFuture<>();
-            tokenService.invalidateAccessToken(null, invalidateFuture);
+            tokenService.invalidateAccessToken((String) null, invalidateFuture);
             invalidateFuture.actionGet();
         });
         assertEquals("tokens are not enabled", e.getMessage());
@@ -519,6 +543,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
+        mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -528,7 +553,6 @@ public class TokenServiceTests extends ESTestCase {
             listener.onFailure(new NoShardAvailableActionException(new ShardId(new Index("foo", "uuid"), 0), "shard oh shard"));
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
-        when(client.prepareGet(anyString(), anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -542,5 +566,43 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
         }
+    }
+
+    public void testGetAuthenticationWorksWithExpiredToken() throws Exception {
+        TokenService tokenService =
+                new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        UserToken expired = new UserToken(authentication, Instant.now().minus(3L, ChronoUnit.DAYS));
+        mockGetTokenFromId(expired);
+        String userTokenString = tokenService.getUserTokenString(expired);
+        PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
+        tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
+        Authentication retrievedAuth = authFuture.actionGet().v1();
+        assertEquals(authentication, retrievedAuth);
+    }
+
+    private void mockGetTokenFromId(UserToken userToken) {
+        mockGetTokenFromId(userToken, client);
+    }
+
+    public static void mockGetTokenFromId(UserToken userToken, Client client) {
+        doAnswer(invocationOnMock -> {
+            GetRequest getRequest = (GetRequest) invocationOnMock.getArguments()[0];
+            ActionListener<GetResponse> getResponseListener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            GetResponse getResponse = mock(GetResponse.class);
+            if (userToken.getId().equals(getRequest.id().replace("token_", ""))) {
+                when(getResponse.isExists()).thenReturn(true);
+                Map<String, Object> sourceMap = new HashMap<>();
+                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    sourceMap.put("access_token",
+                            Collections.singletonMap("user_token",
+                                    XContentHelper.convertToMap(XContentType.JSON.xContent(), builder.string(), false)));
+                }
+                when(getResponse.getSource()).thenReturn(sourceMap);
+            }
+            getResponseListener.onResponse(getResponse);
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
     }
 }

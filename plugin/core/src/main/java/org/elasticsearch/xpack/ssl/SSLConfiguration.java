@@ -7,13 +7,6 @@ package org.elasticsearch.xpack.ssl;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.security.GeneralSecurityException;
-import java.security.cert.CertificateException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
@@ -22,6 +15,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ssl.cert.CertificateInfo;
+
+import static org.elasticsearch.xpack.ssl.SSLConfigurationSettings.getKeyStoreType;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.cert.CertificateException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
 
 /**
  * Represents the configuration for an SSLContext
@@ -47,7 +50,7 @@ public final class SSLConfiguration {
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
     SSLConfiguration(Settings settings) {
-        this.keyConfig = createKeyConfig(settings, null);
+        this.keyConfig = createKeyConfig(settings, (SSLConfiguration) null);
         this.trustConfig = createTrustConfig(settings, keyConfig, null);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
         this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
@@ -180,43 +183,23 @@ public final class SSLConfiguration {
     }
 
     private static KeyConfig createKeyConfig(Settings settings, SSLConfiguration global) {
-        String keyStorePath = SETTINGS_PARSER.keystorePath.get(settings).orElse(null);
-        String keyPath = SETTINGS_PARSER.keyPath.get(settings).orElse(null);
-        if (keyPath != null && keyStorePath != null) {
-            throw new IllegalArgumentException("you cannot specify a keystore and key file");
-        } else if (keyStorePath == null && keyPath == null) {
-            if (global != null) {
-                return global.keyConfig();
-            } else if (System.getProperty("javax.net.ssl.keyStore") != null) {
-                // TODO: we should not support loading a keystore from sysprops...
-                try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
-                    return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), "jks", keystorePassword, keystorePassword,
-                            System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
-                            System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
-                }
-            }
-            return KeyConfig.NONE;
+        final String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
+        final KeyConfig config = CertUtils.createKeyConfig(SETTINGS_PARSER.x509KeyPair, settings, trustStoreAlgorithm);
+        if (config != null) {
+            return config;
         }
-
-        if (keyPath != null) {
-            SecureString keyPassword = SETTINGS_PARSER.keyPassword.get(settings);
-            String certPath = SETTINGS_PARSER.cert.get(settings).orElse(null);
-            if (certPath == null) {
-                throw new IllegalArgumentException("you must specify the certificates to use with the key");
-            }
-            return new PEMKeyConfig(keyPath, keyPassword, certPath);
-        } else {
-            SecureString keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings);
-            String keyStoreAlgorithm = SETTINGS_PARSER.keystoreAlgorithm.get(settings);
-            String keyStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.keystoreType, settings, keyStorePath);
-            SecureString keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings);
-            if (keyStoreKeyPassword.length() == 0) {
-                keyStoreKeyPassword = keyStorePassword;
-            }
-            String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
-                    trustStoreAlgorithm);
+        if (global != null) {
+            return global.keyConfig();
         }
+        if (System.getProperty("javax.net.ssl.keyStore") != null) {
+            // TODO: we should not support loading a keystore from sysprops...
+            try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
+                return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), "jks", keystorePassword, keystorePassword,
+                        System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
+                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+            }
+        }
+        return KeyConfig.NONE;
     }
 
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
@@ -247,7 +230,7 @@ public final class SSLConfiguration {
         } else if (trustStorePath != null) {
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+            String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {

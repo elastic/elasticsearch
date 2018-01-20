@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -100,14 +99,13 @@ public class AuthenticationService extends AbstractComponent {
      * Authenticates the username and password that are provided as parameters. This will not look
      * at the values in the ThreadContext for Authentication.
      *
-     * @param action        The action of the message
-     * @param message       The message that resulted in this authenticate call
-     * @param username      The username to be used for authentication
-     * @param password      The password to be used for authentication
+     * @param action  The action of the message
+     * @param message The message that resulted in this authenticate call
+     * @param token   The token (credentials) to be authenticated
      */
-    public void authenticate(String action, TransportMessage message, String username,
-                             SecureString password, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, listener, username, password).authenticateAsync();
+    public void authenticate(String action, TransportMessage message,
+                             AuthenticationToken token, ActionListener<Authentication> listener) {
+        new Authenticator(action, message, null, listener).authenticateToken(token);
     }
 
     // pkg private method for testing
@@ -140,13 +138,6 @@ public class AuthenticationService extends AbstractComponent {
 
         Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
             this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message), fallbackUser, listener);
-        }
-
-        Authenticator(String action, TransportMessage message, User fallbackUser,
-                      ActionListener<Authentication> listener, String username,
-                      SecureString password) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message), fallbackUser, listener);
-            this.authenticationToken = new UsernamePasswordToken(username, password);
         }
 
         private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
@@ -240,6 +231,7 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 }
             } catch (Exception e) {
+                logger.warn("An exception occurred while attempting to find authentication credentials", e);
                 action = () -> listener.onFailure(request.exceptionProcessingRequest(e, null));
             }
 
@@ -440,6 +432,10 @@ public class AuthenticationService extends AbstractComponent {
             // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
             // when an exception bubbles up even after successful authentication
             action.run();
+        }
+
+        private void authenticateToken(AuthenticationToken token) {
+            this.consumeToken(token);
         }
     }
 

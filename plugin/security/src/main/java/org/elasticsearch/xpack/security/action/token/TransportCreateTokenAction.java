@@ -17,6 +17,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.UserToken;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
 
@@ -46,8 +48,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            authenticationService.authenticate(CreateTokenAction.NAME, request,
-                    request.getUsername(), request.getPassword(),
+            final UsernamePasswordToken authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
+            authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
                     ActionListener.wrap(authentication -> {
                             request.getPassword().close();
                             tokenService.createUserToken(authentication, originatingAuthentication, ActionListener.wrap(tuple -> {

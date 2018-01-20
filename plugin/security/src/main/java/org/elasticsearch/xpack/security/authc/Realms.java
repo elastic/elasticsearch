@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -39,11 +41,12 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     private final ThreadContext threadContext;
     private final ReservedRealm reservedRealm;
 
-    protected List<Realm> realms = Collections.emptyList();
-    // a list of realms that are considered default in that they are provided by x-pack and not a third party
-    List<Realm> internalRealmsOnly = Collections.emptyList();
+    protected List<Realm> realms;
+    // a list of realms that are considered standard in that they are provided by x-pack and
+    // interact with a 3rd party source on a limited basis
+    List<Realm> standardRealmsOnly;
     // a list of realms that are considered native, that is they only interact with x-pack and no 3rd party auth sources
-    List<Realm> nativeRealmsOnly = Collections.emptyList();
+    List<Realm> nativeRealmsOnly;
 
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ThreadContext threadContext, ReservedRealm reservedRealm) throws Exception {
@@ -57,12 +60,12 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         this.realms = initRealms();
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
-        List<Realm> internalRealms = new ArrayList<>();
+        List<Realm> standardRealms = new ArrayList<>();
         List<Realm> nativeRealms = new ArrayList<>();
         for (Realm realm : realms) {
             // don't add the reserved realm here otherwise we end up with only this realm...
-            if (InternalRealms.isInternalRealm(realm.type(), false)) {
-                internalRealms.add(realm);
+            if (InternalRealms.isStandardRealm(realm.type())) {
+                standardRealms.add(realm);
             }
 
             if (FileRealmSettings.TYPE.equals(realm.type()) || NativeRealmSettings.TYPE.equals(realm.type())) {
@@ -70,7 +73,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             }
         }
 
-        for (List<Realm> realmList : Arrays.asList(internalRealms, nativeRealms)) {
+        for (List<Realm> realmList : Arrays.asList(standardRealms, nativeRealms)) {
             if (realmList.isEmpty()) {
                 addNativeRealms(realmList);
             }
@@ -80,7 +83,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             assert realmList.get(0) == reservedRealm;
         }
 
-        this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
+        this.standardRealmsOnly = Collections.unmodifiableList(standardRealms);
         this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
     }
 
@@ -95,12 +98,16 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             case ALL:
                 return realms.iterator();
             case DEFAULT:
-                return internalRealmsOnly.iterator();
+                return standardRealmsOnly.iterator();
             case NATIVE:
                 return nativeRealmsOnly.iterator();
             default:
                 throw new IllegalStateException("authentication should not be enabled");
         }
+    }
+
+    public Stream<Realm> stream() {
+        return StreamSupport.stream(this.spliterator(), false);
     }
 
     public List<Realm> asList() {
@@ -113,7 +120,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             case ALL:
                 return Collections.unmodifiableList(realms);
             case DEFAULT:
-                return Collections.unmodifiableList(internalRealmsOnly);
+                return Collections.unmodifiableList(standardRealmsOnly);
             case NATIVE:
                 return Collections.unmodifiableList(nativeRealmsOnly);
             default:
@@ -265,7 +272,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             case NATIVE:
                 return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
             case DEFAULT:
-                return InternalRealms.isInternalRealm(type, true);
+                return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
             default:
                 throw new IllegalStateException("unknown enabled realm type [" + enabledRealmType + "]");
         }

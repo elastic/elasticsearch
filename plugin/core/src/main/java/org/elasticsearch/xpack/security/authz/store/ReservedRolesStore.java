@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
@@ -74,7 +79,7 @@ public class ReservedRolesStore {
                         null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
-                        new String[] { "monitor", "manage_index_templates", MonitoringBulkAction.NAME },
+                        new String[] { "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()

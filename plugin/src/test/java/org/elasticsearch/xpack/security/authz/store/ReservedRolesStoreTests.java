@@ -75,6 +75,10 @@ import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
@@ -167,6 +171,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME), is(true));
 
+        // SAML
+        assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME), is(false));
+
+        // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));

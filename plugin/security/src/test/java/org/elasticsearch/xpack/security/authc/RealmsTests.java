@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
@@ -305,7 +306,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.native.order", "1");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
@@ -326,6 +327,51 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm.type(), is(type));
+        assertThat(iter.hasNext(), is(false));
+    }
+
+    public void testUnlicensedWithNonStandardRealms() throws Exception {
+        factories.put(SamlRealmSettings.TYPE, config -> new DummyRealm(SamlRealmSettings.TYPE, config));
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.authc.realms.foo.type", SamlRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.foo.order", "0");
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        Iterator<Realm> iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        Realm realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(SamlRealmSettings.TYPE));
+        assertThat(iter.hasNext(), is(false));
+
+        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
+        iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(FileRealmSettings.TYPE));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(NativeRealmSettings.TYPE));
+        assertThat(iter.hasNext(), is(false));
+
+        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(FileRealmSettings.TYPE));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
     }
 

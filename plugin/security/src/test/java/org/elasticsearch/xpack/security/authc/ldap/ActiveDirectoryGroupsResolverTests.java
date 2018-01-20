@@ -143,4 +143,9 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
     protected String bindPassword() {
         return ActiveDirectorySessionFactoryTests.PASSWORD;
     }
+
+    @Override
+    protected String trustPath() {
+        return "/org/elasticsearch/xpack/security/authc/ldap/support/ADtrust.jks";
+    }
 }

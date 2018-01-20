@@ -154,11 +154,15 @@ public class RealmSettings {
     }
 
     private static void validateRealm(String name, Settings settings, Map<String, Set<Setting<?>>> validSettings) {
-        final String type = TYPE_SETTING.get(settings);
+        final String type = getRealmType(settings);
         if (isNullOrEmpty(type)) {
             throw new IllegalArgumentException("missing realm type [" + getFullSettingKey(name, TYPE_SETTING) + "] for realm");
         }
         validateRealm(name, type, settings, validSettings.get(type));
+    }
+
+    public static String getRealmType(Settings settings) {
+        return TYPE_SETTING.get(settings);
     }
 
     private static void validateRealm(String name, String type, Settings settings, Set<Setting<?>> validSettings) {

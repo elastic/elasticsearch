@@ -59,6 +59,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.XPackSettings;
@@ -102,6 +103,8 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -138,7 +141,7 @@ public final class TokenService extends AbstractComponent {
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
             TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",
-                    TimeValue.timeValueMinutes(30L), Property.NodeScope);
+            TimeValue.timeValueMinutes(30L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
 
@@ -161,9 +164,10 @@ public final class TokenService extends AbstractComponent {
 
     /**
      * Creates a new token service
+     *
      * @param settings the node settings
-     * @param clock the clock that will be used for comparing timestamps
-     * @param client the client to use when checking for revocations
+     * @param clock    the clock that will be used for comparing timestamps
+     * @param client   the client to use when checking for revocations
      */
     public TokenService(Settings settings, Clock clock, Client client,
                         SecurityLifecycleService lifecycleService, ClusterService clusterService) throws GeneralSecurityException {
@@ -178,7 +182,7 @@ public final class TokenService extends AbstractComponent {
         this.lifecycleService = lifecycleService;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
-        this.enabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+        this.enabled = isTokenServiceEnabled(settings);
         this.expiredTokenRemover = new ExpiredTokenRemover(settings, client);
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
@@ -189,6 +193,9 @@ public final class TokenService extends AbstractComponent {
         getTokenMetaData();
     }
 
+    public static Boolean isTokenServiceEnabled(Settings settings) {
+        return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+    }
 
     /**
      * Create a token based on the provided authentication and metadata.
@@ -199,6 +206,8 @@ public final class TokenService extends AbstractComponent {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
+        } else if (originatingClientAuth == null) {
+            listener.onFailure(new IllegalArgumentException("originating client authentication must be provided"));
         } else {
             final Instant created = clock.instant();
             final Instant expiration = getExpirationTime(created);
@@ -226,6 +235,7 @@ public final class TokenService extends AbstractComponent {
                 builder.startObject("access_token")
                         .field("invalidated", false)
                         .field("user_token", userToken)
+                        .field("realm", authentication.getAuthenticatedBy().getName())
                         .endObject();
                 builder.endObject();
                 IndexRequest request =
@@ -255,19 +265,7 @@ public final class TokenService extends AbstractComponent {
                 listener.onResponse(null);
             } else {
                 try {
-                    decodeToken(token, ActionListener.wrap(userToken -> {
-                        if (userToken != null) {
-                            Instant currentTime = clock.instant();
-                            if (currentTime.isAfter(userToken.getExpirationTime())) {
-                                // token expired
-                                listener.onFailure(expiredTokenException());
-                            } else {
-                                checkIfTokenIsRevoked(userToken, listener);
-                            }
-                        } else {
-                            listener.onResponse(null);
-                        }
-                    }, listener::onFailure));
+                    decodeAndValidateToken(token, listener);
                 } catch (IOException e) {
                     // could happen with a token that is not ours
                     logger.debug("invalid token", e);
@@ -280,6 +278,40 @@ public final class TokenService extends AbstractComponent {
     }
 
     /**
+     * Reads the authentication and metadata from the given token.
+     * This method does not validate whether the token is expired or not.
+     */
+    public void getAuthenticationAndMetaData(String token, ActionListener<Tuple<Authentication, Map<String, Object>>> listener)
+            throws IOException {
+        decodeToken(token, ActionListener.wrap(
+                userToken -> {
+                    if (userToken == null) {
+                        listener.onFailure(new ElasticsearchSecurityException("supplied token is not valid"));
+                    } else {
+                        listener.onResponse(new Tuple<>(userToken.getAuthentication(), userToken.getMetadata()));
+                    }
+                },
+                listener::onFailure
+        ));
+    }
+
+    private void decodeAndValidateToken(String token, ActionListener<UserToken> listener) throws IOException {
+        decodeToken(token, ActionListener.wrap(userToken -> {
+            if (userToken != null) {
+                Instant currentTime = clock.instant();
+                if (currentTime.isAfter(userToken.getExpirationTime())) {
+                    // token expired
+                    listener.onFailure(expiredTokenException());
+                } else {
+                    checkIfTokenIsRevoked(userToken, listener);
+                }
+            } else {
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
+    }
+
+    /*
      * Asynchronously decodes the string representation of a {@link UserToken}. The process for
      * this is asynchronous as we may need to compute a key, which can be computationally expensive
      * so this should not block the current thread, which is typically a network thread. A second
@@ -304,7 +336,49 @@ public final class TokenService extends AbstractComponent {
                 getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
                     try {
                         final byte[] iv = in.readByteArray();
-                        decryptToken(in, getDecryptionCipher(iv, decodeKey, version, decodedSalt), version, listener);
+                        final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
+                        if (version.onOrAfter(Version.V_6_2_0)) {
+                            // we only have the id and need to get the token from the doc!
+                            decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId ->
+                                lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                                    final GetRequest getRequest =
+                                            client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE,
+                                                    getTokenDocumentId(tokenId)).request();
+                                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
+                                            ActionListener.<GetResponse>wrap(response -> {
+                                                if (response.isExists()) {
+                                                    Map<String, Object> accessTokenSource =
+                                                            (Map<String, Object>) response.getSource().get("access_token");
+                                                    if (accessTokenSource == null) {
+                                                        listener.onFailure(new IllegalStateException("token document is missing " +
+                                                                "the access_token field"));
+                                                    } else if (accessTokenSource.containsKey("user_token") == false) {
+                                                        listener.onFailure(new IllegalStateException("token document is missing " +
+                                                                "the user_token field"));
+                                                    } else {
+                                                        Map<String, Object> userTokenSource =
+                                                                (Map<String, Object>) accessTokenSource.get("user_token");
+                                                        listener.onResponse(UserToken.fromSourceMap(userTokenSource));
+                                                    }
+                                                } else {
+                                                    listener.onFailure(
+                                                            new IllegalStateException("token document is missing and must be present"));
+                                                }
+                                            }, e -> {
+                                                // if the index or the shard is not there / available we assume that
+                                                // the token is not valid
+                                                if (isShardNotAvailableException(e)) {
+                                                    logger.warn("failed to get token [{}] since index is not available", tokenId);
+                                                    listener.onResponse(null);
+                                                } else {
+                                                    logger.error(new ParameterizedMessage("failed to get token [{}]", tokenId), e);
+                                                    listener.onFailure(e);
+                                                }
+                                            }), client::get);
+                                }), listener::onFailure));
+                        } else {
+                            decryptToken(in, cipher, version, listener);
+                        }
                     } catch (GeneralSecurityException e) {
                         // could happen with a token that is not ours
                         logger.warn("invalid token", e);
@@ -347,6 +421,13 @@ public final class TokenService extends AbstractComponent {
         }
     }
 
+    private static void decryptTokenId(StreamInput in, Cipher cipher, Version version, ActionListener<String> listener) throws IOException {
+        try (CipherInputStream cis = new CipherInputStream(in, cipher); StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
+            decryptedInput.setVersion(version);
+            listener.onResponse(decryptedInput.readString());
+        }
+    }
+
     /**
      * This method performs the steps necessary to invalidate a token so that it may no longer be
      * used. The process of invalidation involves a step that is needed for backwards compatibility
@@ -377,6 +458,22 @@ public final class TokenService extends AbstractComponent {
         }
     }
 
+    /**
+     * This method performs the steps necessary to invalidate a token so that it may no longer be used.
+     *
+     * @see #invalidateAccessToken(String, ActionListener)
+     */
+    public void invalidateAccessToken(UserToken userToken, ActionListener<Boolean> listener) {
+        ensureEnabled();
+        if (userToken == null) {
+            listener.onFailure(new IllegalArgumentException("token must be provided"));
+        } else {
+            maybeStartTokenRemover();
+            final long expirationEpochMilli = getExpirationTime().toEpochMilli();
+            indexBwcInvalidation(userToken, listener, new AtomicInteger(0), expirationEpochMilli);
+        }
+    }
+
     public void invalidateRefreshToken(String refreshToken, ActionListener<Boolean> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(refreshToken)) {
@@ -394,13 +491,14 @@ public final class TokenService extends AbstractComponent {
 
     /**
      * Performs the actual bwc invalidation of a token and then kicks off the new invalidation method
-     * @param userToken the token to invalidate
-     * @param listener the listener to notify upon completion
-     * @param attemptCount the number of attempts to invalidate that have already been tried
+     *
+     * @param userToken            the token to invalidate
+     * @param listener             the listener to notify upon completion
+     * @param attemptCount         the number of attempts to invalidate that have already been tried
      * @param expirationEpochMilli the expiration time as milliseconds since the epoch
      */
     private void indexBwcInvalidation(UserToken userToken, ActionListener<Boolean> listener, AtomicInteger attemptCount,
-                               long expirationEpochMilli) {
+                                      long expirationEpochMilli) {
         if (attemptCount.get() > 5) {
             listener.onFailure(invalidGrantException("failed to invalidate token"));
         } else {
@@ -413,34 +511,35 @@ public final class TokenService extends AbstractComponent {
             final String tokenDocId = getTokenDocumentId(userToken);
             final Version version = userToken.getVersion();
             lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
-                    ActionListener.<IndexResponse>wrap(indexResponse -> {
-                        ActionListener<Boolean> wrappedListener =
-                                ActionListener.wrap(ignore -> listener.onResponse(true), listener::onFailure);
-                        indexInvalidation(tokenDocId, version, wrappedListener, attemptCount, "access_token", 1L);
-                    }, e -> {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof VersionConflictEngineException) {
-                            // expected since something else could have invalidated
-                            ActionListener<Boolean> wrappedListener =
-                                    ActionListener.wrap(ignore -> listener.onResponse(false), listener::onFailure);
-                            indexInvalidation(tokenDocId, version, wrappedListener, attemptCount, "access_token", 1L);
-                        } else if (isShardNotAvailableException(e)) {
-                            attemptCount.incrementAndGet();
-                            indexBwcInvalidation(userToken, listener, attemptCount, expirationEpochMilli);
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }), client::index));
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
+                            ActionListener.<IndexResponse>wrap(indexResponse -> {
+                                ActionListener<Boolean> wrappedListener =
+                                        ActionListener.wrap(ignore -> listener.onResponse(true), listener::onFailure);
+                                indexInvalidation(tokenDocId, version, wrappedListener, attemptCount, "access_token", 1L);
+                            }, e -> {
+                                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                if (cause instanceof VersionConflictEngineException) {
+                                    // expected since something else could have invalidated
+                                    ActionListener<Boolean> wrappedListener =
+                                            ActionListener.wrap(ignore -> listener.onResponse(false), listener::onFailure);
+                                    indexInvalidation(tokenDocId, version, wrappedListener, attemptCount, "access_token", 1L);
+                                } else if (isShardNotAvailableException(e)) {
+                                    attemptCount.incrementAndGet();
+                                    indexBwcInvalidation(userToken, listener, attemptCount, expirationEpochMilli);
+                                } else {
+                                    listener.onFailure(e);
+                                }
+                            }), client::index));
         }
     }
 
     /**
      * Performs the actual invalidation of a token
-     * @param tokenDocId the id of the token doc to invalidate
-     * @param listener the listener to notify upon completion
-     * @param attemptCount the number of attempts to invalidate that have already been tried
-     * @param srcPrefix the prefix to use when constructing the doc to update
+     *
+     * @param tokenDocId      the id of the token doc to invalidate
+     * @param listener        the listener to notify upon completion
+     * @param attemptCount    the number of attempts to invalidate that have already been tried
+     * @param srcPrefix       the prefix to use when constructing the doc to update
      * @param documentVersion the expected version of the document we will update
      */
     private void indexInvalidation(String tokenDocId, Version version, ActionListener<Boolean> listener, AtomicInteger attemptCount,
@@ -553,29 +652,29 @@ public final class TokenService extends AbstractComponent {
                     .request();
 
             lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        ActionListener.<SearchResponse>wrap(searchResponse -> {
-                            if (searchResponse.isTimedOut()) {
-                                attemptCount.incrementAndGet();
-                                findTokenFromRefreshToken(refreshToken, listener, attemptCount);
-                            } else if (searchResponse.getHits().getHits().length < 1) {
-                                logger.info("could not find token document with refresh_token [{}]", refreshToken);
-                                listener.onFailure(invalidGrantException("could not refresh the requested token"));
-                            } else if (searchResponse.getHits().getHits().length > 1) {
-                                listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
-                            } else {
-                                listener.onResponse(new Tuple<>(searchResponse, attemptCount));
-                            }
-                        }, e -> {
-                            if (isShardNotAvailableException(e)) {
-                                logger.debug("failed to search for token document, retrying", e);
-                                attemptCount.incrementAndGet();
-                                findTokenFromRefreshToken(refreshToken, listener, attemptCount);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }),
-                        client::search));
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                            ActionListener.<SearchResponse>wrap(searchResponse -> {
+                                if (searchResponse.isTimedOut()) {
+                                    attemptCount.incrementAndGet();
+                                    findTokenFromRefreshToken(refreshToken, listener, attemptCount);
+                                } else if (searchResponse.getHits().getHits().length < 1) {
+                                    logger.info("could not find token document with refresh_token [{}]", refreshToken);
+                                    listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                                } else if (searchResponse.getHits().getHits().length > 1) {
+                                    listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
+                                } else {
+                                    listener.onResponse(new Tuple<>(searchResponse, attemptCount));
+                                }
+                            }, e -> {
+                                if (isShardNotAvailableException(e)) {
+                                    logger.debug("failed to search for token document, retrying", e);
+                                    attemptCount.incrementAndGet();
+                                    findTokenFromRefreshToken(refreshToken, listener, attemptCount);
+                                } else {
+                                    listener.onFailure(e);
+                                }
+                            }),
+                            client::search));
         }
     }
 
@@ -701,6 +800,81 @@ public final class TokenService extends AbstractComponent {
         }
     }
 
+    /**
+     * Find all stored refresh and access tokens that have not been invalidated or expired, and were issued against
+     *  the specified realm.
+     */
+    public void findActiveTokensForRealm(String realmName, ActionListener<List<Tuple<UserToken, String>>> listener) {
+        ensureEnabled();
+
+        if (Strings.isNullOrEmpty(realmName)) {
+            listener.onFailure(new IllegalArgumentException("Realm name is required"));
+            return;
+        }
+
+        final Instant now = clock.instant();
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "token"))
+                .filter(QueryBuilders.termQuery("access_token.realm", realmName))
+                .filter(QueryBuilders.boolQuery()
+                        .should(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery("access_token.invalidated", false))
+                                .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
+                        )
+                        .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                );
+
+        SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .setQuery(boolQuery)
+                .setVersion(false)
+                .request();
+
+        lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                        ActionListener.<SearchResponse>wrap(searchResponse -> {
+                            if (searchResponse.isTimedOut()) {
+                                listener.onFailure(new ElasticsearchSecurityException("Failed to find user tokens"));
+                            } else {
+                                listener.onResponse(parseDocuments(searchResponse));
+                            }
+                        }, listener::onFailure),
+                        client::search));
+    }
+
+    private List<Tuple<UserToken, String>> parseDocuments(SearchResponse searchResponse) {
+        return StreamSupport.stream(searchResponse.getHits().spliterator(), false).map(hit -> {
+            final Map<String, Object> source = hit.getSourceAsMap();
+            try {
+                return parseTokensFromDocument(source);
+            } catch (IOException e) {
+                throw invalidGrantException("cannot read token from document");
+            }
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * @return A {@link Tuple} of access-token and refresh-token-id
+     */
+    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source) throws IOException {
+        final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+
+        final Map<String, Object> userTokenSource = (Map<String, Object>)
+                ((Map<String, Object>) source.get("access_token")).get("user_token");
+        final String id = (String) userTokenSource.get("id");
+        final Integer version = (Integer) userTokenSource.get("version");
+        final String authString = (String) userTokenSource.get("authentication");
+        final Long expiration = (Long) userTokenSource.get("expiration_time");
+        final Map<String, Object> metadata = (Map<String, Object>) userTokenSource.get("metadata");
+
+        Version authVersion = Version.fromId(version);
+        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
+            in.setVersion(authVersion);
+            Authentication authentication = new Authentication(in);
+            return new Tuple<>(new UserToken(id, Version.fromId(version), authentication, Instant.ofEpochMilli(expiration), metadata),
+                    refreshToken);
+        }
+    }
+
     private static String getInvalidatedTokenDocumentId(UserToken userToken) {
         return getInvalidatedTokenDocumentId(userToken.getId());
     }
@@ -765,6 +939,8 @@ public final class TokenService extends AbstractComponent {
                                             listener.onResponse(userToken);
                                         }
                                     }
+                                } else if (userToken.getVersion().onOrAfter(Version.V_6_2_0)) {
+                                    listener.onFailure(new IllegalStateException("token document is missing and must be present"));
                                 } else {
                                     listener.onResponse(userToken);
                                 }
@@ -786,6 +962,7 @@ public final class TokenService extends AbstractComponent {
             });
         }
     }
+
 
     public TimeValue getExpirationDelay() {
         return expirationDelay;
@@ -840,7 +1017,11 @@ public final class TokenService extends AbstractComponent {
                          new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, userToken.getVersion()));
                  StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
                 encryptedStreamOutput.setVersion(userToken.getVersion());
-                userToken.writeTo(encryptedStreamOutput);
+                if (userToken.getVersion().onOrAfter(Version.V_6_2_0)) {
+                    encryptedStreamOutput.writeString(userToken.getId());
+                } else {
+                    userToken.writeTo(encryptedStreamOutput);
+                }
                 encryptedStreamOutput.close();
                 return new String(os.toByteArray(), StandardCharsets.UTF_8);
             }
@@ -1047,6 +1228,7 @@ public final class TokenService extends AbstractComponent {
 
     /**
      * Prunes the keys and keeps up to the latest N keys around
+     *
      * @param numKeysToKeep the number of keys to keep.
      */
     synchronized TokenMetaData pruneKeys(int numKeysToKeep) {
@@ -1058,8 +1240,8 @@ public final class TokenService extends AbstractComponent {
         ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
         Collections.sort(entries,
                 (left, right) ->  Long.compare(right.keyAndTimestamp.getTimestamp(), left.keyAndTimestamp.getTimestamp()));
-        for (KeyAndCache value: entries) {
-            if (map.size() < numKeysToKeep || value.keyAndTimestamp.getTimestamp()>= currentKey
+        for (KeyAndCache value : entries) {
+            if (map.size() < numKeysToKeep || value.keyAndTimestamp.getTimestamp() >= currentKey
                     .keyAndTimestamp.getTimestamp()) {
                 logger.debug("keeping key {} ", value.getKeyHash());
                 map.put(value.getKeyHash(), value);
@@ -1095,7 +1277,7 @@ public final class TokenService extends AbstractComponent {
         byte[] saltArr = new byte[SALT_BYTES];
         Map<BytesKey, KeyAndCache> map = new HashMap<>(metaData.getKeys().size());
         long maxTimestamp = createdTimeStamps.get();
-        for (KeyAndTimestamp key :  metaData.getKeys()) {
+        for (KeyAndTimestamp key : metaData.getKeys()) {
             secureRandom.nextBytes(saltArr);
             KeyAndCache keyAndCache = new KeyAndCache(key, new BytesKey(saltArr));
             maxTimestamp = Math.max(keyAndCache.keyAndTimestamp.getTimestamp(), maxTimestamp);
@@ -1252,7 +1434,7 @@ public final class TokenService extends AbstractComponent {
         }
 
         BytesKey getKeyHash() {
-           return keyHash;
+            return keyHash;
         }
 
         private static BytesKey calculateKeyHash(SecureString key) {

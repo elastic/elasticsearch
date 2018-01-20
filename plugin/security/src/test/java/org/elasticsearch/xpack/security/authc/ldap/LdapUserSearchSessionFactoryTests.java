@@ -54,7 +54,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     @Before
     public void init() throws Exception {
-        Path keystore = getDataPath("support/ldaptrust.jks");
+        Path keystore = getDataPath("support/ADtrust.jks");
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.

@@ -16,12 +16,15 @@ public class MetadataUtils {
     public static final String RESERVED_METADATA_KEY = RESERVED_PREFIX + "reserved";
     public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Collections.singletonMap(RESERVED_METADATA_KEY, true);
 
-    private MetadataUtils() {}
+    private MetadataUtils() {
+    }
 
     public static void writeValue(StringBuilder sb, Object object) {
-        if (object instanceof Map) {
+        if (object == null) {
+            sb.append(object);
+        } else if (object instanceof Map) {
             sb.append("{");
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>)object).entrySet()) {
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) object).entrySet()) {
                 sb.append(entry.getKey()).append("=");
                 writeValue(sb, entry.getValue());
             }

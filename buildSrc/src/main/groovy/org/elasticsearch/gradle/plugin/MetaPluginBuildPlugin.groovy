@@ -31,6 +31,8 @@ class MetaPluginBuildPlugin extends AbstractPluginBuildPlugin {
     void apply(Project project) {
         super.apply(project)
 
+        configureDependencies(project)
+
         project.afterEvaluate {
             project.ext.set("nebulaPublish.maven.jar", false)
 

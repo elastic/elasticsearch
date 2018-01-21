@@ -37,6 +37,20 @@ abstract class AbstractPluginBuildPlugin extends BuildPlugin {
         super.apply(project)
     }
 
+    protected static void configureDependencies(Project project) {
+        project.dependencies {
+            provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            // we "upgrade" these optional deps to provided for plugins, since they will run
+            // with a full elasticsearch server that includes optional deps
+            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "com.vividsolutions:jts:${project.versions.jts}"
+            provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
+            provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
+            provided "org.elasticsearch:jna:${project.versions.jna}"
+        }
+    }
+
     /** Adds an integTest task which runs rest tests */
     protected static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)

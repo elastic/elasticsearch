@@ -5,7 +5,7 @@ esplugin {
   name 'x-pack-watcher'
   description 'Elasticsearch Expanded Pack Plugin - Watcher'
   classname 'org.elasticsearch.xpack.watcher.Watcher'
-  hasNativeController true
+  hasNativeController false
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
   licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

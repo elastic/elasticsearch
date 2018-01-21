@@ -3,7 +3,7 @@ esplugin {
     name 'x-pack-deprecation'
     description 'Elasticsearch Expanded Pack Plugin - Deprecation'
     classname 'org.elasticsearch.xpack.deprecation.Deprecation'
-    hasNativeController true
+    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

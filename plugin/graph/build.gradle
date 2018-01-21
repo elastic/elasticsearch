@@ -3,7 +3,7 @@ esplugin {
     name 'x-pack-graph'
     description 'Elasticsearch Expanded Pack Plugin - Graph'
     classname 'org.elasticsearch.xpack.graph.Graph'
-    hasNativeController true
+    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

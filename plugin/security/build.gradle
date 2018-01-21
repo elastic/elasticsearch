@@ -3,7 +3,7 @@ esplugin {
     name 'x-pack-security'
     description 'Elasticsearch Expanded Pack Plugin - Security'
     classname 'org.elasticsearch.xpack.security.Security'
-    hasNativeController true
+    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

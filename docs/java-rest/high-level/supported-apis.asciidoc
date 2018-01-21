@@ -8,6 +8,7 @@ Indices APIs::
 * <<java-rest-high-delete-index>>
 * <<java-rest-high-open-index>>
 * <<java-rest-high-close-index>>
+* <<java-rest-high-put-mapping>>
 
 Single document APIs::
 * <<java-rest-high-document-index>>

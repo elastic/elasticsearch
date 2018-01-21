@@ -691,7 +691,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 
 Note that if `size` is not specified, it defaults to 10.
 
-This example does a `match_all` and returns documents 11 through 20:
+This example does a `match_all` and returns documents 10 through 19:
 
 [source,sh]
 --------------------------------------------------

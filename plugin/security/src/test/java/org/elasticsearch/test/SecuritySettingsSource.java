@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -329,14 +331,15 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     }
 
     private static Path resolveResourcePath(String resourcePathToStore) {
+        final URL url = SecuritySettingsSource.class.getResource(resourcePathToStore);
         try {
-            Path path = PathUtils.get(SecuritySettingsSource.class.getResource(resourcePathToStore).toURI());
+            Path path = PathUtils.get(url.toURI());
             if (Files.notExists(path)) {
                 throw new ElasticsearchException("path does not exist: " + path);
             }
             return path;
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
+        } catch (URISyntaxException | FileSystemNotFoundException e) {
+            throw new ElasticsearchException("Failed to resolve resource (Path=[{}] URL=[{}])", e, resourcePathToStore, url);
         }
     }
 

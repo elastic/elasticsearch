@@ -30,9 +30,11 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
 
     protected abstract String bindPassword();
 
+    protected abstract String trustPath();
+
     @Before
     public void setUpLdapConnection() throws Exception {
-        Path truststore = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldaptrust.jks");
+        Path truststore = getDataPath(trustPath());
         this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), truststore);
     }
 

@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.test;
 
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,24 +37,23 @@ import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OpenLdapTests extends ESTestCase {
 
-    public static final String OPEN_LDAP_URL = "ldaps://localhost:60636";
+    public static final String OPEN_LDAP_DNS_URL = "ldaps://localhost:60636";
+    public static final String OPEN_LDAP_IP_URL = "ldaps://127.0.0.1:60636";
+
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-    public static final String LDAPTRUST_PATH = "/org/elasticsearch/xpack/security/authc/ldap/support/ldaptrust.jks";
+    public static final String LDAPTRUST_PATH = "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
 
     private boolean useGlobalSSL;
@@ -109,7 +113,7 @@ public class OpenLdapTests extends ESTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.ONE_LEVEL), globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
@@ -128,7 +132,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.BASE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -144,7 +148,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("group_search.filter", "(&(objectclass=posixGroup)(memberUid={0}))")
                 .put("group_search.user_attribute", "uid")
                 .build();
@@ -152,7 +156,7 @@ public class OpenLdapTests extends ESTestCase {
                 new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
-        try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)){
+        try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)) {
             assertThat(groups(ldap), hasItem(containsString("Geniuses")));
         }
     }
@@ -162,7 +166,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("group_search.filter", "(objectClass=*)")
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
@@ -176,12 +180,13 @@ public class OpenLdapTests extends ESTestCase {
         assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
     }
 
-    public void testStandardLdapConnectionHostnameVerification() throws Exception {
+    public void testStandardLdapConnectionHostnameVerificationFailure() throws Exception {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                // The certificate used in the vagrant box is valid for "localhost", but not for "127.0.0.1"
+                .put(buildLdapSettings(OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("ssl.verification_mode", VerificationMode.FULL)
                 .build();
 
@@ -196,6 +201,27 @@ public class OpenLdapTests extends ESTestCase {
         assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
         assertThat(e.getCause().getCause().getMessage(),
                 anyOf(containsString("Hostname verification failed"), containsString("peer not authenticated")));
+    }
+
+    public void testStandardLdapConnectionHostnameVerificationSuccess() throws Exception {
+        //openldap does not use cn as naming attributes by default
+        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        Settings settings = Settings.builder()
+                // The certificate used in the vagrant box is valid for "localhost" (but not for "127.0.0.1")
+                .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put("ssl.verification_mode", VerificationMode.FULL)
+                .build();
+
+        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(Settings.EMPTY));
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
+
+        final String user = "blackwidow";
+        try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
+            assertThat(ldap, notNullValue());
+            assertThat(ldap.userDn(), startsWith("uid=" + user + ","));
+        }
     }
 
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
@@ -253,7 +279,7 @@ public class OpenLdapTests extends ESTestCase {
 
     private LDAPConnection setupOpenLdapConnection() throws Exception {
         Path truststore = getDataPath(LDAPTRUST_PATH);
-        return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, truststore);
+        return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_DNS_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, truststore);
     }
 
     private Map<String, Object> resolve(LDAPConnection connection, LdapMetaDataResolver resolver) throws Exception {

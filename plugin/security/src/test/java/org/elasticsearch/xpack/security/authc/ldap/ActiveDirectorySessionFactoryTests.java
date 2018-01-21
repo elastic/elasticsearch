@@ -297,7 +297,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         if (useGlobalSSL == false) {
             settings = Settings.builder()
                     .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
                     .put("ssl.truststore.password", "changeit")
                     .build();
         }
@@ -334,7 +334,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         if (useGlobalSSL == false) {
             settings = Settings.builder()
                     .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
                     .put("ssl.truststore.password", "changeit")
                     .build();
         }
@@ -363,7 +363,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         if (useGlobalSSL == false) {
             settings = Settings.builder()
                     .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
                     .put("ssl.truststore.password", "changeit")
                     .build();
         }
@@ -455,7 +455,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         }
 
         if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
                     .put("ssl.truststore.password", "changeit");
         }
 

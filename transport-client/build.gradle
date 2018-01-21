@@ -16,7 +16,10 @@ dependencies {
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 
-    compile "org.elasticsearch.plugin:x-pack-security:${version}"
+    compile ("org.elasticsearch.plugin:x-pack-security:${version}") {
+        // security's guava dependency is for SAML only which doesn't leak into the client
+        exclude group: "com.google.guava", module: "guava"
+    }
 }
 
 dependencyLicenses.enabled = false

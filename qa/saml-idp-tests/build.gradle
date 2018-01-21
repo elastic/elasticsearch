@@ -1,0 +1,64 @@
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.vagrantsupport'
+
+dependencies {
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
+    testCompile 'com.google.jimfs:jimfs:1.1'
+}
+
+processTestResources {
+    if (project.rootProject.vagrantSupported) {
+        dependsOn "idpFixture"
+    }
+}
+
+sourceSets {
+    test {
+        resources {
+            srcDirs += project(":x-pack-elasticsearch:test:idp-fixture").file("src/main/resources/provision/generated")
+            srcDirs += project(':x-pack-elasticsearch:plugin:security').file('src/test/resources')
+        }
+    }
+}
+
+task idpFixture {
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", ":x-pack-elasticsearch:test:idp-fixture:up"
+}
+
+if (project.rootProject.vagrantSupported) {
+  test.dependsOn idpFixture
+  test.finalizedBy ":x-pack-elasticsearch:test:idp-fixture:halt"
+} else {
+  test.enabled = false
+}
+
+namingConventions {
+    // integ tests use Tests instead of IT
+    skipIntegTestInDisguise = true
+}
+
+forbiddenPatterns {
+  exclude '**/*.der'
+  exclude '**/*.p12'
+  exclude '**/*.key'
+}
+
+thirdPartyAudit.excludes = [
+  // uses internal java api: sun.misc.Unsafe
+  'com.google.common.cache.Striped64',
+  'com.google.common.cache.Striped64$1',
+  'com.google.common.cache.Striped64$Cell',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  // missing
+  'com.ibm.icu.lang.UCharacter'
+]
+
+test {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    include '**/*Tests.class'
+}

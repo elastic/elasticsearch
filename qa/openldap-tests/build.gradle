@@ -7,13 +7,27 @@ dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 }
 
+processTestResources {
+    if (project.rootProject.vagrantSupported) {
+        dependsOn "openLdapFixture"
+    }
+}
+
+sourceSets {
+    test {
+        resources {
+            srcDirs += project(":x-pack-elasticsearch:test:idp-fixture").file("src/main/resources/provision/generated")
+        }
+    }
+}
+
 task openLdapFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", ":x-pack-elasticsearch:test:openldap-fixture:up"
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", ":x-pack-elasticsearch:test:idp-fixture:up"
 }
 
 if (project.rootProject.vagrantSupported) {
   test.dependsOn openLdapFixture
-  test.finalizedBy ":x-pack-elasticsearch:test:openldap-fixture:halt"
+  test.finalizedBy ":x-pack-elasticsearch:test:idp-fixture:halt"
 } else {
   test.enabled = false
 }

@@ -11,8 +11,10 @@ test.enabled = false
 
 dependencies {
   testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:watcher')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:watcher', configuration: 'runtime')
+  testCompile(project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'runtime')) {
+    exclude group: "com.google.guava", module: "guava"
+  }
   testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts') // to be moved in a later commit
 }
 

@@ -45,13 +45,13 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
 
     public void testParseKeystoreAlgorithmWithPrefix() {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.authc.realms.ldap1.ssl.");
-        assertThat(ssl.keystoreAlgorithm.match("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm"), is(true));
+        assertThat(ssl.x509KeyPair.keystoreAlgorithm.match("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm"), is(true));
 
         final String algo = randomAlphaOfLength(16);
         final Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm", algo)
                 .build();
-        assertThat(ssl.keystoreAlgorithm.get(settings), is(algo));
+        assertThat(ssl.x509KeyPair.keystoreAlgorithm.get(settings), is(algo));
     }
 
     public void testParseProtocolsListWithPrefix() {
@@ -68,16 +68,16 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
         final Settings settings = Settings.EMPTY;
         assertThat(ssl.caPaths.get(settings).size(), is(0));
-        assertThat(ssl.cert.get(settings).isPresent(), is(false));
+        assertThat(ssl.x509KeyPair.certificatePath.get(settings).isPresent(), is(false));
         assertThat(ssl.ciphers.get(settings).size(), is(0));
         assertThat(ssl.clientAuth.get(settings).isPresent(), is(false));
-        assertThat(ssl.keyPassword.exists(settings), is(false));
-        assertThat(ssl.keyPath.get(settings).isPresent(), is(false));
-        assertThat(ssl.keystoreAlgorithm.get(settings), is(KeyManagerFactory.getDefaultAlgorithm()));
-        assertThat(ssl.keystoreType.get(settings).isPresent(), is(false));
-        assertThat(ssl.keystoreKeyPassword.exists(settings), is(false));
-        assertThat(ssl.keystorePassword.exists(settings), is(false));
-        assertThat(ssl.keystorePath.get(settings).isPresent(), is(false));
+        assertThat(ssl.x509KeyPair.keyPassword.exists(settings), is(false));
+        assertThat(ssl.x509KeyPair.keyPath.get(settings).isPresent(), is(false));
+        assertThat(ssl.x509KeyPair.keystoreAlgorithm.get(settings), is(KeyManagerFactory.getDefaultAlgorithm()));
+        assertThat(ssl.x509KeyPair.keystoreType.get(settings).isPresent(), is(false));
+        assertThat(ssl.x509KeyPair.keystoreKeyPassword.exists(settings), is(false));
+        assertThat(ssl.x509KeyPair.keystorePassword.exists(settings), is(false));
+        assertThat(ssl.x509KeyPair.keystorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.supportedProtocols.get(settings).size(), is(0));
         assertThat(ssl.truststoreAlgorithm.get(settings), is(TrustManagerFactory.getDefaultAlgorithm()));
         assertThat(ssl.truststoreType.get(settings).isPresent(), is(false));
@@ -86,7 +86,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
 
-        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.keystoreType, settings, null), is("jks"));
+        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.truststoreType, settings, null), is("jks"));
     }
 

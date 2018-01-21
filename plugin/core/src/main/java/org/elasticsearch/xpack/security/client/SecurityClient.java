@@ -38,6 +38,11 @@ import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsReques
 import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateRequest;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateRequestBuilder;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateResponse;
+import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.SamlPrepareAuthenticationRequestBuilder;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequestBuilder;
@@ -73,6 +78,7 @@ import org.elasticsearch.xpack.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.SetEnabledResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A wrapper to elasticsearch clients that exposes all Security related APIs
@@ -284,6 +290,21 @@ public class SecurityClient {
 
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
+    }
+
+    public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {
+        final SamlAuthenticateRequestBuilder builder = new SamlAuthenticateRequestBuilder(client);
+        builder.saml(xmlContent);
+        builder.validRequestIds(validIds);
+        return builder;
+    }
+
+    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener< SamlAuthenticateResponse> listener) {
+        client.execute(SamlAuthenticateAction.INSTANCE, request, listener);
+    }
+
+    public SamlPrepareAuthenticationRequestBuilder prepareSamlPrepareAuthentication() {
+        return new SamlPrepareAuthenticationRequestBuilder(client);
     }
 
     public CreateTokenRequestBuilder prepareRefreshToken(String refreshToken) {

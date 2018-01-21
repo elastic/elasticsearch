@@ -10,6 +10,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -76,6 +78,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -85,6 +88,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -161,6 +165,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             responseActionListener.onResponse(new IndexResponse());
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        doAnswer(invocationOnMock -> {
+            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            builder.setIndex((String) invocationOnMock.getArguments()[0])
+                    .setType((String) invocationOnMock.getArguments()[1])
+                    .setId((String) invocationOnMock.getArguments()[2]);
+            return builder;
+        }).when(client).prepareGet(anyString(), anyString(), anyString());
         lifecycleService = mock(SecurityLifecycleService.class);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
@@ -222,7 +233,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -242,7 +253,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThreadContextContainsAuthentication(result);
@@ -709,7 +720,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // we do not actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, null, listener);
+            service.authenticate("_action", message, (User)null, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -745,7 +756,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // call service asynchronously but it doesn't actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, null, listener);
+            service.authenticate("_action", message, (User)null, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -836,9 +847,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
+        mockGetTokenFromId(tokenFuture.get().v1(), client);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
-            service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+            service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -865,7 +877,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         AtomicBoolean success = new AtomicBoolean(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
-            service.authenticate("_action", message, null, ActionListener.wrap(result -> {
+            service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -902,6 +914,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
+        mockGetTokenFromId(tokenFuture.get().v1(), client);
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -990,7 +1003,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 throws Exception {
             super(settings, env, factories, licenseState, threadContext, reservedRealm);
             this.realms = realms;
-            this.internalRealmsOnly = internalRealms;
+            this.standardRealmsOnly = internalRealms;
         }
     }
 

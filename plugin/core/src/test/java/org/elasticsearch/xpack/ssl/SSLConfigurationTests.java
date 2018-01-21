@@ -92,7 +92,7 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
         assertThat(ksKeyInfo.keyPassword, is(equalTo("password")));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            SSLConfiguration.SETTINGS_PARSER.legacyKeystorePassword});
+            SSLConfiguration.SETTINGS_PARSER.x509KeyPair.legacyKeystorePassword});
     }
 
     public void testKeystoreKeyPassword() {
@@ -122,7 +122,9 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
         assertThat(ksKeyInfo.keyPassword, is(equalTo("keypass")));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            SSLConfiguration.SETTINGS_PARSER.legacyKeystorePassword, SSLConfiguration.SETTINGS_PARSER.legacyKeystoreKeyPassword});
+                SSLConfiguration.SETTINGS_PARSER.x509KeyPair.legacyKeystorePassword,
+                SSLConfiguration.SETTINGS_PARSER.x509KeyPair.legacyKeystoreKeyPassword
+        });
     }
 
     public void testInferKeystoreTypeFromJksFile() {
@@ -332,7 +334,7 @@ public class SSLConfigurationTests extends ESTestCase {
         assertNotNull(keyManager);
         assertThat(config.trustConfig(), instanceOf(CombiningTrustConfig.class));
         assertCombiningTrustConfigContainsCorrectIssuers(config);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.legacyKeyPassword});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.x509KeyPair.legacyKeyPassword});
     }
 
     public void testPEMKeyAndTrustFiles() {
@@ -381,7 +383,7 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));
         TrustManager trustManager = keyConfig.createTrustManager(env);
         assertNotNull(trustManager);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.legacyKeyPassword});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.x509KeyPair.legacyKeyPassword});
     }
 
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {

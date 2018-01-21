@@ -16,6 +16,7 @@ import java.util.Set;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -30,36 +31,53 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.ssl.SSLService;
+
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
-import org.elasticsearch.xpack.ssl.SSLService;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
  * This class does not handle extensions.
  * @see Realms for the component that manages configured realms (including custom extension realms)
  */
-public class InternalRealms {
+public final class InternalRealms {
 
     /**
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
-    private static final Set<String> TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE
+    private static final Set<String> XPACK_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE,
+            SamlRealmSettings.TYPE
     )));
 
     /**
-     * Determines whether <code>type</code> is an internal realm-type, optionally considering
-     * the {@link ReservedRealm}.
+     * The list of all standard realm types, which are those provided by x-pack and do not have extensive
+     * interaction with third party sources
      */
-    public static boolean isInternalRealm(String type, boolean includeReservedRealm) {
-        if (TYPES.contains(type)) {
+    private static final Set<String> STANDARD_TYPES =
+            Collections.unmodifiableSet(Sets.difference(XPACK_TYPES, Collections.singleton(SamlRealmSettings.TYPE)));
+
+    /**
+     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
+     * including the {@link ReservedRealm}
+     */
+    static boolean isXPackRealm(String type) {
+        if (XPACK_TYPES.contains(type)) {
             return true;
         }
-        if (includeReservedRealm && ReservedRealm.TYPE.equals(type)) {
-            return true;
-        }
-        return false;
+        return ReservedRealm.TYPE.equals(type);
+    }
+
+    /**
+     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
+     * excluding the {@link ReservedRealm} and realms that have extensive interaction with
+     * third party sources
+     */
+    static boolean isStandardRealm(String type) {
+        return STANDARD_TYPES.contains(type);
     }
 
     /**
@@ -84,6 +102,7 @@ public class InternalRealms {
         map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(LdapRealmSettings.LDAP_TYPE, config,
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
+        map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
         return Collections.unmodifiableMap(map);
     }
 

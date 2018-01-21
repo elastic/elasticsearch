@@ -86,9 +86,13 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import static org.elasticsearch.xpack.ssl.SSLConfigurationSettings.getKeyStoreType;
 
 /**
  * Utility methods that deal with {@link Certificate}, {@link KeyStore}, {@link X509ExtendedTrustManager}, {@link X509ExtendedKeyManager}
@@ -162,6 +166,52 @@ public class CertUtils {
             }
         }
         throw new IllegalStateException("failed to find a X509ExtendedKeyManager");
+    }
+
+    public static X509ExtendedKeyManager getKeyManager(X509KeyPairSettings keyPair, Settings settings,
+                                                       @Nullable String trustStoreAlgorithm, Environment environment) {
+        if (trustStoreAlgorithm == null) {
+            trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+        }
+        final KeyConfig keyConfig = createKeyConfig(keyPair, settings, trustStoreAlgorithm);
+        if (keyConfig == null) {
+            return null;
+        } else {
+            return keyConfig.createKeyManager(environment);
+        }
+    }
+
+    static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
+        String keyPath = keyPair.keyPath.get(settings).orElse(null);
+        String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
+
+        if (keyPath != null && keyStorePath != null) {
+            throw new IllegalArgumentException("you cannot specify a keystore and key file");
+        }
+
+        if (keyPath != null) {
+            SecureString keyPassword = keyPair.keyPassword.get(settings);
+            String certPath = keyPair.certificatePath.get(settings).orElse(null);
+            if (certPath == null) {
+                throw new IllegalArgumentException("you must specify the certificates [" + keyPair.certificatePath.getKey()
+                        + "] to use with the key [" + keyPair.keyPath.getKey() + "]");
+            }
+            return new PEMKeyConfig(keyPath, keyPassword, certPath);
+        }
+
+        if (keyStorePath != null) {
+            SecureString keyStorePassword = keyPair.keystorePassword.get(settings);
+            String keyStoreAlgorithm = keyPair.keystoreAlgorithm.get(settings);
+            String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
+            SecureString keyStoreKeyPassword = keyPair.keystoreKeyPassword.get(settings);
+            if (keyStoreKeyPassword.length() == 0) {
+                keyStoreKeyPassword = keyStorePassword;
+            }
+            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
+                    trustStoreAlgorithm);
+        }
+        return null;
+
     }
 
     /**
@@ -244,7 +294,7 @@ public class CertUtils {
         return readCertificates(resolvedPaths);
     }
 
-    static Certificate[] readCertificates(List<Path> certPaths) throws CertificateException, IOException {
+    public static Certificate[] readCertificates(List<Path> certPaths) throws CertificateException, IOException {
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {

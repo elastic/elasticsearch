@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.xpack.security.support.Automatons;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -18,6 +13,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.security.support.Automatons;
+
 import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimize;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
@@ -25,6 +27,8 @@ public final class ClusterPrivilege extends Privilege {
 
     // shared automatons
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
+    private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
+            InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
@@ -50,6 +54,7 @@ public final class ClusterPrivilege extends Privilege {
             new ClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_AUTOMATON);
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",    TRANSPORT_CLIENT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_SAML =           new ClusterPrivilege("manage_saml",         MANAGE_SAML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
@@ -67,6 +72,7 @@ public final class ClusterPrivilege extends Privilege {
             .put("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES)
             .put("transport_client", TRANSPORT_CLIENT)
             .put("manage_security", MANAGE_SECURITY)
+            .put("manage_saml", MANAGE_SAML)
             .put("manage_pipeline", MANAGE_PIPELINE)
             .immutableMap();
 

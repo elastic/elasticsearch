@@ -170,6 +170,9 @@
             },
             "invalidated" : {
               "type" : "boolean"
+            },
+            "realm" : {
+              "type" : "keyword"
             }
           }
         }

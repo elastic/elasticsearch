@@ -19,33 +19,34 @@
 
 package org.elasticsearch.gradle.plugin
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.RestTestPlugin
 import org.elasticsearch.gradle.test.RunTask
-import org.elasticsearch.gradle.test.StandaloneRestTestPlugin
-import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.FileCopyDetails
 import org.gradle.api.file.RelativePath
 import org.gradle.api.tasks.bundling.Zip
 
-class MetaPluginBuildPlugin implements Plugin<Project> {
+class MetaPluginBuildPlugin extends AbstractPluginBuildPlugin {
 
     @Override
     void apply(Project project) {
-        project.plugins.apply(StandaloneRestTestPlugin)
-        project.plugins.apply(RestTestPlugin)
+        super.apply(project)
 
-        createBundleTask(project)
+        configureDependencies(project)
 
-        project.integTestCluster {
-            dependsOn(project.bundlePlugin)
-            plugin(project.path)
+        project.afterEvaluate {
+            project.ext.set("nebulaPublish.maven.jar", false)
+
+            project.integTestCluster.dependsOn(project.bundlePlugin)
+            project.tasks.run.dependsOn(project.bundlePlugin)
+            project.integTestCluster.plugin(project.path)
+            project.tasks.run.clusterConfig.plugin(project.path)
+            addZipPomGeneration(project)
         }
 
-        RunTask run = project.tasks.create('run', RunTask)
-        run.dependsOn(project.bundlePlugin)
-        run.clusterConfig.plugin(project.path)
+        createIntegTestTask(project)
+        createBundleTask(project)
+
+        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
     private static void createBundleTask(Project project) {
@@ -92,4 +93,5 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             }
         }
     }
+
 }

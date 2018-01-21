@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.NoticeTask
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
@@ -34,16 +31,14 @@ import org.gradle.api.tasks.bundling.Zip
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
-public class PluginBuildPlugin extends BuildPlugin {
+class PluginBuildPlugin extends AbstractPluginBuildPlugin {
 
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
         super.apply(project)
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
@@ -99,13 +94,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             provided "org.elasticsearch:jna:${project.versions.jna}"
         }
-    }
-
-    /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project) {
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter(project.precommit, project.test)
-        project.check.dependsOn(integTest)
     }
 
     /**
@@ -179,24 +167,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.assemble.dependsOn(clientJar)
     }
 
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
-    /** Find the reponame. */
-    static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith('https')) {
-            return origin
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin)
-        if (matcher.matches()) {
-            return "https://${matcher.group(1)}/${matcher.group(2)}"
-        } else {
-            return origin // best effort, the url doesnt really matter, it is just required by maven central
-        }
-    }
-
     /** Adds nebula publishing task to generate a pom file for the plugin. */
     protected static void addClientJarPomGeneration(Project project) {
         project.plugins.apply(MavenPublishPlugin.class)
@@ -219,52 +189,4 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    /** Adds a task to generate a pom file for the zip distribution. */
-    protected void addZipPomGeneration(Project project) {
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                zip(MavenPublication) {
-                    artifact project.bundlePlugin
-                }
-                /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
-                 * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
-                 * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
-                 * under the various other subprojects. So here we create another publication using the same
-                 * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
-                 * in alphabetical order. This lets us publish the zip file and even though the pom says the
-                 * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
-                 * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
-                 * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
-                 * maven local work, since we publish to maven central externally. */
-                zipReal(MavenPublication) {
-                    artifactId = project.pluginProperties.extension.name
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
-                }
-            }
-        }
-    }
-
-    protected void addNoticeGeneration(Project project) {
-        File licenseFile = project.pluginProperties.extension.licenseFile
-        if (licenseFile != null) {
-            project.bundlePlugin.from(licenseFile.parentFile) {
-                include(licenseFile.name)
-            }
-        }
-        File noticeFile = project.pluginProperties.extension.noticeFile
-        if (noticeFile != null) {
-            NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
-            generateNotice.inputFile = noticeFile
-            project.bundlePlugin.from(generateNotice)
-        }
-    }
 }

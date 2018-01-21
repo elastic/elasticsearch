@@ -92,7 +92,7 @@ public final class IndicesClient {
     }
 
     /**
-     * Creates an index using the Put Mapping API
+     * Updates the mappings on an index using the Put Mapping API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>
@@ -103,7 +103,7 @@ public final class IndicesClient {
     }
 
     /**
-     * Asynchronously creates an index using the Put Mapping API
+     * Asynchronously updates the mappings on an index using the Put Mapping API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>

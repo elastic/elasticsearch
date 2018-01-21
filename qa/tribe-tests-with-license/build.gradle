@@ -9,6 +9,8 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
     testCompile project(path: ':modules:tribe', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+
+    // TODO: remove all these test deps, this is completely bogus, guava is being force upgraded
     testCompile project(path: ':x-pack-elasticsearch:plugin:deprecation', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin:graph', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin:logstash', configuration: 'runtime')

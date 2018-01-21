@@ -79,7 +79,7 @@ public final class EngineDiskUtils {
         throws IOException {
         if (Assertions.ENABLED) {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(dir);
-            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            assert existingCommits.size() == 1 : "creating a translog translog should have one commit, commits[" + existingCommits + "]";
             SequenceNumbers.CommitInfo commitInfo = Store.loadSeqNoInfo(existingCommits.get(0));
             assert commitInfo.localCheckpoint >= initialGlobalCheckpoint :
                 "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["

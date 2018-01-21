@@ -3362,21 +3362,21 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testEngineMaxTimestampIsInitialized() throws IOException {
 
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final long timestamp1 = Math.abs(randomNonNegativeLong());
         final Path storeDir = createTempDir();
         final Path translogDir = createTempDir();
         final long timestamp2 = randomNonNegativeLong();
         final long maxTimestamp12 = Math.max(timestamp1, timestamp2);
-        try (Store store = createStore(newFSDirectory(storeDir));
-             Engine engine = createEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
+        final EngineConfig config = config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = createEngine(config)) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
-        try (Store store = createStore(newFSDirectory(storeDir));
-             Engine engine = new InternalEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
+        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = new InternalEngine(config)) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             engine.recoverFromTranslog();
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
@@ -3384,10 +3384,11 @@ public class InternalEngineTests extends EngineTestCase {
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
             engine.index(appendOnlyPrimary(doc, true, timestamp2));
             assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            globalCheckpoint.set(1); // make sure flush cleans up commits for later.
             engine.flush();
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
-            if (randomBoolean()) {
+            if (randomBoolean() || true) {
                 EngineDiskUtils.createNewTranslog(store.directory(), translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
             }
             try (Engine engine = new InternalEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
@@ -4323,7 +4324,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testOpenIndexAndTranslogKeepOnlySafeCommit() throws Exception {
         IOUtils.close(engine);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final EngineConfig config = copy(engine.config(), globalCheckpoint::get);
         final IndexCommit safeCommit;
         try (InternalEngine engine = new InternalEngine(config)) {
@@ -4342,14 +4343,14 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (InternalEngine engine = new InternalEngine(config)) {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
-            assertThat("OPEN_INDEX_AND_TRANSLOG should keep only safe commit", existingCommits, contains(safeCommit));
+            assertThat("safe commit should be kept", existingCommits, contains(safeCommit));
         }
     }
 
     public void testCleanUpCommitsWhenGlobalCheckpointAdvanced() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
             final int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {

@@ -1,5 +1,9 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'x-pack-core'
@@ -96,40 +100,38 @@ sourceSets.test.java {
     srcDir '../../license-tools/src/main/java'
 }
 
-//// add api jar for extension authors to compile against
-//// note this is just the normal x-pack jar for now, with a different name
-//project.afterEvaluate {
-//    task apiJar {
-//        dependsOn('generatePomFileForApijarPublication', project.jar)
-//        doFirst {
-//            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-//            String apiFileName = jarFile.fileName.toString().replace(project.version, "api-${project.version}")
-//            Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
-//
-//            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
-//            String apiPomFileName = apiFileName.replace('.jar', '.pom')
-//            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
-//                    StandardCopyOption.REPLACE_EXISTING)
-//        }
-//    }
-//    assemble.dependsOn(apiJar)
-//    project.publishing {
-//        publications {
-//            apijar(MavenPublication) {
-//                from project.components.java
-//                artifactId = 'x-pack-api'
-//                pom.withXml { XmlProvider xml ->
-//                    Node root = xml.asNode()
-//                    root.appendNode('name', project.pluginProperties.extension.name)
-//                    root.appendNode('description', project.pluginProperties.extension.description)
-//                }
-//            }
-//        }
-//    }
-//    // Add an extra licenses directory to the combined notices
-//    project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
-//    project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
-//}
+// assemble the API JAR for the transport-client and extension authors; this JAR is the core JAR by another name
+project.afterEvaluate {
+    task apiJar {
+        dependsOn('generatePomFileForApijarPublication', project.jar)
+        doFirst {
+            Path jarFile = project.jar.outputs.files.singleFile.toPath()
+            String apiFileName = jarFile.fileName.toString().replace("core-${project.version}", "api-${project.version}")
+            println apiFileName
+            Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
+
+            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
+            String apiPomFileName = apiFileName.replace('.jar', '.pom')
+            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+    assemble.dependsOn(apiJar)
+    project.publishing {
+        publications {
+            apijar(MavenPublication) {
+                from project.components.java
+                artifactId = 'x-pack-api'
+                pom.withXml { XmlProvider xml ->
+                    Node root = xml.asNode()
+                    root.appendNode('name', project.pluginProperties.extension.name)
+                    root.appendNode('description', project.pluginProperties.extension.description)
+                }
+            }
+        }
+    }
+}
+
 //
 // integTestRunner {
 //     // TODO: fix this rest test to not depend on a hardcoded port!

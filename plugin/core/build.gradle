@@ -107,7 +107,6 @@ project.afterEvaluate {
         doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String apiFileName = jarFile.fileName.toString().replace("core-${project.version}", "api-${project.version}")
-            println apiFileName
             Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
 
             String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')

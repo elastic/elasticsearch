@@ -58,7 +58,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public void onInit(List<? extends IndexCommit> commits) throws IOException {
+    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
             + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";

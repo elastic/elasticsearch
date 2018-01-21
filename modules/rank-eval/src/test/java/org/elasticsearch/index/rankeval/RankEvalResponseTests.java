@@ -92,23 +92,21 @@ public class RankEvalResponseTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = response.toXContent(builder, ToXContent.EMPTY_PARAMS).bytes().utf8ToString();
         assertEquals(("{" +
-                "    \"rank_eval\": {" +
-                "        \"quality_level\": 0.123," +
-                "        \"details\": {" +
-                "            \"coffee_query\": {" +
-                "                \"quality_level\": 0.1," +
-                "                \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
-                "                \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
-                "                           \"rating\":5}," +
-                "                          {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +
-                "                           \"rating\":null}" +
-                "                         ]" +
-                "            }" +
-                "        }," +
-                "        \"failures\": {" +
-                "            \"beer_query\": {" +
-                "                \"error\": \"ParsingException[someMsg]\"" +
-                "            }" +
+                "    \"quality_level\": 0.123," +
+                "    \"details\": {" +
+                "        \"coffee_query\": {" +
+                "            \"quality_level\": 0.1," +
+                "            \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
+                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
+                "                       \"rating\":5}," +
+                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +
+                "                       \"rating\":null}" +
+                "                     ]" +
+                "        }" +
+                "    }," +
+                "    \"failures\": {" +
+                "        \"beer_query\": {" +
+                "            \"error\": \"ParsingException[someMsg]\"" +
                 "        }" +
                 "    }" +
                 "}").replaceAll("\\s+", ""), xContent);

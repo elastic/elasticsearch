@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -149,6 +151,18 @@ public final class Request {
         parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
         parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request closeIndex(CloseIndexRequest closeIndexRequest) {
+        String endpoint = endpoint(closeIndexRequest.indices(), Strings.EMPTY_ARRAY, "_close");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(closeIndexRequest.timeout());
+        parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
 
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -326,6 +340,15 @@ public final class Request {
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
 
         return new Request(HttpGet.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withPreference(multiGetRequest.preference());
+        parameters.withRealtime(multiGetRequest.realtime());
+        parameters.withRefresh(multiGetRequest.refresh());
+        HttpEntity entity = createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpGet.METHOD_NAME, "/_mget", parameters.getParams(), entity);
     }
 
     static Request index(IndexRequest indexRequest) {

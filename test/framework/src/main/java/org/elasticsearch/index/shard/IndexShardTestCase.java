@@ -555,8 +555,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         throws IOException {
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
         if (shard.routingEntry().primary()) {
-            return shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
+            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, type));
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
+                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+            return result;
         } else {
             return shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, getMappingUpdater(shard, type));
@@ -616,16 +619,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected void snapshotShard(final IndexShard shard,
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = new IndexShardSnapshotStatus();
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(true)) {
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(false, true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
             repository.snapshotShard(shard, snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(), snapshotStatus);
         }
-        assertEquals(IndexShardSnapshotStatus.Stage.DONE, snapshotStatus.stage());
-        assertEquals(shard.snapshotStoreMetadata().size(), snapshotStatus.numberOfFiles());
-        assertNull(snapshotStatus.failure());
+
+        final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+        assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
+        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getNumberOfFiles());
+        assertNull(lastSnapshotStatus.getFailure());
     }
 
     /**

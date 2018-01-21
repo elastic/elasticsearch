@@ -3,7 +3,7 @@ esplugin {
     name 'x-pack-logstash'
     description 'Elasticsearch Expanded Pack Plugin - Logstash'
     classname 'org.elasticsearch.xpack.logstash.Logstash'
-    hasNativeController true
+    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

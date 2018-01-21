@@ -3,7 +3,7 @@ esplugin {
     name 'x-pack-upgrade'
     description 'Elasticsearch Expanded Pack Plugin - Upgrade'
     classname 'org.elasticsearch.xpack.upgrade.Upgrade'
-    hasNativeController true
+    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

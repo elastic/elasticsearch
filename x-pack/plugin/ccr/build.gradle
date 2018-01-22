@@ -1,0 +1,40 @@
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-ccr'
+    description 'Elasticsearch Expanded Pack Plugin - CCR'
+    classname 'org.elasticsearch.xpack.ccr.Ccr'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
+archivesBaseName = 'x-pack-ccr'
+
+// TODO: enable this once we have tests
+licenseHeaders.enabled = false
+
+integTest.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+}
+
+dependencyLicenses {
+    ignoreSha 'x-pack-core'
+}
+
+// TODO: Fix unchecked warnings
+compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
+
+// TODO: Enable this gradle config:
+// I ran into the following error: Task [run#copyPlugins] cannot add plugin [:x-pack-elasticsearch:plugin:core]
+// with version [7.0.0-alpha1-SNAPSHOT] to project's [:x-pack-elasticsearch:plugin:ccr] dependencies:
+// the plugin is not an esplugin or es_meta_plugin)
+
+//run {
+//    plugin ':x-pack-elasticsearch:plugin:core'
+//}

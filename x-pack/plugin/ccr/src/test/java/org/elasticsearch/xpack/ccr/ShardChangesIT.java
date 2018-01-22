@@ -79,7 +79,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
     }
 
     @Override

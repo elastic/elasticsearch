@@ -53,6 +53,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
@@ -507,14 +510,15 @@ public class SearchQueryIT extends ESIntegTestCase {
                 "type", "past", "type=date"
         ));
 
-        DateTimeZone timeZone = randomDateTimeZone();
-        String now = ISODateTimeFormat.dateTime().print(new DateTime(timeZone));
-        logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getID(), now);
+        ZoneId timeZone = randomZoneId();
+        String now = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(Instant.now().atZone(timeZone));
+
+        logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getId(), now);
         client().prepareIndex("test", "type", "1").setSource("past", now).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-1m/m TO now+1m/m]")
-                .timeZone(timeZone.getID())).get();
+                .timeZone(timeZone.getId())).get();
         assertHitCount(searchResponse, 1L);
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
@@ -39,18 +38,17 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Instant;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -60,6 +58,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -365,52 +364,56 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testReadableInstant() throws Exception {
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant", (ReadableInstant) null).endObject());
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant").value((ReadableInstant) null).endObject());
+        assertResult("{'zonedDateTime':null}",
+            () -> builder().startObject().field("zonedDateTime", (ZonedDateTime) null).endObject());
+        assertResult("{'zonedDateTime':null}",
+            () -> builder().startObject().field("zonedDateTime").value((ZonedDateTime) null).endObject());
 
-        final DateTime t1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC);
+        final Instant t1 = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant();
 
         String expected = "{'t1':'2016-01-01T00:00:00.000Z'}";
         assertResult(expected, () -> builder().startObject().field("t1", t1).endObject());
         assertResult(expected, () -> builder().startObject().field("t1").value(t1).endObject());
 
-        final DateTime t2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
+        final ZonedDateTime t2 = ZonedDateTime.of(2016, 12, 25, 7, 59, 42, 213000000, ZoneOffset.UTC);
 
         expected = "{'t2':'2016-12-25T07:59:42.213Z'}";
         assertResult(expected, () -> builder().startObject().field("t2", t2).endObject());
         assertResult(expected, () -> builder().startObject().field("t2").value(t2).endObject());
 
-        final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
-        final DateTime t3 = DateTime.now();
+        final DateTimeFormatter formatter = randomFrom(DateTimeFormatter.BASIC_ISO_DATE, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .withZone(ZoneOffset.UTC);
+        final Instant t3 = Instant.now();
 
-        expected = "{'t3':'" + formatter.print(t3) + "'}";
+        expected = "{'t3':'" + formatter.format(t3) + "'}";
         assertResult(expected, () -> builder().startObject().field("t3", t3, formatter).endObject());
         assertResult(expected, () -> builder().startObject().field("t3").value(t3, formatter).endObject());
 
-        final DateTime t4 = new DateTime(randomDateTimeZone());
+        ZoneId zone = randomZoneId();
+        final Instant t4 = Instant.now().atZone(zone).toInstant();
 
-        expected = "{'t4':'" + formatter.print(t4) + "'}";
+        expected = "{'t4':'" + formatter.format(t4) + "'}";
         assertResult(expected, () -> builder().startObject().field("t4", t4, formatter).endObject());
         assertResult(expected, () -> builder().startObject().field("t4").value(t4, formatter).endObject());
 
         long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
-        final DateTime t5 = new DateTime(date, randomDateTimeZone());
+        final Instant t5 = Instant.ofEpochMilli(date).atZone(randomZoneId()).toInstant();
 
-        expected = "{'t5':'" + XContentBuilder.DEFAULT_DATE_PRINTER.print(t5) + "'}";
+        expected = "{'t5':'" + XContentBuilder.DEFAULT_DATE_PRINTER.format(t5) + "'}";
         assertResult(expected, () -> builder().startObject().field("t5", t5).endObject());
         assertResult(expected, () -> builder().startObject().field("t5").value(t5).endObject());
 
-        expected = "{'t5':'" + formatter.print(t5) + "'}";
+        expected = "{'t5':'" + formatter.format(t5) + "'}";
         assertResult(expected, () -> builder().startObject().field("t5", t5, formatter).endObject());
         assertResult(expected, () -> builder().startObject().field("t5").value(t5, formatter).endObject());
 
-        Instant i1 = new Instant(1451606400000L); // 2016-01-01T00:00:00.000Z
+        Instant i1 = Instant.ofEpochMilli(1451606400000L); // 2016-01-01T00:00:00.000Z
         expected = "{'i1':'2016-01-01T00:00:00.000Z'}";
         assertResult(expected, () -> builder().startObject().field("i1", i1).endObject());
         assertResult(expected, () -> builder().startObject().field("i1").value(i1).endObject());
 
-        Instant i2 = new Instant(1482652782213L); // 2016-12-25T07:59:42.213Z
-        expected = "{'i2':'" + formatter.print(i2) + "'}";
+        Instant i2 = Instant.ofEpochMilli(1482652782213L); // 2016-12-25T07:59:42.213Z
+        expected = "{'i2':'" + formatter.format(i2) + "'}";
         assertResult(expected, () -> builder().startObject().field("i2", i2, formatter).endObject());
         assertResult(expected, () -> builder().startObject().field("i2").value(i2, formatter).endObject());
 
@@ -422,18 +425,20 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'date':null}", () -> builder().startObject().field("date", (Date) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").value((Date) null).endObject());
 
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
+
+        final Date d1 = new Date(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1).endObject());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").value(d1).endObject());
 
-        final Date d2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC).toDate();
+        final Date d2 = new Date(ZonedDateTime.of(2016, 12, 25, 7, 59, 42, 213000000, ZoneOffset.UTC).toInstant().toEpochMilli());
         assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2", d2).endObject());
         assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").value(d2).endObject());
 
-        final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
-        final Date d3 = DateTime.now().toDate();
+        final DateTimeFormatter formatter = randomFrom(DateTimeFormatter.BASIC_ISO_DATE, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .withZone(ZoneOffset.UTC);
+        final Date d3 = new Date(Instant.now().toEpochMilli());
 
-        String expected = "{'d3':'" + formatter.print(d3.getTime()) + "'}";
+        String expected = "{'d3':'" + formatter.format(Instant.ofEpochMilli(d3.getTime())) + "'}";
         assertResult(expected, () -> builder().startObject().field("d3", d3, formatter).endObject());
         assertResult(expected, () -> builder().startObject().field("d3").value(d3, formatter).endObject());
 
@@ -443,7 +448,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testDateField() throws Exception {
-        final Date d = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
+        final Date d = new Date(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
 
         assertResult("{'date_in_millis':1451606400000}", () -> builder()
                 .startObject()
@@ -457,7 +462,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testCalendar() throws Exception {
-        Calendar calendar = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        long millis = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 1000, ZoneOffset.UTC).toInstant().toEpochMilli();
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ROOT);
+        calendar.setTimeInMillis(millis);
         assertResult("{'calendar':'2016-01-01T00:00:00.000Z'}", () -> builder()
                 .startObject()
                     .field("calendar")
@@ -514,16 +521,20 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put(paths, new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
 
         final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        final Date d2 = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        objects.put("{'objects':['" + formatter.print(d1.getTime()) + "','" + formatter.print(d2.getTime()) + "']}", new Object[]{d1, d2});
+        final ZonedDateTime d1 = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        final ZonedDateTime d2 = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        objects.put("{'objects':['" + formatter.format(d1) + "','" + formatter.format(d2) + "']}",
+            new Object[]{d1.toInstant(), d2.toInstant()});
 
-        final DateTime dt1 = DateTime.now();
-        final DateTime dt2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
-        objects.put("{'objects':['" + formatter.print(dt1) + "','2016-12-25T07:59:42.213Z']}", new Object[]{dt1, dt2});
+        final ZonedDateTime dt1 = ZonedDateTime.now(ZoneOffset.UTC);
+        final ZonedDateTime dt2 = ZonedDateTime.of(2016, 12, 25, 7, 59, 42, 213000000, ZoneOffset.UTC);
+        objects.put("{'objects':['" + formatter.format(dt1) + "','2016-12-25T07:59:42.213Z']}",
+            new Object[]{dt1.toInstant(), dt2.toInstant()});
 
-        final Calendar c1 = new DateTime(2012, 7, 7, 10, 23, DateTimeZone.UTC).toCalendar(Locale.ROOT);
-        final Calendar c2 = new DateTime(2014, 11, 16, 19, 36, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        final Calendar c1 = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ROOT);
+        final Calendar c2 = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ROOT);
+        c1.setTimeInMillis(ZonedDateTime.of(2012, 7, 7, 10, 23, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
+        c2.setTimeInMillis(ZonedDateTime.of(2014, 11, 16, 19, 36, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
         objects.put("{'objects':['2012-07-07T10:23:00.000Z','2014-11-16T19:36:00.000Z']}", new Object[]{c1, c2});
 
         final ToXContent x1 = (builder, params) -> builder.startObject().field("f1", "v1").field("f2", 2).array("f3", 3, 4, 5).endObject();
@@ -562,13 +573,14 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put(path, PathUtils.get("a", "b", "c"));
 
         final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        object.put("{'object':'" + formatter.print(d1.getTime()) + "'}", d1);
+        ZonedDateTime d1 = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        object.put("{'object':'" + formatter.format(d1) + "'}", d1.toInstant());
 
-        final DateTime d2 = DateTime.now();
-        object.put("{'object':'" + formatter.print(d2) + "'}", d2);
+        final ZonedDateTime d2 = ZonedDateTime.now(ZoneOffset.UTC);
+        object.put("{'object':'" + formatter.format(d2) + "'}", d2.toInstant());
 
-        final Calendar c1 = new DateTime(2010, 1, 1, 0, 0, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        final Calendar c1 = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ROOT);
+        c1.setTimeInMillis(ZonedDateTime.of(2010, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli());
         object.put("{'object':'2010-01-01T00:00:00.000Z'}", c1);
 
         final ToXContent x1 = (builder, params) -> builder.startObject().field("f1", "v1").field("f2", 2).array("f3", 3, 4, 5).endObject();

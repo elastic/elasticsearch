@@ -28,16 +28,18 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.SignStyle;
+import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -86,7 +88,28 @@ public final class XContentBuilder implements Releasable, Flushable {
         return new XContentBuilder(xContent, new BytesStreamOutput(), includes, excludes);
     }
 
-    public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    // this can be changed to DateTimeFormatter.ISO_OFFSET_DATE_TIME over time, when nanosecond precision is about to be used
+    // for now this emulates the same behaviour in format like the joda time date printer
+    public static final DateTimeFormatter DEFAULT_DATE_PRINTER =
+        new DateTimeFormatterBuilder()
+          .parseCaseInsensitive()
+          .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+          .appendLiteral('-')
+          .appendValue(ChronoField.MONTH_OF_YEAR, 2)
+          .appendLiteral('-')
+          .appendValue(ChronoField.DAY_OF_MONTH, 2)
+          .appendLiteral('T')
+          .appendValue(ChronoField.HOUR_OF_DAY, 2)
+          .appendLiteral(':')
+          .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
+          .appendLiteral(':')
+          .appendValue(ChronoField.SECOND_OF_MINUTE, 2, 2, SignStyle.EXCEEDS_PAD)
+          .appendFraction(ChronoField.MILLI_OF_SECOND, 3, 3, true)
+          .parseLenient()
+          .appendOffsetId()
+          .parseStrict()
+          .toFormatter()
+          .withZone(ZoneOffset.UTC);
 
     private static final Map<Class<?>, Writer> WRITERS;
     static {
@@ -667,24 +690,24 @@ public final class XContentBuilder implements Releasable, Flushable {
     // Date
     //////////////////////////////////
 
-    public XContentBuilder field(String name, ReadableInstant value) throws IOException {
+    public XContentBuilder field(String name, Instant value) throws IOException {
         return field(name).value(value);
     }
 
-    public XContentBuilder field(String name, ReadableInstant value, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder field(String name, Instant value, DateTimeFormatter formatter) throws IOException {
         return field(name).value(value, formatter);
     }
 
-    public XContentBuilder value(ReadableInstant value) throws IOException {
+    public XContentBuilder value(Instant value) throws IOException {
         return value(value, DEFAULT_DATE_PRINTER);
     }
 
-    public XContentBuilder value(ReadableInstant value, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder value(Instant value, DateTimeFormatter formatter) throws IOException {
         if (value == null) {
             return nullValue();
         }
         ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
+        return value(formatter.format(value));
     }
 
     public XContentBuilder field(String name, Date value) throws IOException {
@@ -723,7 +746,7 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     XContentBuilder value(DateTimeFormatter formatter, long value) throws IOException {
         ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
+        return value(formatter.format(Instant.ofEpochMilli(value)));
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -808,8 +831,8 @@ public final class XContentBuilder implements Releasable, Flushable {
             values((Object[]) value, ensureNoSelfReferences);
         } else if (value instanceof Calendar) {
             value((Calendar) value);
-        } else if (value instanceof ReadableInstant) {
-            value((ReadableInstant) value);
+        } else if (value instanceof Instant) {
+            value((Instant) value);
         } else if (value instanceof BytesReference) {
             value((BytesReference) value);
         } else if (value instanceof ToXContent) {

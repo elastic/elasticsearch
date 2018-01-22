@@ -36,8 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -562,9 +560,9 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private DateTime readDateTime() throws IOException {
+    private ZonedDateTime readDateTime() throws IOException {
         final String timeZoneId = readString();
-        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -611,18 +609,18 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@linkplain DateTimeZone}.
+     * Read a {@linkplain ZoneId}.
      */
-    public DateTimeZone readTimeZone() throws IOException {
-        return DateTimeZone.forID(readString());
+    public ZoneId readTimeZone() throws IOException {
+        return ZoneId.of(readString());
     }
 
     /**
-     * Read an optional {@linkplain DateTimeZone}.
+     * Read an optional {@linkplain ZoneId}.
      */
-    public DateTimeZone readOptionalTimeZone() throws IOException {
+    public ZoneId readOptionalTimeZone() throws IOException {
         if (readBoolean()) {
-            return DateTimeZone.forID(readString());
+            return ZoneId.of(readString());
         }
         return null;
     }

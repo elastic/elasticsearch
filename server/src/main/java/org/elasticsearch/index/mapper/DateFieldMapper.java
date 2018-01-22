@@ -52,6 +52,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -268,7 +269,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -303,7 +304,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -321,7 +322,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to, boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+                ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

@@ -60,9 +60,10 @@ import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -159,7 +160,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.useDisMax(randomBoolean());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
+            queryStringQueryBuilder.timeZone(randomZoneId());
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -622,7 +623,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
-        assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
+        assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
         String invalidQueryAsString = "{\n" +
                 "    \"query_string\":{\n" +
@@ -630,7 +631,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
                 "    }\n" +
                 "}";
-        expectThrows(IllegalArgumentException.class, () -> parseQuery(invalidQueryAsString));
+        expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 
     public void testToQueryBooleanQueryMultipleBoosts() throws Exception {

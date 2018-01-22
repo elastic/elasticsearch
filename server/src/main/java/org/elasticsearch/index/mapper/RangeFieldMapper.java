@@ -60,6 +60,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -313,7 +314,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
             failIfNotIndexed();
             return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
                 timeZone, parser, context);
@@ -611,9 +612,11 @@ public class RangeFieldMapper extends FieldMapper {
 
             @Override
             public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
-                                    boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
+                                    boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
-                DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
+                // special treatment for Z timezone, which is not known by joda, but used by java time
+                DateTimeZone zone =
+                    (timeZone == null || "Z".equals(timeZone.getId())) ? DateTimeZone.UTC : DateTimeZone.forID(timeZone.getId());
                 DateMathParser dateMathParser = (parser == null) ?
                     new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :
@@ -623,7 +626,7 @@ public class RangeFieldMapper extends FieldMapper {
                     dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
                         context::nowInMillis, false, zone);
 
-                return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, zone,
+                return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, timeZone,
                     dateMathParser, context);
             }
             @Override
@@ -934,7 +937,7 @@ public class RangeFieldMapper extends FieldMapper {
             return numberType.parse(value, coerce);
         }
         public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
-                                ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
+                                ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
                                 QueryShardContext context) {
             Object lower = from == null ? minValue() : parse(from, false);
             Object upper = to == null ? maxValue() : parse(to, false);

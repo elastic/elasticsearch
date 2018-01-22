@@ -48,6 +48,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 
@@ -355,7 +356,7 @@ public abstract class MappedFieldType extends FieldType {
     public Query rangeQuery(
             Object lowerTerm, Object upperTerm,
             boolean includeLower, boolean includeUpper,
-            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser,
+            ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
             QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
@@ -399,7 +400,7 @@ public abstract class MappedFieldType extends FieldType {
         IndexReader reader,
         Object from, Object to,
         boolean includeLower, boolean includeUpper,
-        DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 

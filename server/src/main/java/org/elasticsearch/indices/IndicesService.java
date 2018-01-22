@@ -495,7 +495,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexService service =
                 createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
-            service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {
                 service.updateMetaData(metaDataUpdate);
             }

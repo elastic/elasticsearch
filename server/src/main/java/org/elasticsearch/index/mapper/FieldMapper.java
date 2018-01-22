@@ -312,17 +312,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public FieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+    public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
-        merged.doMerge(mergeWith, updateAllTypes);
+        merged.doMerge(mergeWith);
         return merged;
     }
 
     /**
      * Merge changes coming from {@code mergeWith} in place.
-     * @param updateAllTypes TODO
      */
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(Mapper mergeWith) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
@@ -553,7 +552,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mergeIntoMapper == null) {
                     newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
-                    FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
+                    FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper);
                     newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
             }

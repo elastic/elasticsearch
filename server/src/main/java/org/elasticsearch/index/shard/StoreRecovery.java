@@ -112,7 +112,7 @@ final class StoreRecovery {
             for (ObjectObjectCursor<String, MappingMetaData> mapping : sourceMetaData.getMappings()) {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
-            indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
             final boolean hasNested = indexShard.mapperService().hasNested();

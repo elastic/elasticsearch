@@ -205,7 +205,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -247,7 +247,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         assertEquals(mapping, mapper.mappingSource().toString());
 

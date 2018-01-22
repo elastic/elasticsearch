@@ -199,7 +199,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(Mapper mergeWith) {
         // ignore this for now
     }
 

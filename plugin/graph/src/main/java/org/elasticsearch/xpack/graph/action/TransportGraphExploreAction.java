@@ -759,10 +759,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             return (startTime + request.timeout().millis()) - threadPool.relativeTimeInMillis();
         }
 
-        void addShardFailure(ShardOperationFailedException failure) {
-            addShardFailures(new ShardOperationFailedException[]{failure});
-        }
-
         void addShardFailures(ShardOperationFailedException[] failures) {
             if (!CollectionUtils.isEmpty(failures)) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];

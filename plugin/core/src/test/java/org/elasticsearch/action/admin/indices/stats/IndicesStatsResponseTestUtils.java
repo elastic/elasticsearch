@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 
 import java.util.List;
 
@@ -14,8 +14,8 @@ public class IndicesStatsResponseTestUtils {
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
-    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
-                                                               int failedShards, List<ShardOperationFailedException> shardFailures) {
+    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards, int failedShards,
+                                                               List<DefaultShardOperationFailedException> shardFailures) {
         return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 }

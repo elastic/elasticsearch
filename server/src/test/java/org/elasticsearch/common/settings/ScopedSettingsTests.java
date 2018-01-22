@@ -287,6 +287,35 @@ public class ScopedSettingsTests extends ESTestCase {
 
     }
 
+    public void testAffixMapConsumerNotCalledWithNull() {
+        Setting.AffixSetting<Integer> prefixSetting = Setting.prefixKeySetting("eggplant.",
+                (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<Integer> otherSetting = Setting.prefixKeySetting("other.",
+                (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(prefixSetting, otherSetting)));
+        Map<String, Integer> affixResults = new HashMap<>();
+
+        Consumer<Map<String,Integer>> consumer = (map) -> {
+            logger.info("--> consuming settings {}", map);
+            affixResults.clear();
+            affixResults.putAll(map);
+        };
+        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {}, randomBoolean());
+        assertEquals(0, affixResults.size());
+        service.applySettings(Settings.builder()
+                .put("eggplant._name", 2)
+                .build());
+        assertThat(affixResults.size(), equalTo(1));
+        assertThat(affixResults.get("_name"), equalTo(2));
+
+        service.applySettings(Settings.builder()
+                .put("eggplant._name", 2)
+                .put("other.thing", 3)
+                .build());
+
+        assertThat(affixResults.get("_name"), equalTo(2));
+    }
+
     public void testApply() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);

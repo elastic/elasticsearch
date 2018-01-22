@@ -48,7 +48,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
-        settings.put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), "1s");
+        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), "1s");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -89,7 +89,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     @Before
     public void init() {
         settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.lifecycle.name", "test").build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
         Map<String, Phase> phases = new HashMap<>();
 
         Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000));

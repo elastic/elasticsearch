@@ -50,25 +50,25 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     @Override
     public void setPhase(String phase, Listener listener) {
         Settings newLifecyclePhaseSettings = Settings.builder()
-            .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase)
-            .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+            .put(LifecycleSettings.LIFECYCLE_PHASE_SETTING.getKey(), phase)
+            .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
         writeSettings(index.getName(), newLifecyclePhaseSettings, listener);
     }
 
     @Override
     public String getPhase() {
-        return IndexLifecycle.LIFECYCLE_PHASE_SETTING.get(getIdxMetaData().getSettings());
+        return LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(getIdxMetaData().getSettings());
     }
 
     @Override
     public void setAction(String action, Listener listener) {
-        Settings newLifecycleActionSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build();
+        Settings newLifecycleActionSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), action).build();
         writeSettings(index.getName(), newLifecycleActionSettings, listener);
     }
 
     @Override
     public String getAction() {
-        return IndexLifecycle.LIFECYCLE_ACTION_SETTING.get(getIdxMetaData().getSettings());
+        return LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(getIdxMetaData().getSettings());
     }
 
     @Override
@@ -84,7 +84,7 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     @Override
     public boolean canExecute(Phase phase) {
         long now = nowSupplier.getAsLong();
-        long initialIndexCreated = IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(getIdxMetaData().getSettings());
+        long initialIndexCreated = LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(getIdxMetaData().getSettings());
         return (initialIndexCreated + phase.getAfter().millis()) <= now;
     }
 

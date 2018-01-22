@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.Plugin;
@@ -61,18 +60,6 @@ public class IndexLifecycle extends Plugin {
     private boolean enabled;
     private boolean transportClientMode;
 
-    // NORELEASE: we should probably change the default to something other than three seconds for initial release
-    public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.lifecycle.poll_interval",
-        TimeValue.timeValueSeconds(3), Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString("index.lifecycle.name",
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString("index.lifecycle.phase",
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString("index.lifecycle.action",
-            Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<Long> LIFECYCLE_INDEX_CREATION_DATE_SETTING = Setting.longSetting("index.lifecycle.date",
-        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
-
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
@@ -94,11 +81,11 @@ public class IndexLifecycle extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            LIFECYCLE_POLL_INTERVAL_SETTING,
-            LIFECYCLE_NAME_SETTING,
-            LIFECYCLE_PHASE_SETTING,
-            LIFECYCLE_INDEX_CREATION_DATE_SETTING,
-            LIFECYCLE_ACTION_SETTING);
+            LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
+            LifecycleSettings.LIFECYCLE_NAME_SETTING,
+            LifecycleSettings.LIFECYCLE_PHASE_SETTING,
+            LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING,
+            LifecycleSettings.LIFECYCLE_ACTION_SETTING);
     }
 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, Clock clock,

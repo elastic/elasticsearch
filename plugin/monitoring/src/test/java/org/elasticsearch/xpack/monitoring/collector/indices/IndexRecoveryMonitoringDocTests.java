@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -104,7 +104,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         final RecoveryState.Timer timer = recoveryState.getTimer();
         timer.stop();
 
-        final List<ShardOperationFailedException> shardFailures = new ArrayList<>();
+        final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final Throwable reason = new NodeDisconnectedException(discoveryNodeZero, "");
         shardFailures.add(new IndicesShardStoresResponse.Failure("_failed_node_id", "_failed_index", 1, reason));
 

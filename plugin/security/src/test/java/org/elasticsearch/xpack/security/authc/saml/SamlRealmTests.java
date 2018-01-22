@@ -115,6 +115,7 @@ public class SamlRealmTests extends SamlTestCase {
         try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             assertEquals(0, proxyServer.requests().size());
 
             Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
@@ -126,8 +127,7 @@ public class SamlRealmTests extends SamlTestCase {
                 final int firstRequestCount = proxyServer.requests().size();
                 assertThat(firstRequestCount, greaterThanOrEqualTo(1));
                 assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-                Thread.sleep(METADATA_REFRESH + 10);
-                assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount));
+                assertBusy(() -> assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount)));
             } finally {
                 tuple.v1().destroy();
             }

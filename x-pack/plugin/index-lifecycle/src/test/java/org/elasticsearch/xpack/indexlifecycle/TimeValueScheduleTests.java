@@ -32,7 +32,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeFirstTriggerNotReached() {
         long start = randomNonNegativeLong();
         TimeValue interval = createRandomTimeValue();
-        System.out.println("interval: " + interval);
         long triggerTime = start + interval.millis();
         long now = start + randomLongBetween(0, interval.millis() - 1);
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
@@ -42,7 +41,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeAtFirstInterval() {
         long start = randomNonNegativeLong();
         TimeValue interval = createRandomTimeValue();
-        System.out.println("interval: " + interval);
         long triggerTime = start + 2 * interval.millis();
         long now = start + interval.millis();
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
@@ -52,7 +50,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeAtStartTime() {
         long start = randomNonNegativeLong();
         TimeValue interval = createRandomTimeValue();
-        System.out.println("interval: " + interval);
         long triggerTime = start + interval.millis();
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
         assertEquals(triggerTime, schedule.nextScheduledTimeAfter(start, start));
@@ -61,7 +58,6 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeAfterFirstTrigger() {
         long start = randomNonNegativeLong();
         TimeValue interval = createRandomTimeValue();
-        System.out.println("interval: " + interval);
         long numberIntervalsPassed = randomLongBetween(0, 10000);
         long triggerTime = start + (numberIntervalsPassed + 1) * interval.millis();
         long now = start

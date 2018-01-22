@@ -1,21 +1,32 @@
-apply plugin: 'elasticsearch.build'
-
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-index-lifecycle'
+    description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle'
+    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 archivesBaseName = 'x-pack-index-lifecycle'
 
 // TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
     ignoreSha 'x-pack-core'
 }
 
-parent.bundlePlugin {
-    from jar
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
 }

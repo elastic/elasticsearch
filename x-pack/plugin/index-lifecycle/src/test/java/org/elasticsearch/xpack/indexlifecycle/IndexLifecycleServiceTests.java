@@ -30,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -163,16 +162,14 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         indexLifecycleService.clusterChanged(new ClusterChangedEvent("_source", previousState, previousState));
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
-        assertThat(((IntervalSchedule)indexLifecycleService.getScheduledJob().getSchedule()).interval(),
-            equalTo(new IntervalSchedule.Interval(3, IntervalSchedule.Interval.Unit.SECONDS)));
+        assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(),
+                equalTo(TimeValue.timeValueSeconds(3)));
         indexLifecycleService.clusterChanged(event);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
-        assertThat(((IntervalSchedule)indexLifecycleService.getScheduledJob().getSchedule()).interval(),
-            equalTo(new IntervalSchedule.Interval(pollInterval.seconds(), IntervalSchedule.Interval.Unit.SECONDS)));
+        assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(), equalTo(pollInterval));
         indexLifecycleService.clusterChanged(new ClusterChangedEvent("_source", currentState, currentState));
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
-        assertThat(((IntervalSchedule) indexLifecycleService.getScheduledJob().getSchedule()).interval(),
-                equalTo(new IntervalSchedule.Interval(pollInterval.seconds(), IntervalSchedule.Interval.Unit.SECONDS)));
+        assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(), equalTo(pollInterval));
 
         verify(clusterService, only()).addListener(any());
         verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));

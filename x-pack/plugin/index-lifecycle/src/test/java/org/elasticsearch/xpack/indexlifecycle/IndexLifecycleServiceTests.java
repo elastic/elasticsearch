@@ -98,7 +98,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testOnlyChangesStateOnMaster() throws Exception {
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
-                .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
+                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
@@ -114,7 +114,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testElectUnElectMaster() throws Exception {
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
-                .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
+                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
                 .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap()))
             .build();
 
@@ -178,7 +178,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testServiceSetupOnFirstClusterChange() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
         MetaData metaData = MetaData.builder() .persistentSettings(settings(Version.CURRENT)
-                .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
+                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
@@ -214,7 +214,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         MetaData updatedPollMetaData = MetaData.builder(metaData).persistentSettings(settings(Version.CURRENT)
-            .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
             .build();
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
@@ -243,7 +243,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testInstallMetadataFail() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
         MetaData metaData = MetaData.builder() .persistentSettings(settings(Version.CURRENT)
-            .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
@@ -280,7 +280,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policyName, policy);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-            .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
@@ -305,7 +305,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
                     indexMetadata.getCreationDate()).build(), index.getName());
             dateUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
@@ -314,8 +314,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "")
-                .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), "phase").build(), index.getName());
+                .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), "")
+                .put(LifecycleSettings.LIFECYCLE_PHASE_SETTING.getKey(), "phase").build(), index.getName());
             phaseUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
@@ -323,7 +323,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), MockAction.NAME).build(), index.getName());
+                .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), MockAction.NAME).build(), index.getName());
             actionUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
@@ -353,8 +353,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         long creationDate = randomNonNegativeLong();
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT)
-                .put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName)
-                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), creationDate))
+                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName)
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), creationDate))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).creationDate(creationDate).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
@@ -378,7 +378,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             try {
                 UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                    .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
                         indexMetadata.getCreationDate()).build(), index.getName());
                 dateUpdated.set(true);
             } catch (AssertionError e) {
@@ -409,11 +409,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policyName, policy);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), "foo"))
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "foo"))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
-                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetadata).fPut(index2.getName(), indexMetadata2);
@@ -456,7 +456,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
-                .settings(settings(Version.CURRENT).put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetadata).fPut(index2.getName(), indexMetadata2);

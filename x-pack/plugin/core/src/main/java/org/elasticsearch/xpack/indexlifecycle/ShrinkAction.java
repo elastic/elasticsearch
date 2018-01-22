@@ -136,7 +136,7 @@ public class ShrinkAction implements LifecycleAction {
             resizeRequest.getTargetIndexRequest().settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, indexMetaData.getNumberOfReplicas())
-                .put("index.lifecycle.date", indexMetaData.getCreationDate())
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, indexMetaData.getCreationDate())
                 .build());
             indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
                 resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
@@ -160,8 +160,8 @@ public class ShrinkAction implements LifecycleAction {
             listener.onFailure(new IllegalStateException("Cannot shrink index [" + index.getName() + "] because target " +
                 "index [" + targetIndexName + "] already exists."));
         } else if (ActiveShardCount.ALL.enoughShardsActive(clusterService.state(), targetIndexName)) {
-            if (indexMetaData.getSettings().get("index.lifecycle.name")
-                    .equals(shrunkIndexMetaData.getSettings().get("index.lifecycle.name"))) {
+            if (indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME)
+                    .equals(shrunkIndexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME))) {
                 // Since both the shrunken and original indices co-exist, do nothing and wait until
                 // the final step of the shrink action is completed and this original index is deleted.
                 listener.onSuccess(false);
@@ -169,9 +169,9 @@ public class ShrinkAction implements LifecycleAction {
                 // Since all shards of the shrunken index are active, it is safe to continue forward
                 // and begin swapping the indices by inheriting the lifecycle management to the new shrunken index.
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(Settings.builder()
-                    .put("index.lifecycle.name", indexMetaData.getSettings().get("index.lifecycle.name"))
-                    .put("index.lifecycle.phase", indexMetaData.getSettings().get("index.lifecycle.phase"))
-                    .put("index.lifecycle.action", indexMetaData.getSettings().get("index.lifecycle.action")).build(), targetIndexName);
+                    .put(LifecycleSettings.LIFECYCLE_NAME, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME))
+                    .put(LifecycleSettings.LIFECYCLE_PHASE, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE))
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_ACTION)).build(), targetIndexName);
                 client.admin().indices().updateSettings(updateSettingsRequest,
                     ActionListener.wrap(r -> listener.onSuccess(false) , listener::onFailure));
             }

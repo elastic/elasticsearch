@@ -269,7 +269,7 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
             assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put("index.lifecycle.date", creationDate).build()));
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build()));
             assertThat(request.getTargetIndexRequest().index(), equalTo(targetIndex.getName()));
             ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
             resizeResponse.readFrom(StreamInput.wrap(new byte[] { 1, 1, 1, 1, 1 }));
@@ -367,8 +367,8 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         Index targetIndex = new Index("shrunk-" + index.getName(), randomAlphaOfLengthBetween(1, 20));
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-            .settings(settings(Version.CURRENT).put("index.lifecycle.phase", "phase1")
-                .put("index.lifecycle.action", "action1").put("index.lifecycle.name", "test"))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_PHASE, "phase1")
+                .put(LifecycleSettings.LIFECYCLE_ACTION, "action1").put(LifecycleSettings.LIFECYCLE_NAME, "test"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         IndexMetaData targetIndexMetaData = IndexMetaData.builder(targetIndex.getName())
             .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, index.getName()))
@@ -389,8 +389,8 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Settings expectedSettings = Settings.builder().put("index.lifecycle.name", "test")
-            .put("index.lifecycle.phase", "phase1").put("index.lifecycle.action", "action1").build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "test")
+            .put(LifecycleSettings.LIFECYCLE_PHASE, "phase1").put(LifecycleSettings.LIFECYCLE_ACTION, "action1").build();
 
         Mockito.doAnswer(invocationOnMock -> {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
@@ -439,13 +439,13 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         Index targetIndex = new Index("shrunk-" + index.getName(), randomAlphaOfLengthBetween(1, 20));
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-            .settings(settings(Version.CURRENT).put("index.lifecycle.phase", "phase1")
-                .put("index.lifecycle.action", "action1").put("index.lifecycle.name", lifecycleName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_PHASE, "phase1")
+                .put(LifecycleSettings.LIFECYCLE_ACTION, "action1").put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         IndexMetaData targetIndexMetaData = IndexMetaData.builder(targetIndex.getName())
             .settings(settings(Version.CURRENT)
                 .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, index.getName())
-                .put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), lifecycleName))
+                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), lifecycleName))
             .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(indexMetadata.getNumberOfReplicas()).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata).fPut(targetIndex.getName(), targetIndexMetaData);

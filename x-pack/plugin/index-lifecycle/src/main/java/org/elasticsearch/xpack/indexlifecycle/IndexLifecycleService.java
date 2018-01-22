@@ -24,21 +24,15 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -80,9 +74,9 @@ public class IndexLifecycleService extends AbstractComponent
         if (event.localNodeMaster()) { // only act if we are master, otherwise keep idle until elected
             IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
 
-            TimeValue pollInterval = IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING
+            TimeValue pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
                 .get(event.state().getMetaData().settings());
-            TimeValue previousPollInterval = IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING
+            TimeValue previousPollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
                 .get(event.previousState().getMetaData().settings());
 
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
@@ -126,7 +120,7 @@ public class IndexLifecycleService extends AbstractComponent
             // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
             // associated to a policy
             clusterService.state().metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
-                String policyName = IndexLifecycle.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     // ensure that all managed indices have `index.lifecycle.date` set
                     // and then execute their respective lifecycle policies.
@@ -172,11 +166,11 @@ public class IndexLifecycleService extends AbstractComponent
 
     private CompletableFuture<Void> putLifecycleDate(IndexMetaData idxMeta) {
         CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-        if (idxMeta.getSettings().hasValue(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey())) {
+        if (idxMeta.getSettings().hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey())) {
             completableFuture.complete(null);
         } else {
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(Settings.builder()
-                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), idxMeta.getCreationDate()).build(),
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), idxMeta.getCreationDate()).build(),
                 idxMeta.getIndex().getName());
             client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<UpdateSettingsResponse>() {
                 @Override
@@ -186,7 +180,7 @@ public class IndexLifecycleService extends AbstractComponent
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("unable to update index.lifecycle.date setting on indices", e);
+                    logger.error("unable to update " +  LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE +  " setting on indices", e);
                     completableFuture.completeExceptionally(e);
                 }
             });

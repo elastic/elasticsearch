@@ -46,12 +46,12 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         long creationDate = randomNonNegativeLong();
         String oldPhase = randomAlphaOfLengthBetween(1, 5);
         String newPhase = randomAlphaOfLengthBetween(6, 10);
-        Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
-            .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
+            .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), oldPhase)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, oldPhase)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterState updatedClusterState = getClusterState(IndexMetaData.builder(idxMeta)
@@ -114,8 +114,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String newPhase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -134,8 +134,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+                Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
                 return null;
@@ -175,8 +175,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String newPhase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20))
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -197,8 +197,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), newPhase)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+                Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onFailure(exception);
                 return null;
@@ -238,7 +238,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String phase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), phase).build())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, phase).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -271,10 +271,10 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         long creationDate = randomNonNegativeLong();
         String oldAction = randomAlphaOfLengthBetween(1, 5);
         String newAction = randomAlphaOfLengthBetween(6, 10);
-        Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction).build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction).build();
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), oldAction).build())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, oldAction).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterState updatedClusterState = getClusterState(IndexMetaData.builder(idxMeta)
@@ -335,7 +335,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String newAction = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -354,7 +354,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction)
+                Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction)
                         .build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
@@ -395,7 +395,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String newAction = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), randomAlphaOfLengthBetween(1, 20)).build())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -416,7 +416,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder().put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), newAction)
+                Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction)
                         .build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onFailure(exception);
@@ -457,7 +457,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         String action = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder("test")
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), action).build())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, action).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -493,7 +493,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         long now = random().longs(creationDate, creationDate + after.millis()).iterator().nextLong();
 
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.lifecycle.date", creationDate).build())
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -512,7 +513,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         long now = creationDate + after.millis();
 
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.lifecycle.date", creationDate).build())
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -531,7 +533,8 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         long now = random().longs(creationDate + after.millis(), Long.MAX_VALUE).iterator().nextLong();
 
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.lifecycle.date", creationDate).build())
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);

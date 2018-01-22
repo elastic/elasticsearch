@@ -25,7 +25,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -348,7 +347,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             }
         }
         out.writeVInt(failures.size());
-        for (ShardOperationFailedException failure : failures) {
+        for (Failure failure : failures) {
             failure.writeTo(out);
         }
     }
@@ -357,7 +356,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (failures.size() > 0) {
             builder.startArray(Fields.FAILURES);
-            for (ShardOperationFailedException failure : failures) {
+            for (Failure failure : failures) {
                 builder.startObject();
                 failure.toXContent(builder, params);
                 builder.endObject();

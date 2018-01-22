@@ -173,7 +173,6 @@ public final class Request {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
-        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
@@ -583,13 +582,6 @@ public final class Request {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
-        }
-
-        Params withUpdateAllTypes(boolean updateAllTypes) {
-            if (updateAllTypes) {
-                return putParam("update_all_types", Boolean.TRUE.toString());
-            }
-            return this;
         }
 
         Params withVersion(long version) {

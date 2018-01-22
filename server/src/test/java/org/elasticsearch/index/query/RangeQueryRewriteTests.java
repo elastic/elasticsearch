@@ -52,7 +52,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject().endObject().string();
         indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
                 null, null, xContentRegistry(), writableRegistry(), null, null, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
@@ -70,7 +70,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject().endObject().string();
         indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
                 null, null, xContentRegistry(), writableRegistry(), null, reader, null, null);

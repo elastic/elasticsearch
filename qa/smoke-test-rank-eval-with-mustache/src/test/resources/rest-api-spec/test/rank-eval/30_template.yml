@@ -2,8 +2,8 @@
 "Template request":
 
   - skip:
-      version: " - 6.99.99"
-      reason: the ranking evaluation feature is only available on 7.0
+      version: " - 6.1.99"
+      reason: the ranking evaluation feature is available since 6.2
 
   - do:
      indices.create:

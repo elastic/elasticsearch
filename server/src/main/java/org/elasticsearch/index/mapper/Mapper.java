@@ -175,7 +175,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     /** Return the merge of {@code mergeWith} into this.
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith, boolean updateAllTypes);
+    public abstract Mapper merge(Mapper mergeWith);
 
     /**
      * Update the field type of this mapper. This is necessary because some mapping updates

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -37,6 +38,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 
 import java.io.IOException;
 import java.util.function.Consumer;
+
+import static java.util.Collections.singleton;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -128,6 +131,68 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+            }
+        );
+    }
+
+    public void testSummationAccuracy() throws IOException {
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifyStatsOfDoubles(values, 13.5, 16.21, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        double sumOfSqrs = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+            sumOfSqrs += values[i] * values[i];
+        }
+        verifyStatsOfDoubles(values, sum, sumOfSqrs, TOLERANCE);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifyStatsOfDoubles(largeValues, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifyStatsOfDoubles(largeValues, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, 0d);
+    }
+
+    private void verifyStatsOfDoubles(double[] values, double expectedSum,
+                                      double expectedSumOfSqrs, double delta) throws IOException {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        final String fieldName = "field";
+        ft.setName(fieldName);
+        double max = Double.NEGATIVE_INFINITY;
+        double min = Double.POSITIVE_INFINITY;
+        for (double value : values) {
+            max = Math.max(max, value);
+            min = Math.min(min, value);
+        }
+        double expectedMax = max;
+        double expectedMin = min;
+        testCase(ft,
+            iw -> {
+                for (double value : values) {
+                    iw.addDocument(singleton(new NumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(value))));
+                }
+            },
+            stats -> {
+                assertEquals(values.length, stats.getCount());
+                assertEquals(expectedSum / values.length, stats.getAvg(), delta);
+                assertEquals(expectedSum, stats.getSum(), delta);
+                assertEquals(expectedSumOfSqrs, stats.getSumOfSquares(), delta);
+                assertEquals(expectedMax, stats.getMax(), 0d);
+                assertEquals(expectedMin, stats.getMin(), 0d);
             }
         );
     }

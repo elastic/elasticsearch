@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.CompositeTestingXPackPlugin;
 import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.security.SecurityField;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;

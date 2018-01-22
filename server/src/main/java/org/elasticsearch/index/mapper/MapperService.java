@@ -510,7 +510,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
@@ -691,7 +691,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return field.substring(0, lastDot);
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
         return documentParser.parse(mappingType, mappingSource);
     }
 
@@ -724,7 +724,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(type, null, true);
+        mapper = parse(type, null);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

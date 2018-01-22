@@ -259,7 +259,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 DocumentMapper newMapper = mapperService.parse(request.type(), mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
-                    existingMapper.merge(newMapper.mapping(), request.updateAllTypes());
+                    existingMapper.merge(newMapper.mapping());
                 } else {
                     // TODO: can we find a better place for this validation?
                     // The reason this validation is here is that the mapper service doesn't learn about

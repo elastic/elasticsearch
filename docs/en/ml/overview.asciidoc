@@ -3,6 +3,7 @@
 
 include::analyzing.asciidoc[]
 include::forecasting.asciidoc[]
+include::buckets.asciidoc[]
 include::calendars.asciidoc[]
 
 [[ml-concepts]]
@@ -16,5 +17,4 @@ concepts from the outset will tremendously help ease the learning process.
 
 include::jobs.asciidoc[]
 include::datafeeds.asciidoc[]
-include::buckets.asciidoc[]
 include::architecture.asciidoc[]

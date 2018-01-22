@@ -48,10 +48,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -108,6 +110,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertArrayEquals(new String[]{"*.field2"}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{"include"}, searchSourceBuilder.fetchSource().includes());
+                searchSourceBuilder.includeSourceField("foo");
+                searchSourceBuilder.includeSourceField("bar");
+                searchSourceBuilder.excludeSourceField("baz");
+                searchSourceBuilder.excludeSourceField("eggplant");
+                assertThat(Arrays.asList(searchSourceBuilder.fetchSource().includes()), containsInAnyOrder("include", "foo", "bar"));
+                assertThat(Arrays.asList(searchSourceBuilder.fetchSource().excludes()), containsInAnyOrder("*.field2", "baz", "eggplant"));
             }
         }
         {

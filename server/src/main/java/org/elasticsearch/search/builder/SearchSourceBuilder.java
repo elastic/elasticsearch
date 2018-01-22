@@ -721,6 +721,34 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Indicate that the field given by {@code fieldName} should be returned
+     * from the document's {@code _source}. Subsequent calls to this method
+     * are additive.
+     *
+     * @param fieldName The field to include from a document's {@code _source}
+     */
+    public SearchSourceBuilder includeSourceField(String fieldName) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE
+                : this.fetchSourceContext;
+        fetchSourceContext.include(fieldName);
+        return this;
+    }
+
+    /**
+     * Indicate that the field given by {@code fieldName} should be excluded
+     * from the document's {@code _source}. Subsequent calls to this method
+     * are additive.
+     *
+     * @param fieldName The field to exclude from a document's {@code _source}
+     */
+    public SearchSourceBuilder excludeSourceField(String fieldName) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE
+                : this.fetchSourceContext;
+        fetchSourceContext.exclude(fieldName);
+        return this;
+    }
+
+    /**
      * Adds a stored field to load and return as part of the
      * search request. If none are specified, the source of the document will be
      * return.

@@ -35,8 +35,12 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -50,14 +54,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
     private final boolean fetchSource;
-    private final String[] includes;
-    private final String[] excludes;
+    private final Set<String> includes;
+    private final Set<String> excludes;
     private Function<Map<String, ?>, Map<String, Object>> filter;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includes = includes == null ? Collections.emptySet() : new HashSet<>(Arrays.asList(includes));
+        this.excludes = excludes == null ? Collections.emptySet() : new HashSet<>(Arrays.asList(excludes));
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -66,15 +70,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public FetchSourceContext(StreamInput in) throws IOException {
         fetchSource = in.readBoolean();
-        includes = in.readStringArray();
-        excludes = in.readStringArray();
+        includes = new HashSet<>(Arrays.asList(in.readStringArray()));
+        excludes = new HashSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(fetchSource);
-        out.writeStringArray(includes);
-        out.writeStringArray(excludes);
+        out.writeStringArray(includes.toArray(Strings.EMPTY_ARRAY));
+        out.writeStringArray(excludes.toArray(Strings.EMPTY_ARRAY));
     }
 
     public boolean fetchSource() {
@@ -82,11 +86,21 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public String[] includes() {
-        return this.includes;
+        return this.includes.toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] excludes() {
-        return this.excludes;
+        return this.excludes.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    public FetchSourceContext include(String field) {
+        this.includes.add(field);
+        return this;
+    }
+
+    public FetchSourceContext exclude(String field) {
+        this.excludes.add(field);
+        return this;
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
@@ -194,8 +208,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fetchSource) {
             builder.startObject();
-            builder.array(INCLUDES_FIELD.getPreferredName(), includes);
-            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
+            builder.array(INCLUDES_FIELD.getPreferredName(), includes.toArray(Strings.EMPTY_ARRAY));
+            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes.toArray(Strings.EMPTY_ARRAY));
             builder.endObject();
         } else {
             builder.value(false);
@@ -211,8 +225,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
-        if (!Arrays.equals(excludes, that.excludes)) return false;
-        if (!Arrays.equals(includes, that.includes)) return false;
+        if (!Objects.equals(excludes, that.excludes)) return false;
+        if (!Objects.equals(includes, that.includes)) return false;
 
         return true;
     }
@@ -220,8 +234,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         int result = (fetchSource ? 1 : 0);
-        result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
-        result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
+        result = 31 * result + (includes != null ? Objects.hashCode(includes) : 0);
+        result = 31 * result + (excludes != null ? Objects.hashCode(excludes) : 0);
         return result;
     }
 
@@ -231,7 +245,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
      */
     public Function<Map<String, ?>, Map<String, Object>> getFilter() {
         if (filter == null) {
-            filter = XContentMapValues.filter(includes, excludes);
+            filter = XContentMapValues.filter(includes.toArray(Strings.EMPTY_ARRAY), excludes.toArray(Strings.EMPTY_ARRAY));
         }
         return filter;
     }

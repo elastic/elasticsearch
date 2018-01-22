@@ -1,3 +1,5 @@
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-deprecation'
@@ -11,7 +13,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-deprecation'
 
-// TODO: enable this once we have tests
 licenseHeaders.enabled = false
 
 integTest.enabled = false

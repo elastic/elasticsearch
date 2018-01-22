@@ -1,3 +1,5 @@
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-security'
@@ -12,7 +14,6 @@ esplugin {
 
 archivesBaseName = 'x-pack-security'
 
-// TODO: enable this once we have tests
 licenseHeaders.enabled = false
 
 integTest.enabled = false

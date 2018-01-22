@@ -1,3 +1,5 @@
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-upgrade'
@@ -11,7 +13,6 @@ esplugin {
 }
 
 archivesBaseName = 'x-pack-upgrade'
-// TODO: enable this once we have tests
 test.enabled=false
 licenseHeaders.enabled = false
 

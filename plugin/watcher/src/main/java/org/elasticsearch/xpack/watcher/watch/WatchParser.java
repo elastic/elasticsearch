@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.watcher.watch.clock.HaltedClock;
+import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.joda.time.DateTime;
 
 import java.io.IOException;

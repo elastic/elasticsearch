@@ -25,10 +25,6 @@ dependencies {
     provided project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring')
-    testCompile ( project(path: ':x-pack-elasticsearch:plugin:watcher') ) {
-        // Shouldn't have a dependency on watcher at all, but since we do, drop guava
-        exclude group: "com.google.guava", module: "guava"
-    }
 
     testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 

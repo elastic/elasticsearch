@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 
@@ -37,17 +36,6 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             @Override
             protected LicenseService getLicenseService() {
                 return thisVar.getLicenseService();
-            }
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
-        plugins.add(new Watcher(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
             }
 
             @Override

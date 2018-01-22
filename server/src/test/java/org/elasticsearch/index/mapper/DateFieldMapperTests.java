@@ -380,7 +380,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
             .endObject().endObject().endObject().string();
         DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
-            MapperService.MergeReason.MAPPING_UPDATE, randomBoolean());
+            MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
         assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
@@ -392,7 +392,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
-                MapperService.MergeReason.MAPPING_UPDATE, randomBoolean()));
+                MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
     }
 
@@ -408,7 +408,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate), false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapper.merge(update.mapping(), randomBoolean()));
+                () -> mapper.merge(update.mapping()));
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
     }
 }

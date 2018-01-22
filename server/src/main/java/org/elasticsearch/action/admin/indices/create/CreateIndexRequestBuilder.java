@@ -239,12 +239,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         return this;
     }
 
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public CreateIndexRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
-        request.updateAllTypes(updateAllTypes);
-        return this;
-    }
-
     /**
      * Sets the number of shard copies that should be active for index creation to return.
      * Defaults to {@link ActiveShardCount#DEFAULT}, which will wait for one shard copy

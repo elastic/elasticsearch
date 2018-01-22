@@ -156,7 +156,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("number_field7").field("type", "ip").endObject()
                 .startObject("date_field").field("type", "date").endObject()
             .endObject().endObject().endObject().string();
-        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     private void addQueryFieldMappings() throws Exception {
@@ -164,7 +164,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .startObject("properties").startObject(fieldName).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();
-        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldType = (PercolatorFieldMapper.FieldType) mapperService.fullName(fieldName);
     }
 
@@ -578,7 +578,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject(fieldName).field("type", "percolator").field("index", "no").endObject().endObject()
             .endObject().endObject().string();
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true));
+            mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
 
@@ -592,7 +592,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject("query_field2").field("type", "percolator").endObject()
                 .endObject()
                 .endObject().endObject().string();
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",
@@ -623,7 +623,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper(typeName).parse(SourceToParse.source("test", typeName, "1",

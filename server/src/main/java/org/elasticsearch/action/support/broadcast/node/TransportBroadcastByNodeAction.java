@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -131,7 +130,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         int totalShards = 0;
         int successfulShards = 0;
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
-        List<ShardOperationFailedException> exceptions = new ArrayList<>();
+        List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             if (responses.get(i) instanceof FailedNodeException) {
                 FailedNodeException exception = (FailedNodeException) responses.get(i);
@@ -176,7 +175,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param clusterState     the cluster state
      * @return the response
      */
-    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<ShardOperationResult> results, List<ShardOperationFailedException> shardFailures, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<ShardOperationResult> results, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState);
 
     /**
      * Deserialize a request from an input stream

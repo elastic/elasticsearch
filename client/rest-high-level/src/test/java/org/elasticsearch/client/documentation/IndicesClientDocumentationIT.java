@@ -22,10 +22,14 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -58,7 +62,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("posts"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("posts"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -80,7 +84,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-index-request-indicesOptions
 
             // tag::delete-index-execute
-            DeleteIndexResponse deleteIndexResponse = client.indices().deleteIndex(request);
+            DeleteIndexResponse deleteIndexResponse = client.indices().delete(request);
             // end::delete-index-execute
 
             // tag::delete-index-response
@@ -93,7 +97,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::delete-index-notfound
             try {
                 DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
-                client.indices().deleteIndex(request);
+                client.indices().delete(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
@@ -107,7 +111,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(new CreateIndexRequest("posts"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("posts"));
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -115,7 +119,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-async
-            client.indices().deleteIndexAsync(request, new ActionListener<DeleteIndexResponse>() {
+            client.indices().deleteAsync(request, new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -185,7 +189,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::create-index-request-waitForActiveShards
 
             // tag::create-index-execute
-            CreateIndexResponse createIndexResponse = client.indices().createIndex(request);
+            CreateIndexResponse createIndexResponse = client.indices().create(request);
             // end::create-index-execute
 
             // tag::create-index-response
@@ -203,7 +207,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             CreateIndexRequest request = new CreateIndexRequest("twitter");
             // tag::create-index-execute-async
-            client.indices().createIndexAsync(request, new ActionListener<CreateIndexResponse>() {
+            client.indices().createAsync(request, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -224,4 +228,138 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    public void testOpenIndex() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::open-index-request
+            OpenIndexRequest request = new OpenIndexRequest("index"); // <1>
+            // end::open-index-request
+
+            // tag::open-index-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::open-index-request-timeout
+            // tag::open-index-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::open-index-request-masterTimeout
+            // tag::open-index-request-waitForActiveShards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+            // end::open-index-request-waitForActiveShards
+
+
+            // tag::open-index-request-indicesOptions
+            request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::open-index-request-indicesOptions
+
+            // tag::open-index-execute
+            OpenIndexResponse openIndexResponse = client.indices().open(request);
+            // end::open-index-execute
+
+            // tag::open-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::open-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::open-index-execute-async
+            client.indices().openAsync(request, new ActionListener<OpenIndexResponse>() {
+                @Override
+                public void onResponse(OpenIndexResponse openIndexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::open-index-execute-async
+        }
+
+        {
+            // tag::open-index-notfound
+            try {
+                OpenIndexRequest request = new OpenIndexRequest("does_not_exist");
+                client.indices().open(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::open-index-notfound
+        }
+    }
+
+    public void testCloseIndex() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::close-index-request
+            CloseIndexRequest request = new CloseIndexRequest("index"); // <1>
+            // end::close-index-request
+
+            // tag::close-index-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::close-index-request-timeout
+            // tag::close-index-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::close-index-request-masterTimeout
+
+            // tag::close-index-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::close-index-request-indicesOptions
+
+            // tag::close-index-execute
+            CloseIndexResponse closeIndexResponse = client.indices().close(request);
+            // end::close-index-execute
+
+            // tag::close-index-response
+            boolean acknowledged = closeIndexResponse.isAcknowledged(); // <1>
+            // end::close-index-response
+            assertTrue(acknowledged);
+
+            // tag::close-index-execute-async
+            client.indices().closeAsync(request, new ActionListener<CloseIndexResponse>() {
+                @Override
+                public void onResponse(CloseIndexResponse closeIndexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::close-index-execute-async
+        }
+
+        {
+            // tag::close-index-notfound
+            try {
+                CloseIndexRequest request = new CloseIndexRequest("does_not_exist");
+                client.indices().close(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::close-index-notfound
+        }
+    }
 }

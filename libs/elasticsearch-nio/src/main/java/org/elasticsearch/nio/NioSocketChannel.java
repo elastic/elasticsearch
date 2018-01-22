@@ -22,7 +22,6 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,10 +32,8 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private final InetSocketAddress remoteAddress;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
-    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
-    private WriteContext writeContext;
-    private ReadContext readContext;
-    private BiConsumer<NioSocketChannel, Exception> exceptionContext;
+    private final AtomicBoolean contextSet = new AtomicBoolean(false);
+    private SocketChannelContext context;
     private Exception connectException;
 
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
@@ -46,20 +43,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public void closeFromSelector() throws IOException {
-        assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
-        // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (writeContext.hasQueuedWriteOps()) {
-            writeContext.clearQueuedWriteOps(new ClosedChannelException());
-        }
-        readContext.close();
-
-        super.closeFromSelector();
-    }
-
-    @Override
     public SocketSelector getSelector() {
         return socketSelector;
+    }
+
+    public int write(ByteBuffer buffer) throws IOException {
+        return socketChannel.write(buffer);
     }
 
     public int write(ByteBuffer[] buffers) throws IOException {
@@ -82,37 +71,17 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         }
     }
 
-    public int read(InboundChannelBuffer buffer) throws IOException {
-        int bytesRead = (int) socketChannel.read(buffer.sliceBuffersFrom(buffer.getIndex()));
-
-        if (bytesRead == -1) {
-            return bytesRead;
-        }
-
-        buffer.incrementIndex(bytesRead);
-        return bytesRead;
-    }
-
-    public void setContexts(ReadContext readContext, WriteContext writeContext, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
-        if (contextsSet.compareAndSet(false, true)) {
-            this.readContext = readContext;
-            this.writeContext = writeContext;
-            this.exceptionContext = exceptionContext;
+    public void setContext(SocketChannelContext context) {
+        if (contextSet.compareAndSet(false, true)) {
+            this.context = context;
         } else {
-            throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
+            throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
     }
 
-    public WriteContext getWriteContext() {
-        return writeContext;
-    }
-
-    public ReadContext getReadContext() {
-        return readContext;
-    }
-
-    public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
-        return exceptionContext;
+    @Override
+    public SocketChannelContext getContext() {
+        return context;
     }
 
     public InetSocketAddress getRemoteAddress() {
@@ -121,14 +90,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public boolean isConnectComplete() {
         return isConnectComplete0();
-    }
-
-    public boolean isWritable() {
-        return isClosing.get() == false;
-    }
-
-    public boolean isReadable() {
-        return isClosing.get() == false;
     }
 
     /**

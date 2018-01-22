@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
-import java.io.IOException;
-import java.util.function.BiConsumer;
+group = 'org.elasticsearch.plugin'
+archivesBaseName = 'elasticsearch-scripting-painless-spi'
 
-public interface WriteContext {
-
-    void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
-
-    void queueWriteOperations(WriteOperation writeOperation);
-
-    void flushChannel() throws IOException;
-
-    boolean hasQueuedWriteOps();
-
-    void clearQueuedWriteOps(Exception e);
-
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
 }
+
+dependencies {
+  compile "org.elasticsearch:elasticsearch:${version}"
+}
+
+// no tests...yet?
+test.enabled = false

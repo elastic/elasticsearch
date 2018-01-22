@@ -261,6 +261,21 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
 
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test_list.list", "16", "17")
+            .putList("foo.test_list_1.list", "18", "19", "20")
+            .build());
+
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+
         listResults.clear();
         intResults.clear();
 
@@ -270,19 +285,18 @@ public class ScopedSettingsTests extends ESTestCase {
             .putList("foo.test_list.list", "16", "17")
             .putNull("foo.test_list_1.list")
             .build());
-        // TODO: should this assertion be kept?
-        // assertNull("test wasn't changed", intResults.get("test"));
+        assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
-        // assertNull("test_list wasn't changed", listResults.get("test_list"));
+        assertNull("test_list wasn't changed", listResults.get("test_list"));
         if (omitDefaults) {
             assertNull(listResults.get("test_list_1"));
             assertFalse(listResults.containsKey("test_list_1"));
             assertEquals(0, listResults.size());
-            assertEquals(2, intResults.size());
+            assertEquals(1, intResults.size());
         } else {
             assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
-            assertEquals(2, listResults.size());
-            assertEquals(2, intResults.size());
+            assertEquals(1, listResults.size());
+            assertEquals(1, intResults.size());
         }
 
     }

@@ -597,21 +597,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
-                    return Stream.concat(matchStream(current), matchStream(previous)).distinct().anyMatch(aKey -> {
-                        String namespace = key.getNamespace(aKey);
-                        Setting<T> concreteSetting = getConcreteSetting(aKey);
-                        AbstractScopedSettings.SettingUpdater<T> updater =
-                            concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
-                        T value = updater.getValue(current, previous);
-                        if (updater.hasChanged(current, previous)) {
-                            // only the ones that have changed otherwise we might get too many updates
-                            // the hasChanged above checks only if there are any changes
-                            if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
+                    return current.filter(k -> match(k)).equals(previous.filter(k -> match(k))) == false;
                 }
 
                 @Override
@@ -623,8 +609,14 @@ public class Setting<T> implements ToXContentObject {
                         Setting<T> concreteSetting = getConcreteSetting(aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
                             concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
-                        T value = updater.getValue(current, previous);
-                        result.put(namespace, value);
+                        if (updater.hasChanged(current, previous)) {
+                            // only the ones that have changed otherwise we might get too many updates
+                            // the hasChanged above checks only if there are any changes
+                            T value = updater.getValue(current, previous);
+                            if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
+                                result.put(namespace, value);
+                            }
+                        }
                     });
                     return result;
                 }

@@ -265,7 +265,15 @@ public final class TokenService extends AbstractComponent {
                 listener.onResponse(null);
             } else {
                 try {
-                    decodeAndValidateToken(token, listener);
+                    decodeAndValidateToken(token, ActionListener.wrap(listener::onResponse, e -> {
+                        if (e instanceof IOException) {
+                            // could happen with a token that is not ours
+                            logger.debug("invalid token", e);
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
                 } catch (IOException e) {
                     // could happen with a token that is not ours
                     logger.debug("invalid token", e);

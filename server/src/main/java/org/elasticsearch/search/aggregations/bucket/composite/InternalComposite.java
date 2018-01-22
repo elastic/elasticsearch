@@ -37,6 +37,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,11 +69,11 @@ public class InternalComposite
         super(in);
         this.size = in.readVInt();
         this.sourceNames = in.readList(StreamInput::readString);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            this.formats = in.readNamedWriteableList(DocValueFormat.class);
-        } else {
-            this.formats = new ArrayList<>(sourceNames.size());
-            for (int i = 0; i < sourceNames.size(); i++) {
+        this.formats = new ArrayList<>(sourceNames.size());
+        for (int i = 0; i < sourceNames.size(); i++) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                formats.add(in.readNamedWriteable(DocValueFormat.class));
+            } else {
                 formats.add(DocValueFormat.RAW);
             }
         }
@@ -85,7 +86,9 @@ public class InternalComposite
         out.writeVInt(size);
         out.writeStringList(sourceNames);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeNamedWriteableList(formats);
+            for (DocValueFormat format : formats) {
+                out.writeNamedWriteable(format);
+            }
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 
 import java.io.IOException;
@@ -52,6 +54,20 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     private int[] types;
     private int size;
 
+    private static DocValueFormat randomDocValueFormat(boolean isLong) {
+        if (isLong) {
+            // we use specific format only for date histogram on a long/date field
+            if (randomBoolean()) {
+                return new DocValueFormat.DateTime(Joda.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
+            } else {
+                return DocValueFormat.RAW;
+            }
+        } else {
+            // and the raw format for the other types
+            return DocValueFormat.RAW;
+        }
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -63,9 +79,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         types = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             sourceNames.add("field_" + i);
-            formats.add(DocValueFormat.RAW);
             reverseMuls[i] = randomBoolean() ? 1 : -1;
-            types[i] = randomIntBetween(0, 2);
+            int type = randomIntBetween(0, 2);
+            types[i] = type;
+            formats.add(randomDocValueFormat(type == 0));
         }
     }
 
@@ -73,7 +90,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        sourceNames= null;
+        sourceNames = null;
         formats = null;
         reverseMuls = null;
         types = null;

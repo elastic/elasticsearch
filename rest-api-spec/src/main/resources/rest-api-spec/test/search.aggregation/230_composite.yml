@@ -241,7 +241,7 @@ setup:
 "Composite aggregation with format":
   - skip:
       version: " - 6.99.99"
-      reason:  this uses a new option (format) added 7.0.0
+      reason:  this uses a new option (format) added in 7.0.0
 
   - do:
       search:

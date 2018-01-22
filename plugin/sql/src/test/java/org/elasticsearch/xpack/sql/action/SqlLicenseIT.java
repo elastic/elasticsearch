@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql;
+package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -17,6 +17,7 @@ import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
@@ -35,7 +36,6 @@ import java.util.Locale;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStandardOrGold;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -191,7 +191,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     // TODO test SqlGetIndicesAction. Skipping for now because of lack of serialization support.
 
     private void setupTestIndex() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
                 .add(new IndexRequest("test", "doc", "1").source("data", "bar", "count", 42))
                 .add(new IndexRequest("test", "doc", "2").source("data", "baz", "count", 43))

@@ -64,11 +64,6 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -483,10 +478,10 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
                 action.equals("indices:data/write/reindex") ||
-                action.equals(SqlQueryAction.NAME) ||
-                action.equals(SqlTranslateAction.NAME) ||
-                action.equals(SqlListTablesAction.NAME) ||
-                action.equals(SqlListColumnsAction.NAME) ;
+                action.equals("indices:data/read/sql") ||
+                action.equals("indices:data/read/sql/translate") ||
+                action.equals("indices:admin/sql/tables") ||
+                action.equals("indices:admin/sql/columns") ;
     }
 
     private static boolean isTranslatedToBulkAction(String action) {
@@ -505,7 +500,7 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
                 action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
-                action.equals(SqlClearCursorAction.NAME) ||
+                action.equals("indices:data/read/sql/close_cursor") ||
                 action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 

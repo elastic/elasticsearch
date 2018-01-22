@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql;
+package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -98,7 +99,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
                 .indexPattern("bar").columnPattern("").mode(Mode.JDBC).get();
         List<MetaColumnInfo> columns = response.getColumns();
         assertThat(columns, hasSize(2));
-        assertThat(columns, contains(
+        assertThat(columns, Matchers.contains(
                 new MetaColumnInfo("bar", "int_field", "integer", JDBCType.INTEGER, 10, 1),
                 new MetaColumnInfo("bar", "str_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE, 2)
         ));
@@ -107,7 +108,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
                 .indexPattern("bar").columnPattern("").mode(Mode.PLAIN).get();
         columns = response.getColumns();
         assertThat(columns, hasSize(2));
-        assertThat(columns, contains(
+        assertThat(columns, Matchers.contains(
                 new MetaColumnInfo("bar", "int_field", "integer", null, 0, 1),
                 new MetaColumnInfo("bar", "str_field", "text", null, 0, 2)
         ));

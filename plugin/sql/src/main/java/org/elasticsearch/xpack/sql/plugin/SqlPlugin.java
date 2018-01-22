@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackField;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
@@ -46,11 +47,15 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     private final SqlLicenseChecker sqlLicenseChecker;
     private IndexResolver indexResolver;
 
-    public SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
+    SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
         this.enabled = enabled;
-        XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
-        this.sqlLicenseChecker = new SqlLicenseChecker(
+        this.sqlLicenseChecker = sqlLicenseChecker;
+    }
+
+    public SqlPlugin(Settings settings) {
+        this(XPackSettings.SQL_ENABLED.get(settings), new SqlLicenseChecker(
                 (mode) -> {
+                    XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
                     switch (mode) {
                         case JDBC:
                             if (licenseState.isJdbcAllowed() == false) {
@@ -66,7 +71,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                             throw new IllegalArgumentException("Unknown SQL mode " + mode);
                     }
                 }
-        );
+        ));
     }
 
     @Override
@@ -90,18 +95,19 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
-            ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+                                             ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings,
+                                             SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
 
         if (false == enabled) {
             return emptyList();
         }
 
         return Arrays.asList(new RestSqlQueryAction(settings, restController),
-                             new RestSqlTranslateAction(settings, restController),
-                             new RestSqlClearCursorAction(settings, restController),
-                             new RestSqlListTablesAction(settings, restController),
-                             new RestSqlListColumnsAction(settings, restController));
+                new RestSqlTranslateAction(settings, restController),
+                new RestSqlClearCursorAction(settings, restController),
+                new RestSqlListTablesAction(settings, restController),
+                new RestSqlListColumnsAction(settings, restController));
     }
 
     @Override
@@ -111,9 +117,9 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         }
 
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
-                             new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
-                             new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-                             new ActionHandler<>(SqlListTablesAction.INSTANCE, TransportSqlListTablesAction.class),
-                             new ActionHandler<>(SqlListColumnsAction.INSTANCE, TransportSqlListColumnsAction.class));
+                new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
+                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
+                new ActionHandler<>(SqlListTablesAction.INSTANCE, TransportSqlListTablesAction.class),
+                new ActionHandler<>(SqlListColumnsAction.INSTANCE, TransportSqlListColumnsAction.class));
     }
 }

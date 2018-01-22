@@ -388,11 +388,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSqlAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(XpackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMesssages(XPackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSqlAckTrialOrPlatinumToNotTrialOrPlatinum() {
-        assertAckMesssages(XpackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+        assertAckMesssages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
 }

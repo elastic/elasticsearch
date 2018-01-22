@@ -1,3 +1,5 @@
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-sql'
@@ -12,12 +14,20 @@ esplugin {
 
 archivesBaseName = 'x-pack-sql'
 
+// TODO: enable this once we have tests
+integTest.enabled = false
+
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
     compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
     compile 'org.antlr:antlr4-runtime:4.5.3'
     testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
+    testCompile project(path: ':modules:reindex', configuration: 'runtime')
+    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
 dependencyLicenses {
@@ -28,9 +38,6 @@ dependencyLicenses {
     ignoreSha 'x-pack-core'
     ignoreSha 'sql-proto'
 }
-
-// TODO: Should we move integrations tests here?
-integTest.enabled = false
 
 /**********************************************
  *          SQL Parser regeneration           *

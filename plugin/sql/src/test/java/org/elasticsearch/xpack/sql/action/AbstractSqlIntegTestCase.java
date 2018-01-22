@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql;
+package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,7 +32,7 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
+        settings.put("xpack.ml.autodetect_process", false);
         return settings.build();
     }
 

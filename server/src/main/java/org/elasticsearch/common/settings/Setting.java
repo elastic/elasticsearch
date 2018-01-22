@@ -597,7 +597,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
-                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                    return current.filter(k -> match(k)).equals(previous.filter(k -> match(k))) == false;
                 }
 
                 @Override
@@ -612,7 +612,7 @@ public class Setting<T> implements ToXContentObject {
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
                             // the hasChanged above checks only if there are any changes
-                                T value = updater.getValue(current, previous);
+                            T value = updater.getValue(current, previous);
                             if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
                                 result.put(namespace, value);
                             }

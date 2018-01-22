@@ -269,14 +269,19 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        return fromXContentEmbedded(parser, null, null, null);
+    }
+
+    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String type, String id) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
         String currentFieldName = parser.currentName();
-        String index = null, type = null, id = null;
         long version = -1;
         Boolean found = null;
         BytesReference source = null;
         Map<String, DocumentField> fields = new HashMap<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

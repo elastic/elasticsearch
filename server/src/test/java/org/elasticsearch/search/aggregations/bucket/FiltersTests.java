@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -123,6 +124,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testRewrite() throws IOException {
         // test non-keyed filter that doesn't rewrite
         AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
+        original.setMetaData(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
         AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertSame(original, rewritten);
 

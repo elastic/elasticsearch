@@ -101,7 +101,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
-        NioSocketChannel socketChannel = new DoNotRegisterChannel(rawChannel, selector);
+        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
         socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 
@@ -117,7 +117,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
-        NioSocketChannel socketChannel = new DoNotRegisterChannel(rawChannel, selector);
+        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
         socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 

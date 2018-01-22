@@ -85,17 +85,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         }
     }
 
-    /**
-     * This method attempts to registered a channel with the raw nio selector. It also sets the selection
-     * key.
-     *
-     * @throws ClosedChannelException if the raw channel was closed
-     */
-    @Override
-    public void register() throws ClosedChannelException {
-//        setSelectionKey(socketChannel.register(selector.rawSelector(), 0));
-    }
-
     @Override
     public SelectionKey getSelectionKey() {
         return selectionKey;

@@ -23,12 +23,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -50,7 +48,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
-        channel = new DoNotRegisterChannel(rawChannel, selector);
+        channel = new NioSocketChannel(rawChannel, selector);
         when(rawChannel.finishConnect()).thenReturn(true);
 
         channel.setContext(new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0)));
@@ -103,7 +101,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleReadDelegatesToContext() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        NioSocketChannel channel = new NioSocketChannel(rawChannel, mock(SocketSelector.class));
         SocketChannelContext context = mock(SocketChannelContext.class);
         channel.setContext(context);
 
@@ -149,7 +147,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testPostHandlingWillAddWriteIfNecessary() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        NioSocketChannel channel = new NioSocketChannel(rawChannel, mock(SocketSelector.class));
         channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ));
         SocketChannelContext context = mock(SocketChannelContext.class);
         channel.setContext(context);
@@ -162,7 +160,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testPostHandlingWillRemoveWriteIfNecessary() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        NioSocketChannel channel = new NioSocketChannel(rawChannel, mock(SocketSelector.class));
         channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
         SocketChannelContext context = mock(SocketChannelContext.class);
         channel.setContext(context);

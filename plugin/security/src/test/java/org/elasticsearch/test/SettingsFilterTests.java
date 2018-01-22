@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
@@ -15,10 +16,14 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+import javax.security.auth.DestroyFailedException;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,14 +38,14 @@ public class SettingsFilterTests extends ESTestCase {
     private Map<String, Matcher> settingsMatcherMap = new HashMap<>();
     private MockSecureSettings mockSecureSettings = new MockSecureSettings();
 
-    public void testFiltering() throws Exception {
+    public void testFiltering() throws OperatorCreationException, GeneralSecurityException, DestroyFailedException, IOException {
         configureUnfilteredSetting("xpack.security.authc.realms.file.type", "file");
 
         // ldap realm filtering
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.type", "ldap");
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.enabled", "false");
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", randomBooleanSetting());
+        configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", Boolean.toString(randomBoolean()));
         configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_dn", randomAlphaOfLength(5));
         configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_password", randomAlphaOfLength(5));
 
@@ -48,7 +53,7 @@ public class SettingsFilterTests extends ESTestCase {
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.type", "active_directory");
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.enabled", "false");
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ad1.hostname_verification", randomBooleanSetting());
+        configureFilteredSetting("xpack.security.authc.realms.ad1.hostname_verification", Boolean.toString(randomBoolean()));
 
         // pki filtering
         configureUnfilteredSetting("xpack.security.authc.realms.pki1.type", "pki");
@@ -99,14 +104,19 @@ public class SettingsFilterTests extends ESTestCase {
                 .build();
 
         XPackPlugin xPackPlugin = new XPackPlugin(settings, null);
+        Security securityPlugin = new Security(settings, null);
         List<Setting<?>> settingList = new ArrayList<>();
         settingList.add(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("foo.baz", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("bar.baz", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("baz.foo", Setting.Property.NodeScope));
         settingList.addAll(xPackPlugin.getSettings());
+        settingList.addAll(securityPlugin.getSettings());
+        List<String> settingsFilterList = new ArrayList<>();
+        settingsFilterList.addAll(xPackPlugin.getSettingsFilter());
+        settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
-        SettingsModule settingsModule = new SettingsModule(settings, settingList, xPackPlugin.getSettingsFilter());
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList);
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);
@@ -115,10 +125,6 @@ public class SettingsFilterTests extends ESTestCase {
         for (Map.Entry<String, Matcher> entry : settingsMatcherMap.entrySet()) {
             assertThat(filteredSettings.get(entry.getKey()), entry.getValue());
         }
-    }
-
-    private String randomBooleanSetting() {
-        return randomFrom("true", "false");
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

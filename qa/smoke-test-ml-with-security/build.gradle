@@ -27,6 +27,7 @@ integTestRunner {
     'ml/calendar_crud/Test post calendar events given empty events',
     'ml/calendar_crud/Test put calendar given id contains invalid chars',
     'ml/calendar_crud/Test delete event from non existing calendar',
+    'ml/calendar_crud/Test delete job from non existing calendar',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',

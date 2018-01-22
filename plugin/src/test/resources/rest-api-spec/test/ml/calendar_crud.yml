@@ -613,3 +613,12 @@
           {
             "events": []
           }
+
+---
+"Test delete event from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.delete_calendar_event:
+        calendar_id: "unknown"
+        event_id: "event_1"

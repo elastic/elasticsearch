@@ -93,7 +93,7 @@ The following parameters are accepted by `text` fields:
 
     If enabled, term prefixes of between 2 and 5 characters are indexed into a
     separate field.  This allows prefix searches to run more efficiently, at
-    the expense of a larger index. Accepts `true`, `false` (default) or an
+    the expense of a larger index. Accepts an
     <<index-prefix-config,`index-prefix configuration block`>>
 
 <<norms,`norms`>>::
@@ -138,8 +138,8 @@ The following parameters are accepted by `text` fields:
 [[index-prefix-config]]
 ==== Index Prefix configuration
 
-By default, the `index-prefix` option will index ngrams of tokens between 2 and 5
-characters wide.  To change this, use the following syntax:
+To configure the index prefix field, use the following syntax.  Either or both
+of `min_chars` and `max_chars` may be excluded.
 
 [source,js]
 --------------------------------
@@ -161,5 +161,5 @@ PUT my_index
 }
 --------------------------------
 // CONSOLE
-<1> `min_chars` must be greater than zero
-<2> `max_chars` must be greater than `min_chars` and less than 20
+<1> `min_chars` must be greater than zero, defaults to 2
+<2> `max_chars` must be greater than `min_chars` and less than 20, defaults to 5

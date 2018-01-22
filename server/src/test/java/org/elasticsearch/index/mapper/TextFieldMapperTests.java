@@ -638,7 +638,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .field("index_prefix", "true")
+                .startObject("index_prefix").endObject()
                 .endObject().endObject()
                 .endObject().endObject().string();
             CompressedXContent json = new CompressedXContent(mapping);

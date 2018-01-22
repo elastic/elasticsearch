@@ -15,6 +15,9 @@ public class TimeValueSchedule implements Schedule {
     private TimeValue interval;
 
     public TimeValueSchedule(TimeValue interval) {
+        if (interval.millis() <= 0) {
+            throw new IllegalArgumentException("interval must be greater than 0 milliseconds");
+        }
         this.interval = interval;
     }
 

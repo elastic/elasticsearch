@@ -252,10 +252,10 @@
         job_id: "missing job"
 
   - do:
-      catch: missing
+      catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/
       xpack.ml.delete_calendar_job:
         calendar_id: "wildlife"
-        job_id: "missing job"
+        job_id: "missing_job"
 
 ---
 "Test calendar get events":
@@ -622,3 +622,12 @@
       xpack.ml.delete_calendar_event:
         calendar_id: "unknown"
         event_id: "event_1"
+
+---
+"Test delete job from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.delete_calendar_job:
+        calendar_id: "unknown"
+        job_id: "missing_job"

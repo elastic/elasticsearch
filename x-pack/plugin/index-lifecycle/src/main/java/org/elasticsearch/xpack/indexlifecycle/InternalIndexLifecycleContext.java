@@ -84,8 +84,8 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     @Override
     public boolean canExecute(Phase phase) {
         long now = nowSupplier.getAsLong();
-        long indexCreated = getIdxMetaData().getCreationDate();
-        return (indexCreated + phase.getAfter().millis()) <= now;
+        long initialIndexCreated = IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(getIdxMetaData().getSettings());
+        return (initialIndexCreated + phase.getAfter().millis()) <= now;
     }
 
     @Override

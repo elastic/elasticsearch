@@ -136,6 +136,7 @@ public class ShrinkAction implements LifecycleAction {
             resizeRequest.getTargetIndexRequest().settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, indexMetaData.getNumberOfReplicas())
+                .put("index.lifecycle.date", indexMetaData.getCreationDate())
                 .build());
             indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
                 resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));

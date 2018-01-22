@@ -56,7 +56,6 @@ import static java.util.Collections.emptyList;
 public class IndexLifecycle extends Plugin {
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
-    public static final String THREAD_POOL_NAME = NAME;
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
@@ -71,6 +70,8 @@ public class IndexLifecycle extends Plugin {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString("index.lifecycle.action",
             Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<Long> LIFECYCLE_INDEX_CREATION_DATE_SETTING = Setting.longSetting("index.lifecycle.date",
+        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
@@ -93,9 +94,10 @@ public class IndexLifecycle extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-                LIFECYCLE_POLL_INTERVAL_SETTING,
+            LIFECYCLE_POLL_INTERVAL_SETTING,
             LIFECYCLE_NAME_SETTING,
-                LIFECYCLE_PHASE_SETTING,
+            LIFECYCLE_PHASE_SETTING,
+            LIFECYCLE_INDEX_CREATION_DATE_SETTING,
             LIFECYCLE_ACTION_SETTING);
     }
 

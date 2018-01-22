@@ -226,10 +226,12 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         Index targetIndex = new Index("shrunk-" + index.getName(), randomAlphaOfLengthBetween(1, 20));
         int numberOfShards = randomIntBetween(1, 5);
         int numberOfReplicas = randomIntBetween(1, 5);
+        long creationDate = randomNonNegativeLong();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT))
             .putAlias(AliasMetaData.builder("my_alias"))
+            .creationDate(creationDate)
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(numberOfReplicas).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
             indexMetadata);
@@ -266,7 +268,8 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
             assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.singleton(new Alias("my_alias"))));
             assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build()));
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                .put("index.lifecycle.date", creationDate).build()));
             assertThat(request.getTargetIndexRequest().index(), equalTo(targetIndex.getName()));
             ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
             resizeResponse.readFrom(StreamInput.wrap(new byte[] { 1, 1, 1, 1, 1 }));

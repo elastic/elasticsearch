@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.FormattedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -20,15 +24,21 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.SortedMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -112,23 +122,32 @@ public class IndexLifecycleService extends AbstractComponent
             logger.info("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
             IndexLifecycleMetadata indexLifecycleMetadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
             SortedMap<String, LifecyclePolicy> policies = indexLifecycleMetadata.getPolicies();
+            // loop through all indices in cluster state and filter for ones that are
+            // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
+            // associated to a policy
             clusterService.state().metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
                 String policyName = IndexLifecycle.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
-                    logger.info("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
-                    LifecyclePolicy policy = policies.get(policyName);
-                    if (policy == null) {
-                        logger.error("Unknown lifecycle policy [{}] for index [{}]", policyName, idxMeta.getIndex().getName());
-                    } else {
-                        try {
-                            policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
-                        } catch (Exception e) {
-                            logger.error(new FormattedMessage("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
-                                    idxMeta.getIndex().getName()), e);
-                        }
-                    }
+                    // ensure that all managed indices have `index.lifecycle.date` set
+                    // and then execute their respective lifecycle policies.
+                    putLifecycleDate(idxMeta).thenRun(() -> executePolicy(idxMeta, policies, policyName));
                 }
             });
+        }
+    }
+
+    private void executePolicy(IndexMetaData idxMeta, SortedMap<String, LifecyclePolicy> policies, String policyName) {
+        logger.info("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
+        LifecyclePolicy policy = policies.get(policyName);
+        if (policy == null) {
+            logger.error("Unknown lifecycle policy [{}] for index [{}]", policyName, idxMeta.getIndex().getName());
+        } else {
+            try {
+                policy.execute(new InternalIndexLifecycleContext(idxMeta.getIndex(), client, clusterService, nowSupplier));
+            } catch (Exception e) {
+                logger.error(new FormattedMessage("Failed to execute lifecycle policy [{}] for index [{}]", policyName,
+                    idxMeta.getIndex().getName()), e);
+            }
         }
     }
 
@@ -151,8 +170,33 @@ public class IndexLifecycleService extends AbstractComponent
             }));
     }
 
+    private CompletableFuture<Void> putLifecycleDate(IndexMetaData idxMeta) {
+        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
+        if (idxMeta.getSettings().hasValue(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey())) {
+            completableFuture.complete(null);
+        } else {
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(Settings.builder()
+                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), idxMeta.getCreationDate()).build(),
+                idxMeta.getIndex().getName());
+            client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<UpdateSettingsResponse>() {
+                @Override
+                public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+                    completableFuture.complete(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unable to update index.lifecycle.date setting on indices", e);
+                    completableFuture.completeExceptionally(e);
+                }
+            });
+        }
+
+        return completableFuture;
+    }
+
     @Override
-    public void close() throws IOException {
+    public void close() {
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
 import org.elasticsearch.client.AdminClient;
@@ -260,6 +261,14 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNull(indexLifecycleService.getScheduler());
     }
 
+    /**
+     * Checks that a new index does the following successfully:
+     *
+     * 1. setting index.lifecycle.date
+     * 2. sets phase
+     * 3. sets action
+     * 4. executes action
+     */
     @SuppressWarnings("unchecked")
     public void testTriggeredWithMatchingPolicy() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
@@ -289,16 +298,101 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(currentState);
 
+        SetOnce<Boolean> dateUpdated = new SetOnce<>();
+        SetOnce<Boolean> phaseUpdated = new SetOnce<>();
+        SetOnce<Boolean> actionUpdated = new SetOnce<>();
         doAnswer(invocationOnMock -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
+                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
+                    indexMetadata.getCreationDate()).build(), index.getName());
+            dateUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
-
+        }).doAnswer(invocationOnMock -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
+                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), "")
+                .put(IndexLifecycle.LIFECYCLE_PHASE_SETTING.getKey(), "phase").build(), index.getName());
+            phaseUpdated.set(true);
+            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+            return null;
+        }).doAnswer(invocationOnMock -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
+                .put(IndexLifecycle.LIFECYCLE_ACTION_SETTING.getKey(), MockAction.NAME).build(), index.getName());
+            actionUpdated.set(true);
+            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+            return null;
         }).when(indicesClient).updateSettings(any(), any());
 
         indexLifecycleService.triggered(schedulerEvent);
 
+        assertThat(dateUpdated.get(), equalTo(true));
+        assertThat(phaseUpdated.get(), equalTo(true));
+        assertThat(actionUpdated.get(), equalTo(true));
         assertThat(mockAction.getExecutedCount(), equalTo(1L));
+    }
+
+    /**
+     * Check that a policy is executed without first setting the `index.lifecycle.date` setting
+     */
+    @SuppressWarnings("unchecked")
+    public void testTriggeredWithDateSettingAlreadyPresent() {
+        String policyName = randomAlphaOfLengthBetween(1, 20);
+        MockAction mockAction = new MockAction();
+        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
+            Collections.singletonMap(phase.getName(), phase));
+        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
+        policyMap.put(policyName, policy);
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        long creationDate = randomNonNegativeLong();
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+            .settings(settings(Version.CURRENT)
+                .put(IndexLifecycle.LIFECYCLE_NAME_SETTING.getKey(), policyName)
+                .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), creationDate))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).creationDate(creationDate).build();
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+            .fPut(index.getName(), indexMetadata);
+        MetaData metaData = MetaData.builder()
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
+            .indices(indices.build())
+            .persistentSettings(settings(Version.CURRENT).build())
+            .build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .build();
+
+        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
+
+        when(clusterService.state()).thenReturn(currentState);
+
+        SetOnce<Boolean> dateUpdated = new SetOnce<>();
+        doAnswer(invocationOnMock -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
+            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
+            try {
+                UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
+                    .put(IndexLifecycle.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
+                        indexMetadata.getCreationDate()).build(), index.getName());
+                dateUpdated.set(true);
+            } catch (AssertionError e) {
+                // noop: here because we are either updating the phase or action prior to executing MockAction
+            }
+            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+            return null;
+        }).when(indicesClient).updateSettings(any(), any());
+
+        indexLifecycleService.triggered(schedulerEvent);
+
+        assertNull(dateUpdated.get());
+        assertThat(mockAction.getExecutedCount(), equalTo(1L));
+
     }
 
     /**

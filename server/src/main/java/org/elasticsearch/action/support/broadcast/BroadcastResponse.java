@@ -20,11 +20,10 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,30 +34,24 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
  * Base class for all broadcast operation based responses.
  */
 public class BroadcastResponse extends ActionResponse {
-    private static final ShardOperationFailedException[] EMPTY = new ShardOperationFailedException[0];
+    private static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
     private int totalShards;
     private int successfulShards;
     private int failedShards;
-    private ShardOperationFailedException[] shardFailures = EMPTY;
+    private DefaultShardOperationFailedException[] shardFailures = EMPTY;
 
     public BroadcastResponse() {
     }
 
     public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
-                             List<? extends ShardOperationFailedException> shardFailures) {
-        assertNoShardNotAvailableFailures(shardFailures);
+                             List<DefaultShardOperationFailedException> shardFailures) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = shardFailures == null ? EMPTY :
-                shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
-    }
-
-    private void assertNoShardNotAvailableFailures(List<? extends ShardOperationFailedException> shardFailures) {
-        if (shardFailures != null) {
-            for (Object e : shardFailures) {
-                assert (e instanceof ShardNotFoundException) == false : "expected no ShardNotFoundException failures, but got " + e;
-            }
+        if (shardFailures == null) {
+            this.shardFailures = EMPTY;
+        } else {
+            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
         }
     }
 
@@ -97,7 +90,7 @@ public class BroadcastResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public ShardOperationFailedException[] getShardFailures() {
+    public DefaultShardOperationFailedException[] getShardFailures() {
         return shardFailures;
     }
 
@@ -109,7 +102,7 @@ public class BroadcastResponse extends ActionResponse {
         failedShards = in.readVInt();
         int size = in.readVInt();
         if (size > 0) {
-            shardFailures = new ShardOperationFailedException[size];
+            shardFailures = new DefaultShardOperationFailedException[size];
             for (int i = 0; i < size; i++) {
                 shardFailures[i] = readShardOperationFailed(in);
             }
@@ -123,7 +116,7 @@ public class BroadcastResponse extends ActionResponse {
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
         out.writeVInt(shardFailures.length);
-        for (ShardOperationFailedException exp : shardFailures) {
+        for (DefaultShardOperationFailedException exp : shardFailures) {
             exp.writeTo(out);
         }
     }

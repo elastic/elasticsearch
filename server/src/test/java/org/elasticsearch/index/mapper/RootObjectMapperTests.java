@@ -36,7 +36,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
@@ -46,7 +46,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .field("numeric_detection", true)
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
@@ -55,7 +55,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
@@ -67,7 +67,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
@@ -77,7 +77,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .field("date_detection", false)
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
@@ -86,7 +86,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
@@ -98,7 +98,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if formatters are not set explicitly
@@ -107,7 +107,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         String mapping3 = XContentFactory.jsonBuilder()
@@ -116,7 +116,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .field("dynamic_date_formats", Arrays.asList())
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
@@ -137,7 +137,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if templates are not set explicitly
@@ -146,7 +146,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .startObject("type")
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         String mapping3 = XContentFactory.jsonBuilder()
@@ -155,7 +155,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                     .field("dynamic_templates", Arrays.asList())
                 .endObject()
             .endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

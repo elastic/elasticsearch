@@ -181,13 +181,13 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertNull(mapper.root().dynamic());
         String update = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .field("dynamic", "strict")
                 .endObject().endObject().string();
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE, false);
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE);
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 

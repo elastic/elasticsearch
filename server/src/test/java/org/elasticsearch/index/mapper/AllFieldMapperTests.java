@@ -33,7 +33,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 .put("index.analysis.analyzer.default_search.type", "custom")
                 .put("index.analysis.analyzer.default_search.tokenizer", "standard").build());
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject().string();
-        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, indexService.mapperService().documentMapper("_doc").mapping().toString());
     }
 

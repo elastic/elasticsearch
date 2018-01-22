@@ -78,8 +78,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_parent").field("type", "parent_type").endObject()
                 .endObject().endObject().string();
         IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
-        indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
-        indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE);
+        indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE);
 
         // Indexing parent doc:
         DocumentMapper parentDocMapper = indexService.mapperService().documentMapper("parent_type");
@@ -121,7 +121,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .endObject()
             .endObject().endObject();
-        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MergeReason.MAPPING_UPDATE);
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
@@ -146,15 +146,15 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_parent").field("type", "parent_type").endObject()
                 .endObject().endObject().string();
         IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
-        indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
-        indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE);
+        indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE);
 
         assertTrue(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
 
         String childMappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").field("eager_global_ordinals", false).endObject()
                 .endObject().endObject().string();
-        indexService.mapperService().merge("child_type", new CompressedXContent(childMappingUpdate), MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("child_type", new CompressedXContent(childMappingUpdate), MergeReason.MAPPING_UPDATE);
 
         assertFalse(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
     }

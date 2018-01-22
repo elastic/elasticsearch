@@ -268,13 +268,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
-        return (RootObjectMapper) super.merge(mergeWith, updateAllTypes);
+    public RootObjectMapper merge(Mapper mergeWith) {
+        return (RootObjectMapper) super.merge(mergeWith);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(ObjectMapper mergeWith) {
+        super.doMerge(mergeWith);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;

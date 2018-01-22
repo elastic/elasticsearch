@@ -336,14 +336,6 @@ public class RequestTests extends ESTestCase {
         setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(putMappingRequest, expectedParams);
 
-        if (randomBoolean()) {
-            boolean updateAllTypes = randomBoolean();
-            putMappingRequest.updateAllTypes(updateAllTypes);
-            if (updateAllTypes) {
-                expectedParams.put("update_all_types", Boolean.TRUE.toString());
-            }
-        }
-
         Request request = Request.putMapping(putMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);

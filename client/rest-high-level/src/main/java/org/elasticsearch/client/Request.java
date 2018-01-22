@@ -181,14 +181,15 @@ public final class Request {
 
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
-        assert (putMappingRequest.getConcreteIndex() == null);
+        if (putMappingRequest.getConcreteIndex() != null) {
+            throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
+        }
 
         String endpoint = endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type());
 
         Params parameters = Params.builder();
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
-        parameters.withUpdateAllTypes(putMappingRequest.updateAllTypes());
 
         HttpEntity entity = createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);

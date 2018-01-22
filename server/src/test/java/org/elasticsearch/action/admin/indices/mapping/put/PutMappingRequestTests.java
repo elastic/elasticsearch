@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class PutMappingRequestTests extends ESTestCase {
@@ -105,7 +106,6 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-
         request.type("my_type");
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
@@ -118,21 +118,16 @@ public class PutMappingRequestTests extends ESTestCase {
         request.source(mapping);
 
         String actualRequestBody = Strings.toString(request);
-
         String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
-
         assertEquals(expectedRequestBody, actualRequestBody);
     }
 
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-
         request.type("my_type");
 
         String actualRequestBody = Strings.toString(request);
-
         String expectedRequestBody = "{}";
-
         assertEquals(expectedRequestBody, actualRequestBody);
     }
 
@@ -177,29 +172,10 @@ public class PutMappingRequestTests extends ESTestCase {
         builder.startObject();
 
         if (randomBoolean()) {
-            randomMappingFields(builder, true);
+            CreateIndexRequestTests.randomMappingFields(builder, true);
         }
 
         builder.endObject();
         return builder;
-    }
-
-    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
-        builder.startObject("properties");
-
-        int fieldsNo = randomIntBetween(0, 5);
-        for (int i = 0; i < fieldsNo; i++) {
-            builder.startObject(randomAlphaOfLength(5));
-
-            if (allowObjectField && randomBoolean()) {
-                randomMappingFields(builder, false);
-            } else {
-                builder.field("type", "text");
-            }
-
-            builder.endObject();
-        }
-
-        builder.endObject();
     }
 }

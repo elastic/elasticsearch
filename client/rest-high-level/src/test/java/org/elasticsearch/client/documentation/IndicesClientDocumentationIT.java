@@ -160,14 +160,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::create-index-request-mappings
             request.mapping("tweet", // <1>
                 "{\n" +
-                    "  \"tweet\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <2>
+                "  \"tweet\": {\n" +
+                "    \"properties\": {\n" +
+                "      \"message\": {\n" +
+                "        \"type\": \"text\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}", // <2>
                 XContentType.JSON);
             // end::create-index-request-mappings
 
@@ -247,14 +247,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-mapping-request-source
             request.source(
                 "{\n" +
-                    "  \"tweet\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
+                "  \"tweet\": {\n" +
+                "    \"properties\": {\n" +
+                "      \"message\": {\n" +
+                "        \"type\": \"text\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}", // <1>
                 XContentType.JSON);
             // end::put-mapping-request-source
 

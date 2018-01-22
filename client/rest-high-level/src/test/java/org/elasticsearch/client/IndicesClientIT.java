@@ -118,9 +118,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(indexName);
 
             PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-
             putMappingRequest.type("type_name");
-
             XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
             mappingBuilder.startObject().startObject("properties").startObject("field");
             mappingBuilder.field("type", "text");
@@ -132,7 +130,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertTrue(putMappingResponse.isAcknowledged());
 
             Map<String, Object> indexMetaData = getIndexMetadata(indexName);
-
             Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
             Map<String, Object> typeData = (Map) mappingsData.get("type_name");
             Map<String, Object> properties = (Map) typeData.get("properties");

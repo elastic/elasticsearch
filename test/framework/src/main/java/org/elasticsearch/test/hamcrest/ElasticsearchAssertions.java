@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -163,7 +163,7 @@ public class ElasticsearchAssertions {
      * */
     public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
         assertThat("all shard requests should have failed", replicatedBroadcastResponse.getFailedShards(), Matchers.equalTo(replicatedBroadcastResponse.getTotalShards()));
-        for (ShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
+        for (DefaultShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
             ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
             assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(), clusterBlockException);
             assertThat(clusterBlockException.blocks().size(), greaterThan(0));
@@ -203,7 +203,7 @@ public class ElasticsearchAssertions {
         msg.append(" Total shards: ").append(response.getTotalShards())
            .append(" Successful shards: ").append(response.getSuccessfulShards())
            .append(" & ").append(response.getFailedShards()).append(" shard failures:");
-        for (ShardOperationFailedException failure : response.getShardFailures()) {
+        for (DefaultShardOperationFailedException failure : response.getShardFailures()) {
             msg.append("\n ").append(failure);
         }
         return msg.toString();

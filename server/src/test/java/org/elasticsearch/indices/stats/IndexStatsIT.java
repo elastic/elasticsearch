@@ -22,7 +22,6 @@ package org.elasticsearch.indices.stats;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -37,6 +36,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1113,7 +1113,8 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean failed = new AtomicBoolean();
-        final AtomicReference<List<ShardOperationFailedException>> shardFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
+        final AtomicReference<List<DefaultShardOperationFailedException>> shardFailures =
+                new AtomicReference<>(new CopyOnWriteArrayList<>());
         final AtomicReference<List<Exception>> executionFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
 
         // increasing the number of shards increases the number of chances any one stats request will hit a race
@@ -1191,7 +1192,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             thread.join();
         }
 
-        assertThat(shardFailures.get(), emptyCollectionOf(ShardOperationFailedException.class));
+        assertThat(shardFailures.get(), emptyCollectionOf(DefaultShardOperationFailedException.class));
         assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
     }
 

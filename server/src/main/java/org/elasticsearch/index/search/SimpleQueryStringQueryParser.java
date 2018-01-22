@@ -33,6 +33,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -86,11 +87,11 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     /**
-     * Rethrow the runtime exception, unless the lenient flag has been set, returns null
+     * Rethrow the runtime exception, unless the lenient flag has been set, returns {@link MatchNoDocsQuery}
      */
     private Query rethrowUnlessLenient(RuntimeException e) {
         if (settings.lenient()) {
-            return null;
+            return Queries.newMatchNoDocsQuery("failed query, caused by " + e.getMessage());
         }
         throw e;
     }
@@ -115,7 +116,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         try {
             return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
         } catch (IOException e) {
-            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
+            return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
     }
 
@@ -135,7 +136,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
-                rethrowUnlessLenient(e);
+                disjuncts.add(rethrowUnlessLenient(e));
             }
         }
         if (disjuncts.size() == 1) {
@@ -156,7 +157,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             return queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, phraseWeights, text, null);
         } catch (IOException e) {
-            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
+            return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         } finally {
             queryBuilder.setPhraseSlop(0);
         }
@@ -184,7 +185,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
-                return rethrowUnlessLenient(e);
+                disjuncts.add(rethrowUnlessLenient(e));
             }
         }
         if (disjuncts.size() == 1) {

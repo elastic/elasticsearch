@@ -42,6 +42,10 @@ load $BATS_UTILS/packages.bash
 # Cleans everything for the 1st execution
 setup() {
     skip_not_dpkg_or_rpm
+    count=$(mount | grep -c "type cgroup2" || true)
+    if [[ "$count" == "1" && "$(cat upgrade_from_version)" =~ 5\.1\.[12]|5\.2\.[012]|5\.3\.0 ]]; then
+      skip "version $(cat upgrade_from_version) is broken when cgroups v2 are enabled"
+    fi
 
     sameVersion="false"
     if [ "$(cat upgrade_from_version)" == "$(cat version)" ]; then

@@ -43,6 +43,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
@@ -455,6 +456,13 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
                 options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
+            // also apply release flag to groovy, which is used in build-tools
+            project.tasks.withType(GroovyCompile) {
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
+                options.fork = true
+                options.forkOptions.javaHome = new File(project.compilerJavaHome)
+                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+            }
         }
     }
 
@@ -651,7 +659,10 @@ class BuildPlugin implements Plugin<Project> {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
-        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+        // only require dependency licenses for non-elasticsearch deps
+        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
+            it.group.startsWith('org.elasticsearch') == false
+        } - project.configurations.provided
     }
 
     private static configureDependenciesInfo(Project project) {

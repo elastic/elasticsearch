@@ -90,7 +90,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.5'
+  compile 'joda-time:joda-time:2.9.9'
 
   // json and yaml
   compile "org.yaml:snakeyaml:${versions.snakeyaml}"

@@ -85,8 +85,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
-    private boolean updateAllTypes = false;
-
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public CreateIndexRequest() {
@@ -429,17 +427,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this.customs;
     }
 
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public boolean updateAllTypes() {
-        return updateAllTypes;
-    }
-
-    /** See {@link #updateAllTypes()} */
-    public CreateIndexRequest updateAllTypes(boolean updateAllTypes) {
-        this.updateAllTypes = updateAllTypes;
-        return this;
-    }
-
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
     }
@@ -499,7 +486,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
-        updateAllTypes = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readBoolean(); // updateAllTypes
+        }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
@@ -523,7 +512,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
-        out.writeBoolean(updateAllTypes);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(true); // updateAllTypes
+        }
         waitForActiveShards.writeTo(out);
     }
 

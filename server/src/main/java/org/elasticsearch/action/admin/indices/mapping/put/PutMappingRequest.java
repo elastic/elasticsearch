@@ -298,7 +298,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * True if all fields that span multiple types should be updated, false otherwise.
      * @deprecated useless with 6.x indices which may only have one type
-     * @see {@link #updateAllTypes()}
      */
     @Deprecated
     public PutMappingRequest updateAllTypes(boolean updateAllTypes) {

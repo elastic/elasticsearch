@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,7 +58,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
             try {
                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
 
-                for (String template : WatcherIndexTemplateRegistry.TEMPLATE_NAMES) {
+                for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
                     ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                             singletonMap("name", template), emptyList(), emptyMap());
                     assertThat(templateExistsResponse.getStatusCode(), is(200));

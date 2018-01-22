@@ -1,5 +1,0 @@
-org.elasticsearch.xpack.logstash.LogstashSecurityExtension
-org.elasticsearch.xpack.ml.MachineLearningSecurityExtension
-org.elasticsearch.xpack.monitoring.MonitoringSecurityExtension
-org.elasticsearch.xpack.security.StackSecurityExtension
-org.elasticsearch.xpack.watcher.WatcherSecurityExtension

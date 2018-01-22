@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
  */
 public final class ExceptExpression implements RoleMapperExpression {
 
-    static final String NAME = "except";
+    public static final String NAME = "except";
 
     private final RoleMapperExpression expression;
 
@@ -29,7 +29,7 @@ public final class ExceptExpression implements RoleMapperExpression {
         this.expression = expression;
     }
 
-    ExceptExpression(StreamInput in) throws IOException {
+    public ExceptExpression(StreamInput in) throws IOException {
         this(ExpressionParser.readExpression(in));
     }
 

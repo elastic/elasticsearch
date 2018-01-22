@@ -64,9 +64,9 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {}
+        public Request() {}
 
-        Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -141,7 +141,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             @Nullable
             private String assignmentExplanation;
 
-            DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
+            public DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
                           @Nullable String assignmentExplanation) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);

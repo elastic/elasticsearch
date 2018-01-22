@@ -79,7 +79,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
         }
 
         public String getJobId() { return jobId; }
@@ -178,7 +178,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
             this.result = result;
         }
 
-        Response() {
+        public Response() {
         }
 
         public QueryPage<CategoryDefinition> getResult() {

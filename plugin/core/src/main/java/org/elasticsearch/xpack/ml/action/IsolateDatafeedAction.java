@@ -81,10 +81,10 @@ public class    IsolateDatafeedAction
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {
+        public Request() {
         }
 
-        String getDatafeedId() {
+        public String getDatafeedId() {
             return datafeedId;
         }
 
@@ -154,7 +154,7 @@ public class    IsolateDatafeedAction
             readFrom(in);
         }
 
-        Response() {
+        public Response() {
             super(null, null);
         }
 

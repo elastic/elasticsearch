@@ -88,7 +88,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
         private boolean desc = true;
         private PageParams pageParams = new PageParams();
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId, String snapshotId) {
@@ -230,7 +230,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
             this.page = page;
         }
 
-        Response() {
+        public Response() {
         }
 
         public QueryPage<ModelSnapshot> getPage() {

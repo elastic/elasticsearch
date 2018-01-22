@@ -44,7 +44,7 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
 
         private String calendarId;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String calendarId) {
@@ -102,7 +102,7 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
             super(acknowledged);
         }
 
-        private Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

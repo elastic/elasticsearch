@@ -78,7 +78,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         private String advanceTime;
         private String skipTime;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId) {
@@ -205,7 +205,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         private boolean flushed;
         private Date lastFinalizedBucketEnd;
 
-        Response() {
+        public Response() {
             super(null, null);
         }
 

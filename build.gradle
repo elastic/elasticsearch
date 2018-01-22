@@ -53,8 +53,16 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential', 'Generated']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin:core']
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack-elasticsearch:plugin:core']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": ':x-pack-elasticsearch:plugin:deprecation']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": ':x-pack-elasticsearch:plugin:graph']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": ':x-pack-elasticsearch:plugin:logstash']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": ':x-pack-elasticsearch:plugin:ml']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": ':x-pack-elasticsearch:plugin:monitoring']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": ':x-pack-elasticsearch:plugin:security']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": ':x-pack-elasticsearch:plugin:upgrade']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": ':x-pack-elasticsearch:plugin:watcher']
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     if (version.branch != null) {

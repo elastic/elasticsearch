@@ -4,10 +4,16 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
 }
 
-ext.pluginsCount = 1 // we install xpack explicitly
+ext.pluginsCount = 0
+project(':x-pack-elasticsearch:plugin').subprojects { Project p ->
+  // the meta plugin contains the individual xpack plugins
+  if (p.extensions.findByName('esplugin') != null) {
+    pluginsCount += 1
+  }
+}
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
   integTestCluster.plugin(subproj.path)

@@ -12,8 +12,10 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityField;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,13 +45,13 @@ public class PreBuiltXPackTransportClient extends PreBuiltTransportClient {
 
     public PreBuiltXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins,
                                         HostFailureListener hostFailureListener) {
-        super(settings, addPlugins(plugins, Collections.singletonList(XPackPlugin.class)), hostFailureListener);
+        super(settings, addPlugins(plugins, Collections.singletonList(XPackClientPlugin.class)), hostFailureListener);
     }
 
     @Override
     public void close() {
         super.close();
-        if (NetworkModule.TRANSPORT_TYPE_SETTING.get(settings).equals(Security.NAME4)) {
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.get(settings).equals(SecurityField.NAME4)) {
             try {
                 GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
             } catch (InterruptedException e) {

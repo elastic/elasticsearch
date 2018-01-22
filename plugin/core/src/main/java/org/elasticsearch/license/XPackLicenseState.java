@@ -9,7 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.XpackField;
+import org.elasticsearch.xpack.XPackField;
 import org.elasticsearch.xpack.monitoring.MonitoringField;
 
 import java.util.Collections;
@@ -29,35 +29,35 @@ public class XPackLicenseState {
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
         Map<String, String[]> messages = new LinkedHashMap<>();
-        messages.put(XpackField.SECURITY, new String[] {
+        messages.put(XPackField.SECURITY, new String[] {
             "Cluster health, cluster stats and indices stats operations are blocked",
             "All data operations (read and write) continue to work"
         });
-        messages.put(XpackField.WATCHER, new String[] {
+        messages.put(XPackField.WATCHER, new String[] {
             "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
             "Watches execute and write to the history",
             "The actions of the watches don't execute"
         });
-        messages.put(XpackField.MONITORING, new String[] {
+        messages.put(XPackField.MONITORING, new String[] {
             "The agent will stop collecting cluster and indices metrics",
             "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
         });
-        messages.put(XpackField.GRAPH, new String[] {
+        messages.put(XPackField.GRAPH, new String[] {
             "Graph explore APIs are disabled"
         });
-        messages.put(XpackField.MACHINE_LEARNING, new String[] {
+        messages.put(XPackField.MACHINE_LEARNING, new String[] {
             "Machine learning APIs are disabled"
         });
-        messages.put(XpackField.LOGSTASH, new String[] {
+        messages.put(XPackField.LOGSTASH, new String[] {
             "Logstash will continue to poll centrally-managed pipelines"
         });
-        messages.put(XpackField.DEPRECATION, new String[] {
+        messages.put(XPackField.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
         });
-        messages.put(XpackField.UPGRADE, new String[] {
+        messages.put(XPackField.UPGRADE, new String[] {
             "Upgrade API is disabled"
         });
-        messages.put(XpackField.SQL, new String[] {
+        messages.put(XPackField.SQL, new String[] {
             "SQL support is disabled"
         });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
@@ -70,13 +70,13 @@ public class XPackLicenseState {
     static final Map<String, BiFunction<OperationMode, OperationMode, String[]>> ACKNOWLEDGMENT_MESSAGES;
     static {
         Map<String, BiFunction<OperationMode, OperationMode, String[]>> messages = new LinkedHashMap<>();
-        messages.put(XpackField.SECURITY, XPackLicenseState::securityAcknowledgementMessages);
-        messages.put(XpackField.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
-        messages.put(XpackField.MONITORING, XPackLicenseState::monitoringAcknowledgementMessages);
-        messages.put(XpackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
-        messages.put(XpackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
-        messages.put(XpackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
-        messages.put(XpackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
+        messages.put(XPackField.SECURITY, XPackLicenseState::securityAcknowledgementMessages);
+        messages.put(XPackField.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
+        messages.put(XPackField.MONITORING, XPackLicenseState::monitoringAcknowledgementMessages);
+        messages.put(XPackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
+        messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
+        messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
+        messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 

@@ -93,7 +93,8 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 

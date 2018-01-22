@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.XPackClientPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 
@@ -45,7 +46,7 @@ public class CustomRealmIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
+        return Collections.singleton(XPackClientPlugin.class);
     }
 
     public void testHttpConnectionWithNoAuthentication() throws Exception {

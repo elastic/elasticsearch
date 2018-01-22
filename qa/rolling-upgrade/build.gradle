@@ -10,8 +10,9 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts') // to be moved in a later commit
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -101,7 +102,7 @@ subprojects {
 
   String output = "generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack-elasticsearch:plugin')
+    from project(':x-pack-elasticsearch:plugin:core')
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
@@ -267,8 +268,9 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:watcher')
   }
 
   compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
@@ -276,15 +278,15 @@ subprojects {
   // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
   task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources
+    from project(':x-pack-elasticsearch:plugin:core').sourceSets.test.resources
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
   }
 
   task copyXPackPluginProps(type: Copy) {
     dependsOn(copyXPackRestSpec)
-    from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
-    from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
+    from project(':x-pack-elasticsearch:plugin:core').file('src/main/plugin-metadata')
+    from project(':x-pack-elasticsearch:plugin:core').tasks.pluginProperties
     into outputDir
   }
   project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)

@@ -5,9 +5,16 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.xpack.XpackField;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.xpack.XPackField;
+
+import java.util.Optional;
 
 public final class SecurityField {
+
+    public static final String NAME4 = XPackField.SECURITY + "4";
+    public static final Setting<Optional<String>> USER_SETTING =
+            new Setting<>(setting("user"), (String) null, Optional::ofNullable, Setting.Property.NodeScope);
 
     private SecurityField() {}
 
@@ -17,6 +24,6 @@ public final class SecurityField {
     }
 
     public static String settingPrefix() {
-        return XpackField.featureSettingPrefix(XpackField.SECURITY) + ".";
+        return XPackField.featureSettingPrefix(XPackField.SECURITY) + ".";
     }
 }

@@ -1,0 +1,36 @@
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-upgrade'
+    description 'Elasticsearch Expanded Pack Plugin - Upgrade'
+    classname 'org.elasticsearch.xpack.upgrade.Upgrade'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
+
+archivesBaseName = 'x-pack-upgrade'
+test.enabled=false
+licenseHeaders.enabled = false
+
+integTest.enabled = false
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+dependencyLicenses {
+    ignoreSha 'x-pack-core'
+}
+
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
+}

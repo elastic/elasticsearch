@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import java.util.Collections;
-
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 

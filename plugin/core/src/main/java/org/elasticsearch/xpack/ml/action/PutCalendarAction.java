@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -60,7 +61,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
         private Calendar calendar;
 
-        Request() {
+        public Request() {
 
         }
 
@@ -79,6 +80,16 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
                 validationException =
                         addValidationError("Cannot create a Calendar with the reserved name [_all]",
                                 validationException);
+            }
+            if (!MlStrings.isValidId(calendar.getId())) {
+                validationException = addValidationError(Messages.getMessage(
+                        Messages.INVALID_ID, Calendar.ID.getPreferredName(), calendar.getId()),
+                        validationException);
+            }
+            if (!MlStrings.hasValidLengthForId(calendar.getId())) {
+                validationException = addValidationError(Messages.getMessage(
+                        Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT),
+                        validationException);
             }
             return validationException;
         }
@@ -130,7 +141,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
         private Calendar calendar;
 
-        Response() {
+        public Response() {
         }
 
         public Response(Calendar calendar) {

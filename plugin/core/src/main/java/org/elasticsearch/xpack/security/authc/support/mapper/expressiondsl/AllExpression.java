@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
  */
 public final class AllExpression implements RoleMapperExpression {
 
-    static final String NAME = "all";
+    public static final String NAME = "all";
 
     private final List<RoleMapperExpression> elements;
 
@@ -30,7 +30,7 @@ public final class AllExpression implements RoleMapperExpression {
         this.elements = elements;
     }
 
-    AllExpression(StreamInput in) throws IOException {
+    public AllExpression(StreamInput in) throws IOException {
         this(ExpressionParser.readExpressionList(in));
     }
 

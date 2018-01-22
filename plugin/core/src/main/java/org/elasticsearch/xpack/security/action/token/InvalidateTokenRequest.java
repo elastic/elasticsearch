@@ -29,7 +29,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
     private String tokenString;
     private Type tokenType;
 
-    InvalidateTokenRequest() {}
+    public InvalidateTokenRequest() {}
 
     /**
      * @param tokenString the string representation of the token
@@ -51,7 +51,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
         return validationException;
     }
 
-    String getTokenString() {
+    public String getTokenString() {
         return tokenString;
     }
 
@@ -59,7 +59,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
         this.tokenString = token;
     }
 
-    Type getTokenType() {
+    public Type getTokenType() {
         return tokenType;
     }
 

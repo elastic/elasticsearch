@@ -3,8 +3,8 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 }
 
 task remoteClusterTest(type: RestIntegTestTask) {

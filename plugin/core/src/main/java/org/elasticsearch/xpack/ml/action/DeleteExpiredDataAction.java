@@ -67,7 +67,7 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
             this.deleted = deleted;
         }
 
-        Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

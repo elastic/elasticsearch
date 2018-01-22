@@ -25,13 +25,6 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
  */
 public final class ExpressionParser {
 
-    public static final NamedWriteableRegistry.Entry[] NAMED_WRITEABLES = {
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new)
-    };
-
     public static RoleMapperExpression readExpression(StreamInput in) throws IOException {
         return in.readNamedWriteable(RoleMapperExpression.class);
     }

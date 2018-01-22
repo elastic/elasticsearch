@@ -67,7 +67,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
@@ -1081,15 +1083,32 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
-    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
+    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, ClusterState clusterState,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 
         ActionListener<Calendar> getCalendarListener = ActionListener.wrap(
                 calendar -> {
                     Set<String> currentJobs = new HashSet<>(calendar.getJobIds());
+
+                    for (String jobToAdd : jobIdsToAdd) {
+                        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+                        if (mlMetadata.isGroupOrJob(jobToAdd) == false) {
+                            errorHandler.accept(ExceptionsHelper.missingJobException(jobToAdd));
+                            return;
+                        }
+                    }
+
+                    for (String jobToRemove : jobIdsToRemove) {
+                        if (currentJobs.contains(jobToRemove) == false) {
+                            errorHandler.accept(ExceptionsHelper.badRequestException("Cannot remove [" + jobToRemove
+                                    + "] as it is not present in calendar [" + calendarId + "]"));
+                            return;
+                        }
+                    }
+
                     currentJobs.addAll(jobIdsToAdd);
                     currentJobs.removeAll(jobIdsToRemove);
-                    Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs));
+                    Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
                     UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1156,7 +1175,7 @@ public class JobProvider {
                             .map(c -> {
                                 Set<String> ids = new HashSet<>(c.getJobIds());
                                 ids.remove(jobId);
-                                return new Calendar(c.getId(), new ArrayList<>(ids));
+                                return new Calendar(c.getId(), new ArrayList<>(ids), c.getDescription());
                             }).forEach(c -> {
                                 UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE,
                                         c.documentId());

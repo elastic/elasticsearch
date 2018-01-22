@@ -74,7 +74,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             this.jobBuilder = jobBuilder;
         }
 
-        Request() {
+        public Request() {
         }
 
         public Job.Builder getJobBuilder() {
@@ -139,7 +139,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             this.job = job;
         }
 
-        Response() {
+        public Response() {
         }
 
         public Job getResponse() {

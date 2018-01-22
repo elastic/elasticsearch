@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.support;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.security.authz.store.ClientReservedRoles;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
 import java.util.Locale;
 import java.util.Set;
@@ -99,7 +99,7 @@ public final class Validation {
             if (!isValidUserOrRoleName(roleName)) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
             }
-            if (allowReserved == false && ClientReservedRoles.isReserved(roleName)) {
+            if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");
             }
             return null;

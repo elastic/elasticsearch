@@ -44,7 +44,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
             this.jobIds = jobIds;
         }
 
-        Request() {
+        public Request() {
         }
 
         public String[] getJobIds() {
@@ -79,11 +79,11 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
 
     public static class Response extends AcknowledgedResponse {
 
-        Response(boolean acknowledged) {
+        public Response(boolean acknowledged) {
             super(acknowledged);
         }
 
-        Response() {
+        public Response() {
         }
 
         @Override

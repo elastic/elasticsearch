@@ -90,7 +90,7 @@ public class StartDatafeedAction
             readFrom(in);
         }
 
-        Request() {
+        public Request() {
         }
 
         public DatafeedParams getParams() {

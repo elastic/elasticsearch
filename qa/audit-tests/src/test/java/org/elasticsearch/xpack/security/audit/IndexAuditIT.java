@@ -18,14 +18,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.XPackClientPlugin;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,13 +113,14 @@ public class IndexAuditIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
+                .put(SecurityField.USER_SETTING.getKey(), USER + ":" + PASS)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
+        return Arrays.asList(XPackClientPlugin.class);
     }
+
 }

@@ -70,7 +70,7 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
             return new Request(job.build(new Date()));
         }
 
-        Request() {
+        public Request() {
             this.job = null;
         }
 

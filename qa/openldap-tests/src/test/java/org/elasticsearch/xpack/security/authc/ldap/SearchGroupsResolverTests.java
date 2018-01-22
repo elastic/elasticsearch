@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressWarnings("unchecked")
-public class SearchGroupsResolverTests extends GroupsResolverTestCase {
+            public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
 
@@ -160,7 +160,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String ldapUrl() {
-        return OpenLdapTests.OPEN_LDAP_URL;
+        return OpenLdapTests.OPEN_LDAP_DNS_URL;
     }
 
     @Override
@@ -171,5 +171,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
     @Override
     protected String bindPassword() {
         return OpenLdapTests.PASSWORD;
+    }
+
+    @Override
+    protected String trustPath() {
+        return "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
     }
 }

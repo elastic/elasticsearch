@@ -66,10 +66,10 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     public static class Node extends BaseNodeResponse {
 
-        Node() {
+        public Node() {
         }
 
-        Node(DiscoveryNode node) {
+        public Node(DiscoveryNode node) {
             super(node);
         }
 

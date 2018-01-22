@@ -33,11 +33,13 @@
         calendar_id: "advent"
         body:  >
           {
-            "job_ids": ["cal-job", "cal-job2"]
+            "job_ids": ["cal-job", "cal-job2"],
+            "description": "This is a calendar about..."
           }
   - match: { calendar_id: advent }
   - match: { job_ids.0: cal-job }
   - match: { job_ids.1: cal-job2 }
+  - match: { description: "This is a calendar about..."}
 
   - do:
       xpack.ml.get_calendars:
@@ -47,11 +49,12 @@
       calendars.0:
         calendar_id: "advent"
         job_ids: ["cal-job", "cal-job2"]
+        description: "This is a calendar about..."
   - is_false: type
 
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Dogs of the Year"
+        calendar_id: "dogs_of_the_year"
         body:  >
           {
             "job_ids": ["cal-job"]
@@ -59,7 +62,7 @@
 
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Cats of the Year"
+        calendar_id: "cats_of_the_year"
 
   - do:
       xpack.ml.get_calendars: {}
@@ -67,7 +70,7 @@
 
   - do:
       xpack.ml.delete_calendar:
-        calendar_id: "Dogs of the Year"
+        calendar_id: "dogs_of_the_year"
 
   - do:
       xpack.ml.get_calendars: {}
@@ -81,12 +84,12 @@
   - do:
       catch: missing
       xpack.ml.get_calendars:
-        calendar_id: "Dogs of the Year"
+        calendar_id: "dogs_of_the_year"
 
   - do:
       catch: missing
       xpack.ml.put_calendar:
-        calendar_id: "new cal with unknown job"
+        calendar_id: "new_cal_with_unknown_job"
         body:  >
           {
             "job_ids": ["cal-job", "unknown-job"]
@@ -100,23 +103,30 @@
         calendar_id: "unknown"
 
 ---
+"Test put calendar given id contains invalid chars":
+  - do:
+      catch: bad_request
+      xpack.ml.put_calendar:
+        calendar_id: "Mayas"
+
+---
 "Test PageParams":
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Calendar1"
+        calendar_id: "calendar1"
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Calendar2"
+        calendar_id: "calendar2"
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Calendar3"
+        calendar_id: "calendar3"
 
   - do:
       xpack.ml.get_calendars:
         from: 2
   - match: { count: 3 }
   - length: { calendars: 1}
-  - match: { calendars.0.calendar_id: Calendar3 }
+  - match: { calendars.0.calendar_id: calendar3 }
 
   - do:
       xpack.ml.get_calendars:
@@ -124,14 +134,14 @@
         size: 1
   - match: { count: 3 }
   - length: { calendars: 1}
-  - match: { calendars.0.calendar_id: Calendar2 }
+  - match: { calendars.0.calendar_id: calendar2 }
 
 ---
 "Test PageParams with ID is invalid":
   - do:
       catch: bad_request
       xpack.ml.get_calendars:
-        calendar_id: Tides
+        calendar_id: tides
         size: 10
 
 ---
@@ -139,12 +149,12 @@
 
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Mayan"
+        calendar_id: "mayan"
 
   - do:
       catch: /version_conflict_engine_exception/
       xpack.ml.put_calendar:
-        calendar_id: "Mayan"
+        calendar_id: "mayan"
 
 ---
 "Test cannot create calendar with name _all":
@@ -193,7 +203,7 @@
 
   - do:
       xpack.ml.put_calendar:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
 
   - do:
       xpack.ml.put_job:
@@ -210,42 +220,42 @@
 
   - do:
       xpack.ml.put_calendar_job:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
         job_id: "tiger"
-  - match: { calendar_id: "Wildlife" }
+  - match: { calendar_id: "wildlife" }
   - match: { job_ids.0: "tiger" }
 
   - do:
       xpack.ml.get_calendars:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
   - match: { count: 1 }
-  - match: { calendars.0.calendar_id: "Wildlife" }
+  - match: { calendars.0.calendar_id: "wildlife" }
   - length: { calendars.0.job_ids: 1 }
   - match: { calendars.0.job_ids.0: "tiger" }
 
   - do:
       xpack.ml.delete_calendar_job:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
         job_id: "tiger"
 
   - do:
       xpack.ml.get_calendars:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
   - match: { count: 1 }
-  - match: { calendars.0.calendar_id: "Wildlife" }
+  - match: { calendars.0.calendar_id: "wildlife" }
   - length: { calendars.0.job_ids: 0 }
 
   - do:
       catch: missing
       xpack.ml.put_calendar_job:
-        calendar_id: "Wildlife"
+        calendar_id: "wildlife"
         job_id: "missing job"
 
   - do:
-      catch: missing
+      catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/
       xpack.ml.delete_calendar_job:
-        calendar_id: "Wildlife"
-        job_id: "missing job"
+        calendar_id: "wildlife"
+        job_id: "missing_job"
 
 ---
 "Test calendar get events":
@@ -603,3 +613,21 @@
           {
             "events": []
           }
+
+---
+"Test delete event from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.delete_calendar_event:
+        calendar_id: "unknown"
+        event_id: "event_1"
+
+---
+"Test delete job from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      xpack.ml.delete_calendar_job:
+        calendar_id: "unknown"
+        job_id: "missing_job"

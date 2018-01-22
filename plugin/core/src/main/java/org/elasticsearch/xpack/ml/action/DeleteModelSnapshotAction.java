@@ -44,7 +44,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         private String jobId;
         private String snapshotId;
 
-        Request() {
+        public Request() {
         }
 
         public Request(String jobId, String snapshotId) {
@@ -86,7 +86,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             super(acknowledged);
         }
 
-        private Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

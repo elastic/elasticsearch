@@ -10,14 +10,26 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
@@ -28,7 +40,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class SqlPlugin implements ActionPlugin {
+public class SqlPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
     private final SqlLicenseChecker sqlLicenseChecker;
@@ -36,7 +48,33 @@ public class SqlPlugin implements ActionPlugin {
 
     public SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
         this.enabled = enabled;
-        this.sqlLicenseChecker = sqlLicenseChecker;
+        XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
+        this.sqlLicenseChecker = new SqlLicenseChecker(
+                (mode) -> {
+                    switch (mode) {
+                        case JDBC:
+                            if (licenseState.isJdbcAllowed() == false) {
+                                throw LicenseUtils.newComplianceException("jdbc");
+                            }
+                            break;
+                        case PLAIN:
+                            if (licenseState.isSqlAllowed() == false) {
+                                throw LicenseUtils.newComplianceException(XPackField.SQL);
+                            }
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unknown SQL mode " + mode);
+                    }
+                }
+        );
+    }
+
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        return createComponents(client);
     }
 
     /**

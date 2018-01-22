@@ -32,7 +32,7 @@ public class VertexRequest {
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
 
    
-    VertexRequest() {
+    public VertexRequest() {
 
     }
 
@@ -151,7 +151,7 @@ public class VertexRequest {
         return includes.values().toArray(new TermBoost[includes.size()]);
     }
 
-    String[] includeValuesAsStringArray() {
+    public String[] includeValuesAsStringArray() {
         String[] result = new String[includes.size()];
         int i = 0;
         for (TermBoost tb : includes.values()) {
@@ -160,7 +160,7 @@ public class VertexRequest {
         return result;
     }
 
-    String[] excludesAsArray() {
+    public String[] excludesAsArray() {
         return excludes.toArray(new String[excludes.size()]);
     }
 

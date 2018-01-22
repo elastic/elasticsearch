@@ -202,13 +202,13 @@ public abstract class WatchExecutionContext {
         return Collections.unmodifiableMap(actionsResults);
     }
 
-    WatchRecord abortBeforeExecution(ExecutionState state, String message) {
+    public WatchRecord abortBeforeExecution(ExecutionState state, String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         return new WatchRecord.MessageWatchRecord(id, triggerEvent, state, message, getNodeId());
     }
 
-    WatchRecord abortFailedExecution(String message) {
+    public WatchRecord abortFailedExecution(String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
@@ -217,7 +217,7 @@ public abstract class WatchExecutionContext {
         return new WatchRecord.MessageWatchRecord(this, result, message);
     }
 
-    WatchRecord abortFailedExecution(Exception e) {
+    public WatchRecord abortFailedExecution(Exception e) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
@@ -235,7 +235,7 @@ public abstract class WatchExecutionContext {
         return new WatchRecord.MessageWatchRecord(this, result);
     }
 
-    WatchExecutionSnapshot createSnapshot(Thread executionThread) {
+    public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
         return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
     }
 }

@@ -1,7 +1,5 @@
 dependencies {
-  testCompile(project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')) {
-    transitive = false
-  }
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
 }
 
 Project mainProject = project
@@ -20,10 +18,7 @@ subprojects {
   }
 
   dependencies {
-    testCompile(project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')) {
-      transitive = false
-    }
-    testCompile project(':x-pack-elasticsearch:plugin:core')
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
   }
 
   integTestCluster {

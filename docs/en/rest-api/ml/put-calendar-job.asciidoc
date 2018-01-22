@@ -18,11 +18,13 @@ This API enables you to add jobs to a calendar.
 `calendar_id` (required)::
   (string) Identifier for the calendar.
 
+//==== Request Body
+
 `job_id` (required)::
   (string) Identifier for the job.
 
-
-//==== Request Body
+`description`::
+  (string) A description of the calendar.
 
 ==== Authorization
 

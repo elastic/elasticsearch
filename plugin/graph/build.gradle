@@ -1,21 +1,33 @@
-apply plugin: 'elasticsearch.build'
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
 
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-graph'
+    description 'Elasticsearch Expanded Pack Plugin - Graph'
+    classname 'org.elasticsearch.xpack.graph.Graph'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 archivesBaseName = 'x-pack-graph'
 
-// TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
     ignoreSha 'x-pack-core'
 }
 
-parent.bundlePlugin {
-    from jar
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
 }

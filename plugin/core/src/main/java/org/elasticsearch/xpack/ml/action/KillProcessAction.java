@@ -49,7 +49,7 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
             super(jobId);
         }
 
-        Request() {
+        public Request() {
             super();
         }
     }
@@ -58,16 +58,16 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
 
         private boolean killed;
 
-        Response() {
+        public Response() {
             super(null, null);
         }
 
-        Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(null, null);
             readFrom(in);
         }
 
-        Response(boolean killed) {
+        public Response(boolean killed) {
             super(null, null);
             this.killed = killed;
         }

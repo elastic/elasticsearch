@@ -11,9 +11,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,8 +49,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4).build();
+                .put(SecurityField.USER_SETTING.getKey(), USER + ":" + PASS)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4).build();
     }
 
     @Before

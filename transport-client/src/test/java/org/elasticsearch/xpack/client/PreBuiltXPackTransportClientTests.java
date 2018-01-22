@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityField;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -24,7 +23,7 @@ public class PreBuiltXPackTransportClientTests extends RandomizedTest {
     public void testPluginInstalled() {
         try (TransportClient client = new PreBuiltXPackTransportClient(Settings.EMPTY)) {
             Settings settings = client.settings();
-            assertEquals(Security.NAME4, NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+            assertEquals(SecurityField.NAME4, NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
         }
     }
 

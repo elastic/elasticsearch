@@ -94,10 +94,10 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         private List<WatchExecutionSnapshot> snapshots;
         private List<QueuedWatch> queuedWatches;
 
-        Node() {
+        public Node() {
         }
 
-        Node(DiscoveryNode node) {
+        public Node(DiscoveryNode node) {
             super(node);
         }
 
@@ -108,7 +108,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             return threadPoolQueueSize;
         }
 
-        void setThreadPoolQueueSize(long threadPoolQueueSize) {
+        public void setThreadPoolQueueSize(long threadPoolQueueSize) {
             this.threadPoolQueueSize = threadPoolQueueSize;
         }
 
@@ -119,7 +119,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             return threadPoolMaxSize;
         }
 
-        void setThreadPoolMaxSize(long threadPoolMaxSize) {
+        public void setThreadPoolMaxSize(long threadPoolMaxSize) {
             this.threadPoolMaxSize = threadPoolMaxSize;
         }
 
@@ -130,7 +130,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             return watchesCount;
         }
 
-        void setWatchesCount(long watchesCount) {
+        public void setWatchesCount(long watchesCount) {
             this.watchesCount = watchesCount;
         }
 
@@ -141,7 +141,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             return watcherState;
         }
 
-        void setWatcherState(WatcherState watcherServiceState) {
+        public void setWatcherState(WatcherState watcherServiceState) {
             this.watcherState = watcherServiceState;
         }
 
@@ -150,7 +150,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             return snapshots;
         }
 
-        void setSnapshots(List<WatchExecutionSnapshot> snapshots) {
+        public void setSnapshots(List<WatchExecutionSnapshot> snapshots) {
             this.snapshots = snapshots;
         }
 

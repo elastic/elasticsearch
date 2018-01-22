@@ -1,22 +1,52 @@
-apply plugin: 'elasticsearch.build'
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
 
-dependencies {
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-monitoring'
+    description 'Elasticsearch Expanded Pack Plugin - Monitoring'
+    classname 'org.elasticsearch.xpack.monitoring.Monitoring'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
-
 archivesBaseName = 'x-pack-monitoring'
 
-// TODO: enable this once we have tests
-test.enabled=false
 licenseHeaders.enabled = false
+
+integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
+    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
 
     // monitoring deps
     compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
     compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
+
+    // baz - this goes away after we separate out the actions #27759
+    testCompile "org.elasticsearch.plugin:x-pack-watcher:${version}"
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+// TODO: don't publish test artifacts just to run messy tests, fix the tests!
+// https://github.com/elastic/x-plugins/issues/724
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    archives jar
+    testArtifacts testJar
 }
 
 dependencyLicenses {
@@ -29,6 +59,6 @@ dependencyLicenses {
     ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
-parent.bundlePlugin {
-    from jar
+run {
+    plugin ':x-pack-elasticsearch:plugin:core'
 }

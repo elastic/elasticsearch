@@ -1,6 +1,14 @@
-description = 'The Elasticsearch plugin that powers SQL for Elasticsearch'
-
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-sql'
+    description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+    classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
 
 archivesBaseName = 'x-pack-sql'
 
@@ -20,6 +28,9 @@ dependencyLicenses {
     ignoreSha 'x-pack-core'
     ignoreSha 'sql-proto'
 }
+
+// TODO: Should we move integrations tests here?
+integTest.enabled = false
 
 /**********************************************
  *          SQL Parser regeneration           *
@@ -89,3 +100,4 @@ task regen {
         }
     }
 }
+

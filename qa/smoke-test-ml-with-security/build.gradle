@@ -2,7 +2,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
@@ -24,6 +25,9 @@ integTestRunner {
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
     'ml/calendar_crud/Test post calendar events given empty events',
+    'ml/calendar_crud/Test put calendar given id contains invalid chars',
+    'ml/calendar_crud/Test delete event from non existing calendar',
+    'ml/calendar_crud/Test delete job from non existing calendar',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',

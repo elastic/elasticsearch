@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import com.google.common.base.Strings;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.FormattedMessage;
 import org.apache.lucene.util.SetOnce;
@@ -17,15 +15,13 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -88,11 +84,11 @@ public class IndexLifecycleService extends AbstractComponent
                 scheduler.set(new SchedulerEngine(clock));
                 scheduler.get().register(this);
                 scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME,
-                    new IntervalSchedule(new Interval(pollInterval.seconds(), Unit.SECONDS)));
+                        new TimeValueSchedule(pollInterval));
                 scheduler.get().add(scheduledJob);
             } else if (pollIntervalSettingChanged) { // all engines are running, just need to update with latest interval
                 scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME,
-                    new IntervalSchedule(new Interval(pollInterval.seconds(), Unit.SECONDS)));
+                        new TimeValueSchedule(pollInterval));
                 scheduler.get().add(scheduledJob);
             }
         }

@@ -33,7 +33,7 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
 /**
  * Base class for all broadcast operation based responses.
  */
-public class  BroadcastResponse extends ActionResponse {
+public class BroadcastResponse extends ActionResponse {
     private static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
     private int totalShards;
     private int successfulShards;
@@ -48,8 +48,11 @@ public class  BroadcastResponse extends ActionResponse {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = shardFailures == null ? EMPTY :
-                shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
+        if (shardFailures == null) {
+            this.shardFailures = EMPTY;
+        } else {
+            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
+        }
     }
 
     /**

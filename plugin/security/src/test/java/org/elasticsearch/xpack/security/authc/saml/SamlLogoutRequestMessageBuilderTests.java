@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import java.time.Clock;
 
-import org.elasticsearch.xpack.watcher.watch.clock.HaltedClock;
+import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

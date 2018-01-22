@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.watch.clock;
+package org.elasticsearch.xpack.common.time;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

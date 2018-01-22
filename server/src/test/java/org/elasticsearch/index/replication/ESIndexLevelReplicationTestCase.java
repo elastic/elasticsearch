@@ -657,7 +657,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnReplica(final GlobalCheckpointSyncAction.Request request, final IndexShard replica) throws IOException {
-            replica.getTranslog().sync();
+            replica.sync();
         }
     }
 

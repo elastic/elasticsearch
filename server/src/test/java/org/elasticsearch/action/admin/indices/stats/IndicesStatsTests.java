@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -158,7 +157,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
     public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
-                                                               int failedShards, List<ShardOperationFailedException> shardFailures) {
+                                                               int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
         return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 

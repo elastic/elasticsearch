@@ -26,24 +26,19 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-public class BytesChannelContext implements ChannelContext {
+public class BytesChannelContext extends SocketChannelContext {
 
-    private final NioSocketChannel channel;
     private final ReadConsumer readConsumer;
     private final InboundChannelBuffer channelBuffer;
     private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
-    private boolean peerClosed = false;
-    private boolean ioException = false;
 
-    public BytesChannelContext(NioSocketChannel channel, ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this.channel = channel;
+    public BytesChannelContext(NioSocketChannel channel, BiConsumer<NioSocketChannel, Exception> exceptionHandler,
+                               ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
+        super(channel, exceptionHandler);
         this.readConsumer = readConsumer;
         this.channelBuffer = channelBuffer;
     }
-
-    @Override
-    public void channelRegistered() throws IOException {}
 
     @Override
     public int read() throws IOException {
@@ -52,16 +47,9 @@ public class BytesChannelContext implements ChannelContext {
             channelBuffer.ensureCapacity(channelBuffer.getCapacity() + 1);
         }
 
-        int bytesRead;
-        try {
-            bytesRead = channel.read(channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()));
-        } catch (IOException ex) {
-            ioException = true;
-            throw ex;
-        }
+        int bytesRead = readFromChannel(channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()));
 
-        if (bytesRead == -1) {
-            peerClosed = true;
+        if (bytesRead == 0) {
             return 0;
         }
 
@@ -90,7 +78,6 @@ public class BytesChannelContext implements ChannelContext {
             return;
         }
 
-        // TODO: Eval if we will allow writes from sendMessage
         selector.queueWriteInChannelBuffer(writeOperation);
     }
 
@@ -126,28 +113,38 @@ public class BytesChannelContext implements ChannelContext {
 
     @Override
     public boolean selectorShouldClose() {
-        return peerClosed || ioException || isClosing.get();
+        return isPeerClosed() || hasIOException() || isClosing.get();
     }
 
     @Override
-    public void closeFromSelector() {
+    public void closeFromSelector() throws IOException {
         channel.getSelector().assertOnSelectorThread();
-        // Set to true in order to reject new writes before queuing with selector
-        isClosing.set(true);
-        channelBuffer.close();
-        for (BytesWriteOperation op : queued) {
-            channel.getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
+        if (channel.isOpen()) {
+            IOException channelCloseException = null;
+            try {
+                channel.closeFromSelector();
+            } catch (IOException e) {
+                channelCloseException = e;
+            }
+            // Set to true in order to reject new writes before queuing with selector
+            isClosing.set(true);
+            channelBuffer.close();
+            for (BytesWriteOperation op : queued) {
+                channel.getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
+            }
+            queued.clear();
+            if (channelCloseException != null) {
+                throw channelCloseException;
+            }
         }
-        queued.clear();
     }
 
     private void singleFlush(BytesWriteOperation headOp) throws IOException {
         try {
-            int written = channel.write(headOp.getBuffersToWrite());
+            int written = flushToChannel(headOp.getBuffersToWrite());
             headOp.incrementIndex(written);
         } catch (IOException e) {
             channel.getSelector().executeFailedListener(headOp.getListener(), e);
-            ioException = true;
             throw e;
         }
 

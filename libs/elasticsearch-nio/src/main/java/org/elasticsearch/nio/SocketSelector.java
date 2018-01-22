@@ -122,7 +122,7 @@ public class SocketSelector extends ESSelector {
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
         assertOnSelectorThread();
         NioSocketChannel channel = writeOperation.getChannel();
-        ChannelContext context = channel.getContext();
+        SocketChannelContext context = channel.getContext();
         try {
             SelectionKeyUtils.setWriteInterested(channel);
             context.queueWriteOperation(writeOperation);

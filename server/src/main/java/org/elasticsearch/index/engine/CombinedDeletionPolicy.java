@@ -47,8 +47,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
-    private IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
-    private IndexCommit lastCommit; // the most recent commit point
+    private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
+    private volatile IndexCommit lastCommit; // the most recent commit point
 
     CombinedDeletionPolicy(EngineConfig.OpenMode openMode, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) {
@@ -212,6 +212,21 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
          * However, that commit may not be a safe commit if writes are in progress in the primary.
          */
         return 0;
+    }
+
+    /**
+     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
+     */
+    boolean hasUnreferencedCommits() throws IOException {
+        final IndexCommit lastCommit = this.lastCommit;
+        if (safeCommit != lastCommit) { // Race condition can happen but harmless
+            if (lastCommit.getUserData().containsKey(SequenceNumbers.MAX_SEQ_NO)) {
+                final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+                // We can clean up the current safe commit if the last commit is safe
+                return globalCheckpointSupplier.getAsLong() >= maxSeqNoFromLastCommit;
+            }
+        }
+        return false;
     }
 
     /**

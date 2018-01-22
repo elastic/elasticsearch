@@ -53,9 +53,8 @@ public class SocketEventHandlerTests extends ESTestCase {
         channel = new DoNotRegisterChannel(rawChannel, socketSelector);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), () -> {});
-        InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
-        channel.setContexts(new BytesChannelContext(channel, mock(ChannelContext.ReadConsumer.class), buffer), exceptionHandler);
+        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
+        channel.setContext(new BytesChannelContext(channel, exceptionHandler, mock(SocketChannelContext.ReadConsumer.class), buffer));
         channel.register();
         channel.finishConnect();
 
@@ -64,7 +63,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testRegisterCallsContext() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        ChannelContext channelContext = mock(ChannelContext.class);
+        SocketChannelContext channelContext = mock(SocketChannelContext.class);
         when(channel.getContext()).thenReturn(channelContext);
         when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
         handler.handleRegistration(channel);
@@ -102,8 +101,8 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testHandleReadDelegatesToContext() throws IOException {
         NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
-        ChannelContext context = mock(ChannelContext.class);
-        channel.setContexts(context, exceptionHandler);
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        channel.setContext(context);
 
         when(context.read()).thenReturn(1);
         handler.handleRead(channel);
@@ -124,19 +123,19 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testPostHandlingCallWillCloseTheChannelIfReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        ChannelContext context = mock(ChannelContext.class);
+        SocketChannelContext context = mock(SocketChannelContext.class);
         when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
         when(context.selectorShouldClose()).thenReturn(true);
         handler.postHandling(channel);
 
-        verify(channel).closeFromSelector();
+        verify(context).closeFromSelector();
     }
 
     public void testPostHandlingCallWillNotCloseTheChannelIfNotReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        ChannelContext context = mock(ChannelContext.class);
+        SocketChannelContext context = mock(SocketChannelContext.class);
         when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
@@ -149,8 +148,8 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void testPostHandlingWillAddWriteIfNecessary() throws IOException {
         NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
         channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ));
-        ChannelContext context = mock(ChannelContext.class);
-        channel.setContexts(context, null);
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        channel.setContext(context);
 
         when(context.hasQueuedWriteOps()).thenReturn(true);
 
@@ -162,19 +161,13 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void testPostHandlingWillRemoveWriteIfNecessary() throws IOException {
         NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
         channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
-        ChannelContext context = mock(ChannelContext.class);
-        channel.setContexts(context, null);
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        channel.setContext(context);
 
         when(context.hasQueuedWriteOps()).thenReturn(false);
 
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
         handler.postHandling(channel);
         assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
-    }
-
-    private void setWriteAndRead(NioChannel channel) {
-        SelectionKeyUtils.setConnectAndReadInterested(channel);
-        SelectionKeyUtils.removeConnectInterested(channel);
-        SelectionKeyUtils.setWriteInterested(channel);
     }
 }

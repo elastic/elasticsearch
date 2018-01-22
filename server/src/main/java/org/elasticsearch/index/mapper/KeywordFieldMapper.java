@@ -187,8 +187,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(otherFT, conflicts, strict);
+        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
+            super.checkCompatibility(otherFT, conflicts);
             KeywordFieldType other = (KeywordFieldType) otherFT;
             if (Objects.equals(normalizer, other.normalizer) == false) {
                 conflicts.add("mapper [" + name() + "] has different [normalizer]");
@@ -352,8 +352,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
     }
 

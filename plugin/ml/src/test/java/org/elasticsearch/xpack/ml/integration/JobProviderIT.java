@@ -56,8 +56,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -252,7 +250,8 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         return result.get().results();
     }
 
-    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, ClusterState clusterState) throws Exception {
+    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, ClusterState clusterState)
+            throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, clusterState,
@@ -627,9 +626,5 @@ public class JobProviderIT extends MlSingleNodeTestCase {
             }
         }
         bulkRequest.execute().actionGet();
-    }
-
-    private ZonedDateTime createZonedDateTime(long epochMs) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMs), ZoneOffset.UTC);
     }
 }

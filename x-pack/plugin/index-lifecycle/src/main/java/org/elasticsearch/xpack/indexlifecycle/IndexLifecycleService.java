@@ -83,15 +83,27 @@ public class IndexLifecycleService extends AbstractComponent
             } else if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
                 scheduler.set(new SchedulerEngine(clock));
                 scheduler.get().register(this);
-                scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME,
-                        new TimeValueSchedule(pollInterval));
-                scheduler.get().add(scheduledJob);
+                scheduleJob(pollInterval);
+            } else if (scheduledJob == null) {
+                scheduleJob(pollInterval);
             } else if (pollIntervalSettingChanged) { // all engines are running, just need to update with latest interval
-                scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME,
-                        new TimeValueSchedule(pollInterval));
-                scheduler.get().add(scheduledJob);
+                scheduleJob(pollInterval);
             }
+        } else {
+            cancelJob();
         }
+    }
+
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove(IndexLifecycle.NAME);
+            scheduledJob = null;
+        }
+    }
+
+    private void scheduleJob(TimeValue pollInterval) {
+        scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME, new TimeValueSchedule(pollInterval));
+        scheduler.get().add(scheduledJob);
     }
 
     @Override

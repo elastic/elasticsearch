@@ -110,6 +110,70 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNull(indexLifecycleService.getScheduler());
     }
 
+    public void testElectUnElectMaster() throws Exception {
+        MetaData metaData = MetaData.builder()
+            .persistentSettings(settings(Version.CURRENT)
+                .put(IndexLifecycle.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap()))
+            .build();
+
+        // First check that when the node has never been master the scheduler
+        // and job are not set up
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId + "not").masterNodeId(nodeId).add(masterNode).build())
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
+
+        indexLifecycleService.clusterChanged(event);
+        verify(clusterService, only()).addListener(any());
+        assertNull(indexLifecycleService.getScheduler());
+        assertNull(indexLifecycleService.getScheduledJob());
+        
+        Mockito.reset(clusterService);
+        state = ClusterState.builder(ClusterName.DEFAULT)
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+                .build();
+        event = new ClusterChangedEvent("_source", state, state);
+
+        // Check that when the node is first elected as master it sets up
+        // the scheduler and job
+        indexLifecycleService.clusterChanged(event);
+        Mockito.verifyZeroInteractions(clusterService);
+        assertNotNull(indexLifecycleService.getScheduler());
+        assertEquals(1, indexLifecycleService.getScheduler().jobCount());
+        assertNotNull(indexLifecycleService.getScheduledJob());
+        
+        Mockito.reset(clusterService);
+        state = ClusterState.builder(ClusterName.DEFAULT)
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder().localNodeId(nodeId + "not").masterNodeId(nodeId).add(masterNode).build())
+                .build();
+        event = new ClusterChangedEvent("_source", state, state);
+
+        // Check that when the node is un-elected as master it cancels the job
+        indexLifecycleService.clusterChanged(event);
+        Mockito.verifyZeroInteractions(clusterService);
+        assertNotNull(indexLifecycleService.getScheduler());
+        assertEquals(0, indexLifecycleService.getScheduler().jobCount());
+        assertNull(indexLifecycleService.getScheduledJob());
+        
+        Mockito.reset(clusterService);
+        state = ClusterState.builder(ClusterName.DEFAULT)
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+                .build();
+        event = new ClusterChangedEvent("_source", state, state);
+
+        // Check that when the node is re-elected as master it cancels the job
+        indexLifecycleService.clusterChanged(event);
+        Mockito.verifyZeroInteractions(clusterService);
+        assertNotNull(indexLifecycleService.getScheduler());
+        assertEquals(1, indexLifecycleService.getScheduler().jobCount());
+        assertNotNull(indexLifecycleService.getScheduledJob());
+    }
+
     public void testServiceSetupOnFirstClusterChange() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
         MetaData metaData = MetaData.builder() .persistentSettings(settings(Version.CURRENT)

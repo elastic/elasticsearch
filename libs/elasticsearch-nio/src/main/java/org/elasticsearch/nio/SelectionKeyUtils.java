@@ -81,13 +81,12 @@ public final class SelectionKeyUtils {
     }
 
     /**
-     * Adds an interest in accepts for this channel while maintaining other interests.
+     * Adds an interest in accepts for this selection key while maintaining other interests.
      *
-     * @param channel the channel
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setAcceptInterested(NioServerSocketChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void setAcceptInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_ACCEPT);
     }
 

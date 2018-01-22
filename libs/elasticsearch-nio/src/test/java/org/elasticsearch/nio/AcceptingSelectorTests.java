@@ -67,7 +67,7 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selector.preSelect();
 
-        verify(eventHandler).serverChannelRegistered(serverChannel);
+        verify(eventHandler).handleRegistration(serverChannel);
     }
 
     public void testClosedChannelWillNotBeRegistered() throws Exception {
@@ -83,7 +83,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.scheduleForRegistration(serverChannel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        doThrow(closedChannelException).when(eventHandler).serverChannelRegistered(serverChannel);
+        doThrow(closedChannelException).when(eventHandler).handleRegistration(serverChannel);
 
         selector.preSelect();
 

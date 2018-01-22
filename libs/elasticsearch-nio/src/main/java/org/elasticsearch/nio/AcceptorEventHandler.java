@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.util.function.Supplier;
 
 /**
@@ -38,13 +39,18 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     /**
-     * This method is called when a NioServerSocketChannel is successfully registered. It should only be
-     * called once per channel.
+     * This method is called when a NioServerSocketChannel is being registered with the selector. It should
+     * only be called once per channel.
      *
-     * @param nioServerSocketChannel that was registered
+     * @param channel that was registered
      */
-    protected void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
-        SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
+    protected void handleRegistration(NioServerSocketChannel channel) throws IOException {
+        ServerChannelContext context = channel.getContext();
+        context.register();
+        // TODO: Test attachment
+        SelectionKey selectionKey = context.getSelectionKey();
+        selectionKey.attach(channel);
+        SelectionKeyUtils.setAcceptInterested(selectionKey);
     }
 
     /**

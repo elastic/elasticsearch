@@ -27,7 +27,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
@@ -41,29 +40,30 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private SocketSelector socketSelector;
     private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private NioServerSocketChannel channel;
-    private ServerChannelContext context;
+    private Consumer<NioSocketChannel> acceptor;
+    private AcceptingSelector selector;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         channelFactory = mock(ChannelFactory.class);
         socketSelector = mock(SocketSelector.class);
-        context = mock(ServerChannelContext.class);
+        acceptor = mock(Consumer.class);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
         handler = new AcceptorEventHandler(logger, new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()])));
 
-        AcceptingSelector selector = mock(AcceptingSelector.class);
-        channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);
-        channel.setContext(new DoNotRegisterContext(channel, selector, new TestSelectionKey(0)));
+        selector = mock(AcceptingSelector.class);
+        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class), channelFactory, selector);
+        channel.setContext(new DoNotRegisterContext(channel, selector, acceptor));
     }
 
-    public void testHandleRegisterSetsOP_ACCEPTInterest() {
-        assertNull(context.getSelectionKey());
+    public void testHandleRegisterSetsOP_ACCEPTInterest() throws IOException {
+        assertNull(channel.getContext().getSelectionKey());
 
-        handler.serverChannelRegistered(channel);
+        handler.handleRegistration(channel);
 
-        assertEquals(SelectionKey.OP_ACCEPT, channel.getSelectionKey().interestOps());
+        assertEquals(SelectionKey.OP_ACCEPT, channel.getContext().getSelectionKey().interestOps());
     }
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
@@ -80,25 +80,26 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
         childChannel.setContext(mock(SocketChannelContext.class));
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
+        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class), channelFactory, selector);
+        channel.setContext(serverChannelContext);
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
-        verify(context).acceptChannel(childChannel);
+        verify(serverChannelContext).acceptChannel(childChannel);
     }
 
     private class DoNotRegisterContext extends ServerChannelContext {
 
-        private final TestSelectionKey selectionKey;
 
-        DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, TestSelectionKey selectionKey) {
-            super(channel, selector,  null, null);
-            this.selectionKey = selectionKey;
+        DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor) {
+            super(channel, selector,  acceptor, null);
         }
 
         @Override
         public void register() {
-            setSelectionKey(selectionKey);
+            setSelectionKey(new TestSelectionKey(0));
         }
     }
 }

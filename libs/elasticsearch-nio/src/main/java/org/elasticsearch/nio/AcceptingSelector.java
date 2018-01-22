@@ -84,14 +84,11 @@ public class AcceptingSelector extends ESSelector {
             assert newChannel.getContext().getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
                 if (newChannel.isOpen()) {
-                    newChannel.register();
-                    SelectionKey selectionKey = newChannel.getSelectionKey();
-                    selectionKey.attach(newChannel);
-                    eventHandler.serverChannelRegistered(newChannel);
+                    eventHandler.handleRegistration(newChannel);
                 } else {
                     eventHandler.registrationException(newChannel, new ClosedChannelException());
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 eventHandler.registrationException(newChannel, e);
             }
         }

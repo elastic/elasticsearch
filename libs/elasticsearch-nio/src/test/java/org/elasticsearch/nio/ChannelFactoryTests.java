@@ -70,7 +70,6 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(socketSelector).scheduleForRegistration(channel);
 
-        assertEquals(socketSelector, channel.getSelector());
         assertEquals(rawChannel, channel.getRawChannel());
     }
 
@@ -92,7 +91,6 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(socketSelector).scheduleForRegistration(channel);
 
-        assertEquals(socketSelector, channel.getSelector());
         assertEquals(rawChannel, channel.getRawChannel());
     }
 
@@ -114,7 +112,6 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(acceptingSelector).scheduleForRegistration(channel);
 
-        assertEquals(acceptingSelector, channel.getSelector());
         assertEquals(rawServerChannel, channel.getRawChannel());
     }
 

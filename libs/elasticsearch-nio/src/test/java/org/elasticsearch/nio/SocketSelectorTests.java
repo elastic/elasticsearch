@@ -72,8 +72,8 @@ public class SocketSelectorTests extends ESTestCase {
         when(channel.isOpen()).thenReturn(true);
         when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(channel.getContext()).thenReturn(channelContext);
+        when(channelContext.getSelector()).thenReturn(socketSelector);
         when(channel.isConnectComplete()).thenReturn(true);
-        when(channel.getSelector()).thenReturn(socketSelector);
     }
 
     public void testRegisterChannel() throws Exception {
@@ -98,7 +98,7 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.scheduleForRegistration(channel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        doThrow(closedChannelException).when(channel).register();
+        doThrow(closedChannelException).when(eventHandler).handleRegistration(channel);
 
         socketSelector.preSelect();
 

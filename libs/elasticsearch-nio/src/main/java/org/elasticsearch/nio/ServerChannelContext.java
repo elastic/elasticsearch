@@ -20,21 +20,25 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public class ServerChannelContext implements ChannelContext {
+public class ServerChannelContext extends AbstractChannelContext<ServerSocketChannel> {
 
     private final NioServerSocketChannel channel;
+    private final AcceptingSelector selector;
     private final Consumer<NioSocketChannel> acceptor;
     private final BiConsumer<NioServerSocketChannel, Exception> exceptionHandler;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-    public ServerChannelContext(NioServerSocketChannel channel, Consumer<NioSocketChannel> acceptor,
+    public ServerChannelContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor,
                                 BiConsumer<NioServerSocketChannel, Exception> exceptionHandler) {
+        super(channel.getRawChannel());
         this.channel = channel;
+        this.selector = selector;
         this.acceptor = acceptor;
         this.exceptionHandler = exceptionHandler;
     }
@@ -51,12 +55,17 @@ public class ServerChannelContext implements ChannelContext {
     @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
-            channel.getSelector().queueChannelClose(channel);
+            getSelector().queueChannelClose(channel);
         }
     }
 
     @Override
     public void handleException(Exception e) {
         exceptionHandler.accept(channel, e);
+    }
+
+    @Override
+    public AcceptingSelector getSelector() {
+        return selector;
     }
 }

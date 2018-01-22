@@ -49,7 +49,6 @@ public class ESSelectorTests extends ESTestCase {
 
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
-        when(channel.getSelector()).thenReturn(selector);
 
         selector.queueChannelClose(channel);
 

@@ -45,11 +45,13 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void handleRegistration(NioSocketChannel channel) throws IOException {
         SocketChannelContext context = channel.getContext();
-        context.channelRegistered();
+        context.register();
+        // TODO: Test attachment
+        context.getSelectionKey().attach(channel);
         if (context.hasQueuedWriteOps()) {
-            SelectionKeyUtils.setConnectReadAndWriteInterested(channel);
+            SelectionKeyUtils.setConnectReadAndWriteInterested(context);
         } else {
-            SelectionKeyUtils.setConnectAndReadInterested(channel);
+            SelectionKeyUtils.setConnectAndReadInterested(context);
         }
     }
 
@@ -71,7 +73,7 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was registered
      */
     protected void handleConnect(NioSocketChannel channel) {
-        SelectionKeyUtils.removeConnectInterested(channel);
+        SelectionKeyUtils.removeConnectInterested(channel.getContext().getSelectionKey());
     }
 
     /**

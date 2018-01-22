@@ -42,4 +42,6 @@ public interface ChannelContext {
     void closeChannel();
 
     void handleException(Exception e);
+
+    ESSelector getSelector();
 }

@@ -65,7 +65,7 @@ public class NioSocketChannelTests extends ESTestCase {
 
         try(SocketChannel rawChannel = SocketChannel.open()) {
             NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
-            socketChannel.setContext(new BytesChannelContext(socketChannel, mock(BiConsumer.class),
+            socketChannel.setContext(new BytesChannelContext(socketChannel, selector, mock(BiConsumer.class),
                 mock(SocketChannelContext.ReadConsumer.class), InboundChannelBuffer.allocatingInstance()));
             socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
                 @Override

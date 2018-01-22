@@ -58,9 +58,8 @@ public class BytesChannelContextTests extends ESTestCase {
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new BytesChannelContext(channel, null, readConsumer, channelBuffer);
+        context = new BytesChannelContext(channel, selector, null, readConsumer, channelBuffer);
 
-        when(channel.getSelector()).thenReturn(selector);
         when(selector.isOnCurrentThread()).thenReturn(true);
     }
 
@@ -156,7 +155,7 @@ public class BytesChannelContextTests extends ESTestCase {
         Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
         InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
         buffer.ensureCapacity(1);
-        BytesChannelContext context = new BytesChannelContext(channel, null, readConsumer, buffer);
+        BytesChannelContext context = new BytesChannelContext(channel, selector, null, readConsumer, buffer);
         context.closeFromSelector();
         verify(closer).run();
     }

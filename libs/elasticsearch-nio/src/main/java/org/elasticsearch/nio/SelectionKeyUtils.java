@@ -51,33 +51,32 @@ public final class SelectionKeyUtils {
     /**
      * Removes an interest in connects and reads for this channel while maintaining other interests.
      *
-     * @param channel the channel
+     * @param context the context
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setConnectAndReadInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void setConnectAndReadInterested(SocketChannelContext context) throws CancelledKeyException {
+        SelectionKey selectionKey = context.getSelectionKey();
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 
     /**
      * Removes an interest in connects, reads, and writes for this channel while maintaining other interests.
      *
-     * @param channel the channel
+     * @param context the context
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setConnectReadAndWriteInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void setConnectReadAndWriteInterested(SocketChannelContext context) throws CancelledKeyException {
+        SelectionKey selectionKey = context.getSelectionKey();
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
     /**
-     * Removes an interest in connects for this channel while maintaining other interests.
+     * Removes an interest in connects for this selection key while maintaining other interests.
      *
-     * @param channel the channel
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void removeConnectInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void removeConnectInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_CONNECT);
     }
 

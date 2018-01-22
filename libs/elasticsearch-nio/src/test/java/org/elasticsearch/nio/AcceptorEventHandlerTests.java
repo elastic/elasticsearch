@@ -27,6 +27,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
@@ -53,12 +55,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
         channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);
-        channel.setContext(context);
-        channel.register();
+        channel.setContext(new DoNotRegisterContext(channel, selector, new TestSelectionKey(0)));
     }
 
     public void testHandleRegisterSetsOP_ACCEPTInterest() {
-        assertEquals(0, channel.getSelectionKey().interestOps());
+        assertNull(context.getSelectionKey());
 
         handler.serverChannelRegistered(channel);
 
@@ -84,5 +85,20 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         handler.acceptChannel(channel);
 
         verify(context).acceptChannel(childChannel);
+    }
+
+    private class DoNotRegisterContext extends ServerChannelContext {
+
+        private final TestSelectionKey selectionKey;
+
+        DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, TestSelectionKey selectionKey) {
+            super(channel, selector,  null, null);
+            this.selectionKey = selectionKey;
+        }
+
+        @Override
+        public void register() {
+            setSelectionKey(selectionKey);
+        }
     }
 }

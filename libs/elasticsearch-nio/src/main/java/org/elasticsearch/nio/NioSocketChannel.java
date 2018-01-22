@@ -31,7 +31,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
-    private final SocketSelector socketSelector;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private SocketChannelContext context;
     private Exception connectException;
@@ -39,12 +38,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
-        this.socketSelector = selector;
-    }
-
-    @Override
-    public SocketSelector getSelector() {
-        return socketSelector;
     }
 
     public int write(ByteBuffer buffer) throws IOException {

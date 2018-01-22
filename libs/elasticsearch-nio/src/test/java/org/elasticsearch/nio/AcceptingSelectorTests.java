@@ -59,7 +59,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);
         when(serverChannel.getSelectionKey()).thenReturn(selectionKey);
-        when(serverChannel.getSelector()).thenReturn(selector);
         when(serverChannel.isOpen()).thenReturn(true);
     }
 
@@ -84,7 +83,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.scheduleForRegistration(serverChannel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        doThrow(closedChannelException).when(serverChannel).register();
+        doThrow(closedChannelException).when(eventHandler).serverChannelRegistered(serverChannel);
 
         selector.preSelect();
 

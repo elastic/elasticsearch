@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 
 /**
@@ -32,14 +33,18 @@ import java.util.function.BiConsumer;
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
  */
-public abstract class SocketChannelContext implements ChannelContext {
+public abstract class SocketChannelContext extends AbstractChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;
+    private final SocketSelector selector;
     private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
     private boolean ioException;
     private boolean peerClosed;
 
-    protected SocketChannelContext(NioSocketChannel channel, BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
+    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
+                                   BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
+        super(channel.getRawChannel());
+        this.selector = selector;
         this.channel = channel;
         this.exceptionHandler = exceptionHandler;
     }
@@ -49,7 +54,10 @@ public abstract class SocketChannelContext implements ChannelContext {
         exceptionHandler.accept(channel, e);
     }
 
-    public void channelRegistered() throws IOException {}
+    @Override
+    public SocketSelector getSelector() {
+        return selector;
+    }
 
     public abstract int read() throws IOException;
 

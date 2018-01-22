@@ -62,7 +62,7 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
 
     @Override
     public void close() {
-        getSelector().queueChannelClose(this);
+        getContext().getSelector().queueChannelClose(this);
     }
 
     @Override

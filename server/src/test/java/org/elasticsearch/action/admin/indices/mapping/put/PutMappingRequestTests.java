@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +39,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class PutMappingRequestTests extends ESTestCase {

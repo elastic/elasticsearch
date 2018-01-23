@@ -32,17 +32,13 @@ import java.util.List;
 import java.util.logging.LogManager;
 
 public class Cli extends LoggingAwareCommand {
-    private final OptionSpec<Boolean> debugOption;
     private final OptionSpec<String> keystoreLocation;
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
 
     private Cli() {
         super("Elasticsearch SQL CLI");
-        this.debugOption = parser.acceptsAll(Arrays.asList("d", "debug"),
-                "Enable debug logging")
-                .withRequiredArg().ofType(Boolean.class)
-                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.debug", "false")));
+        parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
         this.keystoreLocation = parser.acceptsAll(
                     Arrays.asList("k", "keystore_location"),
                     "Location of a keystore to use when setting up SSL. "
@@ -85,7 +81,7 @@ public class Cli extends LoggingAwareCommand {
 
     @Override
     protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
-        boolean debug = debugOption.value(options);
+        boolean debug = Boolean.parseBoolean(System.getProperty("cli.debug", "false")) || options.has("d") || options.has("debug");
         boolean checkConnection = checkOption.value(options);
         List<String> args = connectionString.values(options);
         if (args.size() > 1) {

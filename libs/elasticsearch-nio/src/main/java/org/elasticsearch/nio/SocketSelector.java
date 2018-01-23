@@ -124,7 +124,7 @@ public class SocketSelector extends ESSelector {
         NioSocketChannel channel = writeOperation.getChannel();
         SocketChannelContext context = channel.getContext();
         try {
-            SelectionKeyUtils.setWriteInterested(channel);
+            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
             context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
             executeFailedListener(writeOperation.getListener(), e);

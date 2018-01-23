@@ -70,9 +70,9 @@ public class SocketSelectorTests extends ESTestCase {
         this.socketSelector.setThread();
 
         when(channel.isOpen()).thenReturn(true);
-        when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(channel.getContext()).thenReturn(channelContext);
         when(channelContext.getSelector()).thenReturn(socketSelector);
+        when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(channel.isConnectComplete()).thenReturn(true);
     }
 
@@ -152,7 +152,7 @@ public class SocketSelectorTests extends ESTestCase {
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
         socketSelector.queueWrite(writeOperation);
 
-        when(channel.getSelectionKey()).thenReturn(selectionKey);
+        when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.preSelect();
 
@@ -189,7 +189,7 @@ public class SocketSelectorTests extends ESTestCase {
         BytesWriteOperation writeOperation = new BytesWriteOperation(channel, buffers, listener);
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
 
-        when(channel.getSelectionKey()).thenReturn(selectionKey);
+        when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
         socketSelector.queueWriteInChannelBuffer(writeOperation);
 

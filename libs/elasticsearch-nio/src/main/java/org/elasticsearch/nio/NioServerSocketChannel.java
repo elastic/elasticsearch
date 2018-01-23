@@ -31,7 +31,7 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
 
     public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
         throws IOException {
-        super(socketChannel, selector);
+        super(socketChannel);
         this.channelFactory = channelFactory;
     }
 

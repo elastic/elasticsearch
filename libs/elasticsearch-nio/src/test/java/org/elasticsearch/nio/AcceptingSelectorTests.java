@@ -58,7 +58,10 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);
-        when(serverChannel.getSelectionKey()).thenReturn(selectionKey);
+        ServerChannelContext context = mock(ServerChannelContext.class);
+        when(context.getSelectionKey()).thenReturn(selectionKey);
+        when(context.getSelector()).thenReturn(selector);
+        when(serverChannel.getContext()).thenReturn(context);
         when(serverChannel.isOpen()).thenReturn(true);
     }
 

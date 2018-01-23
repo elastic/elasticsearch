@@ -27,46 +27,43 @@ public final class SelectionKeyUtils {
     private SelectionKeyUtils() {}
 
     /**
-     * Adds an interest in writes for this channel while maintaining other interests.
+     * Adds an interest in writes for this selection key while maintaining other interests.
      *
-     * @param channel the channel
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setWriteInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void setWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_WRITE);
     }
 
     /**
-     * Removes an interest in writes for this channel while maintaining other interests.
+     * Removes an interest in writes for this selection key while maintaining other interests.
      *
-     * @param channel the channel
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void removeWriteInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    public static void removeWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_WRITE);
     }
 
     /**
-     * Removes an interest in connects and reads for this channel while maintaining other interests.
+     * Removes an interest in connects and reads for this selection key while maintaining other interests.
      *
-     * @param context the context
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setConnectAndReadInterested(SocketChannelContext context) throws CancelledKeyException {
-        SelectionKey selectionKey = context.getSelectionKey();
+    public static void setConnectAndReadInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 
     /**
-     * Removes an interest in connects, reads, and writes for this channel while maintaining other interests.
+     * Removes an interest in connects, reads, and writes for this selection key while maintaining other
+     * interests.
      *
-     * @param context the context
+     * @param selectionKey the selection key
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static void setConnectReadAndWriteInterested(SocketChannelContext context) throws CancelledKeyException {
-        SelectionKey selectionKey = context.getSelectionKey();
+    public static void setConnectReadAndWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
@@ -92,13 +89,13 @@ public final class SelectionKeyUtils {
 
 
     /**
-     * Checks for an interest in writes for this channel.
+     * Checks for an interest in writes for this selection key.
      *
-     * @param channel the channel
+     * @param selectionKey the selection key
      * @return a boolean indicating if we are currently interested in writes for this channel
      * @throws CancelledKeyException if the key was already cancelled
      */
-    public static boolean isWriteInterested(NioSocketChannel channel) throws CancelledKeyException {
-        return (channel.getSelectionKey().interestOps() & SelectionKey.OP_WRITE) != 0;
+    public static boolean isWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
+        return (selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0;
     }
 }

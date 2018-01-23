@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.util.function.BiConsumer;
 
 /**
@@ -47,11 +48,12 @@ public class SocketEventHandler extends EventHandler {
         SocketChannelContext context = channel.getContext();
         context.register();
         // TODO: Test attachment
-        context.getSelectionKey().attach(channel);
+        SelectionKey selectionKey = context.getSelectionKey();
+        selectionKey.attach(channel);
         if (context.hasQueuedWriteOps()) {
-            SelectionKeyUtils.setConnectReadAndWriteInterested(context);
+            SelectionKeyUtils.setConnectReadAndWriteInterested(selectionKey);
         } else {
-            SelectionKeyUtils.setConnectAndReadInterested(context);
+            SelectionKeyUtils.setConnectAndReadInterested(selectionKey);
         }
     }
 
@@ -144,15 +146,17 @@ public class SocketEventHandler extends EventHandler {
      * @param channel that was handled
      */
     protected void postHandling(NioSocketChannel channel) {
-        if (channel.getContext().selectorShouldClose()) {
+        SocketChannelContext context = channel.getContext();
+        if (context.selectorShouldClose()) {
             handleClose(channel);
         } else {
-            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(channel);
-            boolean pendingWrites = channel.getContext().hasQueuedWriteOps();
+            SelectionKey selectionKey = context.getSelectionKey();
+            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
+            boolean pendingWrites = context.hasQueuedWriteOps();
             if (currentlyWriteInterested == false && pendingWrites) {
-                SelectionKeyUtils.setWriteInterested(channel);
+                SelectionKeyUtils.setWriteInterested(selectionKey);
             } else if (currentlyWriteInterested && pendingWrites == false) {
-                SelectionKeyUtils.removeWriteInterested(channel);
+                SelectionKeyUtils.removeWriteInterested(selectionKey);
             }
         }
     }

@@ -50,9 +50,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     private final InetSocketAddress localAddress;
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
-    private SelectionKey selectionKey;
 
-    AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
+    AbstractNioChannel(S socketChannel) throws IOException {
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
     }
@@ -86,11 +85,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public SelectionKey getSelectionKey() {
-        return selectionKey;
-    }
-
-    @Override
     public S getRawChannel() {
         return socketChannel;
     }
@@ -103,10 +97,5 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     @Override
     public void close() {
         getContext().closeChannel();
-    }
-
-    // Package visibility for testing
-    void setSelectionKey(SelectionKey selectionKey) {
-        this.selectionKey = selectionKey;
     }
 }

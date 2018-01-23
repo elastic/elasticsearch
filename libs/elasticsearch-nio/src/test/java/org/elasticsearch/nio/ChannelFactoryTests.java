@@ -63,8 +63,10 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptChannel() throws IOException {
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
         NioServerSocketChannel serverChannel = mock(NioServerSocketChannel.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannel)).thenReturn(rawChannel);
+        when(serverChannel.getContext()).thenReturn(serverChannelContext);
+        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
 
         NioSocketChannel channel = channelFactory.acceptNioChannel(serverChannel, socketSelector);
 
@@ -74,8 +76,10 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptedChannelRejected() throws IOException {
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
         NioServerSocketChannel serverChannel = mock(NioServerSocketChannel.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannel)).thenReturn(rawChannel);
+        when(serverChannel.getContext()).thenReturn(serverChannelContext);
+        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
         doThrow(new IllegalStateException()).when(socketSelector).scheduleForRegistration(any());
 
         expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(serverChannel, socketSelector));
@@ -135,13 +139,19 @@ public class ChannelFactoryTests extends ESTestCase {
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel, selector);
-            nioSocketChannel.setContext(mock(SocketChannelContext.class));
+            SocketChannelContext context = mock(SocketChannelContext.class);
+            nioSocketChannel.setContext(context);
+            when(context.getChannel()).thenReturn(channel);
             return nioSocketChannel;
         }
 
         @Override
         public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
-            return new NioServerSocketChannel(channel, this, selector);
+            NioServerSocketChannel serverSocketChannel = new NioServerSocketChannel(channel, this, selector);
+            ServerChannelContext context = mock(ServerChannelContext.class);
+            serverSocketChannel.setContext(context);
+            when(context.getChannel()).thenReturn(channel);
+            return serverSocketChannel;
         }
     }
 }

@@ -49,7 +49,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     }
 
     public Socket acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
-        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
+        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel.getContext());
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
@@ -109,7 +109,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
-            closeRawChannel(channel.getRawChannel(), e);
+            closeRawChannel(channel.getContext().getChannel(), e);
             throw e;
         }
     }
@@ -118,7 +118,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
-            closeRawChannel(channel.getRawChannel(), e);
+            closeRawChannel(channel.getContext().getChannel(), e);
             throw e;
         }
     }
@@ -160,8 +160,8 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return socketChannel;
         }
 
-        SocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
-            ServerSocketChannel serverSocketChannel = serverChannel.getRawChannel();
+        SocketChannel acceptNioChannel(ServerChannelContext serverChannelContext) throws IOException {
+            ServerSocketChannel serverSocketChannel = serverChannelContext.getChannel();
             SocketChannel socketChannel = accept(serverSocketChannel);
             try {
                 configureSocketChannel(socketChannel);

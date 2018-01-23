@@ -36,7 +36,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private Exception connectException;
 
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(socketChannel, selector);
+        super(socketChannel);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
     }
 

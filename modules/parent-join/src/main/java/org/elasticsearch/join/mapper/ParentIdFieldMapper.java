@@ -194,8 +194,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
         this.children = parentMergeWith.children;
     }

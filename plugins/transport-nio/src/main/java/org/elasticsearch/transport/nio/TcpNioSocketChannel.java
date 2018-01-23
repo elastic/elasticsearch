@@ -33,13 +33,13 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
 
     private final String profile;
 
-    TcpNioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
+    public TcpNioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
         this.profile = profile;
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getWriteContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
     }
 
     @Override
@@ -57,6 +57,11 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         addCloseListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public void close() {
+        getContext().closeChannel();
     }
 
     @Override

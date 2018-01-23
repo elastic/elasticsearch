@@ -18,39 +18,11 @@
  */
 
 // A meta plugin packaging example that bundles multiple plugins in a single zip.
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
 
-File plugins = new File(buildDir, 'plugins-unzip')
-subprojects {
-    // unzip the subproject plugins
-    task unzip(type:Copy, dependsOn: "${project.path}:bundlePlugin") {
-        File dest = new File(plugins, project.name)
-        from { zipTree(project(project.path).bundlePlugin.outputs.files.singleFile) }
-        eachFile { f -> f.path = f.path.replaceFirst('elasticsearch', '') }
-        into dest
-    }
+apply plugin: 'elasticsearch.es-meta-plugin'
+
+es_meta_plugin {
+  name 'meta-plugin'
+  description 'example meta plugin'
+  plugins = ['dummy-plugin1', 'dummy-plugin2']
 }
-
-// Build the meta plugin zip from the subproject plugins (unzipped)
-task buildZip(type:Zip) {
-    subprojects.each { dependsOn("${it.name}:unzip") }
-    from plugins
-    from 'src/main/resources/meta-plugin-descriptor.properties'
-    into 'elasticsearch'
-    includeEmptyDirs false
-}
-
-integTestCluster {
-    dependsOn buildZip
-
-    // This is important, so that all the modules are available too.
-    // There are index templates that use token filters that are in analysis-module and
-    // processors are being used that are in ingest-common module.
-    distribution = 'zip'
-
-    // Install the meta plugin before start.
-    setupCommand 'installMetaPlugin',
-            'bin/elasticsearch-plugin', 'install', 'file:' + buildZip.archivePath
-}
-check.dependsOn integTest

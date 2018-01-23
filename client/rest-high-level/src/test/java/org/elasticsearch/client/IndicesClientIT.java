@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -28,21 +30,18 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.equalTo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -56,7 +55,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
 
             CreateIndexResponse createIndexResponse =
-                execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
+                execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
             assertTrue(indexExists(indexName));
@@ -84,7 +83,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndexRequest.mapping("type_name", mappingBuilder);
 
             CreateIndexResponse createIndexResponse =
-                execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
+                execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
             Map<String, Object> indexMetaData = getIndexMetadata(indexName);
@@ -117,7 +116,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
             DeleteIndexResponse deleteIndexResponse =
-                execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync);
+                execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync);
             assertTrue(deleteIndexResponse.isAcknowledged());
 
             assertFalse(indexExists(indexName));
@@ -130,63 +129,74 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(nonExistentIndex);
 
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(deleteIndexRequest, highLevelClient().indices()::deleteIndex, highLevelClient().indices()::deleteIndexAsync));
+                () -> execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }
 
     public void testOpenExistingIndex() throws IOException {
-        String[] indices = randomIndices(1, 5);
-        for (String index : indices) {
-            createIndex(index);
-            closeIndex(index);
-            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(exception.getMessage().contains(index), equalTo(true));
-        }
+        String index = "index";
+        createIndex(index);
+        closeIndex(index);
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+        assertThat(exception.getMessage().contains(index), equalTo(true));
 
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
-        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::openIndex,
-                highLevelClient().indices()::openIndexAsync);
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(index);
+        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::open,
+                highLevelClient().indices()::openAsync);
         assertTrue(openIndexResponse.isAcknowledged());
 
-        for (String index : indices) {
-            Response response = client().performRequest("GET", index + "/_search");
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        }
+        Response response = client().performRequest("GET", index + "/_search");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     public void testOpenNonExistentIndex() throws IOException {
-        String[] nonExistentIndices = randomIndices(1, 5);
-        for (String nonExistentIndex : nonExistentIndices) {
-            assertFalse(indexExists(nonExistentIndex));
-        }
+        String nonExistentIndex = "non_existent_index";
+        assertFalse(indexExists(nonExistentIndex));
 
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
 
-        OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::openIndex,
-                highLevelClient().indices()::openIndexAsync);
+        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
+                highLevelClient().indices()::openAsync);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
-        OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
-    private static String[] randomIndices(int minIndicesNum, int maxIndicesNum) {
-        int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
-        String[] indices = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
-        }
-        return indices;
+    public void testCloseExistingIndex() throws IOException {
+        String index = "index";
+        createIndex(index);
+        Response response = client().performRequest("GET", index + "/_search");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
+        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
+                highLevelClient().indices()::closeAsync);
+        assertTrue(closeIndexResponse.isAcknowledged());
+
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+        assertThat(exception.getMessage().contains(index), equalTo(true));
+    }
+
+    public void testCloseNonExistentIndex() throws IOException {
+        String nonExistentIndex = "non_existent_index";
+        assertFalse(indexExists(nonExistentIndex));
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(nonExistentIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
     private static void createIndex(String index) throws IOException {

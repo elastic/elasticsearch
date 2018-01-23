@@ -17,21 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.monitor.jvm;
 
-import java.io.IOException;
-import java.util.function.BiConsumer;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.logging.Loggers;
 
-public interface WriteContext {
+import java.lang.management.ManagementFactory;
 
-    void sendMessage(Object message, BiConsumer<Void, Throwable> listener);
+class JvmPid {
 
-    void queueWriteOperations(WriteOperation writeOperation);
+    private static final long PID;
 
-    void flushChannel() throws IOException;
+    static long getPid() {
+        return PID;
+    }
 
-    boolean hasQueuedWriteOps();
+    static {
+        PID = initializePid();
+    }
 
-    void clearQueuedWriteOps(Exception e);
+    private static long initializePid() {
+        final String name = ManagementFactory.getRuntimeMXBean().getName();
+        try {
+            return Long.parseLong(name.split("@")[0]);
+        } catch (final NumberFormatException e) {
+            Loggers.getLogger(JvmPid.class).debug(new ParameterizedMessage("failed parsing PID from [{}]", name), e);
+            return -1;
+        }
+    }
 
 }

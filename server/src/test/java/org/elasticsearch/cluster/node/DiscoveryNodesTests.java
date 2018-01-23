@@ -140,15 +140,14 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
-        if (masterB == null || Objects.equals(masterAId, masterBId)) {
+        if (Objects.equals(masterAId, masterBId)) {
             assertFalse(delta.masterNodeChanged());
             assertThat(delta.previousMasterNode(), nullValue());
             assertThat(delta.newMasterNode(), nullValue());
         } else {
             assertTrue(delta.masterNodeChanged());
-            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
-            assertThat(delta.previousMasterNode() != null ? delta.previousMasterNode().getId() : null,
-                equalTo(masterAId));
+            assertThat(delta.newMasterNode() != null ? delta.newMasterNode().getId() : null, equalTo(masterBId));
+            assertThat(delta.previousMasterNode() != null ? delta.previousMasterNode().getId() : null, equalTo(masterAId));
         }
 
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);

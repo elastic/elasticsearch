@@ -360,8 +360,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
 
-        components.addAll(createComponents(client, clusterService, threadPool, xContentRegistry, environment, resourceWatcherService,
-                persistentTasksService));
+        components.addAll(createComponents(client, clusterService, threadPool, xContentRegistry, environment));
 
         // This was lifted from the XPackPlugins createComponents when it got split
         // This is not extensible and anyone copying this code needs to instead make this work
@@ -379,10 +378,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return components;
     }
 
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               ResourceWatcherService resourceWatcherService,
-                                               PersistentTasksService persistentTasksService) {
+    // TODO: once initialization of the PersistentTasksClusterService, PersistentTasksService
+    // and PersistentTasksExecutorRegistry has been moved somewhere else the entire contents of
+    // this method can replace the entire contents of the overridden createComponents() method
+    private Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                NamedXContentRegistry xContentRegistry, Environment environment) {
         if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return emptyList();
         }
@@ -426,12 +426,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, jobProvider, auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, auditor, persistentTasksService);
+                System::currentTimeMillis, auditor);
         this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager);
-        InvalidLicenseEnforcer invalidLicenseEnforcer =
-                new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+
+        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
+        new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
 
         return Arrays.asList(
                 mlLifeCycleService,
@@ -442,7 +443,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                invalidLicenseEnforcer,
                 new MlAssignmentNotifier(settings, auditor, clusterService)
         );
     }

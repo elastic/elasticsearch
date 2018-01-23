@@ -38,10 +38,17 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.graph.action.Connection;
+import org.elasticsearch.xpack.core.graph.action.Connection.ConnectionId;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreResponse;
+import org.elasticsearch.xpack.core.graph.action.Hop;
+import org.elasticsearch.xpack.core.graph.action.Vertex;
+import org.elasticsearch.xpack.core.graph.action.Vertex.VertexId;
+import org.elasticsearch.xpack.core.graph.action.VertexRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,7 +76,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
         @Override
         protected boolean lessThan(Vertex a, Vertex b) {
-            return a.weight < b.weight;
+            return a.getWeight() < b.getWeight();
         }
 
     }
@@ -78,7 +85,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, TransportSearchAction transportSearchAction,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
             XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, 
+        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GraphExploreRequest::new);
         this.searchAction = transportSearchAction;
         this.licenseState = licenseState;
@@ -149,7 +156,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
         private void removeVertex(Vertex vertex) {
             vertices.remove(vertex.getId());
-            hopFindings.get(currentHopNumber).get(vertex.field).remove(vertex);
+            hopFindings.get(currentHopNumber).get(vertex.getField()).remove(vertex);
         }
 
 
@@ -226,7 +233,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 String[] terms = new String[lastWaveVerticesForField.size()];
                 int i = 0;
                 for (Vertex v : lastWaveVerticesForField) {
-                    terms[i++] = v.term;
+                    terms[i++] = v.getTerm();
                 }
                 TermsAggregationBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
                         .includeExclude(new IncludeExclude(terms, null))
@@ -363,15 +370,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                     SignificantTerms significantTerms = lastWaveTerm.getAggregations().get("field" + k);
                                     if (significantTerms != null) {
                                         for (Bucket bucket : significantTerms.getBuckets()) {
-                                            if ((vr.fieldName().equals(fromVertex.field)) &&
-                                                    (bucket.getKeyAsString().equals(fromVertex.term))) {
+                                            if ((vr.fieldName().equals(fromVertex.getField())) &&
+                                                    (bucket.getKeyAsString().equals(fromVertex.getTerm()))) {
                                                 // Avoid self-joins
                                                 continue;
                                             }
                                             double signalStrength = bucket.getSignificanceScore() / totalSignalOutput;
 
                                             // Decay the signal by the weight attached to the source vertex
-                                            signalStrength = signalStrength * Math.min(decay, fromVertex.weight);
+                                            signalStrength = signalStrength * Math.min(decay, fromVertex.getWeight());
 
                                             Vertex toVertex = getVertex(vr.fieldName(), bucket.getKeyAsString());
                                             if (toVertex == null) {
@@ -379,12 +386,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                                         currentHopNumber, bucket.getSupersetDf(), bucket.getSubsetDf());
                                                 newVertices.add(toVertex);
                                             } else {
-                                                toVertex.weight += signalStrength;
+                                                toVertex.setWeight(toVertex.getWeight() + signalStrength);
                                                 // We cannot (without further querying) determine an accurate number
                                                 // for the foreground count of the toVertex term - if we sum the values
                                                 // from each fromVertex term we may actually double-count occurrences so
                                                 // the best we can do is take the maximum foreground value we have observed
-                                                toVertex.fg = Math.max(toVertex.fg, bucket.getSubsetDf());
+                                                toVertex.setFg(Math.max(toVertex.getFg(), bucket.getSubsetDf()));
                                             }
                                             newConnections.add(addConnection(fromVertex, toVertex, signalStrength, bucket.getDocCount()));
                                         }
@@ -395,7 +402,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                         for (org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket bucket : terms.getBuckets()) {
                                             double signalStrength = bucket.getDocCount() / totalSignalOutput;
                                             // Decay the signal by the weight attached to the source vertex
-                                            signalStrength = signalStrength * Math.min(decay, fromVertex.weight);
+                                            signalStrength = signalStrength * Math.min(decay, fromVertex.getWeight());
 
                                             Vertex toVertex = getVertex(vr.fieldName(), bucket.getKeyAsString());
                                             if (toVertex == null) {
@@ -403,7 +410,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                                         currentHopNumber, 0, 0);
                                                 newVertices.add(toVertex);
                                             } else {
-                                                toVertex.weight += signalStrength;
+                                                toVertex.setWeight(toVertex.getWeight() + signalStrength);
                                             }
                                             newConnections.add(addConnection(fromVertex, toVertex, signalStrength, bucket.getDocCount()));
                                         }
@@ -434,7 +441,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // Get the top vertices for this field
                         VertexPriorityQueue pq = new VertexPriorityQueue(vr.size());
                         for (Vertex vertex : newVertices) {
-                            if (vertex.field.equals(vr.fieldName())) {
+                            if (vertex.getField().equals(vr.fieldName())) {
                                 Vertex eviction = pq.insertWithOverflow(vertex);
                                 if (eviction != null) {
                                     evictions.add(eviction);
@@ -445,9 +452,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     // Remove weak new nodes and their dangling connections from the main graph 
                     if (evictions.size() > 0) {
                         for (Connection connection : newConnections) {
-                            if (evictions.contains(connection.to)) {
+                            if (evictions.contains(connection.getTo())) {
                                 connections.remove(connection.getId());
-                                removeVertex(connection.to);
+                                removeVertex(connection.getTo());
                             }
                         }
                     }
@@ -535,8 +542,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // boosts for interesting terms
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                     for (Vertex vertex : entry.getValue()) {
-                        sourceTermsOrClause.should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery(vertex.field, vertex.term))
-                                .boost((float) vertex.weight));
+                        sourceTermsOrClause.should(
+                                QueryBuilders.constantScoreQuery(
+                                        QueryBuilders.termQuery(vertex.getField(), vertex.getTerm())).boost((float) vertex.getWeight()));
                     }
                 }
 
@@ -545,7 +553,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                     List<String> perFieldTerms = new ArrayList<>();
                     for (Vertex vertex : entry.getValue()) {
-                        perFieldTerms.add(vertex.term);
+                        perFieldTerms.add(vertex.getTerm());
                     }
                     sourceTermsOrClause.should(QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(entry.getKey(), perFieldTerms)));
                 }
@@ -730,7 +738,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // Too many terms - we need a cheaper form of query to execute this
                 List<String> termValues = new ArrayList<>();                
                 for (TermBoost tb : termBoosts) {
-                    termValues.add(tb.term);
+                    termValues.add(tb.getTerm());
                 }
                 includesContainer.should(QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(vr.fieldName(), termValues)));
                 return;
@@ -741,11 +749,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // from 1
             float minBoost = Float.MAX_VALUE;
             for (TermBoost tb : termBoosts) {
-                minBoost = Math.min(minBoost, tb.boost);
+                minBoost = Math.min(minBoost, tb.getBoost());
             }
             for (TermBoost tb : termBoosts) {
-                float normalizedBoost = tb.boost / minBoost;
-                includesContainer.should(QueryBuilders.termQuery(vr.fieldName(), tb.term).boost(normalizedBoost));
+                float normalizedBoost = tb.getBoost() / minBoost;
+                includesContainer.should(QueryBuilders.termQuery(vr.fieldName(), tb.getTerm()).boost(normalizedBoost));
             }
         }
 

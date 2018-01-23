@@ -16,10 +16,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequestBuilder;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * REST handler that tests whether a user has the specified
- * {@link org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges privileges}
+ * {@link RoleDescriptor.IndicesPrivileges privileges}
  */
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 

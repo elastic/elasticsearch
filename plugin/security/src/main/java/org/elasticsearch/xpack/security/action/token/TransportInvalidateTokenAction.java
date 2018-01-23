@@ -13,6 +13,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.authc.TokenService;
 
 /**

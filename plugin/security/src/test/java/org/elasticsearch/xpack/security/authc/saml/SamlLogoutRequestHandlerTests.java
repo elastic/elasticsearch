@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.Before;

@@ -36,8 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -45,7 +46,7 @@ import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
-import static org.elasticsearch.xpack.security.authc.RealmSettings.getRealmType;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getRealmType;
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.require;
 
 /**

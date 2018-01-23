@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.test.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
@@ -16,8 +18,6 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.SentEvent;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;

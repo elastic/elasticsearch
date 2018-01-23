@@ -23,7 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.EncryptedID;
 import org.opensaml.saml.saml2.core.LogoutRequest;

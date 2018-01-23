@@ -15,9 +15,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Response;
+import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Response;
 import org.junit.Before;
 
 import java.util.Collections;

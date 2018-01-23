@@ -13,8 +13,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Request;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Request;
 
 import java.io.IOException;
 

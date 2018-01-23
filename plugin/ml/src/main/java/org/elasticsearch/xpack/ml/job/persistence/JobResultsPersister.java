@@ -23,17 +23,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.ml.job.results.Forecast;
-import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.core.ml.job.results.Forecast;
+import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.Influencer;
+import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,10 +44,10 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 /**
  * Persists result types, Quantiles etc to Elasticsearch<br>
@@ -60,7 +63,7 @@ import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.D
  * <b>ModelSizeStats</b> This is stored in a flat structure <br>
  * <b>ModelSnapShot</b> This is stored in a flat structure <br>
  *
- * @see org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings
+ * @see ElasticsearchMappings
  */
 public class JobResultsPersister extends AbstractComponent {
 

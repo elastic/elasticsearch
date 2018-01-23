@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.none;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;

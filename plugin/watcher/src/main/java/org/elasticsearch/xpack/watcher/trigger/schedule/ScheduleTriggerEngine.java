@@ -9,9 +9,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.joda.time.DateTimeZone.UTC;
 
 public abstract class ScheduleTriggerEngine extends AbstractComponent implements TriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {

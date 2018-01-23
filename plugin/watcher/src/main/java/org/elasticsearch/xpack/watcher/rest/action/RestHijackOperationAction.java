@@ -11,9 +11,9 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.io.IOException;
 

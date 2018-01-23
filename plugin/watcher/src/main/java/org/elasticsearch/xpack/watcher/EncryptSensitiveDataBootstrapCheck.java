@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

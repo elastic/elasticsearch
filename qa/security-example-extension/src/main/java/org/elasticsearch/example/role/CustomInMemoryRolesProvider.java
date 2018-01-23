@@ -8,7 +8,7 @@ package org.elasticsearch.example.role;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.Map;

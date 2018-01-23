@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 

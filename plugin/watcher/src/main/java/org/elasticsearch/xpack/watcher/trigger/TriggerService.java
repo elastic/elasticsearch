@@ -9,7 +9,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -21,7 +23,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
 public class TriggerService extends AbstractComponent {
 

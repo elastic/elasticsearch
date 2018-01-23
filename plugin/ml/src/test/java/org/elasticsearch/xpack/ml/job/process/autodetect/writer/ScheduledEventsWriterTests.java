@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 
 import java.io.IOException;
 import java.time.Instant;

@@ -11,9 +11,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
-import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;

@@ -6,16 +6,18 @@
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
+import org.elasticsearch.xpack.core.watcher.actions.throttler.AckThrottler;
+import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
 
-import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;

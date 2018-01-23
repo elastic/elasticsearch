@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.monitoring.collector.node;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
 import java.util.Objects;

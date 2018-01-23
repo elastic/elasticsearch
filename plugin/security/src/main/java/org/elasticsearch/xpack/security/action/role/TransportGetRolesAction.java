@@ -13,9 +13,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
 import java.util.ArrayList;
 import java.util.List;

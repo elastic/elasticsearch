@@ -9,8 +9,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.OpenLdapTests;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 
 import java.util.List;
 

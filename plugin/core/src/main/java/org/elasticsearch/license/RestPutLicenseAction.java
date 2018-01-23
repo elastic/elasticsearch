@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,8 +16,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;

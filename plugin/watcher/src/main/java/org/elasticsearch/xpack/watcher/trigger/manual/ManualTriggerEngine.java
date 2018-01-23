@@ -7,17 +7,17 @@ package org.elasticsearch.xpack.watcher.trigger.manual;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
 public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualTriggerEvent> {
 

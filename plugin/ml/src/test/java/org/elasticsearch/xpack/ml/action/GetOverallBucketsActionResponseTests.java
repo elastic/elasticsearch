@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction.Response;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Response;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 
 import java.util.ArrayList;
 import java.util.Date;

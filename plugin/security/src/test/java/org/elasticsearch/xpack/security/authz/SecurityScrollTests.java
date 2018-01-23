@@ -15,7 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
 import java.util.Collections;

@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
-import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 public final class ExecutableTransformInput extends ExecutableInput<TransformInput, TransformInput.Result> {
 

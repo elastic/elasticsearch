@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
@@ -15,24 +14,18 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.Arrays;
-
-import javax.security.auth.DestroyFailedException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;

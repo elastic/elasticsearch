@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 
 import java.io.IOException;
 import java.util.Base64;

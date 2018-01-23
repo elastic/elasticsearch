@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

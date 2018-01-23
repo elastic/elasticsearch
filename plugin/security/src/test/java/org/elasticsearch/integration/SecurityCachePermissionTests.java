@@ -15,7 +15,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

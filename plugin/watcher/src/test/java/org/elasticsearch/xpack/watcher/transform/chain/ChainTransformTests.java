@@ -12,12 +12,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
-import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.watcher.transform.TransformFactory;
-import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
-import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
+import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
+import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
+import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
+import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransformFactory;
+import org.elasticsearch.xpack.core.watcher.transform.chain.ExecutableChainTransform;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,7 +162,7 @@ public class ChainTransformTests extends ESTestCase {
             return new Result("named", new Payload.Simple(data));
         }
 
-        public static class Transform implements org.elasticsearch.xpack.watcher.transform.Transform {
+        public static class Transform implements org.elasticsearch.xpack.core.watcher.transform.Transform {
 
             private final String name;
 
@@ -236,7 +239,7 @@ public class ChainTransformTests extends ESTestCase {
             return new Result(TYPE);
         }
 
-        public static class Transform implements org.elasticsearch.xpack.watcher.transform.Transform {
+        public static class Transform implements org.elasticsearch.xpack.core.watcher.transform.Transform {
             @Override
             public String type() {
                 return TYPE;

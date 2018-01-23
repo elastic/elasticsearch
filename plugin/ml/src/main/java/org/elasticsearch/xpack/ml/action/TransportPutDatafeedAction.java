@@ -27,16 +27,17 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.ml.MLMetadataField;
-import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.support.Exceptions;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
 

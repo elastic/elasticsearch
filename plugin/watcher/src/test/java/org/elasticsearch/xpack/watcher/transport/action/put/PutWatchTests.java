@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.watcher.transport.action.put;
 
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 public class TimeRangeTests extends ESTestCase {
     public void testGetStart() {

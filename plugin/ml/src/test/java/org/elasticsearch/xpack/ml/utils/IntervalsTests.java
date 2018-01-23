@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
 import static org.hamcrest.Matchers.equalTo;
 

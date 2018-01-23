@@ -9,7 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.crypto.CryptoService;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import javax.mail.MessagingException;

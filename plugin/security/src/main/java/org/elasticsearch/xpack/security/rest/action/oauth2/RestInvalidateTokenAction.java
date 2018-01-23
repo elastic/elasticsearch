@@ -20,9 +20,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
-import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequest;
-import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;

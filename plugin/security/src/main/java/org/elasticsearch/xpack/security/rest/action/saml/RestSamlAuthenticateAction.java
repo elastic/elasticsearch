@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
-import java.io.IOException;
-import java.util.Base64;
-import java.util.List;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -24,10 +20,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateRequestBuilder;
-import org.elasticsearch.xpack.security.action.saml.SamlAuthenticateResponse;
-import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 

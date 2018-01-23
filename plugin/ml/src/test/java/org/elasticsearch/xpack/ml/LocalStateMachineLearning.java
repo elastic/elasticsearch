@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.nio.file.Path;
 

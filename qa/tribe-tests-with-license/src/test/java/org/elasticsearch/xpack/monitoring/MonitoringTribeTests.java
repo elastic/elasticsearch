@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.TribeTransportTestCase;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
-import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequest;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 
 import java.util.Collections;
 import java.util.List;

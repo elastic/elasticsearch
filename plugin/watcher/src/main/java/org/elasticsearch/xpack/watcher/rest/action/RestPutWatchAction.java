@@ -14,11 +14,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.rest.RestRequestFilter;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.io.IOException;
 import java.util.Collections;

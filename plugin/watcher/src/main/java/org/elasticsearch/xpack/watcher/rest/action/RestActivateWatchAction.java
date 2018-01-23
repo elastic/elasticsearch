@@ -13,12 +13,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchResponse;
-import org.elasticsearch.xpack.watcher.watch.WatchField;
 
 import java.io.IOException;
 

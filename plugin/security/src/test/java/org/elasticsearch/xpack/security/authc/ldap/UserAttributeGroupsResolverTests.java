@@ -10,9 +10,9 @@ import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.util.Collection;
 import java.util.List;

@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
 import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-import static org.elasticsearch.xpack.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
+import static org.elasticsearch.xpack.core.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;

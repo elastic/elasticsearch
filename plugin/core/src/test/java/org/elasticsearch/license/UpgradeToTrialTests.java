@@ -14,8 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.XPackClientPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;

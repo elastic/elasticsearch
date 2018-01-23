@@ -15,12 +15,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.graph.action.Hop;
-import org.elasticsearch.xpack.graph.action.VertexRequest;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xpack.core.graph.action.Hop;
+import org.elasticsearch.xpack.core.graph.action.VertexRequest;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
+import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
 /**
  * @see GraphExploreRequest
  */

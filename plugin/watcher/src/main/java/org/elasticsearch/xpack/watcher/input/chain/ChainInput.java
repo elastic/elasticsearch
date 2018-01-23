@@ -10,9 +10,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.ArrayList;

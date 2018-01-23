@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.hamcrest.Matchers;
+import org.junit.Before;
+import org.opensaml.saml.saml2.core.NameID;
+import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
+import org.w3c.dom.Element;
+
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -12,15 +20,6 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.Locale;
-
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ssl.CertUtils;
-import org.hamcrest.Matchers;
-import org.junit.Before;
-import org.opensaml.saml.saml2.core.NameID;
-import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
-import org.w3c.dom.Element;
 
 public class SamlSpMetadataBuilderTests extends SamlTestCase {
 

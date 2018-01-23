@@ -16,15 +16,15 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Request;
-import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Response;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Request;
+import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Response;
 
 public class UpdateJobProcessNotifier extends AbstractComponent implements LocalNodeMasterListener {
 

@@ -32,7 +32,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class IPFilter {
 

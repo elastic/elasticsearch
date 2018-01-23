@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
+import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 

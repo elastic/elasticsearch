@@ -11,10 +11,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
-import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
 import java.util.Objects;

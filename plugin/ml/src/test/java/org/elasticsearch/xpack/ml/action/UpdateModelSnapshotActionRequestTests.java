@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Request;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Request;
 
 public class UpdateModelSnapshotActionRequestTests
         extends AbstractStreamableXContentTestCase<Request> {

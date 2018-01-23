@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 
 import java.io.IOException;
 

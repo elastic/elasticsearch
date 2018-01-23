@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,9 +31,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.EXISTS;

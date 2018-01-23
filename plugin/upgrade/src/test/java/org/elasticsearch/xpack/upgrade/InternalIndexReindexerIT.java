@@ -32,7 +32,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;

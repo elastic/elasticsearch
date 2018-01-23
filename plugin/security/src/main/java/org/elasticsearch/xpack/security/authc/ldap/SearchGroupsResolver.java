@@ -16,7 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
 import java.util.Collection;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJE
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
-import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 
 /**
  * Resolves the groups for a user by executing a search with a filter usually that contains a group

@@ -19,10 +19,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
-import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction.CreateTokenResponseActionListener;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
 
 import java.util.Map;
 

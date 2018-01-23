@@ -17,7 +17,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 public class TransportGetRoleMappingsAction

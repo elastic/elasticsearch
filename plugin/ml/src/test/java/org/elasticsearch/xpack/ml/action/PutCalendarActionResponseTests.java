@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.ml.calendars.CalendarTests;
 
 public class PutCalendarActionResponseTests extends AbstractStreamableTestCase<PutCalendarAction.Response> {

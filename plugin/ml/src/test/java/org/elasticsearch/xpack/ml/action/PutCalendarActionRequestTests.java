@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.calendars.CalendarTests;
-import org.elasticsearch.xpack.ml.job.config.JobTests;
 
 public class PutCalendarActionRequestTests extends AbstractStreamableXContentTestCase<PutCalendarAction.Request> {
 

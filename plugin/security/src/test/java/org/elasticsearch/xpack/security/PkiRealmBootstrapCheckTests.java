@@ -10,8 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
 public class PkiRealmBootstrapCheckTests extends ESTestCase {
 

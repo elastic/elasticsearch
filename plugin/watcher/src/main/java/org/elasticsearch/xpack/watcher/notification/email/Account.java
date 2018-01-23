@@ -10,7 +10,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.crypto.CryptoService;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;
@@ -19,6 +19,7 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;

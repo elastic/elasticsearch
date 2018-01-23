@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Collections;
 

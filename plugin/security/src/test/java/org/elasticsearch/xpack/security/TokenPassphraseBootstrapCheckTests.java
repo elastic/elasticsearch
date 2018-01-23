@@ -9,7 +9,7 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.TokenPassphraseBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.TokenService;
 

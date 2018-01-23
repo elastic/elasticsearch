@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.DefaultDetectorDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 
 public class DefaultDetectorDescriptionTests extends ESTestCase {
 

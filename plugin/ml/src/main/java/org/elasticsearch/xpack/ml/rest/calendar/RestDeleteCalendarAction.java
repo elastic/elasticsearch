@@ -12,8 +12,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.DeleteCalendarAction;
-import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
 import java.io.IOException;
 

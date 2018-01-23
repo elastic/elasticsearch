@@ -10,7 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;

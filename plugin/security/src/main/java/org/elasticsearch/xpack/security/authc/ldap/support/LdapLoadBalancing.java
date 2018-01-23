@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
 
 import javax.net.SocketFactory;
 import java.util.Locale;

@@ -7,13 +7,15 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapperResult;
-import org.elasticsearch.xpack.watcher.condition.Condition;
-import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.actions.Action;
+import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
+import org.elasticsearch.xpack.core.watcher.condition.Condition;
+import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 

@@ -38,8 +38,10 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
+import org.elasticsearch.xpack.core.upgrade.UpgradeField;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 
 import java.util.Arrays;
 import java.util.Collection;

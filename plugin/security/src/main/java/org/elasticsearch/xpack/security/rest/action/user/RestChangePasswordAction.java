@@ -15,12 +15,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
-import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
-import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.Collections;

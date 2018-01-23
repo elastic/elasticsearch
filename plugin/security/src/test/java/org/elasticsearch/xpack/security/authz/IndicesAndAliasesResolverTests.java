@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -55,25 +48,33 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.security.SecurityLifecycleServiceField;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
+import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
+import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -86,6 +87,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
 
 public class IndicesAndAliasesResolverTests extends ESTestCase {
 

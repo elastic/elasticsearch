@@ -7,7 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.core.XPackField;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;

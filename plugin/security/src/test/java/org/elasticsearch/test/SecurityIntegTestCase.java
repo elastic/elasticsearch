@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -32,14 +31,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -60,8 +57,9 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingSufficientToRead;
-import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
+
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -203,7 +201,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     /**
      * Should this test assert that x-pack is installed? You might want to skip this assertion if the test itself validates the installation
      * <strong>and</strong> running the assertion would significantly affect the performance or function of the test. For example
-     * {@link AbstractOldXPackIndicesBackwardsCompatibilityTestCase} disables the assertion because the assertion would force starting a
+     * an AbstractOldXPackIndicesBackwardsCompatibilityTestCase disables the assertion because the assertion would force starting a
      * node which it will then just shut down. That would slow the test down significantly and causes spurious failures because watcher
      * needs to be shut down with kid gloves.
      */

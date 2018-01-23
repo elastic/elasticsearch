@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.security.authz.permission;
 
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.junit.Before;
 
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege.MONITOR;
-import static org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege.READ;
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.MONITOR;
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 

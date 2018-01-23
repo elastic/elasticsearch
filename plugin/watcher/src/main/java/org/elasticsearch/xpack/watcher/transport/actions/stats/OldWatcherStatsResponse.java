@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.WatcherMetaData;
-import org.elasticsearch.xpack.watcher.WatcherState;
-import org.elasticsearch.xpack.watcher.execution.QueuedWatch;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionSnapshot;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
+import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;

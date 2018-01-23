@@ -10,7 +10,9 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.config.Condition;
+import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 

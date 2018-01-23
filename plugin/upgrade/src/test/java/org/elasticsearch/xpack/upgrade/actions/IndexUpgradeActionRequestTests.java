@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.upgrade.actions;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction.Request;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction.Request;
 
 public class IndexUpgradeActionRequestTests extends AbstractStreamableTestCase<Request> {
     @Override

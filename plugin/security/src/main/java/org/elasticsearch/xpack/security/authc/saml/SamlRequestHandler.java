@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.XMLObject;

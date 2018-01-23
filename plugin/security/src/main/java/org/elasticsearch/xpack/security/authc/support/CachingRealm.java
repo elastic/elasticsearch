@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.xpack.core.security.authc.Realm;
+
 /**
- * This interface allows a {@link org.elasticsearch.xpack.security.authc.Realm} to indicate that it supports caching user credentials
+ * This interface allows a {@link Realm} to indicate that it supports caching user credentials
  * and expose the ability to clear the cache for a given String identifier or all of the cache
  */
 public interface CachingRealm {

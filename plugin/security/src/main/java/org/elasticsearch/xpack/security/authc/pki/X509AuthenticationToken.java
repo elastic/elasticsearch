@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.elasticsearch.xpack.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.security.cert.X509Certificate;
 

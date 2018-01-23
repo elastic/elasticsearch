@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.test.rest.XPackRestIT;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 
 public class MlWithSecurityIT extends XPackRestIT {

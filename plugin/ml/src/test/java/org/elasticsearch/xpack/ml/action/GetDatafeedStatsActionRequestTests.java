@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 
 public class GetDatafeedStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
 

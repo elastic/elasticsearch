@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 
 import java.util.Arrays;
 import java.util.Collections;

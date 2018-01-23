@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
 public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCase<GetCategoriesAction.Request> {
 

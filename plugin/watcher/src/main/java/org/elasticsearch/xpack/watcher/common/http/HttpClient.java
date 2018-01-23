@@ -39,12 +39,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.common.socket.SocketAccess;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.HostnameVerifier;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;

@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,16 +15,22 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
+import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
-import org.elasticsearch.xpack.security.user.User;
 import org.opensaml.saml.saml2.core.LogoutRequest;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport action responsible for generating a SAML {@code &lt;LogoutRequest&gt;} as a redirect binding URL.

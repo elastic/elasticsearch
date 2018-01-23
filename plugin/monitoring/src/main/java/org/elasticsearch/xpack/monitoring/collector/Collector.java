@@ -18,8 +18,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.List;

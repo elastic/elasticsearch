@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
 import java.util.Arrays;
@@ -24,12 +24,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
-import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 
 
 class ActiveDirectoryGroupsResolver implements GroupsResolver {

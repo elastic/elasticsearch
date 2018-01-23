@@ -13,10 +13,10 @@ import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearningField;
-import org.elasticsearch.xpack.monitoring.test.MockPainlessScriptEngine;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 
 import java.util.Arrays;
 import java.util.Collection;

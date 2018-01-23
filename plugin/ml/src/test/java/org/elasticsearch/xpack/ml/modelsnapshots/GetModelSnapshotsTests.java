@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.modelsnapshots;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Arrays;
 import java.util.Date;

@@ -6,23 +6,23 @@
 package org.elasticsearch.xpack.watcher.transport.action.execute;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
-import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequestBuilder;
-import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 

@@ -33,7 +33,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
 import static org.junit.Assert.assertEquals;
 
 public class SecurityTestUtils {

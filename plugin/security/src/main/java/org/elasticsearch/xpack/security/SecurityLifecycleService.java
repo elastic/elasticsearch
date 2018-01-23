@@ -30,7 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
 
 /**
  * This class is used to provide a lifecycle for services that is based on the cluster's state

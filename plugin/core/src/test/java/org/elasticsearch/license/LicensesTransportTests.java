@@ -13,8 +13,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;

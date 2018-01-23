@@ -32,7 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

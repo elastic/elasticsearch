@@ -24,8 +24,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction.Request;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction.Request;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -10,7 +10,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;

@@ -14,9 +14,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.junit.After;
 import org.junit.Before;
 

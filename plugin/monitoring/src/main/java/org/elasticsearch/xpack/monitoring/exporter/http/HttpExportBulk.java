@@ -24,10 +24,10 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;

@@ -100,8 +100,8 @@ public class ClientYamlTestClient {
                 queryStringParams.put(entry.getKey(), entry.getValue());
                 apiRequiredParameters.remove(entry.getKey());
             } else {
-                //throw new IllegalArgumentException(
-//                        "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api");
+                throw new IllegalArgumentException(
+                        "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api");
             }
         }
 

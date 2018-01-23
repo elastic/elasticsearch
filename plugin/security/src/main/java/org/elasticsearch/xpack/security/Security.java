@@ -61,6 +61,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -238,7 +239,8 @@ import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SEC
 import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
 
-public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin, MapperPlugin {
+public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin, MapperPlugin,
+        ExtensiblePlugin {
 
     private static final Logger logger = Loggers.getLogger(Security.class);
 
@@ -247,10 +249,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             new Setting<>(SecurityField.setting("user"), (String) null, Optional::ofNullable, Property.NodeScope);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
-        Setting.listSetting(SecurityField.setting("audit.outputs"),
-            s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-            Function.identity(), Property.NodeScope);
+            Setting.listSetting(SecurityField.setting("audit.outputs"),
+                    s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
+                            Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
+                    Function.identity(), Property.NodeScope);
 
     public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
             Property.NodeScope, Property.Dynamic, Property.Deprecated);
@@ -271,8 +273,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
-    protected final XPackExtensionsService extensionsService;
-
+    private final XPackExtensionsService extensionsService;
+    private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private volatile boolean indicesAdminFilteredFields;
 
     public Security(Settings settings, Path configPath) {
@@ -324,14 +326,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
 
-        
+
         if (enabled == false) {
             modules.add(b -> {
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), getLicenseState()));
+                        .toInstance(new AuditTrailService(settings, Collections.emptyList(), getLicenseState()));
             });
             return modules;
         }
@@ -351,8 +353,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     protected Clock getClock() {
         return Clock.systemUTC();
     }
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -362,15 +370,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         try {
 
             return createComponents(client, threadPool, clusterService, resourceWatcherService,
-                    extensionsService.getExtensions());
+                    extensionsService.getExtensions().stream().collect(Collectors.toList()));
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
     }
 
-    public Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
-                                               ResourceWatcherService resourceWatcherService,
-                                               List<XPackExtension> extensions) throws Exception {
+    // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
+    Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
+                                        ResourceWatcherService resourceWatcherService,
+                                        List<SecurityExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -386,7 +395,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             if (outputs.isEmpty()) {
                 throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
-                    + XPackSettings.AUDIT_ENABLED.getKey());
+                        + XPackSettings.AUDIT_ENABLED.getKey());
             }
 
             for (String output : outputs) {
@@ -422,7 +431,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityLifecycleService));
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : securityExtensions) {
+            extensions.add(extension);
+        }
+        for (SecurityExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
@@ -438,14 +450,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : extensions) {
             AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
             if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.name() + "] " +
-                    "both set an authentication failure handler");
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
+                        "both set an authentication failure handler");
             }
             failureHandler = extensionFailureHandler;
-            extensionName = extension.name();
+            extensionName = extension.toString();
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
@@ -461,18 +473,18 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityLifecycleService);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : extensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+                reservedRolesStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
         securityLifecycleService.addSecurityIndexHealthChangeListener(allRolesStore::onSecurityIndexHealthChange);
         securityLifecycleService.addSecurityIndexOutOfDateListener(allRolesStore::onSecurityIndexOutOfDateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser);
+                auditTrailService, failureHandler, threadPool, anonymousUser);
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
@@ -631,7 +643,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-       return bootstrapChecks;
+        return bootstrapChecks;
     }
 
     @Override
@@ -642,20 +654,20 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 module.setSearcherWrapper(indexService ->
                         new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
-                                // we pass a null index reader, which is legal and will disable rewrite optimizations
-                                // based on index statistics, which is probably safer...
-                                null,
-                                () -> {
-                                    throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                                        // we pass a null index reader, which is legal and will disable rewrite optimizations
+                                        // based on index statistics, which is probably safer...
+                                        null,
+                                        () -> {
+                                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                                }, null),
+                                        }, null),
                                 indexService.cache().bitsetFilterCache(),
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
                                 indexService.getScriptService()));
                 /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.
-                *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-                *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-                *  unauthorized users. */
+                 *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+                 *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+                 *  unauthorized users. */
                 module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
             }
 
@@ -713,8 +725,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
             return emptyList();
         }
@@ -752,11 +764,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     /**
      * If the current node is a tribe node, we inject additional settings on each tribe client. We do this to make sure
      * that every tribe cluster has x-pack installed and security is enabled. We do that by:
-     *
-     *    - making it mandatory on the tribe client (this means that the tribe node will fail at startup if x-pack is
-     *      not loaded on any tribe due to missing mandatory plugin)
-     *
-     *    - forcibly enabling it (that means it's not possible to disable security on the tribe clients)
+     * <p>
+     * - making it mandatory on the tribe client (this means that the tribe node will fail at startup if x-pack is
+     * not loaded on any tribe due to missing mandatory plugin)
+     * <p>
+     * - forcibly enabling it (that means it's not possible to disable security on the tribe clients)
      */
     private static void addTribeSettings(Settings settings, Settings.Builder settingsBuilder) {
         Map<String, Settings> tribesSettings = settings.getGroups("tribe", true);
@@ -891,7 +903,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
         }
-       return Collections.singletonList(new TransportInterceptor() {
+        return Collections.singletonList(new TransportInterceptor() {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                             boolean forceExecution,
@@ -1028,7 +1040,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled) {
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
-                .andThen(new ValidateUpgradedSecurityIndex());
+                    .andThen(new ValidateUpgradedSecurityIndex());
         }
         return null;
     }
@@ -1059,9 +1071,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_INDEX_NAME);
                 if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
                     throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +
-                        "The Upgrade API must be run for 6.x nodes to join the cluster");
+                            "The Upgrade API must be run for 6.x nodes to join the cluster");
                 }
             }
         }
+    }
+
+    @Override
+    public void reloadSPI(ClassLoader loader) {
+        securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
     }
 }

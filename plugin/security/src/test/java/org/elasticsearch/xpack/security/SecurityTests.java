@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -79,18 +78,10 @@ public class SecurityTests extends ESTestCase {
     private TestUtils.UpdatableLicenseState licenseState;
     private ClusterSettings clusterSettings;
 
-    public static class DummyExtension extends XPackExtension {
+    public static class DummyExtension implements SecurityExtension {
         private String realmType;
         DummyExtension(String realmType) {
             this.realmType = realmType;
-        }
-        @Override
-        public String name() {
-            return "dummy";
-        }
-        @Override
-        public String description() {
-            return "dummy";
         }
         @Override
         public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
@@ -98,7 +89,7 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponents(Settings testSettings, XPackExtension... extensions) throws Exception {
+    private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }

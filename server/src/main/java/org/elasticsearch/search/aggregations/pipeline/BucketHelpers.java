@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -36,8 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A set of static helpers to simplify working with aggregation buckets, in
@@ -155,16 +152,6 @@ public class BucketHelpers {
     }
 
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-                                            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath) {
-        try {
-            List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
-            return resolveBucketValue(agg, bucket, aggPathsList);
-        } catch (InvalidAggregationPathException e) {
-            return null;
-        }
-    }
-
-    public static Double resolveBucketValue(MultiBucketsAggregation agg,
             InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
@@ -172,16 +159,13 @@ public class BucketHelpers {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             }
-
-            double value = resolveBucketValue(agg, bucket, aggPathAsList);
-
-            if (Double.isFinite(value) && isValueFromOtherAggregation(agg, aggPathAsList)) {
+            double value = getBucketPropertyValue(agg, bucket, aggPathAsList);
+            if (Double.isFinite(value)) {
                 return value;
             }
-
             // doc count never has missing values so gap policy doesn't apply here
             boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-            if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
+            if (bucket.getDocCount() == 0 && !isDocCountProperty) {
                 switch (gapPolicy) {
                 case INSERT_ZEROS:
                     return 0.0;
@@ -192,14 +176,18 @@ public class BucketHelpers {
             } else {
                 return value;
             }
-
         } catch (InvalidAggregationPathException e) {
             return null;
         }
     }
 
-    private static double resolveBucketValue(MultiBucketsAggregation agg,
-                                            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList) {
+    public static Double getBucketPropertyValue(MultiBucketsAggregation agg,
+                                                InternalMultiBucketAggregation.InternalBucket bucket, String aggPath) {
+        return getBucketPropertyValue(agg, bucket, AggregationPath.parse(aggPath).getPathElementsAsStringList());
+    }
+
+    private static double getBucketPropertyValue(MultiBucketsAggregation agg,
+                                                 InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList) {
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
         if (propertyValue == null) {
             throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
@@ -215,20 +203,5 @@ public class BucketHelpers {
                 + " must reference either a number value or a single value numeric metric aggregation, got: "
                 + propertyValue.getClass().getCanonicalName());
         }
-    }
-
-    private static boolean isValueFromOtherAggregation(MultiBucketsAggregation agg, List<String> aggPathAsList) {
-        // we have no other pipeline aggregators
-        if (!(agg instanceof InternalAggregation)) {
-            return false;
-        }
-
-        Set<String> names = ((InternalAggregation) agg)
-            .pipelineAggregators()
-            .stream()
-            .map(PipelineAggregator::name)
-            .collect(Collectors.toSet());
-
-        return names.containsAll(aggPathAsList);
     }
 }

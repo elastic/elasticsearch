@@ -152,7 +152,7 @@
         calendar_id: "mayan"
 
   - do:
-      catch: /version_conflict_engine_exception/
+      catch: bad_request
       xpack.ml.put_calendar:
         calendar_id: "mayan"
 

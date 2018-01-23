@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfWeekYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
@@ -269,9 +269,9 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, unwrapAlias(new ConstantFolding().rule(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfYear(EMPTY, cast, DateTimeZone.UTC))));
-        assertEquals(3, unwrapAlias(new ConstantFolding().rule(new WeekOfWeekYear(EMPTY, cast, DateTimeZone.UTC))));
+        assertEquals(3, unwrapAlias(new ConstantFolding().rule(new WeekOfYear(EMPTY, cast, DateTimeZone.UTC))));
         assertNull(unwrapAlias(new ConstantFolding().rule(
-            new WeekOfWeekYear(EMPTY, new Literal(EMPTY, null, DataTypes.NULL), DateTimeZone.UTC))));
+            new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataTypes.NULL), DateTimeZone.UTC))));
     }
 
     private Object unwrapAlias(Expression e) {

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.modelsnapshots;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 
 
 public class UpdateModelSnapshotActionTests extends ESTestCase {

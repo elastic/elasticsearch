@@ -9,8 +9,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 

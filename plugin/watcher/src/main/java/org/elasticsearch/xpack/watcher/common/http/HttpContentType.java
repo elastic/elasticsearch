@@ -9,7 +9,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
 public enum HttpContentType {
 

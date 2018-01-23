@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl;
 import java.math.BigInteger;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.FieldExpression.FieldPredicate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldPredicate;
 
 import static org.hamcrest.Matchers.is;
 

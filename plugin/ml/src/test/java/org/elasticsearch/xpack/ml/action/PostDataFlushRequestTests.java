@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.FlushJobAction.Request;
+import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Request;
 
 public class PostDataFlushRequestTests extends AbstractStreamableTestCase<Request> {
 

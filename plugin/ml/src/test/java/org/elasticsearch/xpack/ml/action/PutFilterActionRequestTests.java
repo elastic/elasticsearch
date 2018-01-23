@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.PutFilterAction.Request;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction.Request;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.util.ArrayList;
 import java.util.List;

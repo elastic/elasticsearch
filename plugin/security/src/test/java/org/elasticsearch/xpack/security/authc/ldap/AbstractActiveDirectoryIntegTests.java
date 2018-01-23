@@ -9,16 +9,16 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactorySettings;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.nio.file.Path;

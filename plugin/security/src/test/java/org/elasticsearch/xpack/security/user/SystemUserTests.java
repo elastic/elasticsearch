@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 
 import static org.hamcrest.Matchers.is;
 

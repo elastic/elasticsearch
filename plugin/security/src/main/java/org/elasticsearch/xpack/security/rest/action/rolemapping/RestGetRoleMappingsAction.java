@@ -15,9 +15,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsResponse;
-import org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;

@@ -9,19 +9,19 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.watcher.input.Input.Result.Status;
+import static org.elasticsearch.xpack.core.watcher.input.Input.Result.Status;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.is;
 

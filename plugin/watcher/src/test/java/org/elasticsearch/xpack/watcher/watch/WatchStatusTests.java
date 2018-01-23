@@ -11,10 +11,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.watcher.actions.ActionStatus.AckStatus.State;
+import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
+import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 
 import java.io.IOException;
 import java.util.Collections;

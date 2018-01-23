@@ -9,7 +9,7 @@ import java.util.List;
 
 import org.apache.commons.codec.binary.Hex;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
  * A very lightweight {@link AuthenticationToken} to hold SAML content.

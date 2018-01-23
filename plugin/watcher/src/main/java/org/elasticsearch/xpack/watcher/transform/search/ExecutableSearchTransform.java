@@ -15,12 +15,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.WatcherClientHelper;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
-import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import static org.elasticsearch.xpack.watcher.transform.search.SearchTransform.TYPE;
 

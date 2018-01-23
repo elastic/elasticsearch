@@ -14,18 +14,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.ml.client.MachineLearningClient;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 /**
  * Collector for Machine Learning Job Stats.

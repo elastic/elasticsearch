@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;

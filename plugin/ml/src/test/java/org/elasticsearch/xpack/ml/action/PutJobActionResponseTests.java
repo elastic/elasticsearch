@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.PutJobAction.Response;
-import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction.Response;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
-import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;
+import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
 public class PutJobActionResponseTests extends AbstractStreamableTestCase<Response> {
 

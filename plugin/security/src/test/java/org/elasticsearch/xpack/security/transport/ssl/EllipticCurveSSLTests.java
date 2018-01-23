@@ -10,8 +10,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.ssl.CertUtils;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import javax.net.ssl.HandshakeCompletedEvent;
@@ -22,6 +22,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
+
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;

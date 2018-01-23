@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.OpenJobAction.Request;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction.Request;
 
 public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

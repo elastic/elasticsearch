@@ -19,9 +19,9 @@ import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpMockUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ssl.SSLClientAuth;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 

@@ -11,7 +11,7 @@ archivesBaseName = 'x-pack-core'
 esplugin {
   name 'x-pack-core'
   description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.XPackPlugin'
+  classname 'org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
   requiresKeystore true
   licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')

@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.monitoring.MonitoringField;
+import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 

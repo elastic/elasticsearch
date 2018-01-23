@@ -34,20 +34,24 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapperResult;
-import org.elasticsearch.xpack.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
+import org.elasticsearch.xpack.core.watcher.condition.Condition;
+import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
+import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchField;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.history.WatchRecord;
-import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -63,8 +67,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {

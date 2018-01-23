@@ -31,11 +31,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BytesReferenceMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

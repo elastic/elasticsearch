@@ -10,7 +10,10 @@ import java.util.Collections;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.junit.Before;
 import org.mockito.Mockito;
 

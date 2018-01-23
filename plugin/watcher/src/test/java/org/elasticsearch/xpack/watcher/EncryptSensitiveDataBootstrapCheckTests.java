@@ -11,7 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests;
 
 public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
 

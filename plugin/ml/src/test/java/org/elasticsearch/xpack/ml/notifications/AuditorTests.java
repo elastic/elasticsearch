@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.core.ml.notifications.Level;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

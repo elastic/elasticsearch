@@ -5,25 +5,26 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import javax.security.auth.x500.X500Principal;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.util.Locale;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
+
+import javax.security.auth.x500.X500Principal;
+
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 

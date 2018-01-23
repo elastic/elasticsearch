@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.GetInfluencersAction.Response;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction.Response;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 
 import java.util.ArrayList;
 import java.util.Date;

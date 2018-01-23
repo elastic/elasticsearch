@@ -10,15 +10,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.util.Map;
 

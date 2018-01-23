@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;

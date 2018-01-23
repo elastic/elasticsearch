@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket.JobInfo;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket.JobInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;

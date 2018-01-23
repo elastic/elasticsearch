@@ -9,8 +9,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 

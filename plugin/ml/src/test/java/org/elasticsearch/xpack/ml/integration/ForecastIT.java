@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.Forecast;
-import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.Forecast;
+import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.junit.After;
 
 import java.io.IOException;

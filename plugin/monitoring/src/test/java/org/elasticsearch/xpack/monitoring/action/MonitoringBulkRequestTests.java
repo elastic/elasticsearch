@@ -17,7 +17,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 
 import java.io.IOException;

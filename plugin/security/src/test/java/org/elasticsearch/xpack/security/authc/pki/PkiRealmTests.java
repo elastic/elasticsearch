@@ -5,7 +5,30 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
+import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.junit.Before;
+import org.mockito.Mockito;
+
 import javax.security.auth.x500.X500Principal;
+
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,27 +40,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
-import org.junit.Before;
-import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

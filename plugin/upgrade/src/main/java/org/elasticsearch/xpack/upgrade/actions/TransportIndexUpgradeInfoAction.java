@@ -19,9 +19,10 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
-import org.elasticsearch.xpack.upgrade.UpgradeActionRequired;
+import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.Map;
 

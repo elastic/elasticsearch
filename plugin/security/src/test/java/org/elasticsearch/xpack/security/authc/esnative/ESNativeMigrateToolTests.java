@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;

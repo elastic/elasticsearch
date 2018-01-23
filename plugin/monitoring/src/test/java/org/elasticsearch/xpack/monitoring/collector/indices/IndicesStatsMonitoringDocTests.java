@@ -22,9 +22,9 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTestCase;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.junit.Before;
 
 import java.io.IOException;

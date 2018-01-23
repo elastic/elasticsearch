@@ -9,16 +9,16 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
-import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.user.ElasticUser;
-import org.elasticsearch.xpack.security.user.KibanaUser;
-import org.elasticsearch.xpack.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaUser;
+import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 
 import java.util.Arrays;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

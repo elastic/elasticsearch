@@ -5,18 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
-
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -26,6 +22,10 @@ import org.opensaml.security.credential.UsageType;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
+
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;

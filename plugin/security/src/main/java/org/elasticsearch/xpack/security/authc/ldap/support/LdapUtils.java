@@ -36,9 +36,10 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import javax.naming.ldap.Rdn;
+
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;

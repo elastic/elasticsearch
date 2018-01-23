@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.utils.time;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.util.concurrent.TimeUnit;
 

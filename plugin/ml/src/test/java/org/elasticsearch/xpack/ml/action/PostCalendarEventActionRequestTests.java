@@ -10,8 +10,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.ml.calendars.ScheduledEventTests;
+import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests;
 
 import java.io.IOException;
 import java.util.ArrayList;

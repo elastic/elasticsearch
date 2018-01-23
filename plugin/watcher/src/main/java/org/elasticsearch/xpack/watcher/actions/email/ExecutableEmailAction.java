@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.core.watcher.actions.Action;
+import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.notification.email.DataAttachment;
@@ -14,11 +18,7 @@ import org.elasticsearch.xpack.watcher.notification.email.Email;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.HashMap;

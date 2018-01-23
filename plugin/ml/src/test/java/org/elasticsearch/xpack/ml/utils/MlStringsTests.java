@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.utils;
 
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

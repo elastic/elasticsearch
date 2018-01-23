@@ -17,16 +17,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 
 /**

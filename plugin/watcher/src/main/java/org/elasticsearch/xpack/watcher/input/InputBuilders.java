@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
-import org.elasticsearch.xpack.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;
 import java.util.Map;

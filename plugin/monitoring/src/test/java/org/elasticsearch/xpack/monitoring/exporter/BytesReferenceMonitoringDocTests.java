@@ -12,7 +12,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.junit.Before;
 
@@ -21,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.xpack.monitoring.MonitoredSystem.KIBANA;
+import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

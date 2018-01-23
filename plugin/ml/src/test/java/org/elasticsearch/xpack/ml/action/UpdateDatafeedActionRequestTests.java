@@ -11,9 +11,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction.Request;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdateTests;
+import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction.Request;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdateTests;
 import org.junit.Before;
 
 import java.util.Collections;

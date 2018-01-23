@@ -13,12 +13,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.support.Exceptions;
-import org.elasticsearch.xpack.security.user.User;
 
 import java.util.HashMap;
 import java.util.Map;

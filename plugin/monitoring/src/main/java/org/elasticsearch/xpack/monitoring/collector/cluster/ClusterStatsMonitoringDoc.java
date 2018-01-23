@@ -16,9 +16,9 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
-import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

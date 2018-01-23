@@ -35,15 +35,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingUpToDate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

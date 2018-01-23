@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.XPackBuild;
+import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.io.IOException;
 import java.util.ArrayList;

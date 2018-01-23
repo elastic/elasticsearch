@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.List;

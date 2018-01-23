@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 
 import java.util.ArrayList;
 import java.util.Date;

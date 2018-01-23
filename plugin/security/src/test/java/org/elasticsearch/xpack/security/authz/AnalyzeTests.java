@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Collections;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class AnalyzeTests extends SecurityIntegTestCase {
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("test123".toCharArray())));

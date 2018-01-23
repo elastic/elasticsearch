@@ -16,7 +16,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction.HasPrivilegesRestResponseBuilder;
 
 import static org.hamcrest.Matchers.equalTo;

@@ -35,16 +35,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackClientActionPlugin;
-import org.elasticsearch.xpack.security.ScrollHelper;
+import org.elasticsearch.xpack.core.XPackClientActionPlugin;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
-import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
-import org.elasticsearch.xpack.security.action.role.DeleteRoleRequest;
-import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,11 +59,11 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.security.SecurityField.setting;
-import static org.elasticsearch.xpack.security.authz.RoleDescriptor.ROLE_TYPE;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a

@@ -23,10 +23,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -34,7 +35,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
+import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;

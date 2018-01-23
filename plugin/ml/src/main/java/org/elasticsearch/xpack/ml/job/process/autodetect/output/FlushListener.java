@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.time.Duration;
 import java.util.Iterator;

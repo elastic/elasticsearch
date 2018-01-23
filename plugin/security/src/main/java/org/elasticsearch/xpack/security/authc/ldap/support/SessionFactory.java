@@ -18,13 +18,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.net.SocketFactory;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;

@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Locale;
 

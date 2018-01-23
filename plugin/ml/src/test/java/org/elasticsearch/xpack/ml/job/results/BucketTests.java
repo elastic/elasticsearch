@@ -8,6 +8,11 @@ package org.elasticsearch.xpack.ml.job.results;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecordTests;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
 import java.util.ArrayList;
 import java.util.Arrays;

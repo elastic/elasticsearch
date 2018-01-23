@@ -10,13 +10,11 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackClientPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;

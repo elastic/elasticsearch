@@ -8,9 +8,9 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 
 public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFailureHandler {
 

@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 
 import java.io.IOException;
 

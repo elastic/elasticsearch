@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.util.ArrayList;
 import java.util.Collections;

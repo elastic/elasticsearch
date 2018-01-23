@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 import java.util.SortedMap;

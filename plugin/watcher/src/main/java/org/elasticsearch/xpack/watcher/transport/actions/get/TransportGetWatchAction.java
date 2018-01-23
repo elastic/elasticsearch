@@ -20,17 +20,20 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {

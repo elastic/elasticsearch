@@ -12,10 +12,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
-import org.elasticsearch.xpack.XPackClientPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.SecurityField;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.security.SecurityField;
 
 import java.util.Arrays;
 import java.util.Collection;

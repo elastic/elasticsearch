@@ -22,7 +22,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceResponse;
 
 public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, WatcherServiceResponse> {
 

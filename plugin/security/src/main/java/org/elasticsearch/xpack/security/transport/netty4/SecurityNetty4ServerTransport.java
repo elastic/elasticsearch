@@ -14,9 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.ssl.SSLService;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 

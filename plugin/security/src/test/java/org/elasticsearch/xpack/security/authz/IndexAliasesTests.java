@@ -16,7 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -24,8 +24,8 @@ import java.util.Map;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 

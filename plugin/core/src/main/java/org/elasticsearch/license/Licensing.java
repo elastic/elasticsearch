@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,8 +29,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.XPackClientActionPlugin.isTribeNode;
-import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
+import static org.elasticsearch.xpack.core.XPackClientActionPlugin.isTribeNode;
+import static org.elasticsearch.xpack.core.XPackPlugin.transportClientMode;
 
 public class Licensing implements ActionPlugin {
 

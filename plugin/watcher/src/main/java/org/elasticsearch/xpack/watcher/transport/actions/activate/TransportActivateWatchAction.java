@@ -23,20 +23,23 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchField;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeDate;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**

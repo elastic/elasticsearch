@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.secret.Secret;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 

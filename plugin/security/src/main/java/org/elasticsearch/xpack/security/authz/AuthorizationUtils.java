@@ -9,26 +9,26 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.ClientHelper;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.support.Automatons;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.ClientHelper.DEPRECATION_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.PERSISTENT_TASK_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public final class AuthorizationUtils {
 

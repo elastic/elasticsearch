@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import java.nio.file.Path;
-
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
@@ -16,11 +14,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
-import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactorySettings;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.ssl.VerificationMode;
+
+import java.nio.file.Path;
 
 public class LdapTestUtils {
 

@@ -15,11 +15,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import javax.security.auth.x500.X500Principal;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;

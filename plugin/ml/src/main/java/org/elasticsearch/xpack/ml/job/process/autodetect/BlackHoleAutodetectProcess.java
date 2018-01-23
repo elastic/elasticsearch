@@ -6,17 +6,17 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A placeholder class simulating the actions of the native Autodetect process.
  * Most methods consume data without performing any action however, after a call to
- * {@link #flushJob(FlushJobParams)} a {@link org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement}
+ * {@link #flushJob(FlushJobParams)} a {@link FlushAcknowledgement}
  * message is expected on the {@link #readAutodetectResults()} ()} stream. This class writes the flush
  * acknowledgement immediately.
  */

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Objects;

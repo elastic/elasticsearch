@@ -14,15 +14,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.junit.Before;
+import org.elasticsearch.xpack.core.security.SecurityField;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.core.IsCollectionContaining.hasItem;

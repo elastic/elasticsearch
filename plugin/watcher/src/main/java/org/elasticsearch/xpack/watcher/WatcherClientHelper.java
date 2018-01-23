@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 /**
  * A helper class which decides if we should run via the xpack user and set watcher as origin or

@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 
 import java.io.IOException;
 

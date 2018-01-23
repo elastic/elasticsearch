@@ -13,23 +13,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
+import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.NioTransport;
 import org.elasticsearch.transport.nio.TcpNioServerSocketChannel;
 import org.elasticsearch.transport.nio.TcpNioSocketChannel;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
-import org.elasticsearch.xpack.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLEngine;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
@@ -40,7 +41,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * This transport provides a transport based on nio that is secured by SSL/TLS. SSL/TLS is a communications

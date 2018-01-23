@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;

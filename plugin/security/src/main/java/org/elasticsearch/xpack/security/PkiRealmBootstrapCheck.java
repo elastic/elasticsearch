@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 class PkiRealmBootstrapCheck implements BootstrapCheck {
 

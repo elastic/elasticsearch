@@ -14,11 +14,11 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.monitoring.action.MonitoringBulkResponse;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.rest.MonitoringRestHandler;
 
 import java.io.IOException;

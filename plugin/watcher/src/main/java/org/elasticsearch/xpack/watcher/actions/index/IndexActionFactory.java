@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.ActionFactory;
+import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 
 import java.io.IOException;
 

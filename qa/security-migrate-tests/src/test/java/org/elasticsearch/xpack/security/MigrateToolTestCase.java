@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;

@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.GetBucketsAction.Response;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.ml.job.results.PartitionScore;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction.Response;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
 import java.util.ArrayList;
 import java.util.Collections;

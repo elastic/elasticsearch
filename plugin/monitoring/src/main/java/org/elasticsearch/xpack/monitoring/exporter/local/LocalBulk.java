@@ -16,17 +16,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the

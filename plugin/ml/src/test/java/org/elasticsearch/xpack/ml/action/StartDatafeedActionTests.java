@@ -9,19 +9,20 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.util.Collections;
 import java.util.Date;
 
+import static org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
-import static org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartDatafeedActionTests extends ESTestCase {

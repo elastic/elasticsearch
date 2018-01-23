@@ -24,10 +24,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 
@@ -36,8 +39,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {

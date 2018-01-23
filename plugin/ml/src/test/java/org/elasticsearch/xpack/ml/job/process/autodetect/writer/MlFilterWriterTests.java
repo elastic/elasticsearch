@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;

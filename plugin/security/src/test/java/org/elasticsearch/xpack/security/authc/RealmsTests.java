@@ -13,16 +13,18 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealmSettings;
-import org.elasticsearch.xpack.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -274,7 +276,7 @@ public class RealmsTests extends ESTestCase {
         i = 0;
         while (iter.hasNext()) {
             realm = iter.next();
-            assertThat(realm.type, is("ldap"));
+            assertThat(realm.getType(), is("ldap"));
             i++;
         }
         assertThat(i, is(1));

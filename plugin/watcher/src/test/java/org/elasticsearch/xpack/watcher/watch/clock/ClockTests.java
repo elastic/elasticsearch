@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.watch.clock;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.joda.time.DateTime;
 
 import java.time.Clock;

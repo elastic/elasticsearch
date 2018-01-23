@@ -16,9 +16,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
 import java.nio.file.Path;

@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.persistence.BatchedDocumentsIterator;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

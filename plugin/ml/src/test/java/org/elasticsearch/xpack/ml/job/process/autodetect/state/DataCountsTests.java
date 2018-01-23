@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.joda.time.DateTime;
 
 import java.util.Date;

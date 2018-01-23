@@ -67,7 +67,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static UsernamePasswordToken.basicAuthHeaderValue;
 ...
 
 TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()

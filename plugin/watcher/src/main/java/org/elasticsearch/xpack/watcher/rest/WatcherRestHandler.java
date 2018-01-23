@@ -9,7 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 
 import java.io.IOException;
 

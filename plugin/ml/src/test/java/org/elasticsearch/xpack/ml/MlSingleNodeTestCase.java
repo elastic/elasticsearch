@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 /**
  * An extention to {@link ESSingleNodeTestCase} that adds node settings specifically needed for ML test cases.

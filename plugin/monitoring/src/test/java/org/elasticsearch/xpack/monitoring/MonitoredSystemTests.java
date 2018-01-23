@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
 import java.util.Locale;
 

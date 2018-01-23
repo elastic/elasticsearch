@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.xpack.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 
 import java.util.Objects;
 

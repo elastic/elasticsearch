@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;

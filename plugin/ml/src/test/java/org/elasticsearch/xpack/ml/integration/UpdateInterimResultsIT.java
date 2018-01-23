@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
 import java.util.Collections;

@@ -13,9 +13,9 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction;
-import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction.Request;
-import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 

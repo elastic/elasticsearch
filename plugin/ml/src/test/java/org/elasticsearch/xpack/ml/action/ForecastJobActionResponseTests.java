@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.ForecastJobAction.Response;
+import org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Response;
 
 public class ForecastJobActionResponseTests extends AbstractStreamableTestCase<Response> {
 

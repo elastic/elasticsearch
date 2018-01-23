@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.net.InetAddress;
 import java.util.Collections;

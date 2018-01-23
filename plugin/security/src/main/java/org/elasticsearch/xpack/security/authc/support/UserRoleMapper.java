@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,13 +17,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-
 /**
  * Where a realm users an authentication method that does not have in-built support for X-Pack
- * {@link org.elasticsearch.xpack.security.authz.permission.Role roles}, it may delegate to an implementation of this class the
+ * {@link Role roles}, it may delegate to an implementation of this class the
  * responsibility for determining the set roles that an authenticated user should have.
  */
 public interface UserRoleMapper {

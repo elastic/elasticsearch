@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 
 import java.util.List;
 

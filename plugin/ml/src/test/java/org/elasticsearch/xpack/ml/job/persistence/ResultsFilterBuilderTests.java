@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.job.persistence.ResultsFilterBuilder;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 public class ResultsFilterBuilderTests extends ESTestCase {
     private static final String TIMESTAMP = "timestamp";

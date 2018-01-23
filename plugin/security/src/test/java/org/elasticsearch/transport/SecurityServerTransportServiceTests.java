@@ -12,11 +12,8 @@ import java.util.stream.Collectors;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
-
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 // this class sits in org.elasticsearch.transport so that TransportService.requestHandlers is visible
 public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {

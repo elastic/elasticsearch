@@ -18,11 +18,13 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ssl.SSLClientAuth;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
+
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;

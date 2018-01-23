@@ -15,8 +15,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.junit.After;
 import org.junit.Before;
 

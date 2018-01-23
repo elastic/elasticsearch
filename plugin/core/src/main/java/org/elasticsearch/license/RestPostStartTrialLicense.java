@@ -13,13 +13,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPostStartTrialLicense extends XPackRestHandler {
 

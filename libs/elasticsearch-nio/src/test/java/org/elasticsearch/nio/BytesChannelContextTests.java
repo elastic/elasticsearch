@@ -27,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -58,7 +59,7 @@ public class BytesChannelContextTests extends ESTestCase {
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new BytesChannelContext(channel, selector, null, readConsumer, channelBuffer);
+        context = new BytesChannelContext(channel, mock(SocketChannel.class), selector, null, readConsumer, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
     }
@@ -155,7 +156,7 @@ public class BytesChannelContextTests extends ESTestCase {
         Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
         InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
         buffer.ensureCapacity(1);
-        BytesChannelContext context = new BytesChannelContext(channel, selector, null, readConsumer, buffer);
+        BytesChannelContext context = new BytesChannelContext(channel,  mock(SocketChannel.class), selector, null, readConsumer, buffer);
         context.closeFromSelector();
         verify(closer).run();
     }

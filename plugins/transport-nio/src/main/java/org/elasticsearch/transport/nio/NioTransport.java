@@ -179,7 +179,7 @@ public class NioTransport extends TcpTransport {
 
         @Override
         public TcpNioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
-            TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel, selector);
+            TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
@@ -187,7 +187,7 @@ public class NioTransport extends TcpTransport {
             SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
             BiConsumer<NioSocketChannel, Exception> exceptionHandler = NioTransport.this::exceptionCaught;
-            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, nioReadConsumer,
+            BytesChannelContext context = new BytesChannelContext(nioChannel, channel, selector, exceptionHandler, nioReadConsumer,
                 new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
@@ -196,7 +196,7 @@ public class NioTransport extends TcpTransport {
         @Override
         public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel, this, selector);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, selector, NioTransport.this::acceptChannel, (c, e) -> {});
+            ServerChannelContext context = new ServerChannelContext(nioChannel, channel, selector, NioTransport.this::acceptChannel, (c, e) -> {});
             nioChannel.setContext(context);
             return nioChannel;
         }

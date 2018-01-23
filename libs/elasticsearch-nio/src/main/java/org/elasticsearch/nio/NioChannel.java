@@ -21,9 +21,6 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.NetworkChannel;
-import java.nio.channels.SelectionKey;
 import java.util.function.BiConsumer;
 
 public interface NioChannel {
@@ -35,8 +32,6 @@ public interface NioChannel {
     void close();
 
     void closeFromSelector() throws IOException;
-
-    NetworkChannel getRawChannel();
 
     ChannelContext getContext();
 

@@ -64,8 +64,8 @@ public class NioSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         try(SocketChannel rawChannel = SocketChannel.open()) {
-            NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
-            socketChannel.setContext(new BytesChannelContext(socketChannel, selector, mock(BiConsumer.class),
+            NioSocketChannel socketChannel = new NioSocketChannel(rawChannel);
+            socketChannel.setContext(new BytesChannelContext(socketChannel, rawChannel, selector, mock(BiConsumer.class),
                 mock(SocketChannelContext.ReadConsumer.class), InboundChannelBuffer.allocatingInstance()));
             socketChannel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
                 @Override
@@ -101,7 +101,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
-        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
+        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel);
         socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 
@@ -117,7 +117,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
-        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel, selector);
+        NioSocketChannel socketChannel = new NioSocketChannel(rawChannel);
         socketChannel.setContext(mock(SocketChannelContext.class));
         selector.scheduleForRegistration(socketChannel);
 

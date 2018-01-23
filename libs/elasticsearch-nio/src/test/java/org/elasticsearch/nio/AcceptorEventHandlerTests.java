@@ -67,7 +67,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
-        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
+        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
@@ -78,7 +78,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
-        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
+        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
         childChannel.setContext(mock(SocketChannelContext.class));
         ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class), channelFactory, selector);
@@ -94,7 +94,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
 
         DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor) {
-            super(channel, selector,  acceptor, null);
+            super(channel, mock(ServerSocketChannel.class), selector,  acceptor, null);
         }
 
         @Override

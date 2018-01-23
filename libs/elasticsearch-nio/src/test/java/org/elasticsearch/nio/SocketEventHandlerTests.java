@@ -48,7 +48,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
-        channel = new NioSocketChannel(rawChannel, selector);
+        channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);
 
         channel.setContext(new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0)));
@@ -101,7 +101,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleReadDelegatesToContext() throws IOException {
-        NioSocketChannel channel = new NioSocketChannel(rawChannel, mock(SocketSelector.class));
+        NioSocketChannel channel = new NioSocketChannel(rawChannel);
         SocketChannelContext context = mock(SocketChannelContext.class);
         channel.setContext(context);
 
@@ -181,7 +181,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
         DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector,
                              BiConsumer<NioSocketChannel, Exception> exceptionHandler, TestSelectionKey selectionKey) {
-            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), InboundChannelBuffer.allocatingInstance());
+            super(channel, rawChannel, selector, exceptionHandler, mock(ReadConsumer.class), InboundChannelBuffer.allocatingInstance());
             this.selectionKey = selectionKey;
         }
 

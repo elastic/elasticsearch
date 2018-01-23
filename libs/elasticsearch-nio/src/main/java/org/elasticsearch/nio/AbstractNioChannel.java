@@ -85,11 +85,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public S getRawChannel() {
-        return socketChannel;
-    }
-
-    @Override
     public void addCloseListener(BiConsumer<Void, Throwable> listener) {
         closeContext.whenComplete(listener);
     }

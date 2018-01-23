@@ -34,9 +34,9 @@ public class ServerChannelContext extends AbstractChannelContext<ServerSocketCha
     private final BiConsumer<NioServerSocketChannel, Exception> exceptionHandler;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-    public ServerChannelContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor,
+    public ServerChannelContext(NioServerSocketChannel channel, ServerSocketChannel rawChannel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor,
                                 BiConsumer<NioServerSocketChannel, Exception> exceptionHandler) {
-        super(channel.getRawChannel());
+        super(rawChannel);
         this.channel = channel;
         this.selector = selector;
         this.acceptor = acceptor;

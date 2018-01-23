@@ -72,7 +72,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(socketSelector).scheduleForRegistration(channel);
 
-        assertEquals(rawChannel, channel.getRawChannel());
+        assertEquals(rawChannel, channel.getContext().getChannel());
     }
 
     public void testAcceptedChannelRejected() throws IOException {
@@ -95,7 +95,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(socketSelector).scheduleForRegistration(channel);
 
-        assertEquals(rawChannel, channel.getRawChannel());
+        assertEquals(rawChannel, channel.getContext().getChannel());
     }
 
     public void testOpenedChannelRejected() throws IOException {
@@ -116,7 +116,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
         verify(acceptingSelector).scheduleForRegistration(channel);
 
-        assertEquals(rawServerChannel, channel.getRawChannel());
+        assertEquals(rawServerChannel, channel.getContext().getChannel());
     }
 
     public void testOpenedServerChannelRejected() throws IOException {
@@ -138,7 +138,7 @@ public class ChannelFactoryTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
-            NioSocketChannel nioSocketChannel = new NioSocketChannel(channel, selector);
+            NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
             SocketChannelContext context = mock(SocketChannelContext.class);
             nioSocketChannel.setContext(context);
             when(context.getChannel()).thenReturn(channel);

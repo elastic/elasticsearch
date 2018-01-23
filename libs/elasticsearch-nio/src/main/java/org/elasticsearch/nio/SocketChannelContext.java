@@ -41,9 +41,9 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
     private boolean ioException;
     private boolean peerClosed;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
+    protected SocketChannelContext(NioSocketChannel channel, SocketChannel socketChannel, SocketSelector selector,
                                    BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
-        super(channel.getRawChannel());
+        super(socketChannel);
         this.selector = selector;
         this.channel = channel;
         this.exceptionHandler = exceptionHandler;

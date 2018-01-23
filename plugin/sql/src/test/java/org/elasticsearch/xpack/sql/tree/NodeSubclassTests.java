@@ -346,7 +346,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 return map;
             }
             if (pt.getRawType() == List.class) {
-                return makeList(toBuildClass, pt, between(0, 10));
+                return makeList(toBuildClass, pt, between(1, 10));
             }
             if (pt.getRawType() == Supplier.class) {
                 if (toBuildClass == AggValueInput.class) {

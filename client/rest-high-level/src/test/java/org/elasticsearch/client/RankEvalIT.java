@@ -71,7 +71,6 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         specifications.add(berlinRequest);
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec spec = new RankEvalSpec(specifications, metric);
-        spec.addIndices(Collections.singletonList("index"));
 
         RankEvalResponse response = execute(new RankEvalRequest(spec), highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the second is 1/6, divided by 2 to get the average

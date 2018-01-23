@@ -91,6 +91,7 @@ public class CancelTests extends ReindexTestCase {
         int numDocs = getNumShards(INDEX).numPrimaries * 10 * builder.request().getSlices();
         ALLOWED_OPERATIONS.release(numDocs);
 
+        logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
                 .mapToObj(i -> client().prepareIndex(INDEX, TYPE, String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
@@ -102,16 +103,21 @@ public class CancelTests extends ReindexTestCase {
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
-        /* Allow a random number of the documents less the number of workers to be modified by the reindex action. That way at least one
-         * worker is blocked. */
+        /* Allow a random number of the documents less the number of workers
+         * to be modified by the reindex action. That way at least one worker
+         * is blocked. */
         int numModifiedDocs = randomIntBetween(builder.request().getSlices() * 2, numDocs);
+        logger.debug("chose to modify [{}] docs", numModifiedDocs);
         ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices());
 
         // Now execute the reindex action...
         ActionFuture<? extends BulkByScrollResponse> future = builder.execute();
 
-        /* ... and waits for the indexing operation listeners to block. It is important to realize that some of the workers might have
-         * exhausted their slice while others might have quite a bit left to work on. We can't control that. */
+        /* ... and wait for the indexing operation listeners to block. It
+         * is important to realize that some of the workers might have
+         * exhausted their slice while others might have quite a bit left
+         * to work on. We can't control that. */
+        logger.debug("waiting for updates to be blocked");
         awaitBusy(() -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0);
 
         // Status should show the task running
@@ -128,15 +134,19 @@ public class CancelTests extends ReindexTestCase {
         cancelTasksResponse.rethrowFailures("Cancel");
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
 
-        // The status should now show canceled. The request will still be in the list because it is (or its children are) still blocked.
+        /* The status should now show canceled. The request will still be in the
+         * list because it is (or its children are) still blocked. */
         mainTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
         status = (BulkByScrollTask.Status) mainTask.getStatus();
+        logger.debug("asserting that parent is marked canceled {}", status);
         assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
+
         if (builder.request().getSlices() > 1) {
             boolean foundCancelled = false;
             ListTasksResponse sliceList = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
                     .setDetailed(true).get();
             sliceList.rethrowFailures("Fetch slice tasks");
+            logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
             for (TaskInfo slice: sliceList.getTasks()) {
                 BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.getStatus();
                 if (sliceStatus.getReasonCancelled() == null) continue;
@@ -146,7 +156,7 @@ public class CancelTests extends ReindexTestCase {
             assertTrue("Didn't find at least one sub task that was cancelled", foundCancelled);
         }
 
-        // Unblock the last operations
+        logger.debug("unblocking the blocked update");
         ALLOWED_OPERATIONS.release(builder.request().getSlices());
 
         // Checks that no more operations are executed

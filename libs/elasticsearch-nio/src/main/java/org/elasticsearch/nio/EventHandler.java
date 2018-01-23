@@ -69,7 +69,7 @@ public abstract class EventHandler {
      */
     protected void handleClose(NioChannel channel) {
         try {
-            channel.closeFromSelector();
+            channel.getContext().closeFromSelector();
         } catch (IOException e) {
             closeException(channel, e);
         }

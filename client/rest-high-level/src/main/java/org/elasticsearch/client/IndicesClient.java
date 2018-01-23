@@ -21,10 +21,14 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 
@@ -49,9 +53,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
      */
-    public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
+    public DeleteIndexResponse delete(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            Collections.emptySet(), headers);
+                Collections.emptySet(), headers);
     }
 
     /**
@@ -60,10 +64,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
      */
-    public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener,
-                                       Header... headers) {
+    public void deleteAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            listener, Collections.emptySet(), headers);
+                listener, Collections.emptySet(), headers);
     }
 
     /**
@@ -72,7 +75,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
      */
-    public CreateIndexResponse createIndex(CreateIndexRequest createIndexRequest, Header... headers) throws IOException {
+    public CreateIndexResponse create(CreateIndexRequest createIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
                 Collections.emptySet(), headers);
     }
@@ -83,9 +86,31 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
      */
-    public void createIndexAsync(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener,
-                                       Header... headers) {
+    public void createAsync(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
+                listener, Collections.emptySet(), headers);
+    }
+
+    /**
+     * Updates the mappings on an index using the Put Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     */
+    public PutMappingResponse putMapping(PutMappingRequest putMappingRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, Request::putMapping, PutMappingResponse::fromXContent,
+                Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates the mappings on an index using the Put Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     */
+    public void putMappingAsync(PutMappingRequest putMappingRequest, ActionListener<PutMappingResponse> listener,
+                                       Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, Request::putMapping, PutMappingResponse::fromXContent,
             listener, Collections.emptySet(), headers);
     }
 
@@ -95,7 +120,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Open Index API on elastic.co</a>
      */
-    public OpenIndexResponse openIndex(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
+    public OpenIndexResponse open(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
                 Collections.emptySet(), headers);
     }
@@ -106,9 +131,30 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Open Index API on elastic.co</a>
      */
-    public void openIndexAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
+    public void openAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
                 listener, Collections.emptySet(), headers);
     }
 
+    /**
+     * Closes an index using the Close Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Close Index API on elastic.co</a>
+     */
+    public CloseIndexResponse close(CloseIndexRequest closeIndexRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(closeIndexRequest, Request::closeIndex, CloseIndexResponse::fromXContent,
+                Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously closes an index using the Close Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Close Index API on elastic.co</a>
+     */
+    public void closeAsync(CloseIndexRequest closeIndexRequest, ActionListener<CloseIndexResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest, Request::closeIndex, CloseIndexResponse::fromXContent,
+                listener, Collections.emptySet(), headers);
+    }
 }

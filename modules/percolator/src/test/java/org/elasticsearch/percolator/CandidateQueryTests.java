@@ -136,13 +136,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject().string();
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
 
@@ -555,18 +555,20 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         try (RAMDirectory directory = new RAMDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                List<Document> documents = new ArrayList<>();
                 Document document = new Document();
                 document.add(new StringField("field", "value1", Field.Store.NO));
                 document.add(new StringField("field", "value2", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
                 document = new Document();
                 document.add(new StringField("field", "value5", Field.Store.NO));
                 document.add(new StringField("field", "value6", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
                 document = new Document();
                 document.add(new StringField("field", "value3", Field.Store.NO));
                 document.add(new StringField("field", "value4", Field.Store.NO));
-                iw.addDocument(document);
+                documents.add(document);
+                iw.addDocuments(documents); // IW#addDocuments(...) ensures we end up with a single segment
             }
             try (IndexReader ir = DirectoryReader.open(directory)){
                 IndexSearcher percolateSearcher = new IndexSearcher(ir);

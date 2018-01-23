@@ -237,6 +237,8 @@
       xpack.ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "tiger"
+  - match: { calendar_id: "wildlife" }
+  - length: { job_ids: 0 }
 
   - do:
       xpack.ml.get_calendars:

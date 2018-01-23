@@ -121,6 +121,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -669,6 +670,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
         Collections.sort(ids);
         return DateTimeZone.forID(randomFrom(ids));
+    }
+
+    /**
+     * generate a random ZoneId from the ones available in java time
+     */
+    public static ZoneId randomZoneId() {
+        List<String> ids = new ArrayList<>(ZoneId.getAvailableZoneIds());
+        Collections.sort(ids);
+        return ZoneId.of(randomFrom(ids));
     }
 
     /**

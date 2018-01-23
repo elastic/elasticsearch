@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -145,7 +146,7 @@ public class DateMathParserTests extends ESTestCase {
 
 
     public void testNow() {
-        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, null);
+        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, (DateTimeZone) null);
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
@@ -162,10 +163,10 @@ public class DateMathParserTests extends ESTestCase {
         DateMathParser parser = new DateMathParser(formatter);
         assertEquals(
                 this.formatter.parser().parseMillis("1970-01-01T04:52:20.000Z"),
-                parser.parse("04:52:20", () -> 0, false, null));
+                parser.parse("04:52:20", () -> 0, false, (DateTimeZone) null));
         assertEquals(
                 this.formatter.parser().parseMillis("1970-01-01T04:52:20.999Z"),
-                parser.parse("04:52:20", () -> 0, true, null));
+                parser.parse("04:52:20", () -> 0, true, (DateTimeZone) null));
     }
 
     // Implicit rounding happening when parts of the date are not specified
@@ -185,9 +186,9 @@ public class DateMathParserTests extends ESTestCase {
         // implicit rounding with explicit timezone in the date format
         FormatDateTimeFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
         DateMathParser parser = new DateMathParser(formatter);
-        long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
+        long time = parser.parse("2011-10-09+01:00", () -> 0, false, (DateTimeZone) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
-        time = parser.parse("2011-10-09+01:00", () -> 0, true, null);
+        time = parser.parse("2011-10-09+01:00", () -> 0, true, (DateTimeZone) null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
     }
 
@@ -292,9 +293,9 @@ public class DateMathParserTests extends ESTestCase {
             called.set(true);
             return 42L;
         };
-        parser.parse("2014-11-18T14:27:32", now, false, null);
+        parser.parse("2014-11-18T14:27:32", now, false, (DateTimeZone) null);
         assertFalse(called.get());
-        parser.parse("now/d", now, false, null);
+        parser.parse("now/d", now, false, (DateTimeZone) null);
         assertTrue(called.get());
     }
 

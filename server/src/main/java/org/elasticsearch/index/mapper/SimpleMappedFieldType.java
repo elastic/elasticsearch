@@ -25,6 +25,8 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
+
 /**
  * {@link MappedFieldType} base impl for field types that are neither dates nor ranges.
  */
@@ -40,7 +42,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
 
     @Override
     public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+                                  ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
         if (relation == ShapeRelation.DISJOINT) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                     "] does not support DISJOINT ranges");
@@ -52,7 +54,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
     }
 
     /**
-     * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, DateTimeZone, DateMathParser, QueryShardContext)}
+     * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, QueryShardContext)}
      * but without the trouble of relations or date-specific options.
      */
     protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,

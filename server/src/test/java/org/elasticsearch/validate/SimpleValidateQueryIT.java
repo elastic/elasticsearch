@@ -33,12 +33,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 
@@ -122,8 +124,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
-        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
-        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+        String aMonthAgo = DateTimeFormatter.ISO_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC).minusMonths(1));
+        String aMonthFromNow = DateTimeFormatter.ISO_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC).plusMonths(1));
 
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
@@ -135,10 +137,12 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
-        DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
-        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
-        assertThat(response.getQueryExplanation().get(0).getExplanation(),
-                equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
+
+        long twoMonthsAgo = LocalDate.now(ZoneOffset.UTC).minusMonths(2).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        long now = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay().minus(1, ChronoUnit.MILLIS)
+            .toInstant(ZoneOffset.UTC).toEpochMilli();
+
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("past:[" + twoMonthsAgo + " TO " + now + "]"));
         assertThat(response.isValid(), equalTo(true));
     }
 

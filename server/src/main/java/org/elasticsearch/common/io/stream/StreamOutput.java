@@ -35,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
-import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -50,6 +49,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
@@ -625,7 +625,6 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-            zonedDateTime.getZone().getId();
             o.writeString(zonedDateTime.getZone().getId());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
@@ -650,6 +649,8 @@ public abstract class StreamOutput extends OutputStream {
             type = Object[].class;
         } else if (value instanceof Map) {
             type = Map.class;
+        } else if (value instanceof ZonedDateTime) {
+            type = ZonedDateTime.class;
         } else if (value instanceof ReadableInstant) {
             type = ReadableInstant.class;
         } else if (value instanceof BytesReference) {
@@ -904,16 +905,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a {@linkplain DateTimeZone} to the stream.
+     * Write a {@linkplain ZoneId} to the stream.
      */
-    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
-        writeString(timeZone.getID());
+    public void writeTimeZone(ZoneId timeZone) throws IOException {
+        writeString(timeZone.getId());
     }
 
     /**
-     * Write an optional {@linkplain DateTimeZone} to the stream.
+     * Write an optional {@linkplain ZoneId} to the stream.
      */
-    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
+    public void writeOptionalTimeZone(@Nullable ZoneId timeZone) throws IOException {
         if (timeZone == null) {
             writeBoolean(false);
         } else {

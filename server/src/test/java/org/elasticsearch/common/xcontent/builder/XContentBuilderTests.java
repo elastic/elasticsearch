@@ -35,6 +35,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -174,9 +177,11 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentBuilder.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentBuilder.DEFAULT_DATE_PRINTER
+            .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), ZoneOffset.UTC));
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentBuilder.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentBuilder.DEFAULT_DATE_PRINTER
+            .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(calendar.getTimeInMillis()), ZoneOffset.UTC));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("date", date).endObject();
         assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));

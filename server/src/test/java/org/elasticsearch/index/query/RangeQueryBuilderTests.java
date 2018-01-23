@@ -48,6 +48,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.time.zone.ZoneRulesException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -238,7 +239,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("test");
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone(null));
-        expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone("badID"));
+        expectThrows(ZoneRulesException.class, () -> rangeQueryBuilder.timeZone("badID"));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format(null));
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format("badFormat"));
     }

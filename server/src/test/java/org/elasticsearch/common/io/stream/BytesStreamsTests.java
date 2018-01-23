@@ -32,6 +32,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -297,8 +298,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeTimeZone(ZoneId.of("CET"));
+        // TODO not sure if system default is smart, maybe just pick some random
+        out.writeOptionalTimeZone(ZoneId.systemDefault());
         out.writeOptionalTimeZone(null);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -327,8 +329,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertEquals(ZoneId.of("CET"), in.readTimeZone());
+        assertEquals(ZoneId.systemDefault(), in.readOptionalTimeZone());
         assertNull(in.readOptionalTimeZone());
         assertEquals(0, in.available());
         in.close();

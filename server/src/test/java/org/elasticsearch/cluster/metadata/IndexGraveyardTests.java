@@ -31,6 +31,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -70,8 +74,10 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.endObject();
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
-            assertThat(Strings.toString(graveyard, false, true),
-                containsString(XContentBuilder.DEFAULT_DATE_PRINTER.print(graveyard.getTombstones().get(0).getDeleteDateInMillis())));
+            long deleteDateInMillis = graveyard.getTombstones().get(0).getDeleteDateInMillis();
+            String expectedDate = XContentBuilder.DEFAULT_DATE_PRINTER
+                .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(deleteDateInMillis), ZoneOffset.UTC));
+            assertThat(Strings.toString(graveyard, false, true), containsString(expectedDate));
         }
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken(); // the beginning of the parser

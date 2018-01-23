@@ -158,33 +158,43 @@ public class BucketHelpers {
             if (propertyValue == null) {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
-            } else {
-                double value;
-                if (propertyValue instanceof Number) {
-                    value = ((Number) propertyValue).doubleValue();
-                } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                    value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-                } else {
-                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                            + " must reference either a number value or a single value numeric metric aggregation, got: "
-                            + propertyValue.getClass().getCanonicalName());
-                }
-                // doc count never has missing values so gap policy doesn't apply here
-                boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
-                    switch (gapPolicy) {
-                    case INSERT_ZEROS:
-                        return 0.0;
-                    case SKIP:
-                    default:
-                        return Double.NaN;
-                    }
-                } else {
-                    return value;
-                }
             }
+            boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
+            if (GapPolicy.SKIP == gapPolicy && bucket.getDocCount() == 0 && !isDocCountProperty) {
+                return Double.NaN;
+            }
+
+            double value = getBucketPropertyValue(agg, bucket, aggPathAsList);
+            if (Double.isFinite(value)) {
+                return value;
+            }
+            return GapPolicy.INSERT_ZEROS == gapPolicy ? 0.0 : Double.NaN;
         } catch (InvalidAggregationPathException e) {
             return null;
+        }
+    }
+
+    public static Double getBucketPropertyValue(MultiBucketsAggregation agg,
+                                                InternalMultiBucketAggregation.InternalBucket bucket, String aggPath) {
+        return getBucketPropertyValue(agg, bucket, AggregationPath.parse(aggPath).getPathElementsAsStringList());
+    }
+
+    private static double getBucketPropertyValue(MultiBucketsAggregation agg,
+                                                 InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList) {
+        Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
+        if (propertyValue == null) {
+            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation");
+        }
+
+        if (propertyValue instanceof Number) {
+            return ((Number) propertyValue).doubleValue();
+        } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+            return ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+        } else {
+            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation, got: "
+                + propertyValue.getClass().getCanonicalName());
         }
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -89,12 +90,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
             }
-            for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
-                String varName = entry.getKey();
-                String bucketsPath = entry.getValue();
-                Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-                vars.put(varName, value);
-            }
+            bucketsPathsMap.forEach((varName, bucketsPath) -> vars.put(varName,
+                BucketHelpers.getBucketPropertyValue(originalAgg, bucket, bucketsPath)));
             // TODO: can we use one instance of the script for all buckets? it should be stateless?
             ExecutableScript executableScript = factory.newInstance(vars);
             Object scriptReturnValue = executableScript.run();

@@ -169,11 +169,12 @@ public class ShrinkAction implements LifecycleAction {
                 // Since all shards of the shrunken index are active, it is safe to continue forward
                 // and begin swapping the indices by inheriting the lifecycle management to the new shrunken index.
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_NAME, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME))
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE))
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_ACTION)).build(), targetIndexName);
+                        .put(LifecycleSettings.LIFECYCLE_NAME, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME))
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE))
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_ACTION))
+                        .build(), targetIndexName);
                 client.admin().indices().updateSettings(updateSettingsRequest,
-                    ActionListener.wrap(r -> listener.onSuccess(false) , listener::onFailure));
+                        ActionListener.wrap(r -> listener.onSuccess(false), listener::onFailure));
             }
         } else {
             // We are here because both the shrunken and original indices exist, but the shrunken index is not

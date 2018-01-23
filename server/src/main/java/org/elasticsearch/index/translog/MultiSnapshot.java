@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.apache.lucene.util.BitSet;
 import org.elasticsearch.index.seqno.CountedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
@@ -85,7 +84,7 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
-        private final LongObjectHashMap<BitSet> bitSets = new LongObjectHashMap<>();
+        private final LongObjectHashMap<CountedBitSet> bitSets = new LongObjectHashMap<>();
 
         /**
          * Marks this sequence number and returns <tt>true</tt> if it is seen before.
@@ -93,7 +92,7 @@ final class MultiSnapshot implements Translog.Snapshot {
         boolean getAndSet(long value) {
             assert value >= 0;
             final long key = value / BIT_SET_SIZE;
-            BitSet bitset = bitSets.get(key);
+            CountedBitSet bitset = bitSets.get(key);
             if (bitset == null) {
                 bitset = new CountedBitSet(BIT_SET_SIZE);
                 bitSets.put(key, bitset);

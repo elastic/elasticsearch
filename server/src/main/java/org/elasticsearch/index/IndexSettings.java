@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -374,7 +374,7 @@ public final class IndexSettings {
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
-        logger = Loggers.getLogger(getClass(), settings, index);
+        logger = ServerLoggers.getLogger(getClass(), settings, index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);

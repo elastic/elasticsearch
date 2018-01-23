@@ -417,13 +417,13 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .field("precision", "1m").field("tree_levels", 8).field("distance_error_pct", 0.01).field("orientation", "ccw")
                 .endObject().endObject().endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE);
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("tree", "quadtree")
                 .field("strategy", "term").field("precision", "1km").field("tree_levels", 26).field("distance_error_pct", 26)
                 .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         try {
-            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [shape] has different [strategy]"));
@@ -449,7 +449,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
                 .field("tree_levels", 8).field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
-        docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         fieldMapper = docMapper.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));

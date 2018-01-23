@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -1290,12 +1291,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /** opens the engine on top of the existing lucene engine but creates an empty translog **/
     public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
-        assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
-            recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
-        SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
-        assert commitInfo.localCheckpoint >= globalCheckpoint :
-            "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+        if (Assertions.ENABLED) {
+            assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
+                recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
+            SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
+            assert commitInfo.localCheckpoint >= globalCheckpoint :
+                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
                     + globalCheckpoint + "]";
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+        }
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
     }
@@ -1304,9 +1309,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openIndexAndTranslog() throws IOException {
+    public void openIndexAndRecoveryFromTranslog() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+        getEngine().recoverFromTranslog();
+    }
+
+    /**
+     * Opens the engine on top of the existing lucene engine and translog.
+     * The translog is kept but its operations won't be replayed.
+     */
+    public void openIndexAndSkipTranslogRecovery() throws IOException {
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+        getEngine().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
@@ -1339,13 +1355,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             globalCheckpointTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
                 "read from translog checkpoint");
         }
-        Engine newEngine = createNewEngine(config);
+        createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
-            newEngine.recoverFromTranslog();
         }
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
@@ -2301,8 +2316,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
             try {
-                final Engine engine = getEngine();
-                engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+                getEngine().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
             } catch (AlreadyClosedException ex) {
                 // that's fine since we already synced everything on engine close - this also is conform with the methods
                 // documentation
@@ -2327,9 +2341,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         translogSyncProcessor.put(location, syncListener);
     }
 
-    public final void sync() throws IOException {
+    public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().getTranslog().sync();
+        getEngine().syncTranslog();
     }
 
     /**

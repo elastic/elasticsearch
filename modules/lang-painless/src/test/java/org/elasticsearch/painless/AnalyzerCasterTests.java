@@ -21,16 +21,12 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
-
-import static org.elasticsearch.painless.Definition.DEFINITION_FILES;
 
 public class AnalyzerCasterTests extends ESTestCase {
 
-    private static final Definition definition = new Definition(
-        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES)));
+    private static final Definition definition = new Definition(Whitelist.BASE_WHITELISTS);
 
     private static void assertCast(Type actual, Type expected, boolean mustBeExplicit) {
         Location location = new Location("dummy", 0);
@@ -43,8 +39,8 @@ public class AnalyzerCasterTests extends ESTestCase {
         }
 
         Cast cast = definition.caster.getLegalCast(location, actual, expected, true, false);
-        assertEquals(actual, cast.from);
-        assertEquals(expected, cast.to);
+        assertEquals(actual.clazz, cast.from);
+        assertEquals(expected.clazz, cast.to);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
@@ -52,8 +48,8 @@ public class AnalyzerCasterTests extends ESTestCase {
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = definition.caster.getLegalCast(location, actual, expected, false, false);
-            assertEquals(actual, cast.from);
-            assertEquals(expected, cast.to);
+            assertEquals(actual.clazz, cast.from);
+            assertEquals(expected.clazz, cast.to);
         }
     }
 

@@ -534,7 +534,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             final String expected = o.getKey();
             assertResult(expected, () -> builder().startObject().field("objects", o.getValue()).endObject());
             assertResult(expected, () -> builder().startObject().field("objects").value(o.getValue()).endObject());
-            assertResult(expected, () -> builder().startObject().field("objects").values(o.getValue()).endObject());
             assertResult(expected, () -> builder().startObject().array("objects", o.getValue()).endObject());
         }
     }

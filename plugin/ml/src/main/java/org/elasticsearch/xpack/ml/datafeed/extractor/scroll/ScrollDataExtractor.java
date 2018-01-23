@@ -95,6 +95,7 @@ class ScrollDataExtractor implements DataExtractor {
     protected InputStream initScroll(long startTimestamp) throws IOException {
         LOGGER.debug("[{}] Initializing scroll", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
+        LOGGER.debug("[{}] Search response was obtained", context.jobId);
         return processSearchResponse(searchResponse);
     }
 
@@ -195,6 +196,7 @@ class ScrollDataExtractor implements DataExtractor {
                 throw searchExecutionException;
             }
         }
+        LOGGER.debug("[{}] Search response was obtained", context.jobId);
         return processSearchResponse(searchResponse);
     }
 

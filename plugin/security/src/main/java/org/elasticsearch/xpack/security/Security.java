@@ -264,6 +264,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
     private final XPackExtensionsService extensionsService;
+    private final List<SecurityExtension> securityExtensions = new ArrayList<>();
+
 
     public Security(Settings settings, final Path configPath) {
         this.settings = settings;
@@ -350,15 +352,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         try {
 
             return createComponents(client, threadPool, clusterService, resourceWatcherService,
-                    extensionsService.getExtensions());
+                    extensionsService.getExtensions().stream().collect(Collectors.toList()));
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
     }
 
-    public Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
+    // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
+    Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                                ResourceWatcherService resourceWatcherService,
-                                               List<XPackExtension> extensions) throws Exception {
+                                               List<SecurityExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -411,7 +414,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityLifecycleService));
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : securityExtensions) {
+            extensions.add(extension);
+        }
+        for (SecurityExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
@@ -427,14 +433,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : extensions) {
             AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
             if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.name() + "] " +
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
                     "both set an authentication failure handler");
             }
             failureHandler = extensionFailureHandler;
-            extensionName = extension.name();
+            extensionName = extension.toString();
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
@@ -451,7 +457,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityLifecycleService);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
-        for (XPackExtension extension : extensions) {
+        for (SecurityExtension extension : extensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
@@ -1042,5 +1048,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 }
             }
         }
+    }
+
+    @Override
+    public void reloadSPI(ClassLoader loader) {
+        securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
     }
 }

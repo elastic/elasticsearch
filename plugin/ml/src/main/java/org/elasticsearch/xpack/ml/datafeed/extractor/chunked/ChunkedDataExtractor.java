@@ -117,6 +117,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 .addAggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
 
         SearchResponse response = executeSearchRequest(searchRequestBuilder);
+        LOGGER.debug("[{}] Data summary response was obtained", context.jobId);
 
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
 

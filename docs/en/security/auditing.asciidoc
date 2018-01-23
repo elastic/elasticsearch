@@ -304,7 +304,7 @@ The format of a log entry is:
 `<local_node_info>` ::      Information about the local node that generated
                             the log entry. You can control what node information
                             is included by configuring the
-                            <<audit-log-entry-local-node-info, local node info settings>>.
+                            {ref}/auditing-settings.html#node-audit-settings[local node info settings].
 `<layer>`           ::      The layer from which this event originated:
                             `rest`, `transport` or `ip_filter`.
 `<entry_type>`      ::       The type of event that occurred: `anonymous_access_denied`,
@@ -321,34 +321,12 @@ The format of a log entry is:
 === Logfile Output Settings
 
 The events and some other information about what gets logged can be
-controlled using settings in the `elasticsearch.yml` file.
-
-.Audited Event Settings
-[cols="4,^2,4",options="header"]
-|======
-| Name                                                   | Default   | Description
-| `xpack.security.audit.logfile.events.include`          | `access_denied`, `access_granted`, `anonymous_access_denied`, `authentication_failed`, `connection_denied`, `tampered_request`, `run_as_denied`, `run_as_granted` | Includes the specified events in the output.
-| `xpack.security.audit.logfile.events.exclude`          |           | Excludes the specified events from the output.
-| `xpack.security.audit.logfile.events.emit_request_body`| false     | Include or exclude the request body from REST requests
-                                                                       on certain event types such as `authentication_failed`.
-|======
-
+controlled using settings in the `elasticsearch.yml` file. See
+{ref}/auditing-settings.html#event-audit-settings[Audited Event Settings] and
+{ref}/auditing-settings.html#node-audit-settings[Local Node Info Settings].
 
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
-
-[[audit-log-entry-local-node-info]]
-.Local Node Info Settings
-[cols="4,^2,4",options="header"]
-|======
-| Name                                                   | Default   | Description
-| `xpack.security.audit.logfile.prefix.emit_node_name`           | true      | Include or exclude the node's name
-                                                                               from the local node info.
-| `xpack.security.audit.logfile.prefix.emit_node_host_address`   | false     | Include or exclude the node's IP address
-                                                                               from the local node info.
-| `xpack.security.audit.logfile.prefix.emit_node_host_name`      | false     | Include or exclude the node's host name
-                                                                               from the local node info.
-|======
 
 [[logging-file]]
 You can also configure how the logfile is written in the `log4j2.properties`
@@ -450,19 +428,8 @@ in the `elasticsearch.yml` file:
 xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
-.Audit Log Indexing Configuration
-[options="header"]
-|======
-| Attribute                           | Default Setting | Description
-| `xpack.security.audit.index.bulk_size`      | `1000`          | Controls how many audit events are batched into a single write.
-| `xpack.security.audit.index.flush_interval` | `1s`            | Controls how often buffered events are flushed to the index.
-| `xpack.security.audit.index.rollover`       | `daily`         | Controls how often to roll over to a new index:
-                                                                  `hourly`, `daily`, `weekly`, or `monthly`.
-| `xpack.security.audit.index.events.include` | `anonymous_access_denied`, `authentication_failed`, `realm_authentication_failed`, `access_granted`, `access_denied`, `tampered_request`, `connection_granted`, `connection_denied`, `run_as_granted`, `run_as_denied` | The audit events to be indexed. See <<audit-event-types, Audit Entry Types>> for the complete list.
-| `xpack.security.audit.index.events.exclude` |  | The audit events to exclude from indexing.
-| `xpack.security.audit.index.events.emit_request_body`| false   | Include or exclude the request body from REST requests
-                                                                   on certain event types such as `authentication_failed`.
-|======
+For more configuration options, see
+{ref}/auditing-settings.html#index-audit-settings[Audit Log Indexing Configuration Settings].
 
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
@@ -487,18 +454,14 @@ xpack.security.audit.index.settings:
 ==== Forwarding Audit Logs to a Remote Cluster
 
 To index audit events to a remote Elasticsearch cluster, you configure
-the following `xpack.security.audit.index.client` settings.
+the following `xpack.security.audit.index.client` settings:
 
-.Remote Audit Log Indexing Configuration
-[options="header"]
-|======
-| Attribute                                                 | Description
-| `xpack.security.audit.index.client.hosts`                 | Comma-separated list of `host:port` pairs. These hosts
-                                                              should be nodes in the remote cluster.
-| `xpack.security.audit.index.client.cluster.name`          | The name of the remote cluster.
-| `xpack.security.audit.index.client.xpack.security.user`   | The `username:password` pair to use to authenticate with
-                                                              the remote cluster.
-|======
+* `xpack.security.audit.index.client.hosts`
+* `xpack.security.audit.index.client.cluster.name`
+* `xpack.security.audit.index.client.xpack.security.user`
+
+For more information about these settings, see
+{ref}/auditing-settings.html#remote-audit-settings[Remote Audit Log Indexing Configuration Settings].
 
 You can pass additional settings to the remote client by specifying them in the
 `xpack.security.audit.index.client` namespace. For example, to allow the remote

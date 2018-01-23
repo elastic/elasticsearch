@@ -152,7 +152,7 @@
         calendar_id: "mayan"
 
   - do:
-      catch: /version_conflict_engine_exception/
+      catch: bad_request
       xpack.ml.put_calendar:
         calendar_id: "mayan"
 
@@ -237,6 +237,8 @@
       xpack.ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "tiger"
+  - match: { calendar_id: "wildlife" }
+  - length: { job_ids: 0 }
 
   - do:
       xpack.ml.get_calendars:

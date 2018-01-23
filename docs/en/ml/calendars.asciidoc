@@ -9,10 +9,15 @@ The {ml} model is not ill-affected and you do not receive spurious results.
 You can create calendars and scheduled events in the **Settings** pane on the
 **Machine Learning** page in {kib} or by using {ref}/ml-apis.html[{ml} APIs].
 
-A scheduled event must have a start time, end time, and description. You can
-identify zero or more scheduled events in a calendar. Jobs can then subscribe to
-calendars and the {ml} analytics handle all subsequent scheduled events
-appropriately.
+A scheduled event must have a start time, end time, and description. In general,
+scheduled events are short in duration (typically lasting from a few hours to a
+day) and occur infrequently. If you have regularly occurring events, such as
+weekly maintenance periods, you do not need to create scheduled events for these
+circumstances; they are already handled by the {ml} analytics.
+
+You can identify zero or more scheduled events in a calendar. Jobs can then
+subscribe to calendars and the {ml} analytics handle all subsequent scheduled
+events appropriately.
 
 If you want to add multiple scheduled events at once, you can import an
 iCalendar (`.ics`) file in {kib} or a JSON file in the
@@ -21,8 +26,16 @@ add events to calendar API
 //]
 .
 
-NOTE: Bucket results are generated during scheduled events but they have an
+[NOTE]
+--
+
+* If your iCalendar file contains recurring events, only the first occurrence is
+imported.
+* Bucket results are generated during scheduled events but they have an
 anomaly score of zero. For more information about bucket results, see
 {ref}/ml-results-resource.html[Results Resources].
+* If you use long or frequent scheduled events, it might take longer for the
+{ml} analytics to learn to model your data and some anomalous behavior might be
+missed.
 
-//TO-DO: Add screenshot showing special events in Single Metric Viewer?
+--

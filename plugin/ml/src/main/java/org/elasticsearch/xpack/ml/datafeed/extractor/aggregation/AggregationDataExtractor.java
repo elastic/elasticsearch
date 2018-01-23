@@ -99,8 +99,8 @@ class AggregationDataExtractor implements DataExtractor {
 
     private Aggregations search() throws IOException {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
+        LOGGER.debug("[{}] Search response was obtained", context.jobId);
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return validateAggs(searchResponse.getAggregations());
     }

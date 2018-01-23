@@ -51,7 +51,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
                        .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, false)
-//                       .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+                       .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                        .build();
     }

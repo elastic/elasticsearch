@@ -74,7 +74,7 @@ public class ReservedRolesStore {
                         null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
-                        new String[] { "monitor", "manage_index_templates", MonitoringBulkAction.NAME },
+                        new String[] { "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()

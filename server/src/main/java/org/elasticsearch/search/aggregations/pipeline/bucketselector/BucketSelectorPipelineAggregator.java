@@ -90,7 +90,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
             }
-            bucketsPathsMap.forEach((varName, bucketsPath) -> vars.put(varName, BucketHelpers.getBucketPropertyValue(originalAgg, bucket, bucketsPath)));
+            bucketsPathsMap.forEach((varName, bucketsPath) -> vars.put(varName,
+                BucketHelpers.getBucketPropertyValue(originalAgg, bucket, bucketsPath)));
             // TODO: can we use one instance of the script for all buckets? it should be stateless?
             ExecutableScript executableScript = factory.newInstance(vars);
             Object scriptReturnValue = executableScript.run();

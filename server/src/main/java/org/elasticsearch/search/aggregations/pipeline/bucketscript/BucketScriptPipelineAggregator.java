@@ -97,7 +97,8 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
             }
-            bucketsPathsMap.forEach((varName, bucketsPath) -> vars.put(varName, BucketHelpers.getBucketPropertyValue(originalAgg, bucket, bucketsPath)));
+            bucketsPathsMap.forEach((varName, bucketsPath) -> vars.put(
+                varName, BucketHelpers.getBucketPropertyValue(originalAgg, bucket, bucketsPath)));
             ExecutableScript executableScript = factory.newInstance(vars);
             Object returned = executableScript.run();
             if (returned == null) {

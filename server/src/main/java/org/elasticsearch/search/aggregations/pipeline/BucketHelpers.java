@@ -159,23 +159,16 @@ public class BucketHelpers {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             }
+            boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
+            if (GapPolicy.SKIP == gapPolicy && bucket.getDocCount() == 0 && !isDocCountProperty) {
+                return Double.NaN;
+            }
+
             double value = getBucketPropertyValue(agg, bucket, aggPathAsList);
             if (Double.isFinite(value)) {
                 return value;
             }
-            // doc count never has missing values so gap policy doesn't apply here
-            boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-            if (bucket.getDocCount() == 0 && !isDocCountProperty) {
-                switch (gapPolicy) {
-                case INSERT_ZEROS:
-                    return 0.0;
-                case SKIP:
-                default:
-                    return Double.NaN;
-                }
-            } else {
-                return value;
-            }
+            return GapPolicy.INSERT_ZEROS == gapPolicy ? 0.0 : Double.NaN;
         } catch (InvalidAggregationPathException e) {
             return null;
         }

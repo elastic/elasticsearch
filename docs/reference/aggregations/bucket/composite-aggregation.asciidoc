@@ -225,7 +225,41 @@ Note that fractional time values are not supported, but you can address this by 
 time unit (e.g., `1.5h` could instead be specified as `90m`).
 
 [float]
-===== Time Zone
+====== Format
+
+Internally, a date is represented as a 64 bit number representing a timestamp in milliseconds-since-the-epoch.
+These timestamps are returned as the bucket keys. It is possible to return a formatted date string instead using
+the format specified with the format parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "date": {
+                            "date_histogram" : {
+                                "field": "timestamp",
+                                "interval": "1d",
+                                "format": "yyyy-MM-dd" <1>
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Supports expressive date <<date-format-pattern,format pattern>>
+
+[float]
+====== Time Zone
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate

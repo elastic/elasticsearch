@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -67,6 +68,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CompositeAggregatorTests extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
@@ -759,6 +763,89 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
+    }
+
+    public void testWithDateHistogramAndFormat() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("date", asLong("2017-10-20T03:08:45")),
+                createDocument("date", asLong("2016-09-20T09:00:34")),
+                createDocument("date", asLong("2016-09-20T11:34:00")),
+                createDocument("date", asLong("2017-10-20T06:09:24")),
+                createDocument("date", asLong("2017-10-19T06:09:24")),
+                createDocument("long", 4L)
+            )
+        );
+        final Sort sort = new Sort(new SortedNumericSortField("date", SortField.Type.LONG));
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                    .field("date")
+                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .format("yyyy-MM-dd");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
+            },
+            (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=2016-09-20}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=2017-10-19}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{date=2017-10-20}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        testSearchCase(new MatchAllDocsQuery(), sort, dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                    .field("date")
+                    .dateHistogramInterval(DateHistogramInterval.days(1))
+                    .format("yyyy-MM-dd");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                    .aggregateAfter(createAfterKey("date", "2016-09-20"));
+
+            }, (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{date=2017-10-19}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=2017-10-20}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+    }
+
+    public void testThatDateHistogramFailsFormatAfter() throws IOException {
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
+            () -> testSearchCase(new MatchAllDocsQuery(), null, Collections.emptyList(),
+                () -> {
+                    DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                        .field("date")
+                        .dateHistogramInterval(DateHistogramInterval.days(1))
+                        .format("yyyy-MM-dd");
+                    return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                        .aggregateAfter(createAfterKey("date", "now"));
+                },
+                (result) -> {}
+        ));
+        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exc.getCause().getMessage(), containsString("now() is not supported in [after] key"));
+
+        exc = expectThrows(ElasticsearchParseException.class,
+            () -> testSearchCase(new MatchAllDocsQuery(), null, Collections.emptyList(),
+                () -> {
+                    DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                        .field("date")
+                        .dateHistogramInterval(DateHistogramInterval.days(1))
+                        .format("yyyy-MM-dd");
+                    return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                        .aggregateAfter(createAfterKey("date", "1474329600000"));
+                },
+                (result) -> {}
+            ));
+        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exc.getCause().getMessage(), containsString("Parse failure"));
     }
 
     public void testWithDateHistogramAndTimeZone() throws IOException {

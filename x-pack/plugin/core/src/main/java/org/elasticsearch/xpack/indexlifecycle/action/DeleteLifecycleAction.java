@@ -109,7 +109,7 @@ public class DeleteLifecycleAction
             this.policyName = policyName;
         }
 
-        Request() {
+        public Request() {
         }
 
         public String getPolicyName() {

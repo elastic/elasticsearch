@@ -29,11 +29,12 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -102,8 +103,9 @@ public class WatchParser extends AbstractComponent {
         XContentParser parser = null;
         try {
             // EMPTY is safe here because we never use namedObject
-            parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source),
-                    new HaltedClock(now), withSecrets ? cryptoService : null);
+            Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+            parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source), fixedClock,
+                    withSecrets ? cryptoService : null);
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {

@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.calendars.Calendar;
@@ -39,6 +39,6 @@ public class RestDeleteCalendarJobAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         UpdateCalendarJobAction.Request request =
                 new UpdateCalendarJobAction.Request(calendarId, Collections.emptySet(), Collections.singleton(jobId));
-        return channel -> client.execute(UpdateCalendarJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(UpdateCalendarJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -14,6 +14,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the day of the year from a datetime.
+ */
 public class DayOfYear extends DateTimeFunction {
     public DayOfYear(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

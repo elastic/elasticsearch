@@ -13,19 +13,22 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
-public class WeekOfWeekYear extends DateTimeFunction {
-    public WeekOfWeekYear(Location location, Expression field, DateTimeZone timeZone) {
+/**
+ * Extract the week of the year from a datetime.
+ */
+public class WeekOfYear extends DateTimeFunction {
+    public WeekOfYear(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);
     }
 
     @Override
     protected NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo() {
-        return WeekOfWeekYear::new;
+        return WeekOfYear::new;
     }
 
     @Override
-    protected WeekOfWeekYear replaceChild(Expression newChild) {
-        return new WeekOfWeekYear(location(), newChild, timeZone());
+    protected WeekOfYear replaceChild(Expression newChild) {
+        return new WeekOfYear(location(), newChild, timeZone());
     }
 
     @Override

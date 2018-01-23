@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the minute of the day from a datetime.
+ */
 public class MinuteOfDay extends DateTimeFunction {
 
     public MinuteOfDay(Location location, Expression field, DateTimeZone timeZone) {

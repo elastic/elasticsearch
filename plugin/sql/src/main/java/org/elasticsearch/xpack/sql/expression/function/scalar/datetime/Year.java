@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the year from a datetime.
+ */
 public class Year extends DateTimeHistogramFunction {
     public Year(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfD
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -109,6 +110,7 @@ public class FunctionRegistry {
             def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
             def(Year.class, Year::new),
+            def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),

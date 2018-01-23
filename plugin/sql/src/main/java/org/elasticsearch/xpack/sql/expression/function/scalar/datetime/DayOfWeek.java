@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the day of the week from a datetime. 1 is Monday, 2 is Tuesday, etc.
+ */
 public class DayOfWeek extends DateTimeFunction {
     public DayOfWeek(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

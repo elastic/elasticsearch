@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the day of the month from a datetime.
+ */
 public class DayOfMonth extends DateTimeFunction {
     public DayOfMonth(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

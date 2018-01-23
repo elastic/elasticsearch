@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the month of the year from a datetime.
+ */
 public class MonthOfYear extends DateTimeFunction {
     public MonthOfYear(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

@@ -166,9 +166,110 @@ d:i                  | c:l                  | s:i
 
 constantYear
 // tag::year
-SELECT YEAR(CAST('2018-01-19T10:23:27Z' AS TIMESTAMP)) as year;
+SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
+
      year
 ---------------
 2018
 // end::year
+;
+
+constantMonthOfYear
+// tag::monthOfYear
+SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+2
+// end::monthOfYear
+;
+
+constantWeekOfYear
+// tag::weekOfYear
+SELECT WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+
+     week
+---------------
+8
+// end::weekOfYear
+;
+
+constantDayOfYear
+// tag::dayOfYear
+SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::dayOfYear
+;
+
+extractDayOfYear
+// tag::extractDayOfYear
+SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::extractDayOfYear
+;
+
+constantDayOfMonth
+// tag::dayOfMonth
+SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+19
+// end::dayOfMonth
+;
+
+constantDayOfWeek
+// tag::dayOfWeek
+SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+1
+// end::dayOfWeek
+;
+
+constantHourOfDay
+// tag::hourOfDay
+SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
+
+     hour
+---------------
+10
+// end::hourOfDay
+;
+
+constantMinuteOfDay
+// tag::minuteOfDay
+SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+623
+// end::minuteOfDay
+;
+
+constantMinuteOfHour
+// tag::minuteOfHour
+SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+23
+// end::minuteOfHour
+;
+
+constantSecondOfMinute
+// tag::secondOfMinute
+SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
+
+    second
+---------------
+27
+// end::secondOfMinute
 ;

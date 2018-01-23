@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Exract the minute of the hour from a datetime.
+ */
 public class MinuteOfHour extends DateTimeFunction {
     public MinuteOfHour(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

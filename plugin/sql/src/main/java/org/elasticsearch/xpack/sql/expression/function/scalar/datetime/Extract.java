@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
@@ -27,7 +26,7 @@ public enum Extract {
     WEEK {
         @Override
         public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
-            return new WeekOfWeekYear(source, argument, timeZone);
+            return new WeekOfYear(source, argument, timeZone);
         }
     },
     DAY {

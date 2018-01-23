@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the hour of the day from a datetime.
+ */
 public class HourOfDay extends DateTimeFunction {
     public HourOfDay(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

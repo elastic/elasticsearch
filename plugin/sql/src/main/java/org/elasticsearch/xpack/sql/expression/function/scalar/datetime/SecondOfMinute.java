@@ -13,6 +13,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
 
+/**
+ * Extract the second of the minute from a datetime.
+ */
 public class SecondOfMinute extends DateTimeFunction {
     public SecondOfMinute(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field, timeZone);

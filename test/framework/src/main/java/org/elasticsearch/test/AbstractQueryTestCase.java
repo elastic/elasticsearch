@@ -1083,12 +1083,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         OBJECT_FIELD_NAME, "type=object",
                         GEO_POINT_FIELD_NAME, "type=geo_point",
                         GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-                ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+                ).string()), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
                                 + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
                                 INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                        MapperService.MergeReason.MAPPING_UPDATE, false);
+                        MapperService.MergeReason.MAPPING_UPDATE);
             }
             testCase.initializeAdditionalMappings(mapperService);
         }

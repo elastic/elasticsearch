@@ -57,7 +57,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().string();
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
 
         // Doc without join
@@ -106,7 +106,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().string();
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "2",
             XContentFactory.jsonBuilder().startObject()
                 .startObject("join_field")
@@ -141,7 +141,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().string();
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
 
         // Doc without join
@@ -221,7 +221,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         IndexService indexService = createIndex("test");
         DocumentMapper docMapper = indexService.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
 
         {
@@ -235,7 +235,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE, false));
+                    MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot remove parent [parent] in join field [join_field]"));
         }
 
@@ -251,7 +251,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE, false));
+                    MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot remove child [grand_child2] in join field [join_field]"));
         }
 
@@ -268,7 +268,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE, false));
+                    MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot create child [parent] from an existing parent"));
         }
 
@@ -285,7 +285,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE, false));
+                    MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot create parent [grand_child2] from an existing child]"));
         }
 
@@ -300,7 +300,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
             docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                MapperService.MergeReason.MAPPING_UPDATE, true);
+                MapperService.MergeReason.MAPPING_UPDATE);
             assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
             assertTrue(mapper.hasChild("child2"));
@@ -321,7 +321,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
             docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                MapperService.MergeReason.MAPPING_UPDATE, true);
+                MapperService.MergeReason.MAPPING_UPDATE);
             assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
             assertTrue(mapper.hasParent("other"));
@@ -349,7 +349,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         MapperParsingException exc = expectThrows(MapperParsingException.class,
             () -> indexService.mapperService().merge("type", new CompressedXContent(mapping),
-                MapperService.MergeReason.MAPPING_UPDATE, false));
+                MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(exc.getRootCause().getMessage(),
             containsString("join field [object.join_field] cannot be added inside an object or in a multi-field"));
     }
@@ -371,7 +371,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         MapperParsingException exc = expectThrows(MapperParsingException.class,
             () -> indexService.mapperService().merge("type", new CompressedXContent(mapping),
-                MapperService.MergeReason.MAPPING_UPDATE, false));
+                MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(exc.getRootCause().getMessage(),
             containsString("join field [number.join_field] cannot be added inside an object or in a multi-field"));
     }
@@ -397,7 +397,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().string();
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false));
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice in [type]"));
         }
 
@@ -414,7 +414,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().string();
             indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
             String updateMapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("another_join_field")
@@ -423,7 +423,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().string();
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
-                new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE, false));
+                new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice in [type]"));
         }
     }
@@ -442,7 +442,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().string();
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
         assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#parent"));
@@ -463,7 +463,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().string();
         service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#parent"));
         assertFalse(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());

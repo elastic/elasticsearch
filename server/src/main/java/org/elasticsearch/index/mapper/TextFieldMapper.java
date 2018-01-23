@@ -129,12 +129,15 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
-            if (minChars > maxChars)
+            if (minChars > maxChars) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
-            if (minChars < 1)
+            }
+            if (minChars < 1) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
-            if (maxChars >= 20)
+            }
+            if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
+            }
             this.prefixFieldType = new PrefixFieldType(name() + "._index_prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
@@ -152,11 +155,11 @@ public class TextFieldMapper extends FieldMapper {
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            PrefixFieldMapper prefixMapper = prefixFieldType == null ? null
-                : new PrefixFieldMapper(prefixFieldType.setAnalyzer(fieldType.indexAnalyzer()), context.indexSettings());
             if (prefixFieldType != null && fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("Cannot set index_prefix on unindexed field [" + name() + "]");
             }
+            PrefixFieldMapper prefixMapper = prefixFieldType == null ? null
+                : new PrefixFieldMapper(prefixFieldType.setAnalyzer(fieldType.indexAnalyzer()), context.indexSettings());
             return new TextFieldMapper(
                     name, fieldType, defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
@@ -275,6 +278,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String toString() {
+            return super.toString() + ",prefixChars=" + minChars + ":" + maxChars;
+        }
+
+        @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
             super.checkCompatibility(other, conflicts, strict);
             PrefixFieldType otherFieldType = (PrefixFieldType) other;
@@ -310,6 +318,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected String contentType() {
             return "prefix";
+        }
+
+        @Override
+        public String toString() {
+            return fieldType().toString();
         }
     }
 

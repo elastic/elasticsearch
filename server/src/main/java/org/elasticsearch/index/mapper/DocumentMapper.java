@@ -296,8 +296,8 @@ public class DocumentMapper implements ToXContentFragment {
         return mapperService.getParentTypes().contains(type);
     }
 
-    public DocumentMapper merge(Mapping mapping, boolean updateAllTypes) {
-        Mapping merged = this.mapping.merge(mapping, updateAllTypes);
+    public DocumentMapper merge(Mapping mapping) {
+        Mapping merged = this.mapping.merge(mapping);
         return new DocumentMapper(mapperService, merged);
     }
 

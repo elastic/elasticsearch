@@ -353,7 +353,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().preparePutMapping("index")
                 .setType("type1")
-                .setUpdateAllTypes(true)
                 .setSource("f", "type=keyword,null_value=n/a")
                 .get());
 

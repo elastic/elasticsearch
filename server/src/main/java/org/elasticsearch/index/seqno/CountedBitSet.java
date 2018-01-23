@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -28,7 +27,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * when all bits are set to reduce memory usage. This structure can work well for sequence numbers as
  * these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
-public final class CountedBitSet extends BitSet {
+public final class CountedBitSet {
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
@@ -41,14 +40,12 @@ public final class CountedBitSet extends BitSet {
         this.bitset = new FixedBitSet(numBits);
     }
 
-    @Override
     public boolean get(int index) {
         assert 0 <= index && index < this.length();
         assert bitset == null || onBits < bitset.length() : "Bitset should be released when all bits are set";
         return bitset == null ? true : bitset.get(index);
     }
 
-    @Override
     public void set(int index) {
         assert 0 <= index && index < this.length();
         assert bitset == null || onBits < bitset.length() : "Bitset should be released when all bits are set";
@@ -67,39 +64,14 @@ public final class CountedBitSet extends BitSet {
         }
     }
 
-    @Override
-    public void clear(int startIndex, int endIndex) {
-        throw new UnsupportedOperationException();
-    }
+    // Below methods are pkg-private for testing
 
-    @Override
-    public void clear(int index) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int cardinality() {
+    int cardinality() {
         return onBits;
     }
 
-    @Override
-    public int length() {
+    int length() {
         return bitset == null ? onBits : bitset.length();
-    }
-
-    @Override
-    public int prevSetBit(int index) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int nextSetBit(int index) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + (bitset == null ? 0 : bitset.ramBytesUsed());
     }
 
     boolean isInternalBitsetReleased() {
